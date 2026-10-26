@@ -1,0 +1,47 @@
+{
+  "passed": true,
+  "exit_code": 0,
+  "scope": "new actual owner functions and extracted actual DWC UDC stop/core_exit/pm_prepare; fake OS/component/bus boundaries; no real gate/hardware proof",
+  "cases": [
+    "1 default property absent: no owner/notifier/MMIO additions",
+    "2 real notifier worker + backend: missing PD/route/lifetime gate gives zero begin/write",
+    "3 transient stable-read failure neither invents sample nor consumes attempt",
+    "4 pause fences late notifier before join; independent PM fences balance",
+    "5 unregister exact identity + synchronous join before provider invalidation",
+    "6 direct component entry failure receipts unwind in inverse order, partial cookies included",
+    "7 cancellation between component calls prevents next begin",
+    "8 actual UDC stop: PHY restore, DWC cancel/shutdown/free_irq, EUD restore; no DWC reconnect",
+    "9 failed PHY restoration retains downstream quiet and reports error independently",
+    "10 UDC stop/rebind never rearms; only fresh physical off/on starts new epoch",
+    "11 actual core_exit joins/fences before event/PHY/clocks/reset teardown",
+    "12 actual system prepare joins before its original DWC PM gate",
+    "13 teardown failure remains orphaned, never restored, no stale MMIO retry or rebind"
+  ],
+  "files": {
+    "samurai-apsd-owner.c": "15025364e5fe88e968225036d915be210c5b701f974199af4ecd47ecd652c974",
+    "samurai-apsd-owner.h": "110997f3173548e2c141c991ac46a71c8ed3b94f04bc593c61266dddbc94a9f1",
+    "samurai-apsd-backend.h": "00d5659e8028a18be6f9db990cb9221af8475cf434693e3b995612f04f6cee94",
+    "core.c": "367ed2add81b3739cae458fe6181ffde7f143eaaa49d35ee2c25583b32ed0096",
+    "core.h": "2052687246a772d45d255cec8cbc753f798b76448dc64c4c5570e3790193a64f",
+    "gadget.c": "672c361c98c1f2e1917eefb7c4c9a8c67f6639185a674da1cf8ac29470acaba8",
+    "test-owner.py": "5532cc67d01d68b516d53b5426382d47e89aa4277f128e00a183f2335f4fb61e",
+    "test-fixture.c": "3d690d5b416e84b546137242674b5ca63e592634d50774b516c49f44a7344fe2"
+  },
+  "actual_fixture_sha256": "a33942aa6c745dc972aed1d652aaaa8a32512887a904fd802a0d896b5b1ab039",
+  "compile_command": [
+    "gcc",
+    "-std=gnu11",
+    "-g",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-Wno-unused-parameter",
+    "-fsanitize=address,undefined",
+    "-fno-omit-frame-pointer",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/apsd-session-owner-candidate/test-private/actual-owner.c",
+    "-o",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/apsd-session-owner-candidate/test-private/test-owner"
+  ],
+  "old_suites_rerun": false,
+  "device_accessed": false
+}

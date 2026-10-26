@@ -1,0 +1,20 @@
+from pathlib import Path
+import ast,difflib,hashlib,json,subprocess
+ref=Path(__file__).resolve().parent;k=Path('/home/cy122/pmos-samurai-kernel136/kernel');out=Path('/mnt/e/edk2-samurai-out/kernel195');sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
+prior=json.loads((ref.parent/'kernel194/source-final-validation.json').read_text())['source_sha256'];changed=['drivers/mfd/qcom-pm8008.c','drivers/of/Kconfig','drivers/of/Makefile'];assert all(sha(k/n)==h for n,h in prior.items() if n not in changed)
+previous16=json.loads((ref.parent/'kernel194/imx471-source-validation.json').read_text())['prior16_tracked_sources'];previous14={n:h for n,h in previous16.items() if n not in ['drivers/of/Kconfig','drivers/of/Makefile']};assert len(previous14)==14 and all(sha(k/n)==h for n,h in previous14.items())
+assert sha(k/'.config')=='55f1f0a35bd4f20ad70ebd383a8863e05d0b6d53a07c0f0f09fb47cee057913a' and sha(k/'arch/arm64/boot/Image')=='bfa72dd920c8376ceefc458fe7202a73ddb364b6727556471d70c8d0e7ade469' and sha(k/'arch/arm64/boot/dts/qcom/sm8150-samurai.dtb')=='22c1f2ad3c54c52f181c43d343840dc026a05aab499c8fac13dc2476ddded9d3'
+assert len((k/'Module.symvers').read_text().splitlines())==16793 and len((k/'modules.order').read_text().splitlines())==770
+old=(out/'qcom-pm8008-before195-private.c').read_text();new=(k/'drivers/mfd/qcom-pm8008.c').read_text();incremental='diff --git a/drivers/mfd/qcom-pm8008.c b/drivers/mfd/qcom-pm8008.c\n'+''.join(difflib.unified_diff(old.splitlines(True),new.splitlines(True),fromfile='a/drivers/mfd/qcom-pm8008.c',tofile='b/drivers/mfd/qcom-pm8008.c'));(ref/'pm8008-error-reset-recovery.patch').write_text(incremental)
+fields=['drivers/media/i2c/imx471.c','drivers/mfd/qcom-pm8008.c','drivers/of/Kconfig','drivers/of/Makefile'];patch=subprocess.check_output(['git','diff','--',*fields],cwd=k,text=True)
+helpers=['drivers/of/'+n+'.c' for n in ['samurai-cci-bringup','samurai-front-identify','samurai-pmic-fixture','samurai-vio-phandle']]
+for name in helpers:
+ d=subprocess.run(['git','diff','--no-index','--','/dev/null',str(k/name)],capture_output=True,text=True);assert d.returncode==1;patch+=d.stdout.replace('b'+str(k)+'/', 'b/').replace('a'+str(k)+'/', 'a/')
+p=ref/'camera-development-code.patch';p.write_text(patch);subprocess.run(['git','apply','--reverse','--check',str(p)],cwd=k,check=True,capture_output=True)
+checks={}
+for p in [p,ref/'pm8008-error-reset-recovery.patch']:
+ c=subprocess.run(['perl',str(k/'scripts/checkpatch.pl'),'--no-tree','--strict','--ignore','FILE_PATH_CHANGES','-'],input=p.read_text(),capture_output=True,text=True);(out/(p.name+'-checkpatch-private.log')).write_text(c.stdout+c.stderr);assert c.returncode==0,c.stdout;checks[p.name]=0
+for p in ref.glob('*.py'):ast.parse(p.read_text(),filename=str(p))
+for p in ref.glob('*.json'):json.loads(p.read_text())
+r=dict(stage=195,source_sha256={n:sha(k/n) for n in fields+helpers},previous_unrelated_sources_unchanged=True,prior14_tracked_sources_unchanged=True,tracked_modified_files=19,new_camera_files=5,patch_sha256=hashlib.sha256(patch.encode()).hexdigest(),reverse_apply_check_passed=True,checkpatch_exit=checks,image_dtb_config_unchanged=True,full_symbols_and_module_order_restored=True,helpers_default_disabled=True,production_sensor_driver_unchanged_from194=True,physical_image_capture_complete=False)
+(ref/'source-final-validation.json').write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r))

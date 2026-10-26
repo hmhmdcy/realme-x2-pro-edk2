@@ -1,0 +1,71 @@
+{
+  "passed": true,
+  "actual_result": {
+    "passed": true,
+    "actual_function_cases": 20,
+    "real_pthread_block_and_cancel_join": true,
+    "old_transient_reauthorization_reproduced": true,
+    "new_join_before_provider_resume": true
+  },
+  "asan_ubsan": true,
+  "real_pthreads": true,
+  "commands": [
+    {
+      "label": "compile",
+      "argv": [
+        "gcc",
+        "-std=c11",
+        "-O1",
+        "-g",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-pthread",
+        "-Wno-unused-parameter",
+        "-fsanitize=address,undefined",
+        "-fno-omit-frame-pointer",
+        "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/dwc-vbus-budget-fence-candidate/test-budget.c",
+        "-o",
+        "/home/cy122/charging-management-20261023/dwc-vbus-budget-fence-tests-02/test-budget"
+      ],
+      "pid": 761,
+      "terminal": true,
+      "returncode": 0,
+      "seconds": 0.8470489309999962,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "test",
+      "argv": [
+        "/home/cy122/charging-management-20261023/dwc-vbus-budget-fence-tests-02/test-budget"
+      ],
+      "pid": 770,
+      "terminal": true,
+      "returncode": 0,
+      "seconds": 0.019110355999998774,
+      "stdout_sha256": "0386e1978540d725d505539b94aecda83e8f581f389c54d11dcf022a3b5e534c",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "compile_only_attempt01_preserved": "test-attempt-01-result.json",
+  "unused_parameter_warning_disabled": "matches kernel policy; original unchanged notifier event argument is unused",
+  "tested_files": {
+    "core.c": "6c8e5e33cc890afcfafbcbe2d339164a590edc0024fe41d3178f90f410790e20",
+    "core.h": "e2a21d2edaf0b48b91e77dc257287516e009859981c0370f747afd9898fbdb79",
+    "gadget.c": "228caf6f2dd3bfcec12fb1ec22b1f72eb1d5b02520d7917393a094a4ffab6fbf",
+    "budget-work.c.inc": "6c35860e6fb8909b1722d32392cfa84079ac7eed811d2030b04356d54e724fb5",
+    "actual-budget-core.inc": "a79f22372f94dc5a52c5e500adc3bd07b4753e44964eb326b38f235c3c3c5d4d",
+    "actual-budget-gadget.inc": "573f70fc8cdea6c8bfb47ee86896a840c2c34e147d252e1b8a5050ccf9d07860",
+    "actual-old-worker.inc": "e1f7c4a2ec4f4fee030b4b2fd2256400f64df3201353f063abfb61ee0690522f",
+    "actual-old-pm.inc": "fc3848f21e129e5a2fc294faca833c6e346fd6a9904cdb1171acb807eb329b6e",
+    "actual-provider.inc": "0bf535cdf30aacbeb7566b8628065275f7264fb77a10d05ac0b833de31d4ba1d",
+    "test-budget.c": "4a410326f643860139f48288c9b81bf0509802872cdd13ffeb10bbfc4d911161",
+    "run-tests.py": "9616bf34805f0d1a04b1638f48c4aede84866089a6d00625323bd52fcd960abb"
+  },
+  "private_binary": "/home/cy122/charging-management-20261023/dwc-vbus-budget-fence-tests-02/test-budget",
+  "private_binary_sha256": "fca434133e4d64763253f63e1497585bbd096f335b54c66b9a86d739acc26765",
+  "scope": "actual old/new budget and system-PM wrapper functions plus actual provider setter/PM; real blocked worker thread and pthread join; discovery/workqueue/PSY and hardware are fake; no real system PM or kernel async execution",
+  "old_suites_rerun": false,
+  "device_SDK_build_or_shared_tree_accessed": false
+}

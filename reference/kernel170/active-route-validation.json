@@ -1,0 +1,69 @@
+{
+  "stage": 170,
+  "kernel_build": 168,
+  "same_boot_as_k169_final": true,
+  "tone_peak_dbfs": -36,
+  "playback_running_twice": true,
+  "playback_hw_ptr_advance": 43680,
+  "hardware_params": "access: RW_INTERLEAVED\nformat: S16_LE\nsubformat: STD\nchannels: 2\nrate: 48000 (48000/1)\nperiod_size: 6240\nbuffer_size: 24960\n",
+  "live_dapm": {
+    "MultiMedia1/state": "[MultiMedia1 - Playback]\nState: start\nHardware Params: Format = S16_LE, Channels = 2, Rate = 48000\nBackends:\n- Quaternary MI2S\n   State: start\n   Hardware Params: Format = S16_LE, Channels = 2, Rate = 48000\n",
+    "dapm/Left Speaker": "Left Speaker: On  in 1 out 1\n widget-type spk\n in  \"static\" \"Left OUT\" \"max98937-samurai.1-0039\"\n",
+    "dapm/Right Speaker": "Right Speaker: On  in 1 out 1\n widget-type spk\n in  \"static\" \"Right OUT\" \"max98937-samurai.1-003a\"\n",
+    "17300000.remoteproc:glink-edge:apr:service@7:dais/dapm/MM_DL1": "MM_DL1: On  in 1 out 2\n stream MultiMedia1 Playback inactive\n widget-type aif_in\n out  \"MultiMedia1\" \"QUAT_MI2S_RX Audio Mixer\" \"17300000.remoteproc:glink-edge:apr:service@8:routing\"\n in  \"static\" \"MultiMedia1 Playback\" \"17300000.remoteproc:glink-edge:apr:service@7:dais\"\n",
+    "17300000.remoteproc:glink-edge:apr:service@8:routing/dapm/QUAT_MI2S_RX Audio Mixer": "QUAT_MI2S_RX Audio Mixer: On  in 1 out 2\n widget-type mixer\n out  \"static\" \"QUAT_MI2S_RX\" \"17300000.remoteproc:glink-edge:apr:service@4:dais\"\n in  \"MultiMedia1\" \"MM_DL1\" \"17300000.remoteproc:glink-edge:apr:service@7:dais\"\n",
+    "17300000.remoteproc:glink-edge:apr:service@4:dais/dapm/Quaternary MI2S Playback": "Quaternary MI2S Playback: On  in 1 out 2\n stream Quaternary MI2S Playback active\n widget-type dai_in\n out  \"static\" \"Right Playback\" \"max98937-samurai.1-003a\"\n out  \"static\" \"Left Playback\" \"max98937-samurai.1-0039\"\n in  \"static\" \"QUAT_MI2S_RX\" \"17300000.remoteproc:glink-edge:apr:service@4:dais\"\n",
+    "max98937-samurai.1-0039/dapm/Left Amp": "Left Amp: On  in 1 out 1\n widget-type pga\n out  \"static\" \"Left OUT\" \"max98937-samurai.1-0039\"\n in  \"static\" \"Left AIFIN\" \"max98937-samurai.1-0039\"\n",
+    "max98937-samurai.1-003a/dapm/Right Amp": "Right Amp: On  in 1 out 1\n widget-type pga\n out  \"static\" \"Right OUT\" \"max98937-samurai.1-003a\"\n in  \"static\" \"Right AIFIN\" \"max98937-samurai.1-003a\"\n"
+  },
+  "live_amp_status": {
+    "1-0039": "id=43 channel=0 global=01 amp=81 raw=00,00,00 powered=1 muted=0 starts=17 stops=16 failed=0\n",
+    "1-003a": "id=43 channel=1 global=01 amp=81 raw=00,00,00 powered=1 muted=0 starts=17 stops=16 failed=0\n"
+  },
+  "live_selected_amp_registers": {
+    "1-0039": {
+      "018": "01",
+      "023": "40",
+      "024": "1c",
+      "025": "42",
+      "026": "08",
+      "027": "85",
+      "028": "80",
+      "029": "00",
+      "036": "2c",
+      "039": "81",
+      "03a": "00",
+      "03b": "51",
+      "04e": "10",
+      "500": "01"
+    },
+    "1-003a": {
+      "018": "02",
+      "023": "40",
+      "024": "1c",
+      "025": "42",
+      "026": "08",
+      "027": "85",
+      "028": "81",
+      "029": "01",
+      "036": "2c",
+      "039": "81",
+      "03a": "00",
+      "03b": "51",
+      "04e": "10",
+      "500": "01"
+    }
+  },
+  "mixer_restored": true,
+  "final_pcm_closed": true,
+  "final_amplifiers_off": true,
+  "taint": 0,
+  "fault_delta": {
+    "warnings": 0,
+    "dma_prepare": 0,
+    "tx_timeout": 0,
+    "resume_failed": 0
+  },
+  "physical_i2s_waveform_and_sound_not_proven": true,
+  "archive_sha256": "423390ed06f61ab3fc6680a0e94efff05c0583155e04f4d96fdd6bf74984bab4"
+}

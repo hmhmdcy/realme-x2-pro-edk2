@@ -1,0 +1,1668 @@
+--- /dev/null
++++ b/src/ipa/libipa/ltm_inverse_gamma.h
+@@ -0,0 +1,16 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++#include <array>
++#include <cstdint>
++
++namespace libcamera::ipa {
++using IfeGammaBaseNodes = std::array<uint16_t, 64>;
++/* LTM has 14-bit bases and signed 14-bit differences. This is not an IFE
++ * Gamma table, despite both engines having 64 segments. */
++struct Ltm13InverseGammaTable {
++ std::array<uint32_t, 64> segments;
++};
++
++bool encodeLtm13InverseGamma(const IfeGammaBaseNodes &input,
++                             Ltm13InverseGammaTable *output);
++} /* namespace libcamera::ipa */
+--- /dev/null
++++ b/src/ipa/libipa/ltm_inverse_gamma.cpp
+@@ -0,0 +1,67 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#include "ltm_inverse_gamma.h"
++#include <algorithm>
++#include <cstdlib>
++#include <limits>
++
++namespace libcamera::ipa {
++namespace {
++int floorDivide32(int value)
++{
++ return value >= 0 ? value / 32 : -((-value + 31) / 32);
++}
++
++uint32_t packSegment(int base, int next)
++{
++ uint32_t delta = uint32_t(next - base) & 0x3fff;
++ /* Preserve the LTM packer's explicit negative sign bit, including
++  * negative differences outside the ordinary signed 14-bit range. */
++ if (next < base)
++  delta |= 0x2000;
++ return uint32_t(base & 0x3fff) |
++        (delta << 14);
++}
++} /* namespace */
++
++bool encodeLtm13InverseGamma(const IfeGammaBaseNodes &input,
++                             Ltm13InverseGammaTable *output)
++{
++ if (!output || std::any_of(input.begin(), input.end(),
++                           [](uint16_t value) { return value > 1023; }))
++  return false;
++
++ /* Reconstruct the quantized forward mapping once. Searching this mapping
++  * preserves the original earliest-index rule even for flat/nonmonotonic
++  * input; an analytic inverse or binary search would change those cases. */
++ std::array<int, 4096> forward;
++ for (unsigned int segment = 0; segment < input.size(); ++segment) {
++  int base = input[segment] * 16;
++  int next = segment + 1 == input.size() ? 16383 : input[segment + 1] * 16;
++  uint32_t encodedDelta = packSegment(base, next) >> 14;
++  int delta = encodedDelta >= 8192 ? int(encodedDelta) - 16384 : int(encodedDelta);
++  for (unsigned int offset = 0; offset < 64; ++offset)
++   forward[segment * 64 + offset] = base * 2 + floorDivide32(delta * int(offset) + 16);
++ }
++
++ std::array<int, 65> inverse;
++ for (unsigned int node = 0; node < inverse.size(); ++node) {
++  int target = std::min(int(node) * 512, 32760);
++  int bestError = std::numeric_limits<int>::max();
++  unsigned int bestIndex = 0;
++  for (unsigned int i = 0; i < forward.size(); ++i) {
++   int error = std::abs(forward[i] - target);
++   if (error < bestError) {
++    bestError = error;
++    bestIndex = i;
++   }
++  }
++  inverse[node] = int(bestIndex) * 4;
++ }
++
++ Ltm13InverseGammaTable result;
++ for (unsigned int i = 0; i < result.segments.size(); ++i)
++  result.segments[i] = packSegment(inverse[i], inverse[i + 1]);
++ *output = result;
++ return true;
++}
++} /* namespace libcamera::ipa */
+--- /dev/null
++++ b/src/ipa/libipa/ltm_curves.h
+@@ -0,0 +1,55 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++#include <array>
++#include <cstdint>
++
++namespace libcamera::ipa {
++
++/* Interpolated Chromatix values, before OEM temporal smoothing and ADRC.
++ * The generator is userspace math; the kernel accepts quantized requests. */
++struct Ltm13CurveInput {
++	std::array<float, 65> scale;
++	std::array<float, 17> lcePositive;
++	std::array<float, 17> lceNegative;
++	float strength;
++	float lceStrength;
++	float attenuationStart;
++	float attenuationEnd;
++	float darkBoost;
++	float brightSuppress;
++	float darkRange;
++	float brightRange;
++	float darkMaximum;
++	float brightMaximum;
++	float darkGamma;
++	float brightGamma;
++	float exposureIndex;
++	float previousExposureIndex;
++	uint32_t manualCurve;
++};
++
++struct Ltm13Curves {
++	std::array<float, 65> scale;
++	std::array<float, 17> lcePositive;
++	std::array<float, 17> lceNegative;
++};
++
++struct Ltm13SignedTables {
++	std::array<uint32_t, 64> scale;
++	std::array<uint32_t, 16> lcePositive;
++	std::array<uint32_t, 16> lceNegative;
++};
++
++/* These functions do not modify output when validation fails. No temporal state
++ * is changed, and the input curves are retained for the next interpolation. */
++bool calculateLtm13Curves(const Ltm13CurveInput &input, Ltm13Curves *output);
++bool encodeLtm13SignedTables(const Ltm13Curves &input, Ltm13SignedTables *output);
++
++/* Separate phases allow the target's temporal treatment between strength
++ * calculation and exposure attenuation. The original combined API retains
++ * its behaviour when no temporal treatment is requested. */
++bool prepareLtm13Curves(const Ltm13CurveInput &input, Ltm13Curves *output);
++bool attenuateLtm13Curves(const Ltm13CurveInput &input, const Ltm13Curves &curves,
++			 Ltm13Curves *output);
++
++} /* namespace libcamera::ipa */
+--- /dev/null
++++ b/src/ipa/libipa/ltm_curves.cpp
+@@ -0,0 +1,183 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#include "ltm_curves.h"
++#include <algorithm>
++#include <cmath>
++
++namespace libcamera::ipa {
++namespace {
++bool valid(float value)
++{
++	/* Bound the public helper before multiplication and integer conversion. */
++	return std::isfinite(value) && std::abs(value) <= 1048576.0f;
++}
++
++template<std::size_t N>
++bool valid(const std::array<float, N> &values)
++{
++	return std::all_of(values.begin(), values.end(), [](float v) { return valid(v); });
++}
++
++float attenuationFor(const Ltm13CurveInput &in)
++{
++	float change = std::abs(in.exposureIndex - in.previousExposureIndex);
++	change = std::min(change, in.attenuationEnd);
++	change = std::max(change, in.attenuationStart);
++	if (in.attenuationEnd == in.attenuationStart)
++		return 1.0f;
++	return std::clamp((in.attenuationEnd - change) /
++			  (in.attenuationEnd - in.attenuationStart), 0.0f, 1.0f);
++}
++
++uint32_t segment(int base, int next, bool lce)
++{
++	int delta = next - base;
++	uint32_t lo = uint32_t(base) & 0xfff;
++	uint32_t hi = uint32_t(delta) & 0xfff;
++	/* LTM's shifted difference test also forces the sign bit for positive
++	 * deltas >=32768. LCE only masks differences after its earlier clamp. */
++	if (base < 0)
++		lo |= 0x800;
++	if (!lce && (delta < 0 || delta >= 32768))
++		hi |= 0x800;
++	return lo | (hi << 12);
++}
++
++template<std::size_t N>
++bool encode(const std::array<float, N> &input, std::array<uint32_t, N - 1> &output,
++	    bool clampLce)
++{
++	std::array<int, N> nodes;
++	for (std::size_t i = 0; i < N; ++i) {
++		if (!valid(input[i]))
++			return false;
++		float value = std::round(input[i]);
++		if (clampLce)
++			value = std::clamp(value, -2048.0f, 2047.0f);
++		/* The factory casts LTM nodes to int16_t before the upper clamp.
++		 * Reject overflow at this typed boundary instead of relying on casts. */
++		if (value < -32768.0f || value > 32767.0f)
++			return false;
++		nodes[i] = std::min(int(value), 2047);
++	}
++	for (std::size_t i = 0; i < N - 1; ++i)
++		output[i] = segment(nodes[i], nodes[i + 1], clampLce);
++	return true;
++}
++} /* namespace */
++
++static bool calculateCurves(const Ltm13CurveInput &in, Ltm13Curves *output,
++			    bool withAttenuation)
++{
++	const std::array<float, 14> controls = {
++		in.strength, in.lceStrength, in.attenuationStart, in.attenuationEnd,
++		in.darkBoost, in.brightSuppress, in.darkRange, in.brightRange,
++		in.darkMaximum, in.brightMaximum, in.darkGamma, in.brightGamma,
++		in.exposureIndex, in.previousExposureIndex,
++	};
++	if (!output || in.manualCurve > 1 || !valid(controls) ||
++	    !valid(in.scale) || !valid(in.lcePositive) || !valid(in.lceNegative))
++		return false;
++
++	Ltm13Curves result{in.scale, in.lcePositive, in.lceNegative};
++	if (in.manualCurve) {
++		/* The zero plateau separates the dark and bright treatment regions.
++		 * Preserve the factory behaviour when the first value is nonnegative,
++		 * or when a negative curve contains no separating zero. */
++		std::size_t dark = in.scale[0] >= 0 ? 65 : 0;
++		std::size_t bright = dark;
++		bool plateau = false;
++		for (std::size_t i = 0; i < 65; ++i) {
++			if (!plateau && in.scale[i] == 0) {
++				dark = i;
++				plateau = true;
++			} else if (plateau && in.scale[i] != 0) {
++				bright = i;
++				break;
++			}
++		}
++		for (std::size_t i = 0; i < 65; ++i) {
++			if (i < dark)
++				result.scale[i] *= in.darkBoost;
++			else if (i >= bright)
++				result.scale[i] *= in.brightSuppress;
++		}
++	} else {
++		float darkRange = std::clamp(in.darkRange, 0.01f, 1.0f) * 64.0f;
++		float brightRange = std::clamp(in.brightRange, 0.01f, 1.0f) * 64.0f;
++		float darkMax = std::clamp(in.darkMaximum, 0.0f, 8.0f) * 1024.0f;
++		float brightMax = std::clamp(in.brightMaximum, 0.0f, 4.0f) * 1024.0f;
++		float darkGamma = std::clamp(in.darkGamma, 1.0f, 5.0f);
++		float brightGamma = std::clamp(in.brightGamma, 1.0f, 5.0f);
++		for (std::size_t i = 0; i < 65; ++i) {
++			float x = float(i);
++			float value = 0;
++			if (x <= darkRange)
++				value = darkMax * std::pow((darkRange - x) / darkRange, darkGamma);
++			else if (x >= 65.0f - brightRange)
++				value = -brightMax * std::pow((brightRange - (65.0f - x)) / brightRange, brightGamma);
++			result.scale[i] = std::clamp(value, -0.9f * brightMax, 0.9f * darkMax);
++		}
++	}
++
++	float attenuation = withAttenuation ? attenuationFor(in) : 1.0f;
++	for (float &value : result.scale) {
++		value *= in.strength;
++		value *= attenuation;
++	}
++	for (float &value : result.lcePositive) {
++		value *= in.lceStrength;
++		value *= attenuation;
++	}
++	for (float &value : result.lceNegative) {
++		value *= in.lceStrength;
++		value *= attenuation;
++	}
++	if (!valid(result.scale) || !valid(result.lcePositive) || !valid(result.lceNegative))
++		return false;
++	*output = result;
++	return true;
++}
++
++bool calculateLtm13Curves(const Ltm13CurveInput &input, Ltm13Curves *output)
++{
++	return calculateCurves(input, output, true);
++}
++
++bool prepareLtm13Curves(const Ltm13CurveInput &input, Ltm13Curves *output)
++{
++	return calculateCurves(input, output, false);
++}
++
++bool attenuateLtm13Curves(const Ltm13CurveInput &input, const Ltm13Curves &curves,
++			 Ltm13Curves *output)
++{
++	const std::array<float, 4> controls = {input.exposureIndex, input.previousExposureIndex,
++		input.attenuationStart, input.attenuationEnd};
++	if (!output || !valid(controls) || !valid(curves.scale) ||
++	    !valid(curves.lcePositive) || !valid(curves.lceNegative))
++		return false;
++	Ltm13Curves result = curves;
++	float attenuation = attenuationFor(input);
++	for (float &value : result.scale)
++		value *= attenuation;
++	for (float &value : result.lcePositive)
++		value *= attenuation;
++	for (float &value : result.lceNegative)
++		value *= attenuation;
++	*output = result;
++	return true;
++}
++
++bool encodeLtm13SignedTables(const Ltm13Curves &input, Ltm13SignedTables *output)
++{
++	if (!output)
++		return false;
++	Ltm13SignedTables result;
++	if (!encode(input.scale, result.scale, false) ||
++	    !encode(input.lcePositive, result.lcePositive, true) ||
++	    !encode(input.lceNegative, result.lceNegative, true))
++		return false;
++	*output = result;
++	return true;
++}
++} /* namespace libcamera::ipa */
+--- /dev/null
++++ b/src/ipa/libipa/ltm_face_smoothing.h
+@@ -0,0 +1,38 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++#include "ltm_curves.h"
++
++namespace libcamera::ipa {
++struct Ltm13FaceSmoothingControl {
++	/* Source tag identity is not inferred from the newer reference headers.
++	 * These are the observed AEC field at byte124 and bypass field at140. */
++	float transitionSignal;
++	uint32_t parentIsBps;
++	uint32_t aecField140;
++};
++
++/* The OEM stores these globally. The portable API takes explicit state so
++ * each future pipeline can own and commit its own history. Zero state
++ * matches BSS initialization; skipped requests leave the state untouched. */
++struct Ltm13FaceSmoothingState {
++	uint32_t positiveSignal;
++	uint32_t updatesRemaining;
++	Ltm13Curves previous;
++};
++
++/* Produce a proposed next state. The caller controls committing it; input
++ * state is never modified. Output and nextState must be separate from each
++ * other and from the input state.
++ * Failure preserves both outputs. No camera selection or policy is implied. */
++bool applyLtm13FaceSmoothing(const Ltm13Curves &curves,
++			     const Ltm13FaceSmoothingControl &control,
++			     const Ltm13FaceSmoothingState &state,
++			     Ltm13Curves *output, Ltm13FaceSmoothingState *nextState);
++
++/* The target order is strength -> smoothing -> save history -> attenuation.
++ * History must not contain exposure-attenuated curves. ADRC is separate. */
++bool calculateLtm13FaceCurves(const Ltm13CurveInput &input,
++			     const Ltm13FaceSmoothingControl &control,
++			     const Ltm13FaceSmoothingState &state,
++			     Ltm13Curves *output, Ltm13FaceSmoothingState *nextState);
++} /* namespace libcamera::ipa */
+--- /dev/null
++++ b/src/ipa/libipa/ltm_face_smoothing.cpp
+@@ -0,0 +1,79 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#include "ltm_face_smoothing.h"
++#include <algorithm>
++#include <cmath>
++
++namespace libcamera::ipa {
++namespace {
++bool valid(const Ltm13Curves &curves)
++{
++	auto table = [](const auto &values) {
++		return std::all_of(values.begin(), values.end(), [](float value) {
++			return std::isfinite(value) && std::abs(value) <= 1048576.0f;
++		});
++	};
++	return table(curves.scale) && table(curves.lcePositive) && table(curves.lceNegative);
++}
++
++template<std::size_t N>
++void smooth(std::array<float, N> &values, const std::array<float, N> &previous)
++{
++	for (std::size_t i = 0; i < N; ++i) {
++		/* Separate rounding matches the target's FSUB, FMUL, FADD sequence. */
++		volatile float step = (values[i] - previous[i]) * 0.05f;
++		values[i] = previous[i] + step;
++	}
++}
++} /* namespace */
++
++bool applyLtm13FaceSmoothing(const Ltm13Curves &curves,
++			     const Ltm13FaceSmoothingControl &control,
++			     const Ltm13FaceSmoothingState &state,
++			     Ltm13Curves *output, Ltm13FaceSmoothingState *nextState)
++{
++	if (!output || !nextState || nextState == &state ||
++	    output == &state.previous || output == &nextState->previous ||
++	    !std::isfinite(control.transitionSignal) || std::abs(control.transitionSignal) > 1048576.0f ||
++	    control.parentIsBps > 1 || state.positiveSignal > 1 || state.updatesRemaining > 90 ||
++	    !valid(curves) || !valid(state.previous))
++		return false;
++	Ltm13Curves result = curves;
++	Ltm13FaceSmoothingState next = state;
++	if (!control.parentIsBps && control.aecField140 != 1) {
++		uint32_t positive = control.transitionSignal > 0;
++		if (positive != next.positiveSignal) {
++			next.positiveSignal = positive;
++			next.updatesRemaining = 90;
++		}
++		if (next.updatesRemaining) {
++			smooth(result.scale, state.previous.scale);
++			smooth(result.lcePositive, state.previous.lcePositive);
++			smooth(result.lceNegative, state.previous.lceNegative);
++			--next.updatesRemaining;
++		}
++		next.previous = result;
++	}
++	*output = result;
++	*nextState = next;
++	return true;
++}
++
++bool calculateLtm13FaceCurves(const Ltm13CurveInput &input,
++			     const Ltm13FaceSmoothingControl &control,
++			     const Ltm13FaceSmoothingState &state,
++			     Ltm13Curves *output, Ltm13FaceSmoothingState *nextState)
++{
++	if (!output || !nextState || nextState == &state ||
++	    output == &state.previous || output == &nextState->previous)
++		return false;
++	Ltm13Curves prepared, smoothed, result;
++	Ltm13FaceSmoothingState next;
++	if (!prepareLtm13Curves(input, &prepared) ||
++	    !applyLtm13FaceSmoothing(prepared, control, state, &smoothed, &next) ||
++	    !attenuateLtm13Curves(input, smoothed, &result))
++		return false;
++	*output = result;
++	*nextState = next;
++	return true;
++}
++} /* namespace libcamera::ipa */
+--- /dev/null
++++ b/src/ipa/libipa/ltm_adrc.h
+@@ -0,0 +1,44 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++#include <array>
++#include <cstdint>
++
++namespace libcamera::ipa {
++struct Ltm13AdrcSamples {
++	std::array<float, 65> equivalent12;
++	std::array<float, 65> sampledGainQ10;
++	std::array<float, 65> forwardGamma10;
++};
++
++struct Ltm13AdrcCurves {
++	std::array<float, 65> scale;
++	std::array<float, 65> curve;
++};
++
++struct Ltm13AdrcBlend {
++	std::array<int32_t, 65> curve;
++	std::array<int16_t, 65> scale;
++};
++
++struct Ltm13AdrcTables {
++	std::array<uint32_t, 64> curve;
++	std::array<uint32_t, 64> scale;
++};
++
++/* Convert already sampled ADRC gains. This does not calculate TMC knees,
++ * percentages, version policy, or gain sampling. Inputs remain unchanged.
++ * First gain is at least unity (1024); all 65 forward nodes are explicit. */
++bool calculateLtm13Adrc(const Ltm13AdrcSamples &input, Ltm13AdrcCurves *output);
++
++/* Base scale is the already rounded int16 curve after strength, temporal
++ * processing and attenuation. Curve uses source nearest rounding; scale
++ * uses truncation after the max. Failure preserves the complete output. */
++bool blendLtm13Adrc(const Ltm13AdrcCurves &adrc, float mix,
++		    const std::array<int32_t, 65> &reserveCurve,
++		    const std::array<int16_t, 65> &baseScale,
++		    Ltm13AdrcBlend *output);
++
++/* Encode unquantized nodes using the target's clipping and sign rules.
++ * These are LUT data words, without commands or device addresses. */
++bool encodeLtm13AdrcTables(const Ltm13AdrcBlend &input, Ltm13AdrcTables *output);
++} /* namespace libcamera::ipa */
+--- /dev/null
++++ b/src/ipa/libipa/ltm_adrc.cpp
+@@ -0,0 +1,138 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#include "ltm_adrc.h"
++#include <algorithm>
++#include <cmath>
++#include <limits>
++
++namespace libcamera::ipa {
++namespace {
++template<std::size_t N>
++bool valid(const std::array<float, N> &input, float minimum, float maximum)
++{
++	return std::all_of(input.begin(), input.end(), [=](float value) {
++		return std::isfinite(value) && value >= minimum && value <= maximum;
++	});
++}
++
++float interpolate(float a, float b, float ratio)
++{
++	/* The target interpolates integer and fractional parts separately. Float
++ * lerp and a fused double expression do not preserve its rounding. */
++	int ai = int(a), bi = int(b);
++	double af = double(a - float(ai)) * 1000000.0;
++	double bf = double(b - float(bi)) * 1000000.0;
++	volatile double fractionalStep = double(ratio) * (bf - af);
++	float fraction = float(af + fractionalStep) / 1000000.0f;
++	volatile double integerStep = double(ratio) * float(bi - ai);
++	float integer = float(double(ai) + integerStep);
++	return fraction + integer;
++}
++} /* namespace */
++
++bool calculateLtm13Adrc(const Ltm13AdrcSamples &in, Ltm13AdrcCurves *output)
++{
++	if (!output || !valid(in.equivalent12, 0, 4095) ||
++	    !valid(in.sampledGainQ10, 0, std::numeric_limits<float>::max()) ||
++	    in.sampledGainQ10[0] < 1024 ||
++	    !valid(in.forwardGamma10, 0, 1024))
++		return false;
++	float drcGain = in.sampledGainQ10[0] / 1024.0f;
++	float curveGain = 1;
++	if (drcGain > 2047.0f / 1024.0f)
++		curveGain = std::clamp((drcGain - 1.0f) / (2047.0f / 1024.0f), 1.0f, 3.6f);
++	std::array<float, 65> forward, indices;
++	for (std::size_t i = 0; i < 65; ++i) {
++		forward[i] = in.forwardGamma10[i] * 4.0f;
++		indices[i] = std::clamp(((in.sampledGainQ10[i] / 1024.0f) *
++			in.equivalent12[i]) * 64.0f / 4095.0f, 0.0f, 64.0f);
++	}
++	Ltm13AdrcCurves result{};
++	for (std::size_t i = 1; i < 65; ++i) {
++		unsigned int x1 = unsigned(indices[i]);
++		unsigned int x2 = x1 + 1;
++		float right = x2 >= 64 ? 4096.0f : forward[x2];
++		float ratio = (indices[i] - float(x1)) / float(x2 - x1);
++		float equivalent = std::clamp(interpolate(forward[x1], right, ratio), 0.0f, 4095.0f);
++		result.scale[i] = std::clamp((1024.0f * (equivalent / float(64 * i) - 1.0f)) /
++					     curveGain, 0.0f, 2047.0f);
++	}
++	result.scale[0] = result.scale[1];
++	result.scale[64] = result.scale[63];
++	float maximum = result.scale[64];
++	for (int i = 64; i >= 0; --i) {
++		if (result.scale[i] < maximum)
++			result.scale[i] = maximum;
++		else
++			maximum = result.scale[i];
++	}
++	unsigned int lastMaximum = 0;
++	for (unsigned int i = 0; i < 64 / 3; ++i)
++		if (result.scale[i] == maximum && i > lastMaximum)
++			lastMaximum = i;
++	lastMaximum = std::max(lastMaximum, 1U);
++	for (unsigned int pass = 0; pass < 3; ++pass)
++		for (unsigned int i = lastMaximum + 1; i < 64; ++i)
++			result.scale[i] = (result.scale[i - 1] + result.scale[i] + result.scale[i + 1]) / 3.0f;
++	for (std::size_t i = 0; i < 65; ++i)
++		result.curve[i] = float(64 * i) * curveGain;
++	int flat = int(std::floor(64.0f / (drcGain * 3.0f)));
++	int span = 64 - flat;
++	for (int i = 0; i <= span; ++i)
++		result.curve[i + flat] *= span ? float(span - i) / float(span) : 0.0f;
++	for (unsigned int pass = 0; pass < 4; ++pass)
++		for (unsigned int i = 1; i < 64; ++i)
++			result.curve[i] = (result.curve[i - 1] + result.curve[i] + result.curve[i + 1]) / 3.0f;
++	*output = result;
++	return true;
++}
++
++bool blendLtm13Adrc(const Ltm13AdrcCurves &adrc, float mix,
++		    const std::array<int32_t, 65> &reserveCurve,
++		    const std::array<int16_t, 65> &baseScale,
++		    Ltm13AdrcBlend *output)
++{
++	if (!output || !std::isfinite(mix) || mix < 0 || mix > 1 ||
++	    !valid(adrc.scale, 0, 2047) || !valid(adrc.curve, 0, 16384) ||
++	    std::any_of(reserveCurve.begin(), reserveCurve.end(), [](int32_t value) {
++		return value < 0 || value > 16383;
++	    }))
++		return false;
++	Ltm13AdrcBlend result{};
++	float ratio = mix > 0 ? 3.0f : 1.0f;
++	for (std::size_t i = 0; i < 65; ++i) {
++		result.curve[i] = int32_t(std::round(interpolate(adrc.curve[i] * ratio,
++							float(reserveCurve[i]), mix)));
++		result.scale[i] = int16_t(std::max(float(baseScale[i]) * mix, adrc.scale[i] / ratio));
++	}
++	*output = result;
++	return true;
++}
++
++bool encodeLtm13AdrcTables(const Ltm13AdrcBlend &input, Ltm13AdrcTables *output)
++{
++	if (!output || std::any_of(input.curve.begin(), input.curve.end(),
++				 [](int32_t value) { return value < 0; }))
++		return false;
++	Ltm13AdrcTables result{};
++	for (std::size_t family = 0; family < 2; ++family) {
++		std::array<int, 65> nodes;
++		for (std::size_t i = 0; i < 65; ++i)
++			nodes[i] = family ? std::min(int(input.scale[i]), 2047) :
++					  std::min(int(input.curve[i]), 4095);
++		for (std::size_t i = 0; i < 64; ++i) {
++			int delta = nodes[i + 1] - nodes[i];
++			uint32_t base = uint32_t(nodes[i]) & 4095;
++			uint32_t difference = uint32_t(delta) & 4095;
++			if (nodes[i] < 0)
++				base |= 2048;
++			/* The source tests delta >> 15 != 0: this also covers large
++			 * positive differences of signed int16 nodes, not just negatives. */
++			if (delta < 0 || delta >= 32768)
++				difference |= 2048;
++			(family ? result.scale : result.curve)[i] = base | (difference << 12);
++		}
++	}
++	*output = result;
++	return true;
++}
++} /* namespace libcamera::ipa */
+--- /dev/null
++++ b/src/ipa/libipa/tmc11_ltm.h
+@@ -0,0 +1,32 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++#include <array>
++
++namespace libcamera::ipa {
++struct Tmc11PchipCurve {
++	std::array<float, 5> x, y;
++	std::array<float, 9> coefficient;
++};
++struct Tmc11PchipResult {
++	std::array<float, 65> gain;
++	float ltmMix;
++};
++struct Tmc11LtmContrast {
++	float percentage, bright, dark;
++};
++/* These are model2 numerical primitives. The caller supplies already
++ * selected/generated TMC11 knees and histogram contrast data; no version,
++ * tuning root, or histogram is selected or generated here. Failure leaves
++ * output intact. Axis and curve tables remain caller-owned calibration. */
++bool normalizeTmc11LtmInput(const std::array<float, 65> &equivalent12,
++			   std::array<float, 65> *normalized);
++bool sampleTmc11Pchip(const Tmc11PchipCurve &curve,
++		     const std::array<float, 65> &normalized,
++		     Tmc11PchipResult *output);
++bool applyTmc11LtmContrast(const Tmc11LtmContrast &parameters,
++			  const std::array<float, 65> &normalized,
++			  const std::array<float, 65> &linearGain,
++			  const std::array<float, 1024> &axis,
++			  const std::array<float, 1024> &contrastCurve,
++			  std::array<float, 65> *gainQ10);
++} /* namespace libcamera::ipa */
+--- /dev/null
++++ b/src/ipa/libipa/tmc11_ltm.cpp
+@@ -0,0 +1,120 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#include "tmc11_ltm.h"
++#include <algorithm>
++#include <cmath>
++
++namespace libcamera::ipa {
++namespace {
++float mul(float a, float b)
++{
++	volatile float value = a * b;
++	return value;
++}
++template<std::size_t N>
++bool finite(const std::array<float, N> &values)
++{
++	return std::all_of(values.begin(), values.end(), [](float v) { return std::isfinite(v); });
++}
++template<std::size_t N>
++bool nonnegative(const std::array<float, N> &values)
++{
++	return finite(values) && std::all_of(values.begin(), values.end(), [](float v) { return v >= 0; });
++}
++} /* namespace */
++
++bool normalizeTmc11LtmInput(const std::array<float, 65> &in,
++			   std::array<float, 65> *output)
++{
++	if (!output || !nonnegative(in) || in[64] != 4095 ||
++	    std::any_of(in.begin(), in.end(), [](float v) { return v > 4095; }))
++		return false;
++	std::array<float, 65> result;
++	for (unsigned i = 0; i < 64; ++i)
++		result[i] = (in[i] + 1) / 4095.0f;
++	/* The target clips only node63; node64 is its fixed initialized endpoint. */
++	result[63] = std::min(result[63], 1.0f);
++	result[64] = 1;
++	*output = result;
++	return true;
++}
++
++bool sampleTmc11Pchip(const Tmc11PchipCurve &curve,
++		     const std::array<float, 65> &in,
++		     Tmc11PchipResult *output)
++{
++	if (!output || !finite(curve.x) || !finite(curve.y) || !finite(curve.coefficient) ||
++	    !nonnegative(in) || curve.x[1] <= 0)
++		return false;
++	float linear = curve.y[1] / curve.x[1];
++	if (!std::isfinite(linear) || linear < 0)
++		return false;
++	Tmc11PchipResult result;
++	for (unsigned i = 0; i < 65; ++i) {
++		float y;
++		if (in[i] <= curve.x[1]) {
++			y = mul(in[i], linear);
++		} else {
++			unsigned section = in[i] <= curve.x[2] ? 0 : (in[i] <= curve.x[3] ? 3 : 6);
++			unsigned knee = section / 3 + 1;
++			float dx = in[i] - curve.x[knee];
++			float inner = curve.coefficient[section + 1] + mul(dx, curve.coefficient[section + 2]);
++			float middle = curve.coefficient[section] + mul(dx, inner);
++			y = curve.y[knee] + mul(dx, middle);
++		}
++		y = std::clamp(y, 0.0f, 1.0f);
++		float denominator = in[i] == 0 ? 1 : in[i];
++		float value = y / denominator;
++		/* The target checks the lower bound first, even when linear < 1.
++		 * std::clamp requires ordered bounds and cannot express that case. */
++		result.gain[i] = value <= 1 ? 1 : (value > linear ? linear : value);
++	}
++	result.gain[0] = result.gain[1];
++	result.ltmMix = std::clamp(2 - linear, 0.0f, 1.0f);
++	if (!finite(result.gain))
++		return false;
++	*output = result;
++	return true;
++}
++
++bool applyTmc11LtmContrast(const Tmc11LtmContrast &p,
++			  const std::array<float, 65> &in,
++			  const std::array<float, 65> &gain,
++			  const std::array<float, 1024> &axis,
++			  const std::array<float, 1024> &hist,
++			  std::array<float, 65> *output)
++{
++	std::array<float, 3> controls = {p.percentage, p.bright, p.dark};
++	if (!output || !nonnegative(in) || !nonnegative(gain) || !finite(axis) || !finite(hist) ||
++	    !finite(controls) || std::any_of(controls.begin(), controls.end(), [](float v) { return v < 0 || v > 1; }) ||
++	    axis[0] < 0 || axis[1023] > 1 ||
++	    std::adjacent_find(axis.begin(), axis.end(), [](float a, float b) { return a >= b; }) != axis.end())
++		return false;
++	std::array<float, 65> result;
++	unsigned hi = 1;
++	for (unsigned i = 0; i < 65; ++i) {
++		/* The retained target always reads the contrast curve, including when
++		 * both blend strengths are zero. Preserve its advancing histogram index. */
++		while (hi < 1024 && in[i] > axis[hi])
++			++hi;
++		float yHist = 1;
++		if (hi < 1024) {
++			float left = mul(axis[hi] - in[i], hist[hi - 1]);
++			float right = mul(in[i] - axis[hi - 1], hist[hi]);
++			yHist = (left + right) / (axis[hi] - axis[hi - 1]);
++		}
++		float y = mul(gain[i], in[i]);
++		if (yHist > y)
++			y = mul(y, 1 - p.bright) + mul(yHist, p.bright);
++		else if (yHist < y)
++			y = mul(y, 1 - p.dark) + mul(yHist, p.dark);
++		y = std::clamp(y, 0.0f, 1.0f);
++		float value = mul(std::pow(y / in[i], p.percentage), 1024);
++		/* Unlike the pinned helper source, the actual target applies Q10/3-bit clipping. */
++		result[i] = std::clamp(value, 0.0f, 8191.0f);
++	}
++	if (!finite(result))
++		return false;
++	*output = result;
++	return true;
++}
++} /* namespace libcamera::ipa */
+--- /dev/null
++++ b/src/ipa/libipa/tmc11_generation.h
+@@ -0,0 +1,35 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++#include "tmc11_ltm.h"
++#include <array>
++#include <cstdint>
++
++namespace libcamera::ipa {
++struct Tmc11Region {
++	float gtmPercentage, ltmPercentage, darkBoostRatio;
++	std::array<float,5> toneTargets, toneAnchors;
++	float toneBrightAdjustment, toneDarkAdjustment, stretchBright, stretchDark;
++	float suppressStart, suppressEnd, boostStart, boostEnd, averageStart, averageEnd;
++	std::array<float,5> histogramKernel;
++	float histogramClipSlope, histogramEnhanceClamp;
++	std::array<float,5> histogramEnhanceRatio;
++	float contrastBrightClip, contrastDarkAdjustment, contrastHEBright, contrastHEDark;
++	std::array<float,5> reserve;
++};
++struct Tmc11GenerationResult {
++	Tmc11PchipCurve pchip;
++	Tmc11LtmContrast ltm;
++	float darkGain, gtmPercentage;
++	std::array<float,1024> processedHistogram, contrastCurve;
++};
++/* Region interpolation and runtime version selection are caller decisions.
++ * Statistics are explicit: nullptr reproduces the target's absent-histogram
++ * path, and is different from a present histogram containing all zero bins.
++ * Gamma and logarithmic bin weights are caller-owned calibration tables.
++ * Failure preserves output; all inputs remain immutable. */
++bool generateTmc11Curve(const Tmc11Region &region, float drcGain, float darkGain,
++		       const std::array<float,257> &gamma10,
++		       const std::array<float,1024> &histogramLogWeights,
++		       const std::array<uint32_t,1024> *histogram,
++		       Tmc11GenerationResult *output);
++} /* namespace libcamera::ipa */
+--- /dev/null
++++ b/src/ipa/libipa/tmc11_generation.cpp
+@@ -0,0 +1,160 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#include "tmc11_generation.h"
++#include <algorithm>
++#include <cmath>
++#include <cstring>
++
++namespace libcamera::ipa {
++namespace {
++float mul(float a, float b) { volatile float result = a * b; return result; }
++template<std::size_t N> bool finite(const std::array<float,N> &v)
++{
++	return std::all_of(v.begin(),v.end(),[](float x){ return std::isfinite(x); });
++}
++uint32_t index(float gain)
++{
++	if (gain <= 1) return 0;
++	return std::min(uint32_t(std::round(std::log(gain)/std::log(1.03f))),94U);
++}
++float inverseGamma(float target, const std::array<float,257> &gamma, unsigned &hi)
++{
++	for (; hi < 257; ++hi) {
++		if (target <= gamma[hi]) {
++			float left = mul(gamma[hi] - target,float(hi-1));
++			float right = mul(target - gamma[hi-1],float(hi));
++			return (left + right) / (gamma[hi] - gamma[hi-1]);
++		}
++	}
++	return 256;
++}
++void preprocess(const Tmc11Region &p, const std::array<uint32_t,1024> &raw,
++		std::array<float,1024> &hist)
++{
++	float total = 0;
++	for (uint32_t v : raw) total += float(v);
++	float maximum = mul(p.histogramClipSlope,total)/1024;
++	float clipped = 0;
++	for (unsigned i=0;i<1024;++i) {
++		float value = float(raw[i]);
++		hist[i] = value < maximum ? value : maximum;
++		if (value >= maximum) clipped += value - maximum;
++	}
++	if (hist[0] > hist[1]) { clipped += hist[0]-hist[1]; hist[0]=hist[1]; }
++	float average = clipped/1024;
++	for (float &v : hist) v += average;
++	for (unsigned pass=0;pass<4;++pass) {
++		for (unsigned i=0;i<1024;++i) {
++			hist[i] = mul(hist[i],p.histogramKernel[0]);
++			for (unsigned k=1;k<5;++k) {
++				hist[i] += mul(hist[std::min(i+k,1023U)],p.histogramKernel[k]);
++				hist[i] += mul(hist[i<k?0:i-k],p.histogramKernel[k]);
++			}
++		}
++	}
++}
++void histogramKnees(const Tmc11Region &p,float drcGain,const std::array<float,257> &gamma,
++		    const std::array<float,1024> &hist,const std::array<float,1024> &weights,
++		    std::array<float,5> &x,std::array<float,5> &y)
++{
++	float total=0;
++	for(float v:hist) total+=v;
++	float sum=0,lowSum=0,lowCount=0,midSum=0,midCount=0,highSum=0,highCount=0;
++	for(unsigned i=0;i<1024;++i) {
++		sum += hist[i];
++		float value=mul(hist[i],weights[i]);
++		if(sum>=mul(total,p.suppressStart) && sum<=mul(total,p.suppressEnd)) {highSum+=value;highCount+=hist[i];}
++		if(sum>=mul(total,p.boostStart) && sum<=mul(total,p.boostEnd)) {lowSum+=value;lowCount+=hist[i];}
++		if(sum>=mul(total,p.averageStart) && sum<=mul(total,p.averageEnd)) {midSum+=value;midCount+=hist[i];}
++	}
++	float low=lowCount?std::exp(lowSum/lowCount):0;
++	float mid=midCount?std::exp(midSum/midCount):0;
++	float high=highCount?std::exp(highSum/highCount):0;
++	unsigned hi=1;
++	float target=std::clamp(mul(p.toneTargets[2],1023),0.0f,1023.0f);
++	float key=inverseGamma(target,gamma,hi)/256;
++	float highAdapt=mul(p.stretchBright,high)+mul(1-p.stretchBright,16383);
++	float lowAdapt=mul(p.stretchDark,low)+mul(1-p.stretchDark,0);
++	float contrast=(mul(std::log(mid+1),2)-std::log(lowAdapt+1)-std::log(highAdapt+1)) /
++		      (std::log(highAdapt+1)-std::log(lowAdapt+1));
++	float adjusted=mul(key,std::pow(contrast>0?p.toneBrightAdjustment:p.toneDarkAdjustment,contrast));
++	float global=adjusted/(mid/16383);
++	float lower=drcGain/p.histogramEnhanceClamp,upper=mul(drcGain,p.histogramEnhanceClamp);
++	global=global<lower?lower:(global>upper?upper:global);
++	float darkAdjusted=mul(global,p.contrastDarkAdjustment);
++	float highAdjusted=mul(p.contrastBrightClip,2)-global;
++	highAdjusted=highAdjusted<=1?1:(highAdjusted>global?global:highAdjusted);
++	x={0,low/16383,mid/16383,high/16383,1};
++	y={0,mul(x[1],darkAdjusted),mul(x[2],global),mul(x[3],highAdjusted),1};
++}
++void coefficients(Tmc11PchipCurve &p)
++{
++	std::array<float,4> h,delta;
++	std::array<float,5> d{};
++	for(unsigned i=0;i<4;++i) {h[i]=p.x[i+1]-p.x[i];delta[i]=(p.y[i+1]-p.y[i])/h[i];}
++	for(unsigned i=1;i<4;++i) {
++		float w1=mul(2,h[i])+h[i-1],w2=h[i]+mul(2,h[i-1]);
++		d[i]=(w1+w2)/(w1/delta[i-1]+w2/delta[i]);
++	}
++	float endpoint=(mul(mul(2,h[3])+h[2],delta[3])-mul(h[3],delta[2]))/(h[2]+h[3]);
++	d[4]=mul(delta[2],delta[3])<0 && std::abs(endpoint)>std::abs(mul(3,delta[3]))?mul(3,delta[3]):
++		(mul(endpoint,delta[3])<0?0:endpoint);
++	for(unsigned i=1;i<4;++i) {
++		p.coefficient[(i-1)*3]=d[i];
++		p.coefficient[(i-1)*3+1]=(mul(3,delta[i])-mul(2,d[i])-d[i+1])/h[i];
++		p.coefficient[(i-1)*3+2]=((d[i]-mul(2,delta[i])+d[i+1])/h[i])/h[i];
++	}
++}
++} /* namespace */
++
++bool generateTmc11Curve(const Tmc11Region &p,float drc,float dark,
++		       const std::array<float,257> &gamma,const std::array<float,1024> &weights,
++		       const std::array<uint32_t,1024> *histogram,Tmc11GenerationResult *output)
++{
++	static_assert(sizeof(Tmc11Region)==176 && sizeof(Tmc11GenerationResult)==8288);
++	std::array<float,44> fields;std::memcpy(fields.data(),&p,sizeof p);
++	if(!output || !finite(fields) || !std::isfinite(drc) || !std::isfinite(dark) || drc<=0 || dark<0 ||
++	   !finite(gamma) || !finite(weights) || gamma[0]<0 || gamma[256]>1023 || !std::is_sorted(gamma.begin(),gamma.end()))
++		return false;
++	float gain=std::pow(1.03f,float(index(drc)));
++	float ratio=std::clamp(mul(dark-1,p.darkBoostRatio)+1+p.reserve[0],1.0f,16.0f);
++	Tmc11GenerationResult result{};
++	result.darkGain=mul(gain,ratio);
++	float maxPercentage=std::min(std::log(8.0f)/std::log(std::pow(1.03f,float(index(result.darkGain)))),1.0f);
++	result.ltm.percentage=p.ltmPercentage;result.gtmPercentage=p.gtmPercentage;
++	result.ltm.bright=p.contrastHEBright;result.ltm.dark=p.contrastHEDark;
++	if(result.ltm.percentage>maxPercentage) {result.ltm.percentage=maxPercentage;result.gtmPercentage=1-maxPercentage;}
++	if(std::abs(double(ratio-1))<1e-9) ratio=1.0001f;
++	/* The target's lower clamp bound is this same quotient. Its compiled
++	 * clamp consequently preserves finite quotients even above anchor1;
++	 * the pinned helper's min-like behavior does not match this target. */
++	float darkY=p.toneAnchors[2]/ratio;
++	std::array<float,5> anchorX={0,darkY/result.darkGain,p.toneAnchors[2]/gain,p.toneAnchors[3],1};
++	std::array<float,5> anchorY={0,darkY,p.toneAnchors[2],p.toneAnchors[3],1};
++	std::array<float,5> histX,histY;histX.fill(1);histY.fill(1);
++	if(histogram) {
++		preprocess(p,*histogram,result.processedHistogram);
++		histogramKnees(p,drc,gamma,result.processedHistogram,weights,histX,histY);
++	}
++	for(unsigned i=0;i<5;++i) {
++		result.pchip.x[i]=mul(p.histogramEnhanceRatio[i],histX[i])+mul(1-p.histogramEnhanceRatio[i],anchorX[i]);
++		result.pchip.y[i]=mul(p.histogramEnhanceRatio[i],histY[i])+mul(1-p.histogramEnhanceRatio[i],anchorY[i]);
++	}
++	coefficients(result.pchip);
++	if(histogram) {
++		std::array<float,1024> cdf;cdf[0]=result.processedHistogram[0];
++		for(unsigned i=1;i<1024;++i) cdf[i]=cdf[i-1]+result.processedHistogram[i];
++		unsigned hi=1;
++		for(unsigned i=0;i<1024;++i) {
++			float target=std::clamp(mul(cdf[i]/cdf[1023],1023),0.0f,1023.0f);
++			result.contrastCurve[i]=inverseGamma(target,gamma,hi)/256;
++		}
++	} else {
++		/* The target calls memset with byte1, rather than filling float1. */
++		std::memset(result.contrastCurve.data(),1,sizeof result.contrastCurve);
++	}
++	std::array<float,2072> all;std::memcpy(all.data(),&result,sizeof result);
++	if(!finite(all)) return false;
++	*output=result;
++	return true;
++}
++} /* namespace libcamera::ipa */
+--- /dev/null
++++ b/src/ipa/libipa/tmc11_tree.h
+@@ -0,0 +1,32 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++#include <array>
++#include <cstdint>
++#include <vector>
++
++namespace libcamera::ipa {
++using Tmc11RegionValues = std::array<float, 44>;
++struct Tmc11AecRegion {
++	std::array<float, 4> trigger;
++	Tmc11RegionValues data;
++};
++struct Tmc11HdrRegion {
++	std::array<float, 6> trigger;
++	std::vector<Tmc11AecRegion> children;
++};
++struct Tmc11DrcRegion {
++	std::array<float, 2> trigger;
++	std::vector<Tmc11HdrRegion> children;
++};
++struct Tmc11TreeTriggers {
++	float drcGain, realGain, luxIndex;
++	/* Actual module offsets; upstream HDR field identities remain unverified. */
++	float module88, module92;
++};
++/* AEC0=lux/1=gain. HDR0=module88/1=module92/2=zero in this binary.
++ * This numerical API neither selects a root nor changes its enable flag.
++ * Input tree is immutable; failure leaves output untouched. */
++bool interpolateTmc11Tree(const std::vector<Tmc11DrcRegion> &tree,
++			 uint32_t aecControl, uint32_t hdrControl,
++			 const Tmc11TreeTriggers &triggers, Tmc11RegionValues *output);
++} /* namespace libcamera::ipa */
+--- /dev/null
++++ b/src/ipa/libipa/tmc11_tree.cpp
+@@ -0,0 +1,121 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#include "tmc11_tree.h"
++#include <algorithm>
++#include <cmath>
++#include <limits>
++
++namespace libcamera::ipa {
++namespace {
++template<size_t N> bool finite(const std::array<float, N> &values)
++{
++	return std::all_of(values.begin(), values.end(), [](float v) { return std::isfinite(v); });
++}
++template<size_t N> bool intervals(const std::array<float, N> &values)
++{
++	if (!finite(values))
++		return false;
++	for (size_t i = 0; i < N; i += 2)
++		if (values[i] > values[i + 1])
++			return false;
++	return true;
++}
++bool validate(const std::vector<Tmc11DrcRegion> &tree)
++{
++	/* The target search helper has space for twenty trigger intervals. */
++	if (tree.empty() || tree.size() > 20)
++		return false;
++	for (const auto &drc : tree) {
++		if (!intervals(drc.trigger) || drc.children.empty() || drc.children.size() > 20)
++			return false;
++		for (const auto &hdr : drc.children) {
++			if (!intervals(hdr.trigger) || hdr.children.empty() || hdr.children.size() > 20)
++				return false;
++			for (const auto &aec : hdr.children)
++				if (!intervals(aec.trigger) || !finite(aec.data))
++					return false;
++		}
++	}
++	return true;
++}
++struct Selection { size_t left, right; float ratio; };
++template<typename Regions> Selection select(const Regions &regions, size_t axis, float trigger)
++{
++	for (size_t i = 0; i < regions.size(); ++i) {
++		if (trigger <= regions[i].trigger[axis + 1])
++			return { i, i, 0 };
++		if (i + 1 < regions.size() && trigger < regions[i + 1].trigger[axis]) {
++			double left = regions[i].trigger[axis + 1];
++			double right = regions[i + 1].trigger[axis];
++			return { i, i + 1, float((double(trigger) - left) / (right - left)) };
++		}
++	}
++	return { regions.size() - 1, regions.size() - 1, 0 };
++}
++bool blend(const Tmc11RegionValues &a, const Tmc11RegionValues &b, float ratio,
++	   Tmc11RegionValues *output)
++{
++	if (ratio <= 0) { *output = a; return true; }
++	if (ratio >= 1) { *output = b; return true; }
++	for (size_t i = 0; i < a.size(); ++i) {
++		if (double(a[i]) < std::numeric_limits<int32_t>::min() ||
++		    double(a[i]) > std::numeric_limits<int32_t>::max() ||
++		    double(b[i]) < std::numeric_limits<int32_t>::min() ||
++		    double(b[i]) > std::numeric_limits<int32_t>::max())
++			return false;
++		int32_t ai = int32_t(a[i]), bi = int32_t(b[i]);
++		int64_t difference = int64_t(bi) - ai;
++		if (difference < std::numeric_limits<int32_t>::min() ||
++		    difference > std::numeric_limits<int32_t>::max())
++			return false;
++		double af = double(a[i] - float(ai)) * 1000000.0;
++		double bf = double(b[i] - float(bi)) * 1000000.0;
++		volatile double fractionalStep = double(ratio) * (bf - af);
++		float fraction = float(af + fractionalStep) / 1000000.0f;
++		volatile double integerStep = double(ratio) * float(difference);
++		float integer = float(double(ai) + integerStep);
++		(*output)[i] = fraction + integer;
++	}
++	return finite(*output);
++}
++bool aec(const std::vector<Tmc11AecRegion> &regions, size_t axis, float trigger,
++	 Tmc11RegionValues *output)
++{
++	const auto s = select(regions, axis, trigger);
++	return blend(regions[s.left].data, regions[s.right].data, s.ratio, output);
++}
++bool hdr(const std::vector<Tmc11HdrRegion> &regions, size_t axis, float trigger,
++	 size_t aecAxis, float aecTrigger, Tmc11RegionValues *output)
++{
++	const auto s = select(regions, axis, trigger);
++	Tmc11RegionValues left, right;
++	if (!aec(regions[s.left].children, aecAxis, aecTrigger, &left))
++		return false;
++	if (s.left == s.right) { *output = left; return true; }
++	return aec(regions[s.right].children, aecAxis, aecTrigger, &right) &&
++	       blend(left, right, s.ratio, output);
++}
++} /* namespace */
++bool interpolateTmc11Tree(const std::vector<Tmc11DrcRegion> &tree,
++			 uint32_t aecControl, uint32_t hdrControl,
++			 const Tmc11TreeTriggers &triggers, Tmc11RegionValues *output)
++{
++	std::array<float, 5> inputs{ triggers.drcGain, triggers.realGain, triggers.luxIndex,
++				    triggers.module88, triggers.module92 };
++	if (!output || aecControl > 1 || hdrControl > 2 || !finite(inputs) || !validate(tree))
++		return false;
++	float hdrTrigger = hdrControl == 0 ? triggers.module88 : hdrControl == 1 ? triggers.module92 : 0;
++	float aecTrigger = aecControl ? triggers.realGain : triggers.luxIndex;
++	const auto s = select(tree, 0, triggers.drcGain);
++	Tmc11RegionValues left, right, result;
++	if (!hdr(tree[s.left].children, hdrControl * 2, hdrTrigger, aecControl * 2, aecTrigger, &left))
++		return false;
++	if (s.left == s.right) {
++		result = left;
++	} else if (!hdr(tree[s.right].children, hdrControl * 2, hdrTrigger, aecControl * 2, aecTrigger, &right) ||
++		   !blend(left, right, s.ratio, &result)) {
++		return false;
++	}
++	*output = result;
++	return true;
++}
++} /* namespace libcamera::ipa */
+--- /dev/null
++++ b/src/ipa/libipa/tmc_runtime.h
+@@ -0,0 +1,34 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++#include <array>
++#include <cstdint>
++namespace libcamera::ipa {
++struct Tmc11PolicyInput {
++	uint32_t candidateUid, candidateEnable, cachedUid, cachePresent, moduleEnable;
++	uint32_t forceUpdate, awbLock, aecLock, histogramPresent, oldHistogramPresent;
++	std::array<float, 6> oldTriggers, newTriggers; /* DRC,dark,gain,lux,module88,module92 */
++};
++struct Tmc11PolicyResult {
++	uint32_t moduleEnable, version, calculate, moduleAdrcPointer, requestAdrcPointer;
++	uint32_t rootRefreshed, histogramSource, cachedUid;
++	std::array<float, 6> cachedTriggers;
++};
++/* Existing ADRC allocation is required. Does not select a chromatix root,
++ * allocate buffers, publish history, or change product defaults. */
++bool evaluateTmc11Policy(const Tmc11PolicyInput &input, Tmc11PolicyResult *output);
++
++enum class TmcLtmSource : uint32_t { OwnTmc10, Upstream, None };
++struct TmcLtmInput {
++	uint32_t rootPresent, rootEnable, useLtm, version;
++	uint32_t upstreamPresent, upstreamLtmEnable, changed;
++};
++struct TmcLtmDecision { TmcLtmSource source; uint32_t ltmEnable, changed; };
++/* Selection gate only: OwnTmc10 still requires successful allocation/calculation. */
++bool selectTargetTmcLtmSource(const TmcLtmInput &input, TmcLtmDecision *output);
++
++using TargetAdrcMetadata = std::array<uint8_t, 4236>;
++/* Exact old HAL cache copy, including stale/unused bytes. Unknown versions
++ * preserve knees; missing property clears only enable. This is a wire adapter,
++ * not validation or permission to submit its contents to hardware. */
++bool updateTargetAdrcMetadata(const TargetAdrcMetadata *property, TargetAdrcMetadata *cache);
++} /* namespace libcamera::ipa */
+--- /dev/null
++++ b/src/ipa/libipa/tmc_runtime.cpp
+@@ -0,0 +1,81 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#include "tmc_runtime.h"
++#include <algorithm>
++#include <cmath>
++#include <cstring>
++namespace libcamera::ipa {
++bool evaluateTmc11Policy(const Tmc11PolicyInput &input, Tmc11PolicyResult *output)
++{
++	if (!output || input.cachePresent > 1 || input.histogramPresent > 1 ||
++	    input.oldHistogramPresent > 1 || input.awbLock > 255 || input.aecLock > 255 ||
++	    !std::all_of(input.oldTriggers.begin(), input.oldTriggers.end(), [](float v) { return std::isfinite(v); }) ||
++	    !std::all_of(input.newTriggers.begin(), input.newTriggers.end(), [](float v) { return std::isfinite(v); }))
++		return false;
++	Tmc11PolicyResult result{};
++	result.moduleEnable = input.moduleEnable;
++	result.rootRefreshed = !input.cachePresent || input.candidateUid != input.cachedUid;
++	result.cachedUid = result.rootRefreshed ? input.candidateUid : input.cachedUid;
++	if (result.rootRefreshed)
++		result.moduleEnable = input.candidateEnable;
++	result.version = result.moduleEnable; /* Actual binary does not normalize the raw value. */
++	result.cachedTriggers = input.oldTriggers;
++	result.histogramSource = input.oldHistogramPresent ? 1 : 0;
++	bool changed = result.rootRefreshed;
++	if (result.moduleEnable == 1) {
++		bool triggerChanged = false;
++		for (size_t i = 0; i < input.oldTriggers.size(); ++i) {
++			volatile float difference = input.oldTriggers[i] - input.newTriggers[i];
++			if (!(double(std::fabs(difference)) < 1e-9))
++				triggerChanged = true;
++		}
++		if (triggerChanged) {
++			result.cachedTriggers = input.newTriggers;
++			if (input.histogramPresent)
++				result.histogramSource = 2;
++			changed = true;
++		} else if (input.forceUpdate == 1) {
++			/* Force does not refresh a histogram pointer when triggers are equal. */
++			changed = true;
++		}
++		result.moduleAdrcPointer = 1;
++	} else {
++		changed = false;
++	}
++	result.requestAdrcPointer = 1; /* Existing allocation is published even while disabled. */
++	result.calculate = changed && !(input.awbLock == 1 && input.aecLock == 1);
++	*output = result;
++	return true;
++}
++bool selectTargetTmcLtmSource(const TmcLtmInput &input, TmcLtmDecision *output)
++{
++	if (!output || input.rootPresent > 1 || input.upstreamPresent > 1 || input.changed > 1)
++		return false;
++	TmcLtmDecision result{ TmcLtmSource::None, 0, input.changed };
++	if (input.rootPresent && input.rootEnable == 1 && input.useLtm == 1 && input.version == 0) {
++		result = { TmcLtmSource::OwnTmc10, 1, 1 };
++	} else if (input.upstreamPresent) {
++		result.source = TmcLtmSource::Upstream;
++		result.ltmEnable = input.upstreamLtmEnable;
++	}
++	*output = result;
++	return true;
++}
++bool updateTargetAdrcMetadata(const TargetAdrcMetadata *property, TargetAdrcMetadata *cache)
++{
++	if (!cache || property == cache)
++		return false;
++	TargetAdrcMetadata result = *cache;
++	if (!property) {
++		std::fill_n(result.begin(), 4, 0);
++	} else {
++		std::copy_n(property->begin(), 16, result.begin());
++		uint32_t version = uint32_t((*property)[4]) | uint32_t((*property)[5]) << 8 |
++				   uint32_t((*property)[6]) << 16 | uint32_t((*property)[7]) << 24;
++		if (version < 2)
++			std::copy_n(property->begin() + 16, version ? 40 : 32, result.begin() + 16);
++		std::copy(property->begin() + 56, property->end(), result.begin() + 56);
++	}
++	*cache = result;
++	return true;
++}
++} /* namespace libcamera::ipa */
+--- /dev/null
++++ b/src/ipa/libipa/tmc_input.h
+@@ -0,0 +1,16 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++#include <cstdint>
++namespace libcamera::ipa {
++struct TmcAecExposurePair {
++	uint64_t time0, time1;
++	float gain0, gain1, sensitivity0, sensitivity1;
++};
++struct TmcHdrTriggers { float exposureTimeRatio, exposureGainRatio, sensitivityRatio; };
++/* AEC slots1/0. Native TMC11 module88/92 receive time/sensitivity ratios;
++ * its HDR control2 does not consume the exposure-gain ratio. */
++bool calculateTargetTmcHdrTriggers(const TmcAecExposurePair &input, TmcHdrTriggers *output);
++/* Actual IPE binder only writes1 when cache.version==1, otherwise preserves
++ * initialVersion. The normal19928B request initialization supplies zero. */
++uint32_t bindTargetIpeTmcVersion(uint32_t cacheVersion, uint32_t initialVersion);
++} /* namespace libcamera::ipa */
+--- /dev/null
++++ b/src/ipa/libipa/tmc_input.cpp
+@@ -0,0 +1,27 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#include "tmc_input.h"
++#include <cmath>
++namespace libcamera::ipa {
++bool calculateTargetTmcHdrTriggers(const TmcAecExposurePair &input, TmcHdrTriggers *output)
++{
++	if (!output || !std::isfinite(input.gain0) || !std::isfinite(input.gain1) ||
++	    !std::isfinite(input.sensitivity0) || !std::isfinite(input.sensitivity1))
++		return false;
++	TmcHdrTriggers result{ 1, 1, 1 };
++	if (input.time0)
++		result.exposureTimeRatio = float(input.time1) / float(input.time0);
++	if (!(double(std::fabs(input.gain0)) < 1e-9))
++		result.exposureGainRatio = input.gain1 / input.gain0;
++	if (!(double(std::fabs(input.sensitivity0)) < 1e-9))
++		result.sensitivityRatio = input.sensitivity1 / input.sensitivity0;
++	if (!std::isfinite(result.exposureTimeRatio) || !std::isfinite(result.exposureGainRatio) ||
++	    !std::isfinite(result.sensitivityRatio))
++		return false;
++	*output = result;
++	return true;
++}
++uint32_t bindTargetIpeTmcVersion(uint32_t cacheVersion, uint32_t initialVersion)
++{
++	return cacheVersion == 1 ? 1 : initialVersion;
++}
++} /* namespace libcamera::ipa */
+--- /dev/null
++++ b/src/ipa/libipa/ltm13_static.h
+@@ -0,0 +1,32 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++#include <array>
++#include <cstdint>
++
++namespace libcamera::ipa {
++/* Selected reserve and interpolated LA values. No tuning coefficients live in
++ * the implementation. Geometry and per-frame temporal/ADRC curves are separate. */
++struct Ltm13StaticInput {
++	std::array<float, 4> rgb2y;
++	float yRatioMaximum;
++	uint32_t reverseGamma, localAdaptation, maskFilter, dataCollection, imageProcessing;
++	std::array<int32_t, 24> weights;
++	std::array<int32_t, 6> maskKernel;
++	std::array<int32_t, 65> maskCurve;
++	std::array<float, 65> laCurve;
++	uint32_t lceThreshold;
++};
++struct Ltm13StaticResult {
++	std::array<uint32_t, 4> rgb2y;
++	uint32_t yRatioMaximum;
++	uint32_t reverseGamma, localAdaptation, maskFilter, dataCollection, imageProcessing;
++	std::array<uint32_t, 6> maskKernel;
++	uint32_t maskScale, maskShift, lceThreshold;
++	std::array<uint32_t, 12> weights;
++	std::array<uint32_t, 64> mask, la;
++};
++/* Target LTM13 arithmetic, without commands or device addresses. Invalid
++ * nonfinite/overflowing input preserves output. The inverse-Gamma primitive
++ * and strength/temporal/ADRC primitives are reused independently. */
++bool prepareLtm13Static(const Ltm13StaticInput &input, Ltm13StaticResult *output);
++} /* namespace libcamera::ipa */
+--- /dev/null
++++ b/src/ipa/libipa/ltm13_static.cpp
+@@ -0,0 +1,82 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#include "ltm13_static.h"
++#include <algorithm>
++#include <cmath>
++#include <limits>
++
++namespace libcamera::ipa {
++namespace {
++bool integer(float input, int32_t *output, bool round)
++{
++	if (!std::isfinite(input)) return false;
++	float value = round ? std::round(input) : std::trunc(input);
++	if (double(value) < std::numeric_limits<int32_t>::min() ||
++	    double(value) > std::numeric_limits<int32_t>::max()) return false;
++	*output = int32_t(value); return true;
++}
++uint32_t segment(int32_t base, int32_t next)
++{
++	base = std::min(base, 4095); next = std::min(next, 4095);
++	int64_t difference = int64_t(next) - base;
++	uint32_t delta = uint32_t(difference) & 4095;
++	if (difference < 0 || difference >= 32768) delta |= 2048;
++	return (uint32_t(base) & 4095) | (delta << 12);
++}
++uint32_t contribution(uint32_t coefficient, uint32_t exponent)
++{
++	/* AArch64 variable shifts mask the count. Use unsigned arithmetic to
++	 * preserve zero exponents without C++ negative-shift undefined behaviour. */
++	return coefficient << ((exponent - 1) & 31);
++}
++} /* namespace */
++bool prepareLtm13Static(const Ltm13StaticInput &in, Ltm13StaticResult *output)
++{
++	if (!output) return false;
++	Ltm13StaticResult result{};
++	for (unsigned i = 0; i < 4; ++i) {
++		int32_t value;
++		if (!integer(in.rgb2y[i] * 64, &value, true)) return false;
++		result.rgb2y[i] = std::clamp(value, 0, i == 3 ? 64 : 63);
++	}
++	int32_t y;
++	if (!integer(in.yRatioMaximum, &y, false)) return false;
++	result.yRatioMaximum = std::clamp(y, 0, 1023);
++	result.reverseGamma = bool(in.reverseGamma);
++	result.localAdaptation = bool(in.localAdaptation);
++	result.maskFilter = bool(in.maskFilter);
++	result.dataCollection = bool(in.dataCollection);
++	result.imageProcessing = bool(in.imageProcessing);
++	for (unsigned i = 0; i < 24; ++i)
++		if (in.weights[i] < 0 || in.weights[i] > 255) return false;
++	for (unsigned i = 0; i < 12; ++i) {
++		unsigned at = (i - i % 2) * 2 + 1 - i % 2;
++		result.weights[i] = uint32_t(in.weights[at]) | (uint32_t(in.weights[at + 2]) << 8);
++	}
++	for (unsigned i = 0; i < 6; ++i)
++		result.maskKernel[i] = std::clamp(in.maskKernel[i], i ? 0 : 1, int(6 - i));
++	/* The retained target adds a fixed four for the sixth tap, even when
++	 * its emitted exponent is zero. Follow actual instructions, rather than
++	 * evaluating the reference source's undefined negative shift. */
++	uint32_t sum = contribution(1, result.maskKernel[0]) +
++		contribution(4, result.maskKernel[1]) + contribution(4, result.maskKernel[2]) +
++		contribution(4, result.maskKernel[3]) + contribution(8, result.maskKernel[4]) + 4;
++	sum &= 65535;
++	if (!sum) return false;
++	for (int shift = 16; shift >= 0; --shift) {
++		uint32_t scale = ((1U << shift) / sum) & 65535;
++		result.maskScale = std::min(scale, 4094U); result.maskShift = shift;
++		if (scale < 4095) break;
++	}
++	result.lceThreshold = std::min(in.lceThreshold, 1023U);
++	std::array<int32_t, 65> la;
++	for (unsigned i = 0; i < 65; ++i) {
++		if (!integer(in.laCurve[i], &la[i], true) || la[i] < 0 || in.maskCurve[i] < 0)
++			return false;
++	}
++	for (unsigned i = 0; i < 64; ++i) {
++		result.mask[i] = segment(in.maskCurve[i], in.maskCurve[i + 1]);
++		result.la[i] = segment(la[i], la[i + 1]);
++	}
++	*output = result; return true;
++}
++} /* namespace libcamera::ipa */
+--- /dev/null
++++ b/src/ipa/libipa/ltm13_frame.h
+@@ -0,0 +1,47 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++#include "ltm13_static.h"
++#include "ltm_inverse_gamma.h"
++#include "ltm_face_smoothing.h"
++#include "tmc11_generation.h"
++
++namespace libcamera::ipa {
++struct Ltm13UnsignedSegment { uint16_t base; int16_t delta; };
++struct Ltm13SignedSegment { int16_t base, delta; };
++/* Matches the existing typed kernel LTM payload; not hardware command words. */
++struct Ltm13Program {
++	uint32_t reverseGamma, localAdaptation, maskFilter, binInitialCount;
++	std::array<uint32_t, 4> rgb2y;
++	uint32_t lceThreshold, yRatioMaximum;
++	std::array<uint32_t, 6> maskKernel;
++	uint32_t maskShift, maskScale, horizontalTermination, verticalTermination;
++	uint32_t dataCollection, imageProcessing;
++	std::array<uint16_t, 12> weights;
++	std::array<std::array<Ltm13UnsignedSegment, 64>, 2> la;
++	std::array<Ltm13UnsignedSegment, 64> curve;
++	std::array<Ltm13SignedSegment, 64> scale;
++	std::array<Ltm13UnsignedSegment, 64> mask;
++	std::array<std::array<Ltm13SignedSegment, 16>, 2> lce;
++	std::array<std::array<Ltm13UnsignedSegment, 64>, 5> reverse;
++};
++static_assert(sizeof(Ltm13Program) == 2800);
++struct Ltm13FrameInput {
++	Ltm13StaticInput constants;
++	Ltm13CurveInput curves;
++	Ltm13FaceSmoothingControl smoothing;
++	std::array<int32_t, 65> reserveCurve;
++	IfeGammaBaseNodes ifeGreen;
++	/* The actual published IFE forward nodes, including its endpoint. */
++	std::array<float, 65> forwardGamma;
++};
++/* The caller supplies the selected, freshly generated TMC11 result and its
++ * matching axis. No fabricated HDR/DRC/face inputs or root selection here.
++ * A null ADRC result follows the explicit non-ADRC LTM path. The proposed
++ * history is pre-attenuation and pre-ADRC, and is committed by the caller
++ * only on successful completion of the matching image request. */
++bool prepareLtm13Frame(const Ltm13FrameInput &input,
++		      const Ltm13FaceSmoothingState &history,
++		      const Tmc11GenerationResult *adrc,
++		      const std::array<float, 1024> *axis,
++		      Ltm13Program *output, Ltm13FaceSmoothingState *nextHistory);
++} /* namespace libcamera::ipa */
+--- /dev/null
++++ b/src/ipa/libipa/ltm13_frame.cpp
+@@ -0,0 +1,88 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#include "ltm13_frame.h"
++#include "ltm_adrc.h"
++#include <algorithm>
++#include <cmath>
++
++namespace libcamera::ipa {
++namespace {
++int16_t signedField(uint32_t value, unsigned bits)
++{
++	value &= (1U << bits) - 1;
++	int32_t result = value & (1U << (bits - 1)) ? int32_t(value) - (1 << bits) : int32_t(value);
++	return int16_t(result);
++}
++template<size_t N> void unpackUnsigned(const std::array<uint32_t, N> &in,
++				      std::array<Ltm13UnsignedSegment, N> &out, unsigned bits)
++{
++	for (size_t i = 0; i < N; ++i)
++		out[i] = { uint16_t(in[i] & ((1U << bits) - 1)), signedField(in[i] >> bits, bits) };
++}
++template<size_t N> void unpackSigned(const std::array<uint32_t, N> &in,
++				    std::array<Ltm13SignedSegment, N> &out)
++{
++	for (size_t i = 0; i < N; ++i)
++		out[i] = { signedField(in[i], 12), signedField(in[i] >> 12, 12) };
++}
++} /* namespace */
++bool prepareLtm13Frame(const Ltm13FrameInput &in, const Ltm13FaceSmoothingState &history,
++		      const Tmc11GenerationResult *adrc, const std::array<float, 1024> *axis,
++		      Ltm13Program *output, Ltm13FaceSmoothingState *nextHistory)
++{
++	if (!output || !nextHistory || nextHistory == &history || (adrc && !axis)) return false;
++	Ltm13StaticResult constants;
++	Ltm13InverseGammaTable inverse;
++	Ltm13Curves curves;
++	Ltm13FaceSmoothingState next;
++	Ltm13SignedTables signedTables;
++	if (!prepareLtm13Static(in.constants, &constants) ||
++	    !encodeLtm13InverseGamma(in.ifeGreen, &inverse) ||
++	    !calculateLtm13FaceCurves(in.curves, in.smoothing, history, &curves, &next) ||
++	    !encodeLtm13SignedTables(curves, &signedTables)) return false;
++	Ltm13AdrcBlend blend{};
++	blend.curve = in.reserveCurve;
++	for (unsigned i = 0; i < 65; ++i) {
++		float value = std::round(curves.scale[i]);
++		if (!std::isfinite(value) || value < -32768 || value > 32767) return false;
++		blend.scale[i] = int16_t(value);
++	}
++	if (adrc) {
++		Ltm13AdrcSamples samples;
++		for (unsigned i = 0; i < 64; ++i)
++			samples.equivalent12[i] = float((inverse.segments[i] & 16383) / 4);
++		samples.equivalent12[64] = 4095;
++		samples.forwardGamma10 = in.forwardGamma;
++		std::array<float, 65> normalized;
++		Tmc11PchipResult sampled;
++		Ltm13AdrcCurves converted;
++		if (!normalizeTmc11LtmInput(samples.equivalent12, &normalized) ||
++		    !sampleTmc11Pchip(adrc->pchip, normalized, &sampled) ||
++		    !applyTmc11LtmContrast(adrc->ltm, normalized, sampled.gain, *axis,
++				  adrc->contrastCurve, &samples.sampledGainQ10) ||
++		    !calculateLtm13Adrc(samples, &converted) ||
++		    !blendLtm13Adrc(converted, sampled.ltmMix, in.reserveCurve, blend.scale, &blend)) return false;
++	}
++	Ltm13AdrcTables tables;
++	if (!encodeLtm13AdrcTables(blend, &tables)) return false;
++	Ltm13Program result{};
++	result.reverseGamma = constants.reverseGamma;
++	result.localAdaptation = constants.localAdaptation;
++	result.maskFilter = constants.maskFilter;
++	result.rgb2y = constants.rgb2y;
++	result.lceThreshold = constants.lceThreshold;
++	result.yRatioMaximum = constants.yRatioMaximum;
++	result.maskKernel = constants.maskKernel;
++	result.maskShift = constants.maskShift; result.maskScale = constants.maskScale;
++	result.dataCollection = constants.dataCollection; result.imageProcessing = constants.imageProcessing;
++	for (unsigned i = 0; i < 12; ++i) result.weights[i] = constants.weights[i];
++	unpackUnsigned(constants.la, result.la[0], 12); result.la[1] = result.la[0];
++	unpackUnsigned(constants.mask, result.mask, 12);
++	unpackUnsigned(tables.curve, result.curve, 12);
++	unpackSigned(tables.scale, result.scale);
++	unpackSigned(signedTables.lcePositive, result.lce[0]);
++	unpackSigned(signedTables.lceNegative, result.lce[1]);
++	unpackUnsigned(inverse.segments, result.reverse[0], 14);
++	for (unsigned i = 1; i < 5; ++i) result.reverse[i] = result.reverse[0];
++	*output = result; *nextHistory = next; return true;
++}
++} /* namespace libcamera::ipa */
+--- a/src/ipa/libipa/meson.build
++++ b/src/ipa/libipa/meson.build
+@@ -22,6 +22,17 @@
+ ])
+ 
+ libipa_sources = files([
++    'ltm_inverse_gamma.cpp',
++    'ltm_curves.cpp',
++    'ltm_face_smoothing.cpp',
++    'ltm_adrc.cpp',
++    'tmc11_ltm.cpp',
++    'tmc11_generation.cpp',
++    'tmc11_tree.cpp',
++    'tmc_runtime.cpp',
++    'tmc_input.cpp',
++    'ltm13_static.cpp',
++    'ltm13_frame.cpp',
+     'agc_mean_luminance.cpp',
+     'algorithm.cpp',
+     'awb_bayes.cpp',
+--- /dev/null
++++ b/src/ipa/camss-vfe/ipe_numeric_history.h
+@@ -0,0 +1,52 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++#include <cerrno>
++#include <cstdint>
++#include <limits>
++#include <optional>
++
++namespace libcamera::ipa::camss {
++/* Numerical state is deliberately independent from the observation ledger.
++ * Only one uncommitted calculation is allowed per camera. Other requests may
++ * reuse a committed program, but may never compute from an unacknowledged
++ * proposal or pretend that reuse advances algorithm history. */
++template<class State> class IpeNumericHistory {
++public:
++	struct Proposal { uint64_t epoch, token, baseRevision; uint32_t sof; State next; };
++	bool start(uint64_t epoch)
++	{
++		if (active_ || !epoch || epoch <= epoch_) return false;
++		epoch_ = epoch; active_ = true; revision_ = 0; state_ = {}; lastSof_.reset(); pending_.reset();
++		return true;
++	}
++	void stop() { pending_.reset(); active_ = false; }
++	int prepare(uint64_t epoch, uint32_t sof, uint64_t token, uint64_t baseRevision, const State &next)
++	{
++		if (!active_ || epoch != epoch_) return -ESTALE;
++		if (pending_) return -EBUSY;
++		if (!token || token <= lastToken_ || (lastSof_ && sof <= *lastSof_)) return -EALREADY;
++		if (baseRevision != revision_) return -ESTALE;
++		if (revision_ == std::numeric_limits<uint64_t>::max()) return -EOVERFLOW;
++		pending_ = Proposal{ epoch, token, baseRevision, sof, next };
++		lastToken_ = token; lastSof_ = sof; return 0;
++	}
++	int resolve(uint64_t epoch, uint32_t sof, uint64_t token, bool success)
++	{
++		if (!active_ || epoch != epoch_) return -ESTALE;
++		if (!pending_ || token != pending_->token) return -ENOENT;
++		if (sof != pending_->sof || pending_->baseRevision != revision_) return -ESTALE;
++		if (success) { state_ = pending_->next; ++revision_; }
++		pending_.reset(); return success ? 1 : 0;
++	}
++	bool busy() const { return pending_.has_value(); }
++	uint64_t revision() const { return revision_; }
++	const State &state() const { return state_; }
++	const std::optional<Proposal> &pending() const { return pending_; }
++private:
++	bool active_ = false;
++	uint64_t epoch_ = 0, revision_ = 0, lastToken_ = 0;
++	std::optional<uint32_t> lastSof_;
++	State state_{};
++	std::optional<Proposal> pending_;
++};
++} /* namespace libcamera::ipa::camss */

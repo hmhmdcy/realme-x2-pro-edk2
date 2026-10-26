@@ -1,0 +1,62 @@
+diff --git a/drivers/gpu/drm/msm/adreno/a6xx_gpu.c b/drivers/gpu/drm/msm/adreno/a6xx_gpu.c
+--- a/drivers/gpu/drm/msm/adreno/a6xx_gpu.c
++++ b/drivers/gpu/drm/msm/adreno/a6xx_gpu.c
+@@ -2378,6 +2378,8 @@
+ static struct drm_gpuvm *
+ a6xx_create_private_vm(struct msm_gpu *gpu, bool kernel_managed)
+ {
++	struct adreno_gpu *adreno_gpu = to_adreno_gpu(gpu);
++	struct drm_gpuvm *vm;
+ 	struct msm_mmu *mmu;
+ 
+ 	mmu = msm_iommu_pagetable_create(to_msm_vm(gpu->vm)->mmu, kernel_managed);
+@@ -2385,8 +2387,14 @@
+ 	if (IS_ERR(mmu))
+ 		return ERR_CAST(mmu);
+ 
+-	return msm_gem_vm_create(gpu->dev, mmu, "gpu", ADRENO_VM_START,
+-				 adreno_private_vm_size(gpu), kernel_managed);
++	vm = msm_gem_vm_create(gpu->dev, mmu, "gpu", ADRENO_VM_START,
++			       adreno_private_vm_size(gpu), kernel_managed);
++
++	/* Diagnostic candidate: test A640 GMEM resolve address granularity. */
++	if (!IS_ERR(vm) && kernel_managed && adreno_is_a640(adreno_gpu))
++		to_msm_vm(vm)->iova_alignment = SZ_64K;
++
++	return vm;
+ }
+ 
+ static uint32_t a6xx_get_rptr(struct msm_gpu *gpu, struct msm_ringbuffer *ring)
+diff --git a/drivers/gpu/drm/msm/msm_gem.h b/drivers/gpu/drm/msm/msm_gem.h
+--- a/drivers/gpu/drm/msm/msm_gem.h
++++ b/drivers/gpu/drm/msm/msm_gem.h
+@@ -136,6 +136,9 @@
+ 
+ 	/** @managed: is this a kernel managed VM? */
+ 	bool managed;
++
++	/** @iova_alignment: Address alignment for kernel managed allocations. */
++	u64 iova_alignment;
+ 
+ 	/**
+ 	 * @unusable: True if the VM has turned unusable because something
+diff --git a/drivers/gpu/drm/msm/msm_gem_vma.c b/drivers/gpu/drm/msm/msm_gem_vma.c
+--- a/drivers/gpu/drm/msm/msm_gem_vma.c
++++ b/drivers/gpu/drm/msm/msm_gem_vma.c
+@@ -389,7 +389,7 @@
+ 		BUG_ON(offset != 0);
+ 		BUG_ON(!obj);  /* NULL mappings not valid for kernel managed VM */
+ 		ret = drm_mm_insert_node_in_range(&vm->mm, &vma->node,
+-						obj->size, PAGE_SIZE, 0,
++						obj->size, vm->iova_alignment, 0,
+ 						range_start, range_end, 0);
+ 
+ 		if (ret)
+@@ -864,6 +864,7 @@
+ 	vm->mmu = mmu;
+ 	mutex_init(&vm->mmu_lock);
+ 	vm->managed = managed;
++	vm->iova_alignment = PAGE_SIZE;
+ 
+ 	drm_mm_init(&vm->mm, va_start, va_size);
+ 

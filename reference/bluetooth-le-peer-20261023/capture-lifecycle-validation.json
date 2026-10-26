@@ -1,0 +1,24 @@
+{
+  "capture_lifecycle_checks_passed": true,
+  "checks": [
+    "Delivered server parses; native monitor code has no socket send calls",
+    "AF_UNIX frame preserved in kernel185 monotonic+packet.hex JSONL; FD/thread/log close bounded",
+    "Idle receive timeout permits clean bounded shutdown without a fabricated packet",
+    "Output-open failure closes the already-open fixture FD before registration could occur",
+    "Mocked channel2 bind failure preserves errno and closes FD; no HCI socket was created",
+    "Injected reader failure is retained, stops health/data access, prevents adapter mutation, and closes cleanly",
+    "Explicit native backend parses only through a fake no-I/O runtime; offline-export rejects it"
+  ],
+  "check_count": 7,
+  "server_sha256": "cda475eae488dde656b53a07e473fd9076668c5fbcaa2d9397dc61a405eefe10",
+  "transport_used_for_packets": "AF_UNIX socketpair and injected receiver only",
+  "real_hci_socket_opened": false,
+  "system_bus_or_phone_accessed": false,
+  "native_monitor_hardware_validated": false,
+  "btmon_runtime_validated": false,
+  "prior_nine_DBus_checks_reused_without_rerun": true,
+  "reused_implementation_sources": [
+    "../kernel130/bt_mgmt.py:open_channel(2)",
+    "../kernel185/test-bluez-scan-preserve-pairs.py:record_hci"
+  ]
+}

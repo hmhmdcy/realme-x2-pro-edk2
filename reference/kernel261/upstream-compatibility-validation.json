@@ -1,0 +1,67 @@
+{
+  "as_of": "2026-10-18",
+  "upstream_compatibility_fix_released": true,
+  "local_versions": {
+    "gtk": "4.24.1-r0",
+    "phoc": "0.57.0-r1",
+    "stevia": "0.57.0-r2"
+  },
+  "local_text_input_manager_v3_interface_version": 1,
+  "issue": {
+    "id": 8349,
+    "title": "Sends too many text_input.enable() events",
+    "state": "opened",
+    "url": "https://gitlab.gnome.org/GNOME/gtk/-/work_items/8349"
+  },
+  "upstream_fix": {
+    "project": "Phoc",
+    "version": "0.58.0",
+    "official_release_announcement_date": "2026-10-04",
+    "merge_request": "https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/813",
+    "merged_at": "2026-09-19T14:48:52.279Z",
+    "commit": "832125ad3d208ce8b0b81c13f9d5f4d3c9c817b1",
+    "release_commit": "d50d76a4add49add71b259df9cf67d58b3cbddfb",
+    "mechanism": "Advertise text-input-v3 interface version 2; distinguish text input enable from explicit show/hide_input_panel requests. Ignore enable as an OSK-show trigger for version 2 clients.",
+    "packaging_requirement": "Phoc release includes a corresponding wlroots text-input-v3 version 2 backport queue. A build must include that protocol support.",
+    "existing_gtk_support": "GTK4.24.1 includes the searchbar explicit OSK-show change for issue8409; no claim that GTK issue8349 itself is closed.",
+    "stevia_requirement": "The Phoc fix activates/deactivates the existing input-method-v2 interface; Stevia0.57->0.58 compare has no pos-input-method.c change. A Stevia-only upgrade is not the identified fix."
+  },
+  "recommendation": "Prefer the released upstream Phoc protocol compatibility implementation and its wlroots support; retain search capture. Validate the specific packaged build on the phone before calling it fixed.",
+  "upstream_fix_deployed_to_phone": false,
+  "phone_modified_during_upstream_review": false,
+  "sources": [
+    {
+      "file": "phoc-mr813.json",
+      "sha256": "a4e706ab1832a86ab5fc34854a5d3d5b6f59fb2bb1deb01e3ff80b4948fe501f"
+    },
+    {
+      "file": "phoc-v058-tag.json",
+      "sha256": "a669b7d22bdd3fadad2b76bed2f40e5c3b819ca1fffade1b2b6c763f675c7a18"
+    },
+    {
+      "file": "phoc-v058-news",
+      "sha256": "63428c733dd19982c36d362d7300d05b12bf0aaacf5c64ecd300e077a2279ce1"
+    },
+    {
+      "file": "phoc-v058-relay.c",
+      "sha256": "ad86c27987643235c44d3b8a7bd6f2d39477f9180376cdd0000a6d71919d6ae0"
+    },
+    {
+      "file": "gtk-issue8349.json",
+      "sha256": "b257eeddb77e4e2b2f9a98be415ee8ef691a06c4cd15873dfa46317752586e1b"
+    },
+    {
+      "file": "gtk-issue8409.json",
+      "sha256": "199ef7f6cff55fd07c740c7a4bdde187b66f8cd3cfba95e4a08ce469ae1c0e85"
+    },
+    {
+      "file": "release058.html",
+      "sha256": "ef4cf13b6d61dd4cd015b2583f0412d7bad0540cd2b7695b9a816578105f59a5"
+    }
+  ],
+  "primary_links": [
+    "https://phosh.mobi/releases/rel-0.58.0/",
+    "https://gitlab.gnome.org/World/Phosh/phoc/-/merge_requests/813",
+    "https://gitlab.gnome.org/GNOME/gtk/-/work_items/8349"
+  ]
+}

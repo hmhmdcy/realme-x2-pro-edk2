@@ -1,0 +1,223 @@
+--- a/include/libcamera/ipa/camss.mojom
++++ b/include/libcamera/ipa/camss.mojom
+@@ -49,6 +49,7 @@
+ 	unmapBuffers(array<uint32> ids);
+ 	start(uint64 epoch, libcamera.ControlList controls) => (int32 ret, libcamera.ControlList sensorControls);
+ 	convertControls(uint64 epoch, libcamera.ControlList controls) => (int32 ret, libcamera.ControlList sensorControls);
++	applyIspControls(uint64 epoch, libcamera.ControlList controls) => (int32 ret, AutoIspUpdate update);
+ 	stop();
+ 	prepareParameters(uint64 epoch, uint32 bufferId, uint32 revision) => (int32 ret, uint32 bytesused);
+ 	[async] parametersApplied(uint64 epoch, uint32 firstSof, uint32 revision);
+--- a/src/ipa/camss-vfe/camss.cpp
++++ b/src/ipa/camss-vfe/camss.cpp
+@@ -38,6 +38,7 @@
+ 	void unmapBuffers(const std::vector<uint32_t> &ids) override;
+ 	int start(uint64_t epoch, const ControlList &controls, ControlList *sensorControls) override;
+ 	int convertControls(uint64_t epoch, const ControlList &controls, ControlList *sensorControls) override;
++	int applyIspControls(uint64_t epoch, const ControlList &controls, AutoIspUpdate *update) override;
+ 	void stop() override;
+ 	int prepareParameters(uint64_t epoch, uint32_t id, uint32_t revision, uint32_t *bytesused) override;
+ 	void parametersApplied(uint64_t epoch, uint32_t firstSof, uint32_t revision) override;
+@@ -51,7 +52,7 @@
+ 	bool awbEnabled_ = false;
+ 	uint32_t ispRevision_ = 0;
+ 	std::optional<AutoIspUpdate> pendingWhiteBalance_;
+-	struct ParameterContext { uint32_t revision; double red, blue; };
++	struct ParameterContext { uint32_t revision; double red, blue; bool awbEnabled; double sourceRed, sourceBlue; };
+ 	std::map<uint32_t, ParameterContext> preparedParameters_, parameterHistory_;
+  bool automatic_ = false;
+  uint32_t revision_ = 0;
+@@ -198,10 +199,15 @@
+  if (!sensorControls) return -EINVAL;
+  ControlList translated(sensorControls_);
+  for (const auto &[id, value] : controls) {
+-  if (id == controls::ColourGains.id() && startup) continue;
++  if (id == controls::ColourGains.id()) {
++   if (value.type() != ControlTypeFloat || !value.isArray() || value.numElements() != 2) return -EINVAL;
++   for (float gain : value.get<Span<const float>>())
++    if (!std::isfinite(gain) || gain < 0 || gain > 8) return -ERANGE;
++   continue;
++  }
+   if (id == controls::AwbEnable.id()) {
+    if (value.type() != ControlTypeBool || value.isArray()) return -EINVAL;
+-   if (!startup && value.get<bool>() != awbEnabled_) return -ENOTSUP;
++   if (value.get<bool>() && !awb_) return -ENOTSUP;
+    continue;
+   }
+   if (id == controls::ExposureTimeMode.id() || id == controls::AnalogueGainMode.id()) {
+@@ -233,8 +239,39 @@
+ int IPACamss::convertControls(uint64_t epoch, const ControlList &controls, ControlList *sensorControls)
+ {
+  if (!running_ || epoch != epoch_) return -ESTALE;
+- if (automatic_ && !controls.empty()) return -ENOTSUP;
+- return translate(controls, false, sensorControls);
++ ControlList sensorOnly(libcamera::controls::controls);
++ for (const auto &[id, value] : controls)
++  if (id != libcamera::controls::ColourGains.id() && id != libcamera::controls::AwbEnable.id()) sensorOnly.set(id,value);
++ ControlList ignored(sensorControls_);
++ int ret = translate(controls, true, &ignored);
++ if (ret) return ret;
++ if (automatic_ && !sensorOnly.empty()) return -ENOTSUP;
++ return translate(sensorOnly, false, sensorControls);
++}
++
++int IPACamss::applyIspControls(uint64_t epoch, const ControlList &controls, AutoIspUpdate *update)
++{
++ if (!update) return -EINVAL;
++ *update = {};
++ if (!running_ || epoch != epoch_) return -ESTALE;
++ if (pendingWhiteBalance_ || !preparedParameters_.empty() || parameterHistory_.empty()) return -EAGAIN;
++ ControlList ignored(sensorControls_);
++ int ret = translate(controls, true, &ignored);
++ if (ret) return ret;
++ const auto &current = parameterHistory_.rbegin()->second;
++ const bool enabled = controls.get(libcamera::controls::AwbEnable).value_or(awbEnabled_);
++ double red = current.sourceRed, blue = current.sourceBlue;
++ if (!enabled) {
++  auto gains = controls.get(libcamera::controls::ColourGains);
++  if (gains) { red=(*gains)[0];blue=(*gains)[1]; }
++ }
++ if (enabled == current.awbEnabled && red == current.sourceRed && blue == current.sourceBlue) return 0;
++ if (ispRevision_ >= UINT32_MAX-1) return -EOVERFLOW;
++ awbEnabled_ = enabled;
++ if (awb_) awb_->reset();
++ pendingWhiteBalance_ = AutoIspUpdate{ true, ++ispRevision_, red, blue };
++ *update = *pendingWhiteBalance_;
++ return 0;
+ }
+ 
+ int IPACamss::mapBuffers(const std::vector<IPABuffer> &parameters, const std::vector<IPABuffer> &statistics)
+@@ -355,7 +392,7 @@
+ 	size_t used;
+ 	ret = encodeParameters(it->second.memory->planes()[0], profile_, red, blue, input_, Rectangle(input_), &used);
+ 	if (!ret) {
+-		preparedParameters_[revision] = { revision, effectiveRed, effectiveBlue };
++		preparedParameters_[revision] = { revision, effectiveRed, effectiveBlue, awbEnabled_, red, blue };
+ 		*bytesused = used;
+ 	}
+ 	return ret;
+@@ -375,7 +412,7 @@
+ 	preparedParameters_.erase(it);
+ 	if (pendingWhiteBalance_ && pendingWhiteBalance_->revision == revision) pendingWhiteBalance_.reset();
+ 	while (parameterHistory_.size() > 64) parameterHistory_.erase(parameterHistory_.begin());
+-	LOG(IPACamss, Info) << "ISP applied epoch=" << epoch << " revision=" << revision << " first-sof=" << firstSof;
++	LOG(IPACamss, Info) << "ISP applied epoch=" << epoch << " revision=" << revision << " first-sof=" << firstSof << " awb=" << parameterHistory_.at(firstSof).awbEnabled;
+ }
+ 
+ void IPACamss::processStats(uint64_t epoch, uint32_t sof, uint32_t id, uint32_t bytesused, const SensorContext &sensorContext)
+@@ -411,8 +448,9 @@
+ 		metadata.set(controls::ColourGains, Span<const float, 2>(gains));
+ 	}
+ 	effective_ = result.parametersKnown;
+-	metadata.set(controls::AwbEnable, awbEnabled_);
+-	if (awbEnabled_ && effective_ && result.rgbPresent && context == std::prev(parameterHistory_.end()) &&
++	metadata.set(controls::AwbEnable, result.parametersKnown && context->second.awbEnabled);
++	metadata.set(controls::AwbLocked, false);
++	if (awbEnabled_ && effective_ && context->second.awbEnabled && result.rgbPresent && context == std::prev(parameterHistory_.end()) &&
+ 	    !pendingWhiteBalance_ && preparedParameters_.empty()) {
+ 		auto awb = awb_->calculate(parsed.grid, context->second.red, context->second.blue);
+ 		result.awbRegions = awb.regions;
+--- a/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
++++ b/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
+@@ -64,6 +64,9 @@
+ 	void statsReady(FrameBuffer *buffer);
+ 	void paramsReady(FrameBuffer *buffer);
+ 	void queueIspUpdate(const ipa::camss::AutoIspUpdate &update);
++	struct IspControls { ControlList controls; uint32_t source; };
++	std::deque<IspControls> ispControls_;
++	std::optional<int64_t> imageSequenceOffset_;
+ 	void frameStart(uint32_t sequence);
+ 	void expired();
+ 	void finish(uint32_t sequence, bool paired);
+@@ -505,6 +508,8 @@
+  }
+  d->parameterBusy_ = false; d->ispHealthy_ = true;
+  d->parameterRevision_ = d->lastIspRevision_ = 0;
++ d->ispControls_.clear();
++ d->imageSequenceOffset_.reset();
+  for (auto &buffer : d->paramsBuffers_) {
+   uint32_t used = 0;
+   ret = d->ipa_->prepareParameters(d->epoch_, buffer->cookie(), 0, &used);
+@@ -564,7 +569,7 @@
+ 	d->params_->releaseBuffers(); d->stats_->releaseBuffers(); d->image_->releaseBuffers();
+ 	d->paramsBuffers_.clear(); d->statsBuffers_.clear();
+ 	d->paramsApplied_ = false;
+-	d->delayedControls_.reset(); d->sensorContexts_.clear(); d->lastSof_.reset();
++	d->delayedControls_.reset(); d->sensorContexts_.clear(); d->lastSof_.reset(); d->ispControls_.clear();
+ 	d->restoreLinks();
+ 	if (active_ == d)
+ 		active_ = nullptr;
+@@ -579,14 +584,18 @@
+  if (!buffer) return -EINVAL;
+  ControlList sensorControls(d->sensor_->controls());
+  if (!request->controls().empty()) {
+-  if (!d->delayedControls_ || !d->sensorContextHealthy_) return -ENOTSUP;
+-  if (d->sensorUpdates_.size() >= 8) return -ENOSPC;
+   int ret = d->ipa_->convertControls(d->epoch_, request->controls(), &sensorControls);
+   if (ret) return ret;
+  }
++ const bool isp = request->controls().contains(controls::AwbEnable.id()) || request->controls().contains(controls::ColourGains.id());
++ if (isp && !d->ispHealthy_) return -EPIPE;
++ if (!sensorControls.empty() && (!d->delayedControls_ || !d->sensorContextHealthy_)) return -ENOTSUP;
++ if ((!sensorControls.empty() && d->sensorUpdates_.size() >= 8) || (isp && d->ispControls_.size() >= 8)) return -ENOSPC;
+  int ret = d->image_->queueBuffer(buffer);
+- if (!ret && !sensorControls.empty())
+-  d->sensorUpdates_.push_back({ std::move(sensorControls), request->sequence() });
++ if (!ret) {
++  if (!sensorControls.empty()) d->sensorUpdates_.push_back({ std::move(sensorControls), request->sequence() });
++  if (isp) { d->ispControls_.push_back({ request->controls(), request->sequence() }); d->submitStatistics(); }
++ }
+  return ret;
+ }
+ 
+@@ -611,7 +620,7 @@
+ 	if (!running_ || !ispHealthy_ || !update.valid) return;
+ 	if (parameterBusy_ || update.revision != lastIspRevision_ + 1 ||
+ 	    !std::isfinite(update.red) || !std::isfinite(update.blue) ||
+-	    update.red < .125 || update.red > 8 || update.blue < .125 || update.blue > 8) {
++	    update.red < 0 || update.red > 8 || update.blue < 0 || update.blue > 8) {
+ 		ispHealthy_ = false;
+ 		LOG(CamssVfe, Error) << "Rejected ISP gain proposal";
+ 		return;
+@@ -693,6 +702,11 @@
+ 		return;
+ 	}
+ 	const uint32_t sequence = buffer->_d()->kernelSequence();
++	const int64_t offset = int64_t(sequence) - buffer->request()->sequence();
++	if (imageSequenceOffset_ && *imageSequenceOffset_ != offset) {
++		ispHealthy_ = false; ispControls_.clear();
++		LOG(CamssVfe, Error) << "Image/request sequence mapping changed; runtime ISP requests need restart";
++	} else imageSequenceOffset_ = offset;
+ 	if (images_.count(sequence)) {
+ 		LOG(CamssVfe, Error) << "Duplicate image SOF " << sequence;
+ 		buffer->_d()->metadata().status = FrameMetadata::FrameError;
+@@ -728,6 +742,21 @@
+ void CamssVfeData::submitStatistics()
+ {
+  if (!running_ || !paramsApplied_ || parameterBusy_) return;
++ while (!ispControls_.empty()) {
++  // Parameters latch at the following SOF. Do not change an earlier request's image.
++  if (!imageSequenceOffset_ || !lastSof_ ||
++      int64_t(*lastSof_) + 1 < int64_t(ispControls_.front().source) + *imageSequenceOffset_) break;
++  if (std::any_of(pendingStats_.begin(), pendingStats_.end(), [](const auto &entry) { return entry.second.submitted; })) return;
++  auto &request = ispControls_.front();
++  ipa::camss::AutoIspUpdate update{};
++  int ret = ipa_->applyIspControls(epoch_, request.controls, &update);
++  if (ret == -EAGAIN) return;
++  if (ret) { ispHealthy_=false; LOG(CamssVfe, Error) << "Runtime WB control failed: " << ret; return; }
++  LOG(CamssVfe, Info) << "WB request epoch=" << epoch_ << " source=" << request.source << " revision=" << update.revision
++   << " awb=" << (request.controls.contains(controls::AwbEnable.id()) ? int(*request.controls.get(controls::AwbEnable)) : -1);
++  ispControls_.pop_front();
++  if (update.valid) { queueIspUpdate(update); return; }
++ }
+  /* No iterators cross a proxy call: a direct module may return immediately. */
+  std::vector<std::pair<uint32_t, uint32_t>> ready;
+  for (const auto &[id, pending] : pendingStats_)
+@@ -790,6 +819,7 @@
+  }
+  int ret = stats_->queueBuffer(buffer);
+  if (ret) LOG(CamssVfe, Error) << "Requeue IPA statistics failed: " << ret;
++ submitStatistics();
+ }
+ 
+ void CamssVfeData::finish(uint32_t sequence, bool paired)

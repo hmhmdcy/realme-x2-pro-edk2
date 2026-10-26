@@ -1,0 +1,62 @@
+{
+  "schema": "samurai-charging-tracepoint-availability-summary-v1",
+  "passed": true,
+  "same_runtime_identity": true,
+  "manifest_sha256": "18e8a1049a2c497fbc47ace50f8319aefccd63a9cd1ce5a7e9ef06916773b4e5",
+  "taint": 0,
+  "selected_available": {
+    "workqueue/workqueue_queue_work": true,
+    "workqueue/workqueue_execute_start": true,
+    "workqueue/workqueue_execute_end": true,
+    "smbus/smbus_read": true,
+    "smbus/smbus_write": true,
+    "smbus/smbus_reply": true,
+    "smbus/smbus_result": true,
+    "i2c/i2c_read": true,
+    "i2c/i2c_write": true,
+    "i2c/i2c_reply": true,
+    "i2c/i2c_result": true,
+    "irq/irq_handler_entry": true,
+    "irq/irq_handler_exit": true
+  },
+  "available_tracers": [
+    "nop"
+  ],
+  "global_tracing_on_observed": "1",
+  "trace_clock_observed": "[local] global counter uptime perf mono mono_raw boot tai",
+  "formats_sha256": {
+    "workqueue/workqueue_queue_work": "9da45afef41c53c572f7aeb8bba477aa34cc30016a88d9bff9bc97ddb8c1106e",
+    "workqueue/workqueue_execute_start": "bea6c4bc2162a9a39241a4098b465f7883510f79e102ce9e3bc9fb291b422b73",
+    "workqueue/workqueue_execute_end": "45af0844f70e57f0ffd8a288d30662e600b07828e96391926b13f05004937839",
+    "smbus/smbus_read": "5203f7196fec5800875884c75dd34f8cd4091f5601c6dc0979808aa7459c4cca",
+    "smbus/smbus_write": "e5b526bb7a76ad8aad7f04f0d6594d933d5e35f646d7ad594a590fb1b3520977",
+    "smbus/smbus_reply": "49f6304c59e9acc87a90323f749ab85b9d2c92b368bea19a3f727154e05f2126",
+    "smbus/smbus_result": "f31de25117e595a1fcce990007513574ae58ae8a9f338af4b49ee758467d2a58",
+    "i2c/i2c_read": "13b0483b7fcf96421afde04f92d0d862628171f96ddfa339c189e8ffb535f209",
+    "i2c/i2c_write": "42314c0c678b397d8530732980c4660c35da010b1707e11350a2c8a979c09784",
+    "i2c/i2c_reply": "df9b17512ac549270f1737d16bf35ae5385be2fddf290be6e8ca3d12867948cb",
+    "i2c/i2c_result": "547ec895b6fd14ecdce2c7b0704917fb540b624232e4e500fcf65384c7c3236e",
+    "irq/irq_handler_entry": "0e6b8c42f4e0be983fb3e7c77552fbd5232120cc1d44167ebeb0c255479aafb9",
+    "irq/irq_handler_exit": "e7a708338bc95ce1106a741b0b546ba26069455db48c7ff3519134b86c5c86d7"
+  },
+  "live_symbol_names": [
+    "power_supply_changed_work",
+    "bq27xxx_battery_poll",
+    "sm_poll",
+    "samurai_usb_poll"
+  ],
+  "live_symbol_addresses_visible": true,
+  "read_duration_seconds": 0.248665913,
+  "read_only": true,
+  "bus_access_performed": false,
+  "trace_enabled_by_this_probe": false,
+  "trace_instance_created": false,
+  "mount_attempted": false,
+  "original_child_wait_zero": true,
+  "original_source_sha256": "4b15ee88d90b2899569d258390107d97f7be31233667e1a4e678974cbf207c81",
+  "original_stdout_sha256": "73cfd7efa924aa4cfbb8c4c5c4f7c0a392aeee23d97680c4fb1ede91d898b4c1",
+  "original_terminal_sha256": "30c6b1eff8a4bce91e9e9a3de007d68d49a1d1af6e6c2860464fc1c36fbe14ed",
+  "observation_worker_implemented": false,
+  "physical_latency_measured": false,
+  "scope": "只确认现有tracepoint与现场格式可用，没有启用追踪、修改全局trace状态或新增总线读；图标专项已收敛，此配方留作故障再现时的备用观测。"
+}

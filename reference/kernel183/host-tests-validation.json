@@ -1,0 +1,45 @@
+{
+  "stage": 183,
+  "all_passed": true,
+  "result": "69 actual-function scenarios passed",
+  "negative_control_count": 6,
+  "negative_controls": [
+    "ignore-qmi-loss",
+    "asleep-is-offline",
+    "live-abort-allowed",
+    "abort-leaks-ports",
+    "offline-stop-touches-bus",
+    "live-error-swallowed"
+  ],
+  "actual_functions": [
+    "slim_device_is_online",
+    "qcom_slim_ngd_is_online",
+    "slim_stream_abort",
+    "slim_stream_disable",
+    "slim_stream_unprepare",
+    "wcd934x_slim_port_interrupts",
+    "wcd934x_slim_port_clear",
+    "wcd934x_slim_stop",
+    "wcd934x_trigger"
+  ],
+  "actual_source_sha256": {
+    "arch/arm64/boot/dts/qcom/sm8150-samurai.dts": "5c9df33c5af70eee13f924457d31f62e3df3453dc8d4c5481dfc1b3790aa8fc4",
+    "drivers/mfd/wcd934x.c": "5c4469fb8002bb92b9e4986f37c1ab008689563eb3ec5d813dcaeb3011814d46",
+    "drivers/slimbus/core.c": "0af4192aff6eddcb49a307b3b0bc918ce46c47cb3af6aaf2a9396e80fd7d8f89",
+    "drivers/slimbus/messaging.c": "527095ab1fc2cb21edc0217e3330d8edc75639e47ecf830a8e8dbd7ef58eb130",
+    "drivers/slimbus/qcom-ngd-ctrl.c": "aebf9cd07fb8b17d2caed52dd80874967a6c03d2ac64d25d4f66e3973b43549f",
+    "drivers/slimbus/slimbus.h": "8567e3ec7b7d88a1bb24436512e82a17455d3d1831d6fa8267b02316dea4612d",
+    "drivers/slimbus/stream.c": "9cc4bc5fd270a54bbe50023238a43aa64776b96a784c5d50b9d42f7afdfae7ee",
+    "drivers/soc/qcom/pdr_interface.c": "9bed740378d6be3571da5a9305d9271cd9bdd45533a63334b145d29c59847442",
+    "include/linux/slimbus.h": "9d1b1ae49552b6f0f6d3278d3b13ad3e96cbfdb0e2c1b78a4f218700319155ec",
+    "sound/soc/codecs/wcd-mbhc-v2.c": "5da4cf37f108c87104cebe4bb2453c10bd6a0c0dde4d63cc1c72e08efd31dff9",
+    "sound/soc/codecs/wcd934x.c": "09b4197066354a45007b7c9cca30c4131dbd4f4b6cee44bb4f22a21f1866d3be",
+    "sound/soc/qcom/samurai-audio.c": "cae1ecff5a438abb97f56af8601179f93358729082c510c3aee5bd965e2f50da"
+  },
+  "sanitizer": "AddressSanitizer and UndefinedBehaviorSanitizer",
+  "transport_regmap_allocator_and_start_enable_adapters": true,
+  "offline_stop_has_no_bus_messages_and_frees_ports": true,
+  "asleep_live_io_and_real_errors_preserved": true,
+  "existing_per_port_disable_unprepare_error_handling_not_expanded": true,
+  "hardware_playback_crash_retest_still_pending": true
+}

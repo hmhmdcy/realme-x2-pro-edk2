@@ -1,0 +1,17 @@
+#!/bin/sh
+# Resolve the handset MPSS independently of remoteproc probe order.
+set -eu
+found=
+matches=0
+for node in /sys/class/remoteproc/remoteproc*; do
+    test -r "$node/name" || continue
+    [ "$(cat "$node/name")" = modem ] || continue
+    test -r "$node/device/of_node/compatible" || continue
+    tr '\0' '\n' < "$node/device/of_node/compatible" | grep -qx qcom,sm8150-mpss-pas || continue
+    [ "$(readlink -f "$node/device/of_node")" = /sys/firmware/devicetree/base/soc@0/remoteproc@4080000 ] || continue
+    [ "$(cat "$node/firmware")" = qcom/sm8150/realme/samurai/modem.mdt ] || continue
+    found=$node
+    matches=$((matches+1))
+done
+[ "$matches" = 1 ] || exit 1
+printf '%s\n' "$found"

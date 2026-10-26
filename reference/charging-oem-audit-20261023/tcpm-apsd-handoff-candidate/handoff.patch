@@ -1,0 +1,427 @@
+--- a/drivers/usb/dwc3/samurai-apsd-owner.c
++++ b/drivers/usb/dwc3/samurai-apsd-owner.c
+@@ -18,6 +18,8 @@
+ #include <linux/usb/samurai-apsd-backend.h>
+ #include "core.h"
+ #include <linux/usb/samurai-pd5v.h>
++#include <linux/usb/samurai-tcpm-apsd.h>
++#include <linux/regmap.h>
+ #include "samurai-usb-input-decode.h"
+ #include "samurai-apsd-owner.h"
+ #include "samurai-apsd-once.h"
+@@ -67,6 +69,12 @@
+  * Lifecycle callers may touch tokens only after cancel_delayed_work_sync.
+  */
+ static DEFINE_MUTEX(owner_registry);
++/* Full TCPM publishes before joining the original worker. No provider or
++ * native getter is called from this fence. Keep it across unbind/probe error:
++ * there is no proved physical-detach rearm implementation in this candidate.
++ */
++static bool tcpm_fenced;
++static struct device *tcpm_supplier;
+ static struct samurai_apsd_owner *bound_owner;
+ static struct device *bus_dev;
+ static const struct samurai_apsd_bus_ops *bus_ops;
+@@ -345,7 +353,7 @@
+ 	bool aborted;
+ 
+ 	spin_lock_irqsave(&o->lock, flags);
+-	aborted = o->abort || o->blocked || o->quarantined;
++	aborted = o->abort || o->blocked || o->quarantined || READ_ONCE(tcpm_fenced);
+ 	spin_unlock_irqrestore(&o->lock, flags);
+ 	return aborted;
+ }
+@@ -355,7 +363,8 @@
+ 	unsigned long flags;
+ 
+ 	spin_lock_irqsave(&o->lock, flags);
+-	if (o->registered && !o->blocked && !o->abort && !o->quarantined)
++	if (o->registered && !o->blocked && !o->abort && !o->quarantined &&
++	    !READ_ONCE(tcpm_fenced))
+ 		mod_delayed_work(system_wq, &o->work, delay);
+ 	spin_unlock_irqrestore(&o->lock, flags);
+ }
+@@ -855,6 +864,72 @@
+ 	return ret;
+ }
+ 
++/* First full-PD takeover runs before tcpm_register_port(). The caller
++ * holds no TCPM port, input, notifier, PHY or route lock. owner_registry only
++ * serializes original lifecycle owners; the joined worker never takes it.
++ * The real Type-C device is retained until its devres release action runs.
++ */
++int samurai_apsd_tcpm_quiesce(struct device *typec, struct regmap *map)
++{
++	struct device_node *node;
++	int ret = 0;
++
++	if (!typec || !typec->parent || !map ||
++	    !of_machine_is_compatible("realme,samurai") ||
++	    !of_device_is_compatible(typec->of_node, "qcom,pm8150b-typec") ||
++	    dev_get_regmap(typec->parent, NULL) != map)
++		return -EXDEV;
++	mutex_lock(&owner_registry);
++	if (tcpm_supplier) {
++		ret = -EBUSY;
++		goto out;
++	}
++	if (bus_dev && (bus_dev->parent != typec->parent ||
++		dev_get_regmap(bus_dev->parent, NULL) != map)) {
++		ret = -EXDEV;
++		goto out;
++	}
++	if (bound_owner && bound_owner->dwc) {
++		node = of_parse_phandle(bound_owner->dwc->dev->of_node,
++				"samurai,apsd-typec", 0);
++		if (node != typec->of_node)
++			ret = -EXDEV;
++		of_node_put(node);
++		if (ret)
++			goto out;
++	}
++	tcpm_supplier = get_device(typec);
++	/* Every acquisition/validation and later bind sees revocation first. */
++	WRITE_ONCE(tcpm_fenced, true);
++	if (bound_owner && bound_owner->dwc)
++		ret = owner_join(bound_owner, DWC3_APSD_PD, false);
++	if (ret) {
++		put_device(tcpm_supplier);
++		tcpm_supplier = NULL;
++	}
++out:
++	mutex_unlock(&owner_registry);
++	return ret;
++}
++EXPORT_SYMBOL_GPL(samurai_apsd_tcpm_quiesce);
++
++void samurai_apsd_tcpm_release(struct device *typec)
++{
++	struct device *supplier = NULL;
++
++	mutex_lock(&owner_registry);
++	if (tcpm_supplier == typec) {
++		supplier = tcpm_supplier;
++		tcpm_supplier = NULL;
++	}
++	/* Never clear tcpm_fenced on remove, RX-off, PM, reset, or a software
++	 * USB disconnect. Those do not prove physical detach/vSafe0V.
++	 */
++	mutex_unlock(&owner_registry);
++	put_device(supplier);
++}
++EXPORT_SYMBOL_GPL(samurai_apsd_tcpm_release);
++
+ int samurai_apsd_bus_register(struct device *dev,
+ 		const struct samurai_apsd_bus_ops *ops, void *ctx)
+ {
+--- a/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec.c
++++ b/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec.c
+@@ -20,6 +20,7 @@
+ #include "qcom_pmic_typec_pdphy.h"
+ #include "qcom_pmic_typec_port.h"
+ #include "qcom_pmic_typec_5v.h"
++#include "qcom_pmic_typec_apsd.h"
+ 
+ static bool samurai_5v_only;
+ module_param(samurai_5v_only, bool, 0400);
+@@ -169,6 +170,19 @@
+ 		return -EINVAL;
+ 
+ 	tcpm->samurai_fixed_5v = qcom_pmic_typec_samurai_fixed_5v(tcpm);
++	/* Full Samurai TCPM cannot coexist with firmware APSD/QC or the forced
++	 * borrower. This real, mandatory call precedes even tcpm_register_port:
++	 * pdphy_start later enables frame filters before the first set_pd_rx.
++	 * Fixed-5V and other boards retain their original lifecycles.
++	 */
++	if (!tcpm->samurai_fixed_5v && of_machine_is_compatible("realme,samurai")) {
++		tcpm->apsd_handoff = qcom_pmic_typec_apsd_prepare(dev, regmap);
++		if (IS_ERR(tcpm->apsd_handoff)) {
++			ret = PTR_ERR(tcpm->apsd_handoff);
++			dev_err(dev, "full-PD APSD/QC takeover refused: %d\n", ret);
++			goto fwnode_remove;
++		}
++	}
+ 
+ 	bridge_dev = devm_drm_dp_hpd_bridge_alloc(tcpm->dev, to_of_node(tcpm->tcpc.fwnode));
+ 	if (IS_ERR(bridge_dev)) {
+--- a/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec.h
++++ b/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec.h
+@@ -9,6 +9,7 @@
+ struct pmic_typec {
+ 	struct device		*dev;
+ 	struct samurai_pd5v	*pd5v;
++	struct qcom_pmic_typec_apsd *apsd_handoff;
+ 	bool			samurai_fixed_5v;
+ 	bool			samurai_joined;
+ 	bool			samurai_pd_quiet;
+--- a/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_pdphy.c
++++ b/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_pdphy.c
+@@ -16,6 +16,7 @@
+ #include <linux/usb/tcpm.h>
+ #include "qcom_pmic_typec.h"
+ #include "qcom_pmic_typec_pdphy.h"
++#include "qcom_pmic_typec_apsd.h"
+ 
+ /* PD PHY register offsets and bit fields */
+ #define USB_PDPHY_MSG_CONFIG_REG	0x40
+@@ -309,6 +310,12 @@
+ 	struct device *dev = pmic_typec_pdphy->dev;
+ 	int ret;
+ 
++	/* Sleepable read-only isolation check, before taking the PHY spinlock.
++	 * This path cannot join APSD or call a native/TCPM power_supply getter.
++	 */
++	ret = qcom_pmic_typec_apsd_verify(tcpm->apsd_handoff);
++	if (ret)
++		return ret;
+ 	if (msg) {
+ 		ret = qcom_pmic_typec_pdphy_pd_transmit_payload(pmic_typec_pdphy,
+ 								type, msg,
+@@ -413,6 +420,12 @@
+ 	unsigned long flags;
+ 	int ret;
+ 
++	/* RX-off (including hard reset) must not grant APSD/QC ownership. */
++	if (on) {
++		ret = qcom_pmic_typec_apsd_verify(tcpm->apsd_handoff);
++		if (ret)
++			return ret;
++	}
+ 	spin_lock_irqsave(&pmic_typec_pdphy->lock, flags);
+ 
+ 	ret = regmap_write(pmic_typec_pdphy->regmap,
+@@ -516,6 +529,9 @@
+ 	int i;
+ 	int ret;
+ 
++	ret = qcom_pmic_typec_apsd_verify(tcpm->apsd_handoff);
++	if (ret)
++		return ret;
+ 	ret = regulator_enable(pmic_typec_pdphy->vdd_pdphy);
+ 	if (ret)
+ 		return ret;
+--- a/drivers/usb/typec/tcpm/qcom/Makefile
++++ b/drivers/usb/typec/tcpm/qcom/Makefile
+@@ -6,3 +6,4 @@
+ 					   qcom_pmic_typec_port.o \
+ 					   qcom_pmic_typec_pdphy.o \
+ 					   qcom_pmic_typec_pdphy_stub.o \
++					   qcom_pmic_typec_apsd.o
+--- /dev/null
++++ b/include/linux/usb/samurai-tcpm-apsd.h
+@@ -0,0 +1,27 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++#ifndef _LINUX_USB_SAMURAI_TCPM_APSD_H
++#define _LINUX_USB_SAMURAI_TCPM_APSD_H
++#include <linux/errno.h>
++#include <linux/kconfig.h>
++struct device;
++struct regmap;
++
++/* Internal bound-driver lifecycle, not a permission token. Call BEFORE
++ * tcpm_register_port()/PHY startup, with no TCPM, input or notifier lock held.
++ * Publishes an irreversible fence for this boot before joining the actual
++ * APSD owner. Future owner/backend bindings inherit the same fence.
++ * release drops the supplier device reference; it never reopens APSD.
++ * A future detached-epoch rearm implementation must replace that restriction.
++ */
++#if IS_ENABLED(CONFIG_USB_DWC3_SAMURAI_APSD_OWNER)
++int samurai_apsd_tcpm_quiesce(struct device *typec, struct regmap *map);
++void samurai_apsd_tcpm_release(struct device *typec);
++#else
++static inline int samurai_apsd_tcpm_quiesce(struct device *typec,
++					struct regmap *map)
++{
++	return -EOPNOTSUPP;
++}
++static inline void samurai_apsd_tcpm_release(struct device *typec) {}
++#endif
++#endif
+--- /dev/null
++++ b/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_apsd.h
+@@ -0,0 +1,13 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++#ifndef QCOM_PMIC_TYPEC_APSD_H
++#define QCOM_PMIC_TYPEC_APSD_H
++struct device;
++struct regmap;
++struct qcom_pmic_typec_apsd;
++struct qcom_pmic_typec_apsd *
++qcom_pmic_typec_apsd_prepare(struct device *dev, struct regmap *map);
++/* Read-only guard. NULL is for other boards/the unchanged fixed-5V profile.
++ * No native power_supply getter, TCPM callback or worker join is performed.
++ */
++int qcom_pmic_typec_apsd_verify(struct qcom_pmic_typec_apsd *handoff);
++#endif
+--- /dev/null
++++ b/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_apsd.c
+@@ -0,0 +1,169 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/* Samurai BC1.2 -> full TCPM exclusion. Detached-epoch rearm is not yet
++ * implemented. This code never disables PD or restricts the sink PDOs.
++ */
++#include <linux/bitops.h>
++#include <linux/delay.h>
++#include <linux/device.h>
++#include <linux/err.h>
++#include <linux/ktime.h>
++#include <linux/mutex.h>
++#include <linux/regmap.h>
++#include <linux/slab.h>
++#include <linux/string.h>
++#include <linux/usb/samurai-tcpm-apsd.h>
++#include "qcom_pmic_typec_apsd.h"
++
++#define USBIN_OPTIONS_1 0x1362
++#define APSD_ENABLE BIT(3)
++#define HVDCP_AUTH_AUTONOMOUS_ENABLE 0x64
++#define USBIN_OPTIONS_2 0x1358
++#define APSD_START_ON_CC BIT(7)
++#define HANDOFF_STABLE_MS 20
++#define HANDOFF_FRESH_MS 250
++
++struct qcom_pmic_typec_apsd {
++	struct device *dev;
++	struct regmap *map;
++	struct mutex lock;
++	bool prepared;
++	int error;
++};
++
++static const unsigned int off_regs[] = { 0x1310, 0x1509, 0x150a, 0x150b };
++static const struct { unsigned int reg, mask; } isolation[] = {
++	{ USBIN_OPTIONS_1, APSD_ENABLE | HVDCP_AUTH_AUTONOMOUS_ENABLE },
++	{ USBIN_OPTIONS_2, APSD_START_ON_CC },
++};
++
++/* A real off is required for this first candidate's initial takeover.
++ * Neither get_vbus(false), stale ONLINE nor absence of a contract proves
++ * vSafe0V. The Type-C bit and all four physical presence bits must agree.
++ * A connected/inherited 5V/9V/QC source is refused, not renegotiated here.
++ */
++static int apsd_read_off(struct qcom_pmic_typec_apsd *h, unsigned int *s)
++{
++	s64 start = ktime_to_ms(ktime_get_boottime()), elapsed;
++	unsigned int i;
++	int ret;
++
++	for (i = 0; i < ARRAY_SIZE(off_regs); i++) {
++		ret = regmap_read(h->map, off_regs[i], &s[i]);
++		if (ret)
++			return ret;
++	}
++	elapsed = ktime_to_ms(ktime_get_boottime()) - start;
++	if (elapsed < 0 || elapsed > HANDOFF_FRESH_MS)
++		return -EAGAIN;
++	if ((s[0] & BIT(4)) || (s[1] & BIT(5)) ||
++	    (s[3] & (BIT(5) | BIT(0))) ||
++	    !(s[2] & BIT(6)) || (s[2] & BIT(5)))
++		return -EAGAIN;
++	return 0;
++}
++
++static int apsd_verify_locked(struct qcom_pmic_typec_apsd *h)
++{
++	unsigned int i, value;
++	int ret;
++
++	for (i = 0; i < ARRAY_SIZE(isolation); i++) {
++		ret = regmap_read(h->map, isolation[i].reg, &value);
++		if (ret)
++			return ret;
++		if (value & isolation[i].mask)
++			return -EUCLEAN;
++	}
++	return 0;
++}
++
++static void apsd_release(void *data)
++{
++	struct qcom_pmic_typec_apsd *h = data;
++
++	/* Called by real Type-C devres after remove/probe error unwinding.
++	 * No worker uses h: only the original bound Type-C callbacks do.
++	 * Keep isolation/fence on every failure and through removal.
++	 */
++	samurai_apsd_tcpm_release(h->dev);
++}
++
++struct qcom_pmic_typec_apsd *
++qcom_pmic_typec_apsd_prepare(struct device *dev, struct regmap *map)
++{
++	struct qcom_pmic_typec_apsd *h;
++	unsigned int first[ARRAY_SIZE(off_regs)], fresh[ARRAY_SIZE(off_regs)];
++	unsigned int i, value;
++	int ret;
++
++	if (!dev || !map)
++		return ERR_PTR(-EINVAL);
++	h = devm_kzalloc(dev, sizeof(*h), GFP_KERNEL);
++	if (!h)
++		return ERR_PTR(-ENOMEM);
++	h->dev = dev;
++	h->map = map;
++	mutex_init(&h->lock);
++	/* Join before holding h->lock, and before any TCPM port exists.
++	 * The owner may need input->lock to finish the original rerun.
++	 */
++	ret = samurai_apsd_tcpm_quiesce(dev, map);
++	if (ret)
++		return ERR_PTR(ret);
++	ret = devm_add_action_or_reset(dev, apsd_release, h);
++	if (ret)
++		return ERR_PTR(ret);
++	ret = apsd_read_off(h, first);
++	if (ret)
++		return ERR_PTR(ret);
++	/* Engineering debounce only; not presented as an OEM timing value. */
++	msleep(HANDOFF_STABLE_MS);
++	ret = apsd_read_off(h, fresh);
++	if (ret || memcmp(first, fresh, sizeof(first)))
++		return ERR_PTR(ret ? ret : -EAGAIN);
++	for (i = 0; i < ARRAY_SIZE(isolation); i++) {
++		ret = apsd_read_off(h, fresh);
++		if (ret || memcmp(first, fresh, sizeof(first))) {
++			ret = ret ? ret : -ESTALE;
++			goto failed;
++		}
++		/* OEM narrow masks only. No PMIC battery-charger, DP/DM voltage,
++		 * CC role, sink FET, protection, OTP or NV writes.
++		 */
++		ret = regmap_update_bits(map, isolation[i].reg, isolation[i].mask, 0);
++		if (ret)
++			goto failed;
++		ret = regmap_read(map, isolation[i].reg, &value);
++		if (ret || (value & isolation[i].mask)) {
++			ret = ret ? ret : -EUCLEAN;
++			goto failed;
++		}
++		ret = apsd_read_off(h, fresh);
++		if (ret || memcmp(first, fresh, sizeof(first))) {
++			ret = ret ? ret : -ESTALE;
++			goto failed;
++		}
++	}
++	h->prepared = true;
++	return h;
++failed:
++	h->error = ret;
++	return ERR_PTR(ret);
++}
++
++int qcom_pmic_typec_apsd_verify(struct qcom_pmic_typec_apsd *h)
++{
++	int ret;
++
++	if (!h)
++		return 0;
++	mutex_lock(&h->lock);
++	ret = h->error ? h->error : h->prepared ? apsd_verify_locked(h) : -EAGAIN;
++	/* Unknown read/error or externally changed isolation never repairs itself
++	 * while a live TCPM connection may exist. RX-off never changes this state.
++	 */
++	if (ret)
++		h->error = ret;
++	mutex_unlock(&h->lock);
++	return ret;
++}

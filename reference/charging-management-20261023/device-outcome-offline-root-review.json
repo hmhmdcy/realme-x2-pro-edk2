@@ -1,0 +1,27 @@
+{
+  "passed": true,
+  "scope": "independent source and retained test receipt review; not physical acceptance",
+  "delivery_sha256": "293a2e962499e9e02a6062b2014fe23ea6e69932761cb2412c4c4b77dc0987d6",
+  "files_checked": 15,
+  "actual_functions_checked": 10,
+  "persistent_controller_layout_unchanged": true,
+  "explicit_reconnect_fact_only_on_actual_soft_connect_zero": true,
+  "initialized_skip_and_HOST_paths_reviewed": true,
+  "legacy_primary_and_OTG_policy_preserved": true,
+  "new_cases": 19,
+  "legacy_differential_scenarios": 16,
+  "retained_native_children_terminal_zero": true,
+  "tests_rerun": false,
+  "core_consumer_added": false,
+  "PM_unwind_proved": false,
+  "deployed": false,
+  "limits": [
+    "result is an attempt/publication snapshot, not producer exclusion or HALT/teardown ownership",
+    "old primary errno remains returned through legacy wrapper, including after successful reconnect",
+    "real core PM integration still requires complete failure lifecycle handling"
+  ],
+  "primary_reference": {
+    "url": "https://docs.kernel.org/power/runtime_pm.html",
+    "implication": "A successful runtime resume must leave I/O operational; a negative callback is a fatal PM error. Neither blanket success nor a bare error establishes safe failure unwind."
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "passed": true,
+  "groups": [
+    "1 final two fresh seven-field reads, exact last callback, one forced masked transfer and new post-read serial",
+    "2 every final read errno and unstable pair consumes the epoch without callback or transfer",
+    "3 each of seven changed fields, off expectation and stale serial reject the cached request",
+    "4 final lease/cancellation error and copied identity refuse; paused/withdrawing paths consume without I/O",
+    "5 command errno and independent post-read error both survive; unknown outcome is never retried",
+    "6 post-command DONE clear/result changes are preserved for the real once core",
+    "7 post-write detach, source/role changes or QC are failure/unknown, never atomic attachment proof",
+    "8 provider re-registration keeps physical epoch and serial history; no source-budget writes",
+    "9 malformed attempts and exhausted serial never reach a write",
+    "10 PM prepare fences final command before any read or transfer"
+  ],
+  "group_count": 10,
+  "flags": [
+    "-std=gnu11",
+    "-g",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-Wno-unused-parameter",
+    "-fsanitize=address,undefined",
+    "-fno-omit-frame-pointer",
+    "-no-pie"
+  ],
+  "actual_backend_and_reader": true,
+  "actual_kernel_forced_regmap_inline": true,
+  "hardware_registration_and_owner_validation_modeled": true,
+  "fixture_sha256": "db03eed943a9987a3732103f882e1c03ff3c98421adca341d83e9332a3c1d3c1",
+  "phone_accessed": false,
+  "files": {
+    "samurai-apsd-backend.h": "0fca3bcde2a421871c4c8e9f74b41bd465b98b48c06b8462de1a2464bd391b89",
+    "samurai-apsd-input.inc": "0100fd13efcf169e3438c8b213b83a625d603209c75a1de185cea16585b24490",
+    "samurai-usb-input.c": "0266b1d7c85a3dfa12751f74f1445785a10407e897e7276d9a46e891fe8436f9",
+    "samurai-usb-input-decode.h": "a17caa2cbeb2352da249474e0265fa96745f544d96a29d0ebe8f14c656d548fd",
+    "run-transfer-tests.py": "ba636e61974479468a090943f6b1abacc2af013f8b37260f4936845bae710343"
+  }
+}

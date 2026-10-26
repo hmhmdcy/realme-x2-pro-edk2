@@ -1,0 +1,1371 @@
+--- /dev/null
++++ b/include/libcamera/internal/camss_byte_serializer.h
+@@ -0,0 +1,33 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++
++#include <cstdint>
++#include <cstring>
++#include <limits>
++#include <tuple>
++#include <utility>
++#include <vector>
++#include <libcamera/base/log.h>
++#include <libcamera/base/shared_fd.h>
++
++namespace libcamera {
++
++/* Camss tone returns only: retain the existing vector<uint8_t> wire bytes.
++ * This is not a global IPADataSerializer specialization. */
++inline std::tuple<std::vector<uint8_t>, std::vector<SharedFD>>
++camssSerializeByteVector(const std::vector<uint8_t> &input)
++{
++    ASSERT(input.size() <= (std::numeric_limits<uint32_t>::max() - 4) / 9);
++    std::vector<uint8_t> result(4 + input.size() * 9);
++    const uint32_t count = input.size(), one = 1, zero = 0;
++    std::memcpy(result.data(), &count, sizeof count);
++    for (size_t i = 0; i < input.size(); ++i) {
++        uint8_t *at = result.data() + 4 + i * 9;
++        std::memcpy(at, &one, sizeof one);
++        std::memcpy(at + 4, &zero, sizeof zero);
++        at[8] = input[i];
++    }
++    return std::make_tuple(std::move(result), std::vector<SharedFD>{});
++}
++
++} /* namespace libcamera */
+--- a/include/libcamera/ipa/camss.mojom
++++ b/include/libcamera/ipa/camss.mojom
+@@ -68,7 +68,12 @@
+  processFocus(uint64 epoch, uint32 sof, libcamera.ControlList controls, bool valid, int32 score,
+               uint64 capturedMonotonic, SensorContext sensorContext)
+               => (int32 ret, libcamera.ControlList metadata, LensMove move);
+- [async] lensPositionApplied(uint64 epoch, uint32 serial, int32 status, uint64 monotonic);
++ prepareFocusedIpe(uint64 epoch, uint32 sof, uint64 token, libcamera.ControlList controls,
++                    bool valid, int32 score, uint64 capturedMonotonic, SensorContext sensorContext)
++                    => (int32 focusStatus, libcamera.ControlList metadata, LensMove move,
++                        bool tonePrepared, int32 toneStatus, array<uint8> parameters,
++                        uint64 revision, bool fresh);
++  [async] lensPositionApplied(uint64 epoch, uint32 serial, int32 status, uint64 monotonic);
+ 	prepareIpeParameters(uint64 epoch, uint32 sof, uint64 token) => (int32 ret, array<uint8> parameters, uint64 revision, bool fresh);
+ 	frameProcessed(uint64 epoch, uint32 sof, uint64 token, bool success);
+ 	stop();
+--- a/src/ipa/camss-vfe/camss.cpp
++++ b/src/ipa/camss-vfe/camss.cpp
+@@ -57,6 +57,10 @@
+ 	int frameMetadata(uint64_t epoch, uint32_t sof, const SensorContext &sensorContext, ControlList *metadata) override;
+  int processFocus(uint64_t epoch,uint32_t sof,const ControlList &controls,bool valid,int32_t score,
+                   uint64_t captured,const SensorContext &sensorContext,ControlList *metadata,LensMove *move) override;
++ int prepareFocusedIpe(uint64_t epoch,uint32_t sof,uint64_t token,const ControlList &controls,
++                       bool valid,int32_t score,uint64_t captured,const SensorContext &sensorContext,
++                       ControlList *metadata,LensMove *move,bool *tonePrepared,int32_t *toneStatus,
++                       std::vector<uint8_t> *parameters,uint64_t *revision,bool *fresh) override;
+  void lensPositionApplied(uint64_t epoch,uint32_t serial,int32_t status,uint64_t monotonic) override;
+ 	int prepareIpeParameters(uint64_t epoch, uint32_t sof, uint64_t token, std::vector<uint8_t> *parameters, uint64_t *revision, bool *fresh) override;
+ 	void frameProcessed(uint64_t epoch, uint32_t sof, uint64_t token, bool success) override;
+@@ -605,6 +609,25 @@
+  return 0;
+ }
+ 
++int IPACamss::prepareFocusedIpe(uint64_t epoch,uint32_t sof,uint64_t token,const ControlList &controls,
++                               bool valid,int32_t score,uint64_t captured,const SensorContext &sensorContext,
++                               ControlList *metadata,LensMove *move,bool *tonePrepared,int32_t *toneStatus,
++                               std::vector<uint8_t> *parameters,uint64_t *revision,bool *fresh)
++{
++ std::lock_guard<std::recursive_mutex> stateLock(stateMutex_);
++ if (!metadata || !move || !tonePrepared || !toneStatus || !parameters || !revision || !fresh)
++  return -EINVAL;
++ *tonePrepared=false;*toneStatus=0;parameters->clear();*revision=0;*fresh=false;
++ const int focusStatus=processFocus(epoch,sof,controls,valid,score,captured,sensorContext,metadata,move);
++ /* A lens move must retain the host's command/ACK before tone preparation.
++  * No algorithm or final-receipt history is bypassed by the common case. */
++ if (!move->valid) {
++  *tonePrepared=true;
++  *toneStatus=prepareIpeParameters(epoch,sof,token,parameters,revision,fresh);
++ }
++ return focusStatus;
++}
++
+ void IPACamss::lensPositionApplied(uint64_t epoch,uint32_t serial,int32_t status,uint64_t monotonic)
+ {
+  std::lock_guard<std::recursive_mutex> stateLock(stateMutex_);
+@@ -1135,7 +1158,7 @@
+ namespace libcamera {
+ extern "C" {
+ const IPAModuleInfo ipaModuleInfo = {
+-	IPA_MODULE_API_VERSION, 5, "camss-vfe", "camss-vfe",
++	IPA_MODULE_API_VERSION, 6, "camss-vfe", "camss-vfe",
+ };
+ IPAInterface *ipaCreate() { return new ipa::camss::IPACamss(); }
+ }
+--- a/src/libcamera/pipeline/camss-vfe/camss_ipe.cpp
++++ b/src/libcamera/pipeline/camss-vfe/camss_ipe.cpp
+@@ -1,5 +1,6 @@
+ /* SPDX-License-Identifier: LGPL-2.1-or-later */
+ #include "camss_ipe.h"
++#include "camss_pd10.h"
+ 
+ #include <cerrno>
+ #include <chrono>
+@@ -42,7 +43,17 @@
+ 		return ret;
+ 	opened_ = true;
+ 	pd10_ = pd10;
+-	if (pd10 && (format.size != Size(640,480) || format.planesCount != 1)) { stop(); return -EINVAL; }
++	const auto coarseLayout = camssPd10Layout(format.size);
++	if (pd10) {
++		const uint64_t luma = uint64_t(format.planes[0].bpl) * format.size.height;
++		if (!coarseLayout || format.planesCount != 1 ||
++		    format.fourcc != V4L2PixelFormat(V4L2_PIX_FMT_NV12) ||
++		    format.planes[0].bpl < format.size.width ||
++		    luma * 3 / 2 != format.planes[0].size) { stop(); return -EINVAL; }
++		fullBytes_ = format.planes[0].size;
++		lumaBytes_ = luma;
++		coarseBytes_ = coarseLayout->frameSize;
++	}
+ 	const auto *info = device_.output()->controlInfo(V4L2_CID_QCOM_IPE_A5_FRAME_PARAMS);
+ 	requestsEnabled_ = info;
+ 	if (requestsEnabled_) {
+@@ -71,7 +82,7 @@
+         if (pd10 && queue == device_.output()) {
+             expected.fourcc = V4L2PixelFormat(V4L2_PIX_FMT_QCOM_NV12_PD10);
+             expected.planesCount = 2;
+-            expected.planes[1].bpl = 768; expected.planes[1].size = 46080;
++            expected.planes[1].bpl = coarseLayout->stride; expected.planes[1].size = coarseBytes_;
+         }
+         V4L2DeviceFormat negotiated = expected;
+ 		ret = queue->setFormat(&negotiated);
+@@ -119,18 +130,18 @@
+ 	}
+ 	if (bool(coarse) != pd10_ || (coarse && (coarse == input || coarse == output ||
+         coarse->planes().size()!=1 || coarse->metadata().status!=FrameMetadata::FrameSuccess ||
+-        coarse->metadata().planes()[0].bytesused!=46080 ||
++        coarse->metadata().planes()[0].bytesused!=coarseBytes_ ||
+         coarse->_d()->kernelSequence()!=input->_d()->kernelSequence()))) return -EINVAL;
+     auto planes = input->planes();
+     std::vector<FrameBuffer::Plane> joined(planes.begin(),planes.end());
+     if (coarse) {
+-        unsigned int used=0;for(const auto &p:input->metadata().planes())used+=p.bytesused;
+-        if(used!=460800 || (planes.size()!=1 && planes.size()!=2))return -EINVAL;
+-        if(planes.size()==1 && planes[0].length<460800)return -EINVAL;
++        uint64_t used=0;for(const auto &p:input->metadata().planes())used+=p.bytesused;
++        if(used!=fullBytes_ || (planes.size()!=1 && planes.size()!=2))return -EINVAL;
++        if(planes.size()==1 && planes[0].length<fullBytes_)return -EINVAL;
+         if(planes.size()==2 && (planes[0].fd.get()!=planes[1].fd.get() ||
+-            uint64_t(planes[0].offset)+307200!=planes[1].offset ||
+-            planes[0].length<307200 || planes[1].length<153600))return -EINVAL;
+-        joined={FrameBuffer::Plane{planes[0].fd,planes[0].offset,460800},coarse->planes()[0]};
++            uint64_t(planes[0].offset)+lumaBytes_!=planes[1].offset ||
++            planes[0].length<lumaBytes_ || planes[1].length<fullBytes_-lumaBytes_))return -EINVAL;
++        joined={FrameBuffer::Plane{planes[0].fd,planes[0].offset,fullBytes_},coarse->planes()[0]};
+     }
+     if (params && !requestsEnabled_)
+ 		return -ENOTSUP;
+@@ -157,7 +168,7 @@
+      * NV12's logical Y/UV views share one validated contiguous DMA interval. */
+     auto &metadata=job.input->_d()->metadata();
+     metadata.status=input->metadata().status;metadata.sequence=input->metadata().sequence;metadata.timestamp=input->metadata().timestamp;
+-    if(coarse) {metadata.planes()[0].bytesused=460800;metadata.planes()[1]=coarse->metadata().planes()[0];}
++    if(coarse) {metadata.planes()[0].bytesused=fullBytes_;metadata.planes()[1]=coarse->metadata().planes()[0];}
+     else for(unsigned int i=0;i<planes.size();++i)metadata.planes()[i]=input->metadata().planes()[i];
+ 	job.request = request;
+ 	job.requestDone = !request;
+--- a/src/libcamera/pipeline/camss-vfe/camss_ipe.h
++++ b/src/libcamera/pipeline/camss-vfe/camss_ipe.h
+@@ -50,6 +50,7 @@
+ 	Timer watchdog_;
+ 	bool running_ = false, stopping_ = false, opened_ = false, failed_ = false;
+ 	bool requestsEnabled_ = false, pd10_ = false;
++	uint32_t fullBytes_ = 0, lumaBytes_ = 0, coarseBytes_ = 0;
+ 	uint64_t nextSerial_ = 0;
+ 	std::vector<std::unique_ptr<V4L2Request>> requests_;
+ 	std::deque<V4L2Request *> freeRequests_;
+--- /dev/null
++++ b/src/libcamera/pipeline/camss-vfe/camss_pd10.h
+@@ -0,0 +1,28 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++
++#include <optional>
++#include <libcamera/geometry.h>
++
++namespace libcamera {
++
++struct CamssPd10Layout {
++	Size size;
++	unsigned int stride, sliceHeight, frameSize;
++};
++
++/* Retained SM8150 allocation: even quarter, 192-byte packed rows, four rows. */
++inline std::optional<CamssPd10Layout> camssPd10Layout(const Size &full)
++{
++	if (full.width < 128 || full.height < 128 || full.width > 8192 ||
++	    full.height > 8192 || ((full.width | full.height) & 1))
++		return std::nullopt;
++	CamssPd10Layout layout;
++	layout.size = { ((full.width + 7) / 4) & ~1U, ((full.height + 7) / 4) & ~1U };
++	layout.stride = ((layout.size.width * 4 + 191) / 192) * 192;
++	layout.sliceHeight = ((layout.size.height + 7) / 8) * 4;
++	layout.frameSize = layout.stride * layout.sliceHeight;
++	return layout;
++}
++
++} /* namespace libcamera */
+--- a/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
++++ b/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
+@@ -7,7 +7,10 @@
+ #include <chrono>
+ #include <time.h>
+ #include "hardware_focus.h"
++#include "thread_capacity.h"
++#include "full_ownership_trace.h"
+ #include "camss_ipe.h"
++#include "camss_pd10.h"
+ #include "tone_trace.h"
+ #include "libcamera/internal/camera_lens.h"
+ #include <cmath>
+@@ -90,12 +93,39 @@
+    uint64_t ipeToken = 0;
+    uint32_t ipeSof = 0;
+    std::optional<std::array<float, 9>> ipeColourMatrix{};
++  bool ipaCompleting = false;
+  };
+  std::map<Request *, PendingFrame> requests_;
+  Request *ipeActive_ = nullptr;
+- bool toneTraceSaved_ = false;
++  bool toneTraceSaved_ = false;
++  camss_diag::Capture fullTrace_;
++  void traceFull(camss_diag::EventType type, Request *request = nullptr,
++                 FrameBuffer *buffer = nullptr, uint32_t sof = camss_diag::Unknown,
++                 uint64_t hardwareNs = 0, int32_t status = 0)
++  {
++   if (!fullTrace_.active()) return;
++   camss_diag::Event e{};
++   e.type=uint16_t(type);e.request=reinterpret_cast<uintptr_t>(request);
++   e.buffer=reinterpret_cast<uintptr_t>(buffer);e.hardwareNs=hardwareNs;e.sof=sof;
++   e.requestSequence=request?request->sequence():camss_diag::Unknown;
++   e.lastSof=lastSof_.value_or(camss_diag::Unknown);
++   e.activeRequest=reinterpret_cast<uintptr_t>(ipeActive_);
++   e.freeFull=freeImages_.size();e.requests=requests_.size();e.waitingFull=images_.size();
++   e.coarse=coarseImages_.size();e.histograms=histograms_.size();
++   e.statistics=pendingStats_.size();e.associations=internalRequests_.size();e.status=status;
++   e.flags=(running_?uint32_t(camss_diag::Running):0u)|
++           (ipeActive_?uint32_t(camss_diag::IpeActive):0u)|
++           (parameterBusy_?uint32_t(camss_diag::ParameterBusy):0u);
++   if(buffer) {
++    if(buffer->metadata().status==FrameMetadata::FrameSuccess)e.flags|=camss_diag::BufferSuccess;
++    if(buffer->_d()->timestampMonotonic())e.flags|=camss_diag::BufferTimestampMonotonic;
++   }
++   fullTrace_.record(e);
++  }
+  std::map<FrameBuffer *, Request *> internalRequests_;
+  std::vector<std::unique_ptr<FrameBuffer>> internalImages_;
++ LumaFocusWorkspace focusWorkspace_;
++ ThreadCapacityLease focusCapacity_;
+  std::queue<FrameBuffer *> freeImages_;
+  std::map<uint32_t, uint64_t> pixStarts_, rawStarts_;
+  uint64_t framePeriod_ = 0, previousPixStart_ = 0;
+@@ -103,7 +133,7 @@
+  bool requiresPd10() const { return processedEnabled_ && sensorConfiguration_.pd10; }
+  std::unique_ptr<CamssIpe> ipe_;
+  Size output_;
+- unsigned int outputStride_ = 0;
++ unsigned int outputStride_ = 0, outputFrameBytes_ = 0;
+  V4L2DeviceFormat rawFormat_;
+ 
+ 	void statsReady(FrameBuffer *buffer);
+@@ -226,7 +256,7 @@
+  IPACameraSensorInfo info;
+  int ret = d->sensor_->sensorInfo(&info);
+  if (ret) return ret;
+- d->ipa_ = createIPA<ipa::camss::IPAProxyCamss>(5, 5);
++ d->ipa_ = createIPA<ipa::camss::IPAProxyCamss>(6, 6);
+  if (!d->ipa_) return -ENOENT;
+  const std::string profile=d->ipa_->configurationFile(d->sensor_->model()+".yaml");
+  CameraLens *lens=d->sensor_->focusLens();
+@@ -383,7 +413,7 @@
+ 		return ret;
+ 	};
+ 
+- coarseEnabled_ = bool(coarseRequested_ && coarse_ && ipe_ && processedEnabled_ && output==Size(640,480));
++ coarseEnabled_ = bool(coarseRequested_ && coarse_ && ipe_ && processedEnabled_);
+  std::vector<MediaLink *> routes = path_;
+  if(coarseEnabled_) routes.push_back(coarseLink_);
+  if (rawEnabled_) routes.insert(routes.end(), rawPath_.begin(), rawPath_.end());
+@@ -441,12 +471,14 @@
+ 	if (ret || compose != Rectangle(output))
+ 		return ret ? ret : -EINVAL;
+     if (coarseEnabled_) {
+-        V4L2SubdeviceFormat coarse{MEDIA_BUS_FMT_UYYVYY10_0_5X30,Size(160,120),{}};
++        const auto layout = camssPd10Layout(output);
++        if (!layout) return -EINVAL;
++        V4L2SubdeviceFormat coarse{MEDIA_BUS_FMT_UYYVYY10_0_5X30,layout->size,{}};
+         ret=pix_->setFormat(coarseLink_->source()->index(),&coarse);
+-        if(ret || coarse.size!=Size(160,120) || coarse.code!=MEDIA_BUS_FMT_UYYVYY10_0_5X30)return ret?ret:-EINVAL;
+-        V4L2DeviceFormat wire;wire.fourcc=V4L2PixelFormat(V4L2_PIX_FMT_QCOM_PD10_LOCAL);wire.size=Size(160,120);
++        if(ret || coarse.size!=layout->size || coarse.code!=MEDIA_BUS_FMT_UYYVYY10_0_5X30)return ret?ret:-EINVAL;
++        V4L2DeviceFormat wire;wire.fourcc=V4L2PixelFormat(V4L2_PIX_FMT_QCOM_PD10_LOCAL);wire.size=layout->size;
+         ret=coarse_->setFormat(&wire);
+-        if(ret || wire.planesCount!=1 || wire.planes[0].bpl!=768 || wire.planes[0].size!=46080 || wire.size!=Size(160,120))return ret?ret:-EINVAL;
++        if(ret || wire.planesCount!=1 || wire.planes[0].bpl!=layout->stride || wire.planes[0].size!=layout->frameSize || wire.size!=layout->size)return ret?ret:-EINVAL;
+     }
+     return 0;
+ }
+@@ -586,7 +618,7 @@
+ 		d->restoreLinks();
+ 		return ret ? ret : -EINVAL;
+ 	}
+- d->outputStride_=format.planes[0].bpl;
++ d->outputStride_=format.planes[0].bpl;d->outputFrameBytes_=format.planes[0].size;
+  ret = initIPA(d);
+  if (ret) { d->restoreLinks(); return ret; }
+  const char *profile = utils::secure_getenv("LIBCAMERA_CAMSS_VFE_PROFILE");
+@@ -594,7 +626,7 @@
+  ret = configureIPA(d);
+  if (ret) { d->restoreLinks(); return ret; }
+  if(d->requiresPd10()) {
+-  if(!d->coarse_ || !d->ipe_ || d->output_!=Size(640,480)){d->restoreLinks();return -ENOTSUP;}
++  if(!d->coarse_ || !d->ipe_ || !camssPd10Layout(d->output_)){d->restoreLinks();return -ENOTSUP;}
+   d->coarseRequested_=true;ret=d->configurePath(cfg->sensorFormat_,d->output_);
+   if(ret){d->restoreLinks();return ret;}
+  }
+@@ -658,7 +690,12 @@
+   configured_ = d;
+  }
+  active_ = d;
+- ++d->epoch_;
++  ++d->epoch_;
++  {
++   const int status=d->fullTrace_.start(utils::secure_getenv("LIBCAMERA_CAMSS_FULL_TRACE_DIR"),d->epoch_);
++   if(status)LOG(CamssVfe,Warning)<<"FULL ownership diagnostic disabled status="<<status;
++   d->traceFull(camss_diag::EventType::Start);
++  }
+  d->paramsApplied_ = false;
+  d->coarseImages_.clear();d->consumedCoarseSof_.reset();
+  d->images_.clear(); d->imageArrival_.clear(); d->histograms_.clear(); d->histogramOrder_.clear(); d->pendingStats_.clear();
+@@ -676,8 +713,9 @@
+   if (ret >= int(count)) {for(auto &buffer:d->internalImages_) d->freeImages_.push(buffer.get());ret=0;}
+   else ret=ret<0?ret:-ENOMEM;
+  }
+- if (ret) goto error;
+- if(d->coarseEnabled_) {
++  if (ret) goto error;
++  d->traceFull(camss_diag::EventType::PoolReady);
++  if(d->coarseEnabled_) {
+   const unsigned count=d->stream_.configuration().bufferCount+4;
+   ret=d->coarse_->allocateBuffers(count,&d->coarseBuffers_);
+   if(ret<int(count)){ret=ret<0?ret:-ENOMEM;goto error;}
+@@ -761,7 +799,21 @@
+   if (!lens) {ret=-ENODEV;goto error;}
+   ret=lens->open();if (ret) goto error;d->lensActive_=true;
+  }
+- d->running_ = true;
++ 
++  if(d->lensActive_ && d->output_.width>=12 && d->output_.height>=12 &&
++     !d->focusWorkspace_.prepare(d->output_.width,d->output_.height)){ret=-ENOMEM;goto error;}
++  LOG(CamssVfe,Debug)<<"FOCUS_WORKSPACE_PREPARE epoch="<<d->epoch_<<" width="<<d->output_.width
++   <<" height="<<d->output_.height<<" bytes="<<d->focusWorkspace_.storageBytes();
++  /* The Manager also runs FULL ownership, IPE dispatch and synchronous IPA
++   * calls without a lens. Existing isolated workers are not retargeted by
++   * this thread lease; retain its established start/stop lifetime. */
++  if(d->lensActive_ || (d->processedEnabled_ && d->ipe_)){
++   const auto capacity=d->focusCapacity_.acquire();
++   LOG(CamssVfe,Debug)<<"CAPACITY_START epoch="<<d->epoch_<<" tid="<<capacity.tid<<" status="<<capacity.status
++    <<" reason="<<capacity.reason<<" active="<<capacity.active<<" users="<<capacity.users
++    <<" original="<<ThreadCapacityLease::maskString(capacity.original)<<" selected="<<ThreadCapacityLease::maskString(capacity.selected);
++  }
++  d->running_ = true;
+  if(d->coarseEnabled_){ret=d->coarse_->streamOn();if(ret)goto error;}
+  for (auto *device : { d->stats_.get(), d->params_.get(), d->image_.get() }) {
+   ret = device->streamOn();
+@@ -778,6 +830,7 @@
+ void CamssVfePipeline::stopDevice(Camera *camera)
+ {
+ 	auto *d = data(camera);
++ d->traceFull(camss_diag::EventType::StopBegin);
+ 	d->running_ = false;
+ 	d->deadline_.stop();
+ 	d->sensorContextHealthy_ = false;
+@@ -822,7 +875,15 @@
+  d->coarseImages_.clear();d->consumedCoarseSof_.reset();
+  if(d->coarseEnabled_)d->coarse_->releaseBuffers();
+  d->coarseBuffers_.clear();
+- d->internalImages_.clear();d->freeImages_={};d->internalRequests_.clear();
++ {
++   const auto capacity=d->focusCapacity_.release();
++   LOG(CamssVfe,Debug)<<"CAPACITY_STOP epoch="<<d->epoch_<<" tid="<<capacity.tid<<" status="<<capacity.status
++    <<" reason="<<capacity.reason<<" active="<<capacity.active<<" users="<<capacity.users
++    <<" original="<<ThreadCapacityLease::maskString(capacity.original)<<" selected="<<ThreadCapacityLease::maskString(capacity.selected);
++  }
++  d->focusWorkspace_.clear();
++  LOG(CamssVfe,Debug)<<"FOCUS_WORKSPACE_STOP epoch="<<d->epoch_<<" bytes="<<d->focusWorkspace_.storageBytes();
++  d->internalImages_.clear();d->freeImages_={};d->internalRequests_.clear();
+  d->pixStarts_.clear();d->rawStarts_.clear();
+  d->paramsBuffers_.clear(); d->statsBuffers_.clear();
+ 	d->paramsApplied_ = false;
+@@ -832,18 +893,29 @@
+ 		active_ = nullptr;
+ 	if (configured_ == d)
+ 		configured_ = nullptr;
++ d->traceFull(camss_diag::EventType::StopEnd);
++ if(d->fullTrace_.active()) {
++  const int result=d->fullTrace_.stop();
++  LOG(CamssVfe,Info)<<"FULL_OWNERSHIP_TRACE epoch="<<d->epoch_<<" file="<<d->fullTrace_.filename()
++   <<" total="<<d->fullTrace_.lastTotal()<<" retained="<<d->fullTrace_.lastRetained()
++   <<" overwritten="<<d->fullTrace_.lastOverwritten()<<" result="<<result;
++ }
+ }
+ 
+ int CamssVfePipeline::queueRequestDevice(Camera *camera, Request *request)
+ {
+- auto *d = data(camera);
+- FrameBuffer *buffer = request->findBuffer(&d->stream_);
++  auto *d = data(camera);
++  d->traceFull(camss_diag::EventType::RequestEnter,request);
++  FrameBuffer *buffer = request->findBuffer(&d->stream_);
+ 
+  FrameBuffer *raw = request->findBuffer(&d->rawStream_);
+  if ((d->processedEnabled_ && !buffer) || (d->rawEnabled_ && !raw)) return -EINVAL;
+  const bool internal = !d->processedEnabled_ || bool(d->ipe_);
+  FrameBuffer *ife = buffer;
+- if (internal) {if(d->freeImages_.empty())return -ENOBUFS;ife=d->freeImages_.front();}
++  if (internal) {
++   if(d->freeImages_.empty()){d->traceFull(camss_diag::EventType::NoFreeFull,request);return -ENOBUFS;}
++   ife=d->freeImages_.front();
++  }
+  if (!buffer) buffer=ife;
+  ControlList sensorControls(d->sensor_->controls());
+  if (!request->controls().empty()) {
+@@ -856,11 +928,19 @@
+  if ((!sensorControls.empty() && d->sensorUpdates_.size() >= 8) || (isp && d->ispControls_.size() >= 8)) return -ENOSPC;
+ 
+  d->requests_.emplace(request,CamssVfeData::PendingFrame{buffer,raw,ife,nullptr,false,!raw,false});
+- if (internal) {d->freeImages_.pop();d->internalRequests_[ife]=request;}
+- int ret = d->image_->queueBuffer(ife);
++  if (internal) {
++   d->freeImages_.pop();d->internalRequests_[ife]=request;
++   d->traceFull(camss_diag::EventType::InternalTake,request,ife);
++  }
++  d->traceFull(camss_diag::EventType::FullQbufBegin,request,ife);
++  int ret = d->image_->queueBuffer(ife);
++  d->traceFull(camss_diag::EventType::FullQbufResult,request,ife,camss_diag::Unknown,0,ret);
+  if (ret) {
+   d->requests_.erase(request);
+-  if(internal){d->internalRequests_.erase(ife);d->freeImages_.push(ife);}
++   if(internal){
++    d->internalRequests_.erase(ife);d->freeImages_.push(ife);
++    d->traceFull(camss_diag::EventType::InternalReturn,request,ife,camss_diag::Unknown,0,ret);
++   }
+   return ret;
+  }
+  if (raw) {
+@@ -872,7 +952,8 @@
+   if (!sensorControls.empty()) d->sensorUpdates_.push_back({ std::move(sensorControls), request->sequence() });
+   if (isp) { d->ispControls_.push_back({ request->controls(), request->sequence() }); d->submitStatistics(); }
+  }
+- return 0;
++  d->traceFull(camss_diag::EventType::RequestAccepted,request,ife);
++  return 0;
+ }
+ 
+ 
+@@ -884,8 +965,9 @@
+ 
+ void CamssVfeData::pixFrameStart(uint32_t sequence,uint64_t timestamp)
+ {
+- if(!running_)return;
+- if(previousPixStart_ && timestamp>previousPixStart_)framePeriod_=timestamp-previousPixStart_;
++  if(!running_)return;
++  traceFull(camss_diag::EventType::PixSof,nullptr,nullptr,sequence,timestamp);
++  if(previousPixStart_ && timestamp>previousPixStart_)framePeriod_=timestamp-previousPixStart_;
+  previousPixStart_=timestamp;
+  pixStarts_[sequence]=timestamp;
+  while(pixStarts_.size()>128)pixStarts_.erase(pixStarts_.begin());
+@@ -920,6 +1002,9 @@
+  auto it=requests_.find(request);
+  if(it==requests_.end())return;
+  PendingFrame &frame=it->second;
++ /* The synchronous receipt may dispatch another completion or a timeout.
++  * Stop must still find this frame and cancel it through the ordinary drain. */
++ if(frame.ipaCompleting && running_)return;
+  if(!frame.imageFinished || !frame.rawReady)return;
+  if(rawEnabled_ && !frame.failed && running_) {
+   const uint32_t imageSof=frame.ifeImage->_d()->kernelSequence(),rawSof=frame.raw->_d()->kernelSequence();
+@@ -939,14 +1024,38 @@
+  }
+  if(timeout || !running_)frame.failed=true;
+  FrameBuffer *image=frame.image,*raw=frame.raw,*ife=frame.ifeImage;
+- if(frame.failed){image->_d()->metadata().status=FrameMetadata::FrameError;if(raw)raw->_d()->metadata().status=FrameMetadata::FrameError;}
++ if(frame.failed){
++  /* completeBuffer() propagates FrameCancelled into RequestCancelled.
++   * Preserve FrameError for live failures; stopping is a cancellation. */
++  const auto status=running_?FrameMetadata::FrameError:FrameMetadata::FrameCancelled;
++  image->_d()->metadata().status=status;if(raw)raw->_d()->metadata().status=status;
++  if(!running_)LOG(CamssVfe,Info)<<"REQUEST_STOP_CANCEL epoch="<<epoch_<<" request="<<request->sequence()<<" raw="<<bool(raw);
++ }
+  const uint64_t ipeToken=frame.ipeToken;const uint32_t ipeSof=frame.ipeSof;
+   const bool ipeSuccess=!frame.failed && processedEnabled_ && bool(ipe_);
++  if(ipeToken && !frame.ipaCompleting) {
++   const uint64_t receiptEpoch=epoch_;
++   const uint32_t requestSequence=request->sequence();
++   frame.ipaCompleting=true;
++   ipa_->frameProcessed(receiptEpoch,ipeSof,ipeToken,ipeSuccess);
++   /* Stop may have completed this request and released its FULL buffer.
++    * A restarted stream may even reuse the request or buffer address. */
++   auto live=requests_.find(request);
++   if(!running_ || epoch_!=receiptEpoch || live==requests_.end() ||
++      live->second.ifeImage!=ife || request->sequence()!=requestSequence)return;
++   live->second.ipaCompleting=false;
++   it=live;
++  }
+   requests_.erase(it);
+-  if(ipeToken)ipa_->frameProcessed(epoch_,ipeSof,ipeToken,ipeSuccess);
+   if(ipeActive_==request)ipeActive_=nullptr;
+   /* Release the internal association before any application completion. */
+- if(internalRequests_.erase(ife))freeImages_.push(ife);
++  if(internalRequests_.erase(ife)) {
++   freeImages_.push(ife);
++   traceFull(camss_diag::EventType::InternalReturn,request,ife);
++  }
++  traceFull(camss_diag::EventType::RequestComplete,request,ife,
++            ife->metadata().status==FrameMetadata::FrameSuccess?ife->_d()->kernelSequence():camss_diag::Unknown,
++            image->metadata().timestamp,int32_t(image->metadata().status));
+  if(processedEnabled_)handler()->completeBuffer(request,image);
+  if(raw)handler()->completeBuffer(request,raw);
+  handler()->completeRequest(request);
+@@ -1058,6 +1167,9 @@
+ 
+ void CamssVfeData::imageReady(FrameBuffer *buffer)
+ {
++ traceFull(camss_diag::EventType::FullDq,imageRequest(buffer),buffer,
++           buffer->metadata().status==FrameMetadata::FrameSuccess?buffer->_d()->kernelSequence():camss_diag::Unknown,
++           buffer->metadata().timestamp,int32_t(buffer->metadata().status));
+  Request *request=imageRequest(buffer);
+  if(!request || !requests_.count(request)) return;
+ 	if (!running_ || buffer->metadata().status != FrameMetadata::FrameSuccess) {
+@@ -1092,7 +1204,9 @@
+ 
+ void CamssVfeData::coarseReady(FrameBuffer *buffer)
+ {
+- if(!running_)return;
++  if(!running_)return;
++  traceFull(camss_diag::EventType::Pd10Dq,nullptr,buffer,buffer->_d()->kernelSequence(),
++            buffer->metadata().timestamp,int32_t(buffer->metadata().status));
+  const uint32_t sof=buffer->_d()->kernelSequence();
+  if(buffer->metadata().status!=FrameMetadata::FrameSuccess ||
+     (consumedCoarseSof_ && sof<=*consumedCoarseSof_) || coarseImages_.count(sof)) {
+@@ -1118,7 +1232,9 @@
+ 
+ void CamssVfeData::statsReady(FrameBuffer *buffer)
+ {
+- if (!running_) return;
++  if (!running_) return;
++  traceFull(camss_diag::EventType::StatsDq,nullptr,buffer,buffer->_d()->kernelSequence(),
++            buffer->metadata().timestamp,int32_t(buffer->metadata().status));
+  if (buffer->metadata().status != FrameMetadata::FrameSuccess) {
+   int ret = stats_->queueBuffer(buffer);
+   if (ret) LOG(CamssVfe, Error) << "Requeue error statistics failed: " << ret;
+@@ -1208,8 +1324,9 @@
+  const ipa::camss::Statistics &statistics, const ControlList &metadata)
+ {
+  if (!running_ || epoch != epoch_) return;
+- auto it = pendingStats_.find(id);
+- if (it == pendingStats_.end() || !it->second.submitted || it->second.sof != sof) return;
++  traceFull(camss_diag::EventType::StatsDone,nullptr,nullptr,sof,0,statistics.status);
++  auto it = pendingStats_.find(id);
++  if (it == pendingStats_.end() || !it->second.submitted || it->second.sof != sof) return;
+  FrameBuffer *buffer = it->second.buffer;
+  const auto &update = statistics.automaticUpdate;
+  if (update.valid && automatic_ && sensorContextHealthy_) {
+@@ -1249,10 +1366,20 @@
+  } else {
+   LOG(CamssVfe, Warning) << "IPA rejected statistics epoch=" << epoch << " sof=" << sof << " status=" << statistics.status;
+  }
++ if (!running_ || epoch != epoch_) return;
+  while (histogramOrder_.size() > 32) {
+-  auto old=histograms_.find(histogramOrder_.front());
+-   if(old!=histograms_.end() && old->second.ipeToken)ipa_->frameProcessed(epoch_,old->first,old->second.ipeToken,false);
+-   histograms_.erase(histogramOrder_.front()); histogramOrder_.pop_front();
++  /* Retire local ownership before a synchronous isolated call can reenter.
++   * A nested statistics callback or stop must not resolve this token twice. */
++  const uint32_t oldSof=histogramOrder_.front();
++  histogramOrder_.pop_front();
++  auto old=histograms_.find(oldSof);
++  if(old==histograms_.end())continue;
++  const uint64_t token=old->second.ipeToken;
++  histograms_.erase(old);
++  if(token) {
++   ipa_->frameProcessed(epoch,oldSof,token,false);
++   if (!running_ || epoch != epoch_) return;
++  }
+  }
+  if (!running_ || epoch != epoch_) return;
+  if (!statistics.status && statistics.parametersKnown) queueIspUpdate(statistics.ispUpdate);
+@@ -1270,16 +1397,34 @@
+ 	FrameBuffer *buffer = it->second;
+ 	Request *request = imageRequest(buffer);
+     if(!request || !requests_.count(request)){images_.erase(it);return;}
++    /* Cancellation needs no new synchronous IPA work. The buffers still
++     * belong to the stopped queues until their ordinary completion. */
++    if (!running_) {
++        images_.erase(it); imageArrival_.erase(sequence);
++        imageProcessed(buffer, requests_.at(request).image, false);
++        return;
++    }
++    const uint64_t frameEpoch = epoch_;
++    const uint32_t requestSequence = request->sequence();
++    const auto ownsFrame = [&]() {
++        auto live = requests_.find(request);
++        return running_ && epoch_ == frameEpoch && live != requests_.end() &&
++               live->second.ifeImage == buffer && request->sequence() == requestSequence;
++    };
+     /* A later statistics callback must not bypass an older waiting FULL.
+      * Both successful numerical history and PD10 retirement follow SOF. */
+-    if(running_ && ipe_ && processedEnabled_ && sequence!=images_.begin()->first)return;
++    if(running_ && ipe_ && processedEnabled_ && sequence!=images_.begin()->first) {
++     traceFull(camss_diag::EventType::WaitOlder,request,buffer,sequence);return;
++    }
+     if(running_ && ipe_ && processedEnabled_ && ipeActive_) {
++     traceFull(camss_diag::EventType::WaitIpe,request,buffer,sequence);
+         if(!deadline_.isRunning())deadline_.start(std::chrono::milliseconds(250));
+         return;
+     }
+     if(coarseEnabled_ && running_ && buffer->metadata().status==FrameMetadata::FrameSuccess) {
+         auto found=coarseImages_.find(sequence);
+         if(found==coarseImages_.end() && !force) {
++         traceFull(camss_diag::EventType::WaitPd10,request,buffer,sequence);
+             if(!deadline_.isRunning())deadline_.start(std::chrono::milliseconds(250));
+             return;
+         }
+@@ -1287,7 +1432,9 @@
+         if(found==coarseImages_.end())buffer->_d()->metadata().status=FrameMetadata::FrameError;
+         else {requests_.at(request).coarse=found->second;coarseImages_.erase(found);}
+     }
+-    if(running_ && ipe_ && processedEnabled_)ipeActive_=request;
++    if(running_ && ipe_ && processedEnabled_) {
++     ipeActive_=request;traceFull(camss_diag::EventType::IpeClaim,request,buffer,sequence);
++    }
+     images_.erase(it);imageArrival_.erase(sequence);
+ 	if (paired) {
+ 		const Histogram &h = histograms_.at(sequence);
+@@ -1304,6 +1451,7 @@
+ 		ControlList metadata(controls::controls);
+ 		auto context=sensorContexts_.find(sequence);
+ 		int ret=context==sensorContexts_.end()?-ENODATA:ipa_->frameMetadata(epoch_,sequence,context->second,&metadata);
++        if (!ownsFrame()) return;
+ 		if (!ret) {
+ 			request->_d()->metadata().merge(metadata);
+ 			LOG(CamssVfe, Info) << "Image controls recovered epoch=" << epoch_ << " sof=" << sequence << " request=" << request->sequence();
+@@ -1312,15 +1460,43 @@
+ 			LOG(CamssVfe, Warning) << "Image controls unavailable epoch=" << epoch_ << " sof=" << sequence;
+ 		}
+ 	}
+- if (lensActive_ && running_) {
++ std::vector<uint8_t> focusedTone;
++  uint64_t focusedRevision=0;bool focusedFresh=false,focusedPrepared=false;int32_t focusedToneStatus=0;
++  if (lensActive_ && running_) {
+   
+   StreamConfiguration focusConfig;focusConfig.pixelFormat=formats::NV12;focusConfig.size=output_;focusConfig.stride=outputStride_;
+-  const auto score=measureFrameFocus(buffer,focusConfig);
++  const auto focusBegin=std::chrono::steady_clock::now();
++  FocusMeasurementTiming focusTiming;
++  const auto score=measureFrameFocus(buffer,focusConfig,&focusTiming,&focusWorkspace_);
++  LOG(CamssVfe,Debug)<<"FOCUS_TIMING epoch="<<frameEpoch<<" sof="<<sequence
++   <<" sync-start-us="<<focusTiming.syncStartUs<<" map-us="<<focusTiming.mapUs
++   <<" sample-us="<<focusTiming.sampleUs<<" score-us="<<focusTiming.scoreUs
++   <<" unmap-us="<<focusTiming.unmapUs<<" sync-end-us="<<focusTiming.syncEndUs;
++  LOG(CamssVfe,Debug)<<"FOCUS_EXECUTION epoch="<<frameEpoch<<" sof="<<sequence<<" valid="<<focusTiming.sampleExecutionValid
++   <<" sample-wall-us="<<focusTiming.sampleUs<<" sample-cpu-us="<<focusTiming.sampleCpuUs
++   <<" minor="<<focusTiming.sampleMinor<<" major="<<focusTiming.sampleMajor
++   <<" voluntary="<<focusTiming.sampleVoluntary<<" involuntary="<<focusTiming.sampleInvoluntary
++   <<" cpu-before="<<focusTiming.sampleCpuBefore<<" cpu-after="<<focusTiming.sampleCpuAfter;
++  const auto focusMeasured=std::chrono::steady_clock::now();
+   const auto found=sensorContexts_.find(sequence);
+   const ipa::camss::SensorContext context=found==sensorContexts_.end()?ipa::camss::SensorContext{}:found->second;
+   ControlList metadata(controls::controls);ipa::camss::LensMove move{};
+   uint64_t captured=buffer->_d()->timestampMonotonic()?buffer->metadata().timestamp:0;
+-  int ret=ipa_->processFocus(epoch_,sequence,request->controls(),score.has_value(),score.value_or(0),captured,context,&metadata,&move);
++  const bool combined=ipe_ && processedEnabled_ && buffer->metadata().status==FrameMetadata::FrameSuccess;
++  int ret;
++  if (combined)
++   ret=ipa_->prepareFocusedIpe(epoch_,sequence,requests_.at(request).ipeToken,request->controls(),
++                             score.has_value(),score.value_or(0),captured,context,&metadata,&move,
++                             &focusedPrepared,&focusedToneStatus,&focusedTone,&focusedRevision,&focusedFresh);
++  else
++   ret=ipa_->processFocus(epoch_,sequence,request->controls(),score.has_value(),score.value_or(0),captured,context,&metadata,&move);
++  const auto focusDispatched=std::chrono::steady_clock::now();
++  LOG(CamssVfe,Debug)<<"FRAME_IPA_PREPARE epoch="<<frameEpoch<<" sof="<<sequence<<" combined="<<combined
++   <<" focus-us="<<std::chrono::duration_cast<std::chrono::microseconds>(focusMeasured-focusBegin).count()
++   <<" dispatch-us="<<std::chrono::duration_cast<std::chrono::microseconds>(focusDispatched-focusMeasured).count()
++   <<" focus-status="<<ret<<" tone-prepared="<<focusedPrepared;
++  /* Isolated synchronous calls may dispatch stopDevice() while waiting. */
++  if (!ownsFrame()) return;
+   if (!ret) request->_d()->metadata().merge(metadata);
+   else LOG(CamssVfe,Error)<<"Focus frame failed: "<<ret;
+   if (move.valid) {
+@@ -1338,8 +1514,15 @@
+  if (ipe_ && processedEnabled_ && running_ && buffer->metadata().status==FrameMetadata::FrameSuccess) {
+   const uint64_t toneEpoch=epoch_;std::vector<uint8_t> tone;uint64_t toneRevision=0;bool toneFresh=false;
+   const uint64_t toneToken=requests_.at(request).ipeToken;
+-  int ret=ipa_->prepareIpeParameters(toneEpoch,sequence,toneToken,&tone,&toneRevision,&toneFresh);
+-  if(!running_ || epoch_!=toneEpoch || !requests_.count(request))return;
++  const auto toneBegin=std::chrono::steady_clock::now();
++  int ret;
++  if (focusedPrepared) {
++   ret=focusedToneStatus;tone=std::move(focusedTone);toneRevision=focusedRevision;toneFresh=focusedFresh;
++  } else ret=ipa_->prepareIpeParameters(toneEpoch,sequence,toneToken,&tone,&toneRevision,&toneFresh);
++  LOG(CamssVfe,Debug)<<"TONE_IPA_PREPARE epoch="<<toneEpoch<<" sof="<<sequence<<" cached="<<focusedPrepared
++   <<" dispatch-us="<<std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now()-toneBegin).count()
++   <<" status="<<ret;
++  if (!ownsFrame()) return;
+   qcom_ipe_a5_frame_params packet{};
+   if(!ret && !tone.empty()) {
+    if(tone.size()!=sizeof packet)ret=-EINVAL;
+@@ -1350,8 +1533,9 @@
+      !tone.empty() && requests_.at(request).coarse) {
+    toneTraceSaved_=true;
+    std::string base=std::string(traceDir)+"/tone-"+std::to_string(sequence);
+-   ret=toneTraceBuffer(base+"-full.nv12",buffer,460800);
+-   if(!ret)ret=toneTraceBuffer(base+"-coarse.pd10",requests_.at(request).coarse,46080);
++   const auto layout=camssPd10Layout(output_);
++   ret=layout?toneTraceBuffer(base+"-full.nv12",buffer,outputFrameBytes_):-EINVAL;
++   if(!ret)ret=toneTraceBuffer(base+"-coarse.pd10",requests_.at(request).coarse,layout->frameSize);
+    if(!ret)ret=toneTraceBytes(base+"-params.bin",&packet,sizeof packet);
+    LOG(CamssVfe,Info)<<"IPE_TONE_TRACE epoch="<<toneEpoch<<" sof="<<sequence<<" token="<<toneToken
+     <<" revision="<<toneRevision<<" full-sequence="<<buffer->_d()->kernelSequence()
+@@ -1367,7 +1551,8 @@
+    }
+   }
+   if(!ret)ret=ipe_->queue(buffer,output,tone.empty()?nullptr:&packet,requests_.at(request).coarse);
+-  LOG(CamssVfe,Info)<<"IPE_TONE_QUEUE epoch="<<toneEpoch<<" sof="<<sequence<<" token="<<toneToken
++   traceFull(camss_diag::EventType::IpeQueue,request,buffer,sequence,buffer->metadata().timestamp,ret);
++   LOG(CamssVfe,Info)<<"IPE_TONE_QUEUE epoch="<<toneEpoch<<" sof="<<sequence<<" token="<<toneToken
+    <<" revision="<<toneRevision<<" fresh="<<toneFresh<<" bytes="<<tone.size()<<" pd10="<<coarseEnabled_<<" result="<<ret;
+   if (ret) imageProcessed(buffer,output,false);
+  } else imageProcessed(buffer,output,buffer->metadata().status==FrameMetadata::FrameSuccess);
+@@ -1378,7 +1563,9 @@
+ {
+  Request *request=imageRequest(input);
+  auto it=requests_.find(request);
+- if(it==requests_.end() || it->second.ifeImage!=input || it->second.image!=output)return;
++  if(it==requests_.end() || it->second.ifeImage!=input || it->second.image!=output)return;
++  traceFull(camss_diag::EventType::ImageProcessed,request,input,input->_d()->kernelSequence(),
++            input->metadata().timestamp,success?0:-EIO);
+  if(input!=output) {
+   output->_d()->metadata()=input->metadata();
+   output->_d()->setKernelSequence(input->_d()->kernelSequence());
+--- /dev/null
++++ b/src/libcamera/pipeline/camss-vfe/full_ownership_trace.h
+@@ -0,0 +1,201 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++
++#include <array>
++#include <cerrno>
++#include <cstdint>
++#include <cstdio>
++#include <fcntl.h>
++#include <memory>
++#include <new>
++#include <time.h>
++#include <unistd.h>
++
++namespace libcamera::camss_diag {
++
++enum class EventType : uint16_t {
++    Start, PoolReady, RequestEnter, NoFreeFull, InternalTake, FullQbufBegin,
++    FullQbufResult, FullDq, PixSof, Pd10Dq, StatsDq, StatsDone, WaitOlder,
++    WaitIpe, WaitPd10, IpeClaim, IpeQueue, ImageProcessed, InternalReturn,
++    RequestComplete, RequestAccepted, StopBegin, StopEnd, Count
++};
++constexpr uint32_t Unknown = UINT32_MAX;
++enum Flags : uint32_t {
++    Running = 1, IpeActive = 2, ParameterBusy = 4,
++    BufferSuccess = 8, BufferTimestampMonotonic = 16
++};
++struct Event {
++    uint64_t number, monoNs, epoch, request, buffer, hardwareNs, activeRequest;
++    uint32_t sof, requestSequence, lastSof;
++    uint32_t freeFull, requests, waitingFull, coarse, histograms, statistics, associations, flags;
++    int32_t status, outstandingFull;
++    uint16_t type, reserved;
++};
++static_assert(sizeof(Event) == 112);
++
++/* Single CameraManager thread only. Nested IPC dispatch is sequential; push()
++ * finishes before any call-out. No callbacks, allocation or I/O inside push(). */
++template<size_t Capacity>
++class Ring
++{
++    static_assert(Capacity > 0);
++public:
++    bool prepare()
++    {
++        reset();
++        events_.reset(new (std::nothrow) Event[Capacity]);
++        if (!events_)
++            return false;
++        /* calloc/value-init can leave demand-zero pages untouched. */
++        volatile unsigned char *bytes =
++            reinterpret_cast<volatile unsigned char *>(events_.get());
++        for (size_t i = 0; i < sizeof(Event) * Capacity; i += 4096)
++            bytes[i] = 0;
++        bytes[sizeof(Event) * Capacity - 1] = 0;
++        return true;
++    }
++    bool active() const { return bool(events_); }
++    void push(Event event)
++    {
++        if (!active())
++            return;
++        const auto kind = EventType(event.type);
++        if (kind >= EventType::Count)
++            return;
++        ++totals_[event.type];
++        if (kind == EventType::FullQbufResult && !event.status)
++            ++outstanding_;
++        if (kind == EventType::FullDq) {
++            if (outstanding_ > 0)
++                --outstanding_;
++            else
++                ++underflows_;
++        }
++        event.number = ++total_;
++        event.outstandingFull = outstanding_;
++        events_[(total_ - 1) % Capacity] = event;
++    }
++    size_t retained() const { return total_ < Capacity ? total_ : Capacity; }
++    uint64_t total() const { return total_; }
++    uint64_t overwritten() const { return total_ - retained(); }
++    uint64_t firstNumber() const { return total_ ? total_ - retained() + 1 : 0; }
++    uint64_t underflows() const { return underflows_; }
++    uint64_t count(EventType type) const { return totals_[uint16_t(type)]; }
++    const Event &at(size_t chronologicalIndex) const
++    {
++        return events_[(firstNumber() - 1 + chronologicalIndex) % Capacity];
++    }
++    void reset()
++    {
++        events_.reset();
++        total_ = 0; outstanding_ = 0; underflows_ = 0; totals_.fill(0);
++    }
++private:
++    std::unique_ptr<Event[]> events_;
++    std::array<uint64_t, size_t(EventType::Count)> totals_{};
++    uint64_t total_ = 0, underflows_ = 0;
++    int32_t outstanding_ = 0;
++};
++
++class Capture
++{
++public:
++    static constexpr size_t Capacity = 8192;
++    ~Capture() { reset(); }
++    int start(const char *directory, uint64_t epoch)
++    {
++        reset(); lastTotal_ = lastRetained_ = lastOverwritten_ = 0;
++        if (!directory || !*directory)
++            return 0;
++        directory_ = open(directory, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
++        if (directory_ < 0)
++            return -errno;
++        if (!ring_.prepare()) {
++            reset();
++            return -ENOMEM;
++        }
++        epoch_ = epoch;
++        std::snprintf(filename_, sizeof filename_, "full-%ld-e%llu-%llu.csv",
++                      long(getpid()), (unsigned long long)epoch,
++                      (unsigned long long)now());
++        return 0;
++    }
++    bool active() const { return directory_ >= 0 && ring_.active(); }
++    void record(Event event)
++    {
++        if (!active())
++            return;
++        event.monoNs = now();
++        event.epoch = epoch_;
++        ring_.push(event);
++    }
++    const char *filename() const { return filename_; }
++    uint64_t lastTotal() const { return lastTotal_; }
++    uint64_t lastRetained() const { return lastRetained_; }
++    uint64_t lastOverwritten() const { return lastOverwritten_; }
++    int stop()
++    {
++        if (!active())
++            return 0;
++        lastTotal_ = ring_.total(); lastRetained_ = ring_.retained();
++        lastOverwritten_ = ring_.overwritten();
++        const int fd = openat(directory_, filename_,
++                              O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW, 0600);
++        if (fd < 0) {
++            const int error = -errno; reset(); return error;
++        }
++        FILE *file = fdopen(fd, "w");
++        if (!file) {
++            const int error = -errno; close(fd); reset(); return error;
++        }
++        std::fprintf(file, "# full-trace,version=1,capacity=%zu,total=%llu,retained=%llu,overwritten=%llu,first=%llu,clock-errors=%llu,q-underflows=%llu\n",
++                     Capacity, (unsigned long long)ring_.total(),
++                     (unsigned long long)ring_.retained(), (unsigned long long)ring_.overwritten(),
++                     (unsigned long long)ring_.firstNumber(), (unsigned long long)clockErrors_,
++                     (unsigned long long)ring_.underflows());
++        for (uint16_t i = 0; i < uint16_t(EventType::Count); ++i)
++            std::fprintf(file, "# total,%u,%llu\n", i, (unsigned long long)ring_.count(EventType(i)));
++        std::fprintf(file, "number,mono_ns,epoch,request,buffer,hardware_ns,active_request,type,sof,request_sequence,last_sof,free_full,requests,waiting_full,coarse,histograms,statistics,associations,flags,status,outstanding_full\n");
++        for (size_t i = 0; i < ring_.retained(); ++i) {
++            const Event &e = ring_.at(i);
++            const uint64_t values[] = {
++                e.number, e.monoNs, e.epoch, e.request, e.buffer, e.hardwareNs, e.activeRequest,
++                e.type, e.sof, e.requestSequence, e.lastSof, e.freeFull, e.requests,
++                e.waitingFull, e.coarse, e.histograms, e.statistics, e.associations, e.flags
++            };
++            for (uint64_t value : values)
++                std::fprintf(file, "%llu,", (unsigned long long)value);
++            std::fprintf(file, "%d,%d\n", e.status, e.outstandingFull);
++        }
++        std::fprintf(file, "# end,records=%llu\n", (unsigned long long)ring_.retained());
++        int result = std::ferror(file) ? -EIO : 0;
++        if (std::fclose(file) && !result)
++            result = -errno;
++        reset();
++        return result;
++    }
++private:
++    uint64_t now()
++    {
++        timespec value{};
++        if (clock_gettime(CLOCK_MONOTONIC, &value)) {
++            ++clockErrors_;
++            return 0;
++        }
++        return uint64_t(value.tv_sec) * 1000000000 + value.tv_nsec;
++    }
++    void reset()
++    {
++        if (directory_ >= 0)
++            close(directory_);
++        directory_ = -1;
++        ring_.reset(); epoch_ = 0; clockErrors_ = 0;
++    }
++    Ring<Capacity> ring_;
++    int directory_ = -1;
++    uint64_t epoch_ = 0, clockErrors_ = 0;
++    uint64_t lastTotal_ = 0, lastRetained_ = 0, lastOverwritten_ = 0;
++    char filename_[96]{};
++};
++
++} /* namespace libcamera::camss_diag */
+--- a/src/libcamera/pipeline/camss-vfe/hardware_focus.h
++++ b/src/libcamera/pipeline/camss-vfe/hardware_focus.h
+@@ -1,59 +1,149 @@
+ /* SPDX-License-Identifier: LGPL-2.1-or-later */
+-/* Bounded spatial focus measurement on the owned NV12 Y plane. */
++/* Exact bounded focus statistics on the owned NV12 Y plane. */
+ #pragma once
+ #include <algorithm>
++#include <array>
++#include <chrono>
+ #include <optional>
++#include <new>
+ #include <vector>
+ #include <linux/dma-buf.h>
+ #include <sys/ioctl.h>
++#include <sys/resource.h>
++#include <sched.h>
++#include <time.h>
+ #include <libcamera/stream.h>
+ #include "libcamera/internal/mapped_framebuffer.h"
+ #include "libcamera/internal/software_isp/focus_stats.h"
+ 
+ namespace libcamera {
+-inline FocusStatistics measureLumaFocus(const uint8_t *data,size_t bytes,unsigned width,unsigned height,unsigned stride)
++struct LumaFocusWorkspace {
++ static constexpr size_t kMaximumCells=320*240;
++ unsigned width=0,height=0,columns=0,rows=0;
++ std::array<unsigned,320> sampleX{},regionX{};
++ std::vector<uint16_t> grid,smooth;
++ bool prepare(unsigned w,unsigned h)
++ {
++  if(w<12 || h<12)return false;
++  if(width==w && height==h)return true;
++  const unsigned c=std::min(320U,w/2),r=std::min(240U,h/2);
++  try {
++   grid.reserve(kMaximumCells);smooth.reserve(kMaximumCells);
++   grid.assign(size_t(c)*r,0);smooth.assign(size_t(c)*r,0);
++  } catch(const std::bad_alloc &) {clear();return false;}
++  for(unsigned x=0;x<c;++x){sampleX[x]=uint64_t(x)*(w-2)/(c-1);regionX[x]=x*FocusStatistics::kColumns/c;}
++  width=w;height=h;columns=c;rows=r;return true;
++ }
++ void clear()
++ {
++  std::vector<uint16_t>().swap(grid);std::vector<uint16_t>().swap(smooth);
++  width=height=columns=rows=0;
++ }
++ size_t storageBytes() const {return (grid.capacity()+smooth.capacity())*sizeof(uint16_t);}
++};
++
++inline FocusStatistics measureLumaFocus(const uint8_t *data,size_t bytes,unsigned width,unsigned height,unsigned stride,LumaFocusWorkspace *workspace=nullptr)
+ {
+  FocusStatistics result;
+  if (!data || width<12 || height<12 || stride<width || uint64_t(height-1)*stride+width>bytes) return result;
+- const unsigned columns=std::min(320U,width/2),rows=std::min(240U,height/2);
+- std::vector<uint16_t> grid(size_t(columns)*rows),smooth(grid.size());
+- for (unsigned y=0;y<rows;++y) for (unsigned x=0;x<columns;++x) {
+-  unsigned px=uint64_t(x)*(width-2)/(columns-1),py=uint64_t(y)*(height-2)/(rows-1);
+-  uint32_t sum=data[size_t(py)*stride+px]+data[size_t(py)*stride+px+1]+data[size_t(py+1)*stride+px]+data[size_t(py+1)*stride+px+1];
+-  grid[size_t(y)*columns+x]=sum*257/4;
++ std::optional<LumaFocusWorkspace> local;
++ if(!workspace){local.emplace();workspace=&*local;}
++ if(!workspace->prepare(width,height))return result;
++ const unsigned columns=workspace->columns,rows=workspace->rows;
++ const auto &sampleX=workspace->sampleX,&regionX=workspace->regionX;
++ auto &grid=workspace->grid,&smooth=workspace->smooth;
++ /* Every grid cell and every smooth cell read below is overwritten this frame. */
++ for (unsigned y=0;y<rows;++y) {
++  const unsigned py=uint64_t(y)*(height-2)/(rows-1);
++  const uint8_t *line=data+size_t(py)*stride,*next=line+stride;
++  for (unsigned x=0;x<columns;++x) {
++   const unsigned px=sampleX[x];
++   const uint32_t sum=line[px]+line[px+1]+next[px]+next[px+1];
++   grid[size_t(y)*columns+x]=sum*257/4;
++  }
+  }
+- for (unsigned y=1;y+1<rows;++y) for (unsigned x=1;x+1<columns;++x) {
+-  uint32_t sum=0;
+-  for (unsigned j=y-1;j<=y+1;++j) for (unsigned i=x-1;i<=x+1;++i) sum+=grid[size_t(j)*columns+i];
+-  smooth[size_t(y)*columns+x]=sum/9;
++ for (unsigned y=1;y+1<rows;++y) {
++  const uint16_t *a=grid.data()+size_t(y-1)*columns,*b=a+columns,*c=b+columns;
++  uint32_t sum=uint32_t(a[0])+a[1]+a[2]+b[0]+b[1]+b[2]+c[0]+c[1]+c[2];
++  for (unsigned x=1;x+1<columns;++x) {
++   smooth[size_t(y)*columns+x]=sum/9;
++   if (x+2<columns) {
++    sum-=uint32_t(a[x-1])+b[x-1]+c[x-1];
++    sum+=uint32_t(a[x+2])+b[x+2]+c[x+2];
++   }
++  }
+  }
+- for (unsigned y=2;y+2<rows;++y) for (unsigned x=2;x+2<columns;++x) {
+-  uint16_t mean=smooth[size_t(y)*columns+x];
+-  if (mean<1024 || mean>64512) continue;
+-  int64_t dx=int64_t(smooth[size_t(y)*columns+x+1])-smooth[size_t(y)*columns+x-1];
+-  int64_t dy=int64_t(smooth[size_t(y+1)*columns+x])-smooth[size_t(y-1)*columns+x];
+-  auto &r=result.regions[(y*FocusStatistics::kRows/rows)*FocusStatistics::kColumns+x*FocusStatistics::kColumns/columns];
+-  r.energy+=dx*dx+dy*dy;r.sum+=mean;++r.samples;
++ for (unsigned y=2;y+2<rows;++y) {
++  const unsigned regionRow=(y*FocusStatistics::kRows/rows)*FocusStatistics::kColumns;
++  for (unsigned x=2;x+2<columns;++x) {
++   const uint16_t mean=smooth[size_t(y)*columns+x];
++   if (mean<1024 || mean>64512) continue;
++   const int64_t dx=int64_t(smooth[size_t(y)*columns+x+1])-smooth[size_t(y)*columns+x-1];
++   const int64_t dy=int64_t(smooth[size_t(y+1)*columns+x])-smooth[size_t(y-1)*columns+x];
++   auto &r=result.regions[regionRow+regionX[x]];
++   r.energy+=dx*dx+dy*dy;r.sum+=mean;++r.samples;
++  }
+  }
+  result.valid=true;
+  return result;
+ }
+ 
+-inline std::optional<int32_t> measureFrameFocus(FrameBuffer *buffer,const StreamConfiguration &configuration)
++struct FocusExecutionSnapshot {
++ int64_t cpuNs=0;long minor=0,major=0,voluntary=0,involuntary=0;int cpu=-1;bool valid=false;
++};
++inline FocusExecutionSnapshot focusExecutionSnapshot()
+ {
++ FocusExecutionSnapshot result;timespec cpu{};rusage usage{};
++ if(clock_gettime(CLOCK_THREAD_CPUTIME_ID,&cpu) || getrusage(RUSAGE_THREAD,&usage))return result;
++ result.cpuNs=int64_t(cpu.tv_sec)*1000000000+cpu.tv_nsec;
++ result.minor=usage.ru_minflt;result.major=usage.ru_majflt;
++ result.voluntary=usage.ru_nvcsw;result.involuntary=usage.ru_nivcsw;
++ result.cpu=sched_getcpu();result.valid=result.cpu>=0;return result;
++}
++
++struct FocusMeasurementTiming {
++ int64_t syncStartUs=0,mapUs=0,sampleUs=0,scoreUs=0,unmapUs=0,syncEndUs=0;
++ int64_t sampleCpuUs=0;long sampleMinor=0,sampleMajor=0,sampleVoluntary=0,sampleInvoluntary=0;
++ int sampleCpuBefore=-1,sampleCpuAfter=-1;bool sampleExecutionValid=false;
++};
++
++inline std::optional<int32_t> measureFrameFocus(FrameBuffer *buffer,const StreamConfiguration &configuration,
++                                              FocusMeasurementTiming *timing=nullptr,LumaFocusWorkspace *workspace=nullptr)
++{
++ using Clock=std::chrono::steady_clock;
++ auto previous=Clock::now();
++ const auto elapsed=[&]() {const auto now=Clock::now();const auto us=std::chrono::duration_cast<std::chrono::microseconds>(now-previous).count();previous=now;return us;};
++ FocusMeasurementTiming measured;
+  if (buffer->planes().empty() || buffer->metadata().planes().empty()) return std::nullopt;
+  const auto &plane=buffer->planes()[0];
+  dma_buf_sync sync{DMA_BUF_SYNC_START|DMA_BUF_SYNC_READ};
+  if (ioctl(plane.fd.get(),DMA_BUF_IOCTL_SYNC,&sync)) return std::nullopt;
++ measured.syncStartUs=elapsed();
+  std::optional<int32_t> score;
+  {
+   MappedFrameBuffer mapped(buffer,MappedFrameBuffer::MapFlag::Read);
+-  if (mapped.isValid() && !mapped.planes().empty())
+-   score=measureLumaFocus(mapped.planes()[0].data(),std::min<size_t>(mapped.planes()[0].size(),buffer->metadata().planes()[0].bytesused),
+-                          configuration.size.width,configuration.size.height,configuration.stride).figureOfMerit();
++  measured.mapUs=elapsed();
++  if (mapped.isValid() && !mapped.planes().empty()) {
++   const auto usageBefore=focusExecutionSnapshot();
++   const auto statistics=measureLumaFocus(mapped.planes()[0].data(),std::min<size_t>(mapped.planes()[0].size(),buffer->metadata().planes()[0].bytesused),
++                                         configuration.size.width,configuration.size.height,configuration.stride,workspace);
++   const auto usageAfter=focusExecutionSnapshot();
++   measured.sampleUs=elapsed();
++   measured.sampleExecutionValid=usageBefore.valid && usageAfter.valid && usageAfter.cpuNs>=usageBefore.cpuNs;
++   if(measured.sampleExecutionValid){
++    measured.sampleCpuUs=(usageAfter.cpuNs-usageBefore.cpuNs)/1000;
++    measured.sampleMinor=usageAfter.minor-usageBefore.minor;measured.sampleMajor=usageAfter.major-usageBefore.major;
++    measured.sampleVoluntary=usageAfter.voluntary-usageBefore.voluntary;measured.sampleInvoluntary=usageAfter.involuntary-usageBefore.involuntary;
++    measured.sampleCpuBefore=usageBefore.cpu;measured.sampleCpuAfter=usageAfter.cpu;
++   }
++   score=statistics.figureOfMerit();measured.scoreUs=elapsed();
++  }
+  }
++ measured.unmapUs=elapsed();
+  sync.flags=DMA_BUF_SYNC_END|DMA_BUF_SYNC_READ;
+- if (ioctl(plane.fd.get(),DMA_BUF_IOCTL_SYNC,&sync)) return std::nullopt;
++ const int status=ioctl(plane.fd.get(),DMA_BUF_IOCTL_SYNC,&sync);
++ measured.syncEndUs=elapsed();if(timing)*timing=measured;
++ if(status)return std::nullopt;
+  return score;
+ }
+ }
+--- /dev/null
++++ b/src/libcamera/pipeline/camss-vfe/thread_capacity.h
+@@ -0,0 +1,186 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++/* A reversible capacity hint for the shared camera manager thread. */
++#pragma once
++#include <algorithm>
++#include <array>
++#include <bitset>
++#include <cerrno>
++#include <cstdint>
++#include <fstream>
++#include <limits>
++#include <memory>
++#include <mutex>
++#include <new>
++#include <optional>
++#include <sched.h>
++#include <string>
++#include <sys/syscall.h>
++#include <unistd.h>
++
++namespace libcamera {
++using CapacityCpuMask = std::bitset<CPU_SETSIZE>;
++
++class CapacityThreadOps
++{
++public:
++ virtual ~CapacityThreadOps() = default;
++ virtual pid_t currentThread() = 0;
++ virtual std::optional<CapacityCpuMask> affinity(pid_t tid) = 0;
++ virtual int setAffinity(pid_t tid,const CapacityCpuMask &mask) = 0;
++ virtual std::optional<unsigned> capacity(unsigned cpu) = 0;
++};
++
++class LinuxCapacityThreadOps final : public CapacityThreadOps
++{
++public:
++ pid_t currentThread() override {return syscall(SYS_gettid);}
++ std::optional<CapacityCpuMask> affinity(pid_t tid) override
++ {
++  cpu_set_t native;CPU_ZERO(&native);
++  if(sched_getaffinity(tid,sizeof(native),&native))return std::nullopt;
++  CapacityCpuMask mask;
++  for(unsigned i=0;i<CPU_SETSIZE;++i)if(CPU_ISSET(i,&native))mask.set(i);
++  return mask.any()?std::optional<CapacityCpuMask>(mask):std::nullopt;
++ }
++ int setAffinity(pid_t tid,const CapacityCpuMask &mask) override
++ {
++  if(mask.none())return -EINVAL;
++  cpu_set_t native;CPU_ZERO(&native);
++  for(unsigned i=0;i<CPU_SETSIZE;++i)if(mask[i])CPU_SET(i,&native);
++  return sched_setaffinity(tid,sizeof(native),&native)?-errno:0;
++ }
++ std::optional<unsigned> capacity(unsigned cpu) override
++ {
++  std::ifstream file("/sys/devices/system/cpu/cpu"+std::to_string(cpu)+"/cpu_capacity");
++  uint64_t value=0;
++  if(!(file>>value) || !value || value>std::numeric_limits<unsigned>::max())return std::nullopt;
++  file>>std::ws;if(!file.eof())return std::nullopt;
++  return unsigned(value);
++ }
++};
++
++class ThreadCapacityLease
++{
++ struct State {
++  std::mutex mutex;
++  CapacityThreadOps *ops=nullptr;
++  pid_t tid=0;unsigned users=0;bool alive=true,revoked=false,pendingRestore=false;
++  CapacityCpuMask original,selected;
++ };
++ /* This guard is destroyed before a normal pthread releases/reuses its TID.
++  * Cross-thread release holds the same lock, so it cannot target a reused TID. */
++ struct ThreadOwner {
++  std::shared_ptr<State> state;
++  ~ThreadOwner(){if(state){std::lock_guard lock(state->mutex);state->alive=false;}}
++ };
++ static ThreadOwner &owner(){static thread_local ThreadOwner value;return value;}
++ static CapacityThreadOps &linuxOps(){static LinuxCapacityThreadOps ops;return ops;}
++public:
++ struct Result {
++  int status=0;const char *reason="inactive";pid_t tid=0;unsigned users=0;
++  bool active=false;CapacityCpuMask original,selected;
++ };
++ explicit ThreadCapacityLease(CapacityThreadOps &ops=linuxOps()):ops_(&ops){}
++ ~ThreadCapacityLease()
++ {
++  release();
++  if(state_){auto state=state_;std::lock_guard lock(state->mutex);--state->users;state->pendingRestore=true;state_.reset();}
++ }
++ ThreadCapacityLease(const ThreadCapacityLease &)=delete;
++ ThreadCapacityLease &operator=(const ThreadCapacityLease &)=delete;
++ ThreadCapacityLease(ThreadCapacityLease &&other):ops_(other.ops_),state_(std::move(other.state_)){}
++ ThreadCapacityLease &operator=(ThreadCapacityLease &&)=delete;
++
++ Result acquire()
++ {
++  if(state_){
++   {std::lock_guard lock(state_->mutex);if(state_->alive)return result(*state_,0,"already-held",true);}
++   release();
++  }
++  std::shared_ptr<State> state;
++  try {
++   auto &thread=owner();if(!thread.state)thread.state=std::make_shared<State>();state=thread.state;
++  } catch(const std::bad_alloc &) {Result failed;failed.status=-ENOMEM;failed.reason="no-memory";return failed;}
++  std::lock_guard lock(state->mutex);
++  if(state->users){
++   if(state->ops!=ops_)return result(*state,-EBUSY,"backend-mismatch",false);
++   auto current=ops_->affinity(state->tid);
++   if(!current)return result(*state,-EIO,"read-failed",false);
++   if(state->revoked || *current!=state->selected){state->revoked=true;return result(*state,0,"external-policy",false);}
++   ++state->users;state_=state;return result(*state,0,"shared",true);
++  }
++  if(state->pendingRestore && state->ops==ops_){
++   auto current=ops_->affinity(state->tid);
++   if(!current)return result(*state,-EIO,"pending-read-failed",false);
++   if(*current==state->selected){
++    const int status=ops_->setAffinity(state->tid,state->original);
++    if(status)return result(*state,status,"restore-pending",false);
++   }
++  }
++  state->pendingRestore=false;
++  state->tid=ops_->currentThread();state->ops=ops_;state->revoked=false;
++  state->original.reset();state->selected.reset();
++  auto original=ops_->affinity(state->tid);
++  if(!original)return result(*state,-EIO,"read-failed",false);
++  state->original=*original;
++  CapacityCpuMask selected;unsigned minimum=std::numeric_limits<unsigned>::max();
++  std::array<unsigned,CPU_SETSIZE> capacities{};
++  try {
++   for(unsigned i=0;i<CPU_SETSIZE;++i)if((*original)[i]){
++    auto value=ops_->capacity(i);if(!value)return result(*state,0,"capacity-unavailable",false);
++    capacities[i]=*value;minimum=std::min(minimum,*value);
++   }
++  } catch(const std::bad_alloc &) {return result(*state,-ENOMEM,"no-memory",false);}
++  for(unsigned i=0;i<CPU_SETSIZE;++i)if((*original)[i] && capacities[i]>minimum)selected.set(i);
++  if(selected.none())return result(*state,0,"homogeneous",false);
++  /* Respect a concurrent change during discovery instead of replacing it. */
++  auto current=ops_->affinity(state->tid);
++  if(!current)return result(*state,-EIO,"read-failed",false);
++  if(*current!=*original)return result(*state,0,"external-policy",false);
++  const int status=ops_->setAffinity(state->tid,selected);
++  if(status)return result(*state,status,"apply-failed",false);
++  state->original=*original;state->selected=selected;state->users=1;state_=state;
++  auto applied=ops_->affinity(state->tid);
++  if(!applied){
++   const int rollback=ops_->setAffinity(state->tid,*original);
++   if(rollback)return result(*state,rollback,"rollback-pending",true);
++   state->users=0;state_.reset();return result(*state,-EIO,"readback-rolled-back",false);
++  }
++  /* A cpuset/hotplug intersection may have removed CPUs during the syscall. */
++  if(applied->none() || (*applied & ~selected).any()){
++   state->users=0;state_.reset();return result(*state,0,"external-policy",false);
++  }
++  state->selected=*applied;return result(*state,0,"selected",true);
++ }
++
++ Result release()
++ {
++  if(!state_)return {};
++  auto state=state_;std::lock_guard lock(state->mutex);
++  if(!state->alive){--state->users;state_.reset();return result(*state,0,"owner-exited",false);}
++  if(state->users>1){--state->users;state_.reset();return result(*state,0,"shared-released",false);}
++  if(state->revoked){state->users=0;state_.reset();return result(*state,0,"external-policy",false);}
++  auto current=state->ops->affinity(state->tid);
++  if(!current)return result(*state,-EIO,"restore-read-failed",true);
++  if(*current!=state->selected){state->users=0;state_.reset();return result(*state,0,"external-policy",false);}
++  const int status=state->ops->setAffinity(state->tid,state->original);
++  if(status)return result(*state,status,"restore-pending",true);
++  auto restored=state->ops->affinity(state->tid);
++  state->users=0;state_.reset();
++  if(!restored)return result(*state,-EIO,"restore-unverified",false);
++  return result(*state,0,*restored==state->original?"restored":"restored-constrained",false);
++ }
++
++ static std::string maskString(const CapacityCpuMask &mask)
++ {
++  std::string result;
++  for(unsigned i=0;i<CPU_SETSIZE;++i)if(mask[i]){if(!result.empty())result+=',';result+=std::to_string(i);}
++  return result.empty()?"none":result;
++ }
++private:
++ static Result result(const State &state,int status,const char *reason,bool active)
++ {return {status,reason,state.tid,state.users,active,state.original,state.selected};}
++ CapacityThreadOps *ops_;
++ std::shared_ptr<State> state_;
++};
++}
+--- a/utils/codegen/ipc/generators/libcamera_templates/module_ipa_proxy_worker.cpp.tmpl
++++ b/utils/codegen/ipc/generators/libcamera_templates/module_ipa_proxy_worker.cpp.tmpl
+@@ -34,6 +34,9 @@
+ #include "libcamera/internal/camera_sensor.h"
+ #include "libcamera/internal/control_serializer.h"
+ #include "libcamera/internal/ipa_data_serializer.h"
++{%- if module_name == "camss" %}
++#include "libcamera/internal/camss_byte_serializer.h"
++{%- endif %}
+ #include "libcamera/internal/ipa_module.h"
+ #include "libcamera/internal/ipa_proxy.h"
+ #include "libcamera/internal/ipc_pipe.h"
+@@ -107,7 +110,7 @@
+ 				IPADataSerializer<{{method|method_return_value}}>::serialize(_callRet);
+ 			_response.data().insert(_response.data().end(), _callRetBuf.cbegin(), _callRetBuf.cend());
+ {%- endif %}
+-		{{proxy_funcs.serialize_call(method|method_param_outputs, "_response.data()", "_response.fds()")|indent(16, true)}}
++		{{proxy_funcs.serialize_call(method|method_param_outputs, "_response.data()", "_response.fds()", camss_byte_vector = (module_name == "camss" and method.mojom_name in ["prepareFocusedIpe", "prepareIpeParameters"]))|indent(16, true)}}
+ 			int _ret = socket_.send(_response.payload());
+ 			if (_ret < 0) {
+ 				LOG({{proxy_worker_name}}, Error)
+--- a/utils/codegen/ipc/generators/libcamera_templates/proxy_functions.tmpl
++++ b/utils/codegen/ipc/generators/libcamera_templates/proxy_functions.tmpl
+@@ -50,7 +50,7 @@
+  #
+  # \todo Avoid intermediate vectors
+  #}
+-{%- macro serialize_call(params, buf, fds) %}
++{%- macro serialize_call(params, buf, fds, camss_byte_vector = false) %}
+ {%- for param in params %}
+ 	std::vector<uint8_t> {{param.mojom_name}}Buf;
+ {%- if param|has_fd %}
+@@ -59,9 +59,13 @@
+ {%- else %}
+ 	std::tie({{param.mojom_name}}Buf, std::ignore) =
+ {%- endif %}
++{%- if camss_byte_vector and param.mojom_name == "parameters" and param|name_full == "std::vector<uint8_t>" %}
++		camssSerializeByteVector({{param.mojom_name}});
++{%- else %}
+ 		IPADataSerializer<{{param|name_full}}>::serialize({{param.mojom_name}}
+ {{- ", &controlSerializer_" if param|needs_control_serializer -}}
+ );
++{%- endif %}
+ {%- endfor %}
+ 
+ {%- if params|length > 1 %}

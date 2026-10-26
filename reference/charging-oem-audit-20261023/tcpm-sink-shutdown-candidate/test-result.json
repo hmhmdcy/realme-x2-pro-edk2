@@ -1,0 +1,26 @@
+{
+  "passed": true,
+  "functions": [
+    "qcom_pmic_typec_port_vbus_toggle",
+    "qcom_pmic_typec_port_set_vbus",
+    "qcom_pmic_typec_port_set_cc",
+    "qcom_pmic_typec_port_set_vconn",
+    "qcom_pmic_typec_port_start_toggling",
+    "qcom_pmic_typec_port_start",
+    "qcom_pmic_typec_port_get_vbus_supply"
+  ],
+  "candidate_sha256": "27e89c72aec5b0acf337a7115919aad2d791cea24965dc94a6bc4a9d53579e62",
+  "harness_sha256": "cb6e0bcef1eb26717a37c3962ee2126f12c0f19797b845f9b464aa8c55375411",
+  "groups": [
+    "PASS supply ownership, absence, defer/errors, references",
+    "PASS sink source rejection and existing source path",
+    "PASS actual OPEN/Rd writes, unsupported Rp, I/O errors, legacy Rp",
+    "PASS fixed-role startup, toggle rejection, partial-write failure"
+  ],
+  "sanitizers": [
+    "address",
+    "undefined"
+  ],
+  "kernel_boundaries_mocked": true,
+  "phone_test": false
+}

@@ -1,0 +1,35 @@
+{
+  "stage": 453,
+  "scope": "static exact-tree release callback scan, not runtime compatibility test",
+  "current_source_head": "5b0e7a9ac5b311a4c4fe17cf48b7ed4fc9a7b91d",
+  "c_files_containing_internal_ops_type": 176,
+  "explicit_release_initializers": 2,
+  "callbacks": [
+    {
+      "path": "drivers/media/platform/st/stm32/stm32-dcmipp/dcmipp-byteproc.c",
+      "ops": "dcmipp_byteproc_int_ops",
+      "release": "dcmipp_byteproc_release",
+      "line": 552,
+      "body_sha256": "059831d293a5a372ebbde0e3e9fbd2c208819a618df08a1d0306df31f9557d30",
+      "directly_mentions_devnode": false
+    },
+    {
+      "path": "drivers/media/platform/st/stm32/stm32-dcmipp/dcmipp-input.c",
+      "ops": "dcmipp_inp_int_ops",
+      "release": "dcmipp_inp_release",
+      "line": 496,
+      "body_sha256": "17fd84be3fbd88f2ab027dad3d8ee1a18bc349744043a281f79ea2f0ac050a7b",
+      "directly_mentions_devnode": false
+    }
+  ],
+  "any_callback_directly_mentions_devnode": false,
+  "callback_bodies_need_transitive_review": false,
+  "patch": "0064-media-v4l2-core-clear-devnode-before-subdev-release.patch",
+  "patch_sha256": "91026115da36f037016c6f7b00de47d2d2898f284d9ac750f790a78d9677fb18",
+  "current_tree_apply_check_exit": 0,
+  "source_or_index_modified": false,
+  "core_kernel_built_or_booted": false,
+  "sdk_or_phone_accessed": false,
+  "manual_helper_review": "v4l2_get_subdevdata reads sd->dev_priv; other callback only container_of and kfree",
+  "current_tree_only_no_out_of_tree_or_runtime_claim": true
+}

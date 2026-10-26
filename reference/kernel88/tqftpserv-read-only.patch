@@ -1,0 +1,243 @@
+--- a/translate.c
++++ b/translate.c
+@@ -36,6 +36,7 @@
+ #endif
+ 
+ static int open_maybe_compressed(const char *path);
++extern int samurai_ro_firmware_open(const char *root, const char *relative);
+ 
+ static void read_fw_path_from_sysfs(char *outbuffer, size_t bufsize)
+ {
+@@ -67,12 +68,15 @@
+  */
+ static int translate_readonly(const char *file)
+ {
++	const char *root = getenv("SAMURAI_TFTP_FIRMWARE_ROOT");
++	if (root)
++		return samurai_ro_firmware_open(root, file);
+ 	char firmware_value[PATH_MAX];
+ 	char *firmware_value_copy = NULL;
+ 	char *firmware_path;
+ 	char firmware_attr[32];
+ 	char path[PATH_MAX];
+-	char fw_sysfs_path[PATH_MAX];
++	char fw_sysfs_path[PATH_MAX] = { 0 };
+ 	struct dirent *de;
+ 	int firmware_fd;
+ 	DIR *class_dir;
+@@ -108,7 +112,7 @@
+ 		if (firmware_fd < 0)
+ 			continue;
+ 
+-		n = read(firmware_fd, firmware_value, sizeof(firmware_value));
++		n = read(firmware_fd, firmware_value, sizeof(firmware_value) - 1);
+ 		close(firmware_fd);
+ 		if (n < 0) {
+ 			continue;
+@@ -176,35 +180,10 @@
+  */
+ static int translate_readwrite(const char *file, int flags)
+ {
+-	int base;
+-	int ret;
+-	int fd;
+-
+-	/* Reject directory traversal attempts */
+-	if (strstr(file, "..")) {
+-		warn("path traversal attempt rejected: %s", file);
+-		errno = EACCES;
+-		return -1;
+-	}
+-
+-	ret = mkdir(TQFTPSERV_RW_DIR, 0700);
+-	if (ret < 0 && errno != EEXIST) {
+-		warn("failed to create tqftpserv readwrite directory");
+-		return -1;
+-	}
+-
+-	base = open(TQFTPSERV_RW_DIR, O_RDONLY | O_DIRECTORY);
+-	if (base < 0) {
+-		warn("failed to open tqftpserv readwrite directory");
+-		return -1;
+-	}
+-
+-	fd = openat(base, file, flags, 0600);
+-	close(base);
+-	if (fd < 0)
+-		warn("failed to open %s", file);
+-
+-	return fd;
++	(void)file;
++	(void)flags;
++	errno = EACCES;
++	return -1;
+ }
+ 
+ /**
+@@ -219,6 +198,11 @@
+  */
+ int translate_open(const char *path, int flags)
+ {
++	if (flags != O_RDONLY || !path || strncmp(path, "/readonly/", 10) || strstr(path, "..")) {
++		errno = EACCES;
++		return -1;
++	}
++
+ 	if (!strncmp(path, READONLY_PATH, strlen(READONLY_PATH)))
+ 		return translate_readonly(path + strlen(READONLY_PATH));
+ 	else if (!strncmp(path, READONLY_MODEM_PATH, strlen(READONLY_MODEM_PATH)))
+--- a/tqftpserv.c
++++ b/tqftpserv.c
+@@ -589,148 +589,10 @@
+ 
+ static void handle_wrq(const char *buf, size_t len, struct sockaddr_qrtr *sq)
+ {
+-	struct tftp_client *client;
+-	const char *filename;
+-	const char *mode;
+-	const char *p;
+-	const char *end = buf + len;
+-	size_t filename_len, mode_len;
+-	ssize_t tsize = -1;
+-	size_t blksize = 512;
+-	unsigned int timeoutms = 1000;
+-	size_t rsize = 0;
+-	size_t wsize = 1;
+-	off_t seek = 0;
+-	bool do_oack = false;
+-	int sock;
+-	int ret;
+-	int fd;
+-
+-	p = buf + 2;
+-
+-	/* Parse filename - ensure it's NUL-terminated within buffer */
+-	filename = p;
+-	filename_len = strnlen(filename, end - p);
+-	if (filename_len == (size_t)(end - p)) {
+-		log_err("WRQ: filename not NUL-terminated\n");
+-		return;
+-	}
+-	p += filename_len + 1;
+-
+-	/* Parse mode - ensure it's NUL-terminated within buffer */
+-	if (p >= end) {
+-		log_err("WRQ: truncated packet, missing mode\n");
+-		return;
+-	}
+-	mode = p;
+-	mode_len = strnlen(mode, end - p);
+-	if (mode_len == (size_t)(end - p)) {
+-		log_err("WRQ: mode not NUL-terminated\n");
+-		return;
+-	}
+-	p += mode_len + 1;
+-
+-	if (strcasecmp(mode, "octet")) {
+-		log_err("WRQ: unsupported mode '%s', rejecting\n", mode);
+-		tftp_send_error_to(sq, TFTP_ERROR_EBADOP, "Only octet mode supported");
+-		return;
+-	}
+-
+-	log_debug("write request for %s (%s) from %d:%d\n", filename, mode, sq->sq_node, sq->sq_port);
+-
+-	/* Validate filename for path traversal attacks */
+-	if (sanitize_path(filename) < 0) {
+-		log_err("write with invalid filename requested from %d:%d: %s\n",
+-			sq->sq_node, sq->sq_port, filename);
+-		tftp_send_error_to(sq, TFTP_ERROR_EACCESS, "Access violation");
+-		return;
+-	}
+-
+-	if (p < buf + len) {
+-		do_oack = true;
+-		ret = parse_options(p, len - (p - buf), &blksize, &tsize, &wsize,
+-				    &timeoutms, &rsize, &seek);
+-		if (ret < 0) {
+-			log_err("Invalid options in WRQ, rejecting\n");
+-			tftp_send_error_to(sq, TFTP_ERROR_EOPTNEG, "Option negotiation failed");
+-			return;
+-		}
+-	}
+-
+-	fd = translate_open(filename, O_WRONLY | O_CREAT);
+-	if (fd < 0) {
+-		log_debug("unable to open %s (%d), reject\n", filename, errno);
+-		tftp_send_error_to(sq, TFTP_ERROR_EACCESS, "Access violation");
+-		return;
+-	}
+-
+-	sock = qrtr_open(0);
+-	if (sock < 0) {
+-		log_err("unable to create new qrtr socket, reject\n");
+-		goto out_close_fd;
+-		return;
+-	}
+-
+-	ret = connect(sock, (struct sockaddr *)sq, sizeof(*sq));
+-	if (ret < 0) {
+-		log_err("unable to connect new qrtr socket to remote\n");
+-		goto out_close_sock;
+-		return;
+-	}
+-
+-	client = calloc(1, sizeof(*client));
+-	client->sq = *sq;
+-	client->sock = sock;
+-	client->fd = fd;
+-	client->blksize = blksize;
+-	client->rsize = rsize;
+-	client->wsize = wsize;
+-	client->timeoutms = timeoutms;
+-	client->seek = seek;
+-	client->rw_buf_size = blksize * wsize;
+-	client->blk_expected = 1;
+-
+-	client->blk_buf = calloc(1, blksize + 4);
+-	if (!client->blk_buf) {
+-		log_err("Memory allocation failure\n");
+-		tftp_send_error(sock, TFTP_ERROR_UNDEF, "Resources temporary unavailable");
+-		goto out_free_client;
+-		return;
+-	}
+-
+-	client->rw_buf = calloc(1, client->rw_buf_size);
+-	if (!client->rw_buf) {
+-		log_err("Memory allocation failure\n");
+-		tftp_send_error(sock, TFTP_ERROR_UNDEF, "Resources temporary unavailable");
+-		goto out_free_blk_buf;
+-		return;
+-	}
+-
+-	log_info("%s opened for writing from %d:%d\n", filename, sq->sq_node, sq->sq_port);
+-
+-	list_add(&writers, &client->node);
+-
+-	if (do_oack) {
+-		tftp_send_oack(client->sock, &blksize,
+-			       tsize ? (size_t*)&tsize : NULL,
+-			       wsize ? &wsize : NULL,
+-			       &client->timeoutms,
+-			       rsize ? &rsize : NULL,
+-			       seek ? &seek : NULL);
+-	} else {
+-		tftp_send_data(client, 1, 0, 0);
+-	}
+-
+-	return;
+-
+-out_free_blk_buf:
+-	free(client->blk_buf);
+-out_free_client:
+-	free(client);
+-out_close_fd:
+-	close(fd);
+-out_close_sock:
+-	close(sock);
++	(void)buf;
++	(void)len;
++	log_err("WRQ denied: firmware service is read-only\n");
++	tftp_send_error_to(sq, TFTP_ERROR_EACCESS, "Firmware service is read-only");
+ }
+ 
+ static int handle_reader(struct tftp_client *client)

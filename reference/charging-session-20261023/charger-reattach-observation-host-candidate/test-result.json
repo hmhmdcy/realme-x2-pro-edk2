@@ -1,0 +1,49 @@
+{
+  "passed": true,
+  "affected_cases_covered": 6,
+  "first_attempt": {
+    "original_tool": "9b188e",
+    "platform": "Windows",
+    "exit_code": 1,
+    "tests_run": 6,
+    "passed_unchanged_methods": [
+      "test_bound_rejects_changed_request_worker_and_does_not_reaudit_fetch",
+      "test_explicit_window_and_only_managed_reaches_original_transfer",
+      "test_full_preflight_never_reaches_launch_claim",
+      "test_preflight_keeps_response_request_and_readonly_source_binding"
+    ],
+    "errors": {
+      "test_frozen_sources_and_request_tuple": "Linux-only device worker imports fcntl, unavailable in Windows test invocation",
+      "test_original_owned_transfer_only_adds_compression": "Fake Popen boundary omitted subprocess.PIPE"
+    },
+    "production_host_source_changed": false
+  },
+  "repaired_two": {
+    "passed": true,
+    "tests_rerun": [
+      "test_frozen_sources_and_request_tuple",
+      "test_original_owned_transfer_only_adds_compression"
+    ],
+    "platform": "WSL Linux",
+    "tests_run": 2,
+    "errors": 0,
+    "failures": 0,
+    "test_source_sha256": "067667a6ec7216cc2d3f94af67b71ae2b8b2cb470050353d8053f6b87b90d88b",
+    "host_source_sha256": "d7341f861f4747306990fe2e2b7877f3cbaddd177f3b16f296c1c67fa70b0f19",
+    "no_device_or_network": true,
+    "four_unchanged_windows_successes_reused": true
+  },
+  "unchanged_four_function_AST_equal": true,
+  "source_only_default_tool": "89c7ac",
+  "source_only_default_exit_code": 0,
+  "tested_files": {
+    "host.py": "d7341f861f4747306990fe2e2b7877f3cbaddd177f3b16f296c1c67fa70b0f19",
+    "prepare.py": "37ed0285c75a6614bf341d459abf8a2e38eca4f65754454ce13aee185cc9919d",
+    "test-host.py": "067667a6ec7216cc2d3f94af67b71ae2b8b2cb470050353d8053f6b87b90d88b",
+    "remote.py": "313ffcd2866eab346e2a24f1f07b84d6581c87ee93b362e4d1af554e8ad1e98c",
+    "supervisor.py": "b29ab985159ecc911571514cdc5fa72a1a44886037e35ff024dfa6fe623440cc",
+    "source-pins.json": "d0b833ddc65010457ed154701397ad94a3affcef9a0eddaafd0e220f002697fa"
+  },
+  "actual_device_or_network_in_tests": false,
+  "old_R2_matrix_rerun": false
+}

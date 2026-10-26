@@ -1,0 +1,196 @@
+--- a/src/mm-shared-qmi.c
++++ b/src/mm-shared-qmi.c
+@@ -6707,18 +6707,30 @@
+     QmiClientLoc *client;
+     glong         indication_id;
+     guint         timeout_id;
++    gboolean      response_received;
++    gboolean      completed;
++    QmiIndicationLocGetPredictedOrbitsDataSourceOutput *early_indication;
+ } LoadSupportedAssistanceDataContext;
+ 
+ static void
++load_supported_assistance_data_context_cleanup_action (LoadSupportedAssistanceDataContext *ctx)
++{
++    if (ctx->timeout_id) {
++        g_source_remove (ctx->timeout_id);
++        ctx->timeout_id = 0;
++    }
++    if (ctx->indication_id) {
++        g_signal_handler_disconnect (ctx->client, ctx->indication_id);
++        ctx->indication_id = 0;
++    }
++}
++
++static void
+ load_supported_assistance_data_context_free (LoadSupportedAssistanceDataContext *ctx)
+ {
+-    if (ctx->client) {
+-        if (ctx->timeout_id)
+-            g_source_remove (ctx->timeout_id);
+-        if (ctx->indication_id)
+-            g_signal_handler_disconnect (ctx->client, ctx->indication_id);
+-        g_object_unref (ctx->client);
+-    }
++    load_supported_assistance_data_context_cleanup_action (ctx);
++    g_clear_pointer (&ctx->early_indication, qmi_indication_loc_get_predicted_orbits_data_source_output_unref);
++    g_clear_object (&ctx->client);
+     g_slice_free (LoadSupportedAssistanceDataContext, ctx);
+ }
+ 
+@@ -6745,6 +6757,8 @@
+ 
+     ctx = g_task_get_task_data (task);
+     ctx->timeout_id = 0;
++    ctx->completed = TRUE;
++    load_supported_assistance_data_context_cleanup_action (ctx);
+ 
+     g_task_return_new_error (task, MM_CORE_ERROR, MM_CORE_ERROR_ABORTED,
+                              "Failed to receive indication with the predicted orbits data source");
+@@ -7095,6 +7109,20 @@
+     GError                 *error = NULL;
+     GArray                 *server_list = NULL;
+     gboolean                supported = FALSE;
++    LoadSupportedAssistanceDataContext *ctx;
++
++    ctx = g_task_get_task_data (task);
++    if (ctx->completed)
++        return;
++    /* LOC may emit completion before the command response. Keep the boxed
++     * output until that response has been checked. */
++    if (!ctx->response_received) {
++        if (!ctx->early_indication)
++            ctx->early_indication = qmi_indication_loc_get_predicted_orbits_data_source_output_ref (output);
++        return;
++    }
++    ctx->completed = TRUE;
++    load_supported_assistance_data_context_cleanup_action (ctx);
+ 
+     if (!qmi_indication_loc_get_predicted_orbits_data_source_output_get_indication_status (output, &status, &error)) {
+         g_prefix_error (&error, "QMI operation failed: ");
+@@ -7169,31 +7197,68 @@
+ static void
+ loc_location_get_predicted_orbits_data_source_ready (QmiClientLoc *client,
+                                                      GAsyncResult *res,
+-                                                     GTask        *task)
+-{
+-    LoadSupportedAssistanceDataContext              *ctx;
+-    QmiMessageLocGetPredictedOrbitsDataSourceOutput *output;
+-    GError                                          *error = NULL;
++                                                     GTask        *_task)
++{
++    g_autoptr(GTask) task = _task;
++    g_autoptr(QmiMessageLocGetPredictedOrbitsDataSourceOutput) output = NULL;
++    LoadSupportedAssistanceDataContext *ctx;
++    GError *error = NULL;
+ 
+     ctx = g_task_get_task_data (task);
+-
+     output = qmi_client_loc_get_predicted_orbits_data_source_finish (client, res, &error);
+-    if (!output) {
++    /* The indication timeout may already have completed the task. The command
++     * callback owns a separate reference, so even a late reply is safe. */
++    if (ctx->completed) {
++        g_clear_error (&error);
++        return;
++    }
++    if (!output)
+         g_prefix_error (&error, "QMI operation failed: ");
++    else
++        qmi_message_loc_get_predicted_orbits_data_source_output_get_result (output, &error);
++    if (error) {
++        ctx->completed = TRUE;
++        load_supported_assistance_data_context_cleanup_action (ctx);
+         g_task_return_error (task, error);
++        g_object_unref (task); /* indication/timeout reference */
++        return;
++    }
++
++    ctx->response_received = TRUE;
++    if (ctx->early_indication) {
++        QmiIndicationLocGetPredictedOrbitsDataSourceOutput *indication;
++
++        indication = g_steal_pointer (&ctx->early_indication);
++        loc_location_get_predicted_orbits_data_source_indication_cb (client, indication, task);
++        qmi_indication_loc_get_predicted_orbits_data_source_output_unref (indication);
++    }
++}
++
++void
++mm_shared_qmi_location_load_supported_assistance_data (MMIfaceModemLocation  *self,
++                                                       GAsyncReadyCallback    callback,
++                                                       gpointer               user_data)
++{
++    LoadSupportedAssistanceDataContext *ctx;
++    GTask                              *task;
++    QmiClient                          *client;
++
++    task = g_task_new (self, NULL, callback, user_data);
++
++    /* If no LOC client, no assistance data right away */
++    client = mm_shared_qmi_peek_client (MM_SHARED_QMI (self), QMI_SERVICE_LOC, MM_PORT_QMI_FLAG_DEFAULT, NULL);
++    if (!client) {
++        g_task_return_int (task, MM_MODEM_LOCATION_ASSISTANCE_DATA_TYPE_NONE);
+         g_object_unref (task);
+         return;
+     }
+ 
+-    if (!qmi_message_loc_get_predicted_orbits_data_source_output_get_result (output, &error)) {
+-        g_task_return_error (task, error);
+-        g_object_unref (task);
+-        qmi_message_loc_get_predicted_orbits_data_source_output_unref (output);
+-        return;
+-    }
+-
+-    /* The task ownership is shared between signal and timeout; the one which is
+-     * scheduled first will cancel the other. */
++    ctx = g_slice_new0 (LoadSupportedAssistanceDataContext);
++    ctx->client = QMI_CLIENT_LOC (g_object_ref (client));
++    g_task_set_task_data (task, ctx, (GDestroyNotify)load_supported_assistance_data_context_free);
++
++    /* Listen before sending: some modems send the completion before the ACK.
++     * The initial reference belongs to the indication/timeout pair. */
+     ctx->indication_id = g_signal_connect (ctx->client,
+                                            "get-predicted-orbits-data-source",
+                                            G_CALLBACK (loc_location_get_predicted_orbits_data_source_indication_cb),
+@@ -7201,39 +7266,12 @@
+     ctx->timeout_id = g_timeout_add_seconds (10,
+                                              (GSourceFunc)loc_location_get_predicted_orbits_data_source_indication_timed_out,
+                                              task);
+-
+-    qmi_message_loc_get_predicted_orbits_data_source_output_unref (output);
+-}
+-
+-void
+-mm_shared_qmi_location_load_supported_assistance_data (MMIfaceModemLocation  *self,
+-                                                       GAsyncReadyCallback    callback,
+-                                                       gpointer               user_data)
+-{
+-    LoadSupportedAssistanceDataContext *ctx;
+-    GTask                              *task;
+-    QmiClient                          *client;
+-
+-    task = g_task_new (self, NULL, callback, user_data);
+-
+-    /* If no LOC client, no assistance data right away */
+-    client = mm_shared_qmi_peek_client (MM_SHARED_QMI (self), QMI_SERVICE_LOC, MM_PORT_QMI_FLAG_DEFAULT, NULL);
+-    if (!client) {
+-        g_task_return_int (task, MM_MODEM_LOCATION_ASSISTANCE_DATA_TYPE_NONE);
+-        g_object_unref (task);
+-        return;
+-    }
+-
+-    ctx = g_slice_new0 (LoadSupportedAssistanceDataContext);
+-    ctx->client = QMI_CLIENT_LOC (g_object_ref (client));
+-    g_task_set_task_data (task, ctx, (GDestroyNotify)load_supported_assistance_data_context_free);
+-
+     qmi_client_loc_get_predicted_orbits_data_source (ctx->client,
+                                                      NULL,
+                                                      10,
+                                                      NULL,
+                                                      (GAsyncReadyCallback)loc_location_get_predicted_orbits_data_source_ready,
+-                                                     task);
++                                                     g_object_ref (task));
+ }
+ 
+ /*****************************************************************************/

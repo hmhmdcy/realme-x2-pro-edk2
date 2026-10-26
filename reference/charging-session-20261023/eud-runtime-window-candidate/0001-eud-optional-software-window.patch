@@ -1,0 +1,571 @@
+--- a/drivers/tty/serial/eud.c
++++ b/drivers/tty/serial/eud.c
+@@ -52,6 +52,9 @@
+ #include <linux/tty_flip.h>
+ #include <linux/workqueue.h>
+ #include <linux/reboot.h>
++#include <linux/pm.h>
++
++#include "eud-com-window.h"
+ #include <dt-bindings/interrupt-controller/arm-gic.h>
+ 
+ /* offsets inside the 0x2000 register window */
+@@ -146,6 +149,12 @@
+ 
+ struct eud_port {
+         struct uart_port port;
++        bool window_quiet;
++        bool window_irq_enabled;
++        bool window_system_pm;
++        bool window_runtime_pm;
++        enum eud_com_window_state window_state;
++        u64 window_cookie;
+         struct work_struct tx_work;
+ 	struct mutex tx_mutex;
+ 	bool tx_stopping;
+@@ -221,6 +230,7 @@
+ static struct eud_port *eud;   /* one COM FIFO per board */
+ 
+ static int eud_console_rx_locked(struct eud_port *up);
++static bool eud_reboot_pending;
+ 
+ static const char *eud_rx_source_name(u8 source)
+ {
+@@ -258,7 +268,7 @@
+         unsigned int i;
+ 
+ 	/* The reboot handoff sets this under the UART lock. */
+-	if (up->tx_stopping)
++	if (up->tx_stopping || up->window_quiet)
+ 		return;
+ 
+         eud_put(base, EUD_REG_COM_TX_ID, EUD_COM_UART_ID);
+@@ -289,7 +299,7 @@
+         struct uart_port *port = &up->port;
+         struct tty_port *tport;
+ 
+-        if (!port->state)
++        if (READ_ONCE(up->window_quiet) || !port->state)
+                 return;
+         tport = &port->state->port;
+ 	mutex_lock(&up->tx_mutex);
+@@ -301,11 +311,12 @@
+                 u8 ch;
+ 
+                 uart_port_lock_irqsave(port, &flags);
+-                if (uart_tx_stopped(port)) {
++                if (uart_tx_stopped(port) || up->window_quiet) {
+                         uart_port_unlock_irqrestore(port, flags);
+                         break;
+                 }
+-                while (n < EUD_TX_CHUNK && kfifo_get(&tport->xmit_fifo, &ch)) {
++                while (!up->window_quiet && n < EUD_TX_CHUNK &&
++                       kfifo_get(&tport->xmit_fifo, &ch)) {
+                         buf[n++] = ch;
+                         port->icount.tx++;
+                 }
+@@ -334,7 +345,8 @@
+ {
+         struct eud_port *up = to_eud_port(port);
+ 
+-        schedule_work(&up->tx_work);
++        if (!READ_ONCE(up->window_quiet))
++                schedule_work(&up->tx_work);
+ }
+ 
+ static void eud_stop_tx(struct uart_port *port)
+@@ -356,7 +368,7 @@
+ 
+ static int eud_startup(struct uart_port *port)
+ {
+-        return 0;
++        return READ_ONCE(to_eud_port(port)->window_quiet) ? -EBUSY : 0;
+ }
+ 
+ static void eud_shutdown(struct uart_port *port)
+@@ -367,7 +379,7 @@
+ 
+         cancel_work_sync(&up->tx_work);
+ 
+-        if (!port->state)
++        if (READ_ONCE(up->window_quiet) || !port->state)
+                 return;
+         tport = &port->state->port;
+ 	mutex_lock(&up->tx_mutex);
+@@ -384,7 +396,8 @@
+                 unsigned int n = 0;
+ 
+                 uart_port_lock_irqsave(port, &flags);
+-                while (n < EUD_TX_CHUNK && kfifo_get(&tport->xmit_fifo, &ch)) {
++                while (!up->window_quiet && n < EUD_TX_CHUNK &&
++                       kfifo_get(&tport->xmit_fifo, &ch)) {
+                         buf[n++] = ch;
+                         port->icount.tx++;
+                 }
+@@ -486,7 +499,8 @@
+                 }
+         }
+         uart_port_unlock_irqrestore(port, flags);
+-        if (kick && !READ_ONCE(eud->rx_stopping))
++        if (kick && !READ_ONCE(eud->rx_stopping) &&
++            !READ_ONCE(eud->window_quiet))
+                 mod_delayed_work(system_percpu_wq, &eud->rx_work, 0);
+ }
+ 
+@@ -555,7 +569,8 @@
+ 		cond_resched();
+ 	}
+ 
+-	if (kick && !READ_ONCE(up->rx_stopping))
++	if (kick && !READ_ONCE(up->rx_stopping) &&
++            !READ_ONCE(up->window_quiet))
+ 		mod_delayed_work(system_percpu_wq, &up->rx_work, 0);
+ }
+ 
+@@ -618,8 +633,6 @@
+ 
+ /* Length 2 reboots to bootloader. Disable EUD first so
+  * the USB PHY goes back to the gadget/ABL, else the host never sees fastboot. */
+-static bool eud_reboot_pending;
+-
+ static void eud_restore_ahb2phy(struct eud_port *up)
+ {
+         writel(up->original_ahb2phy_cfg, up->ahb2phy_cfg);
+@@ -653,15 +666,15 @@
+ 	unsigned long flags;
+ 	const char *what;
+ 
+-	if (eud_reboot_pending)
++	if (len != 2)
+ 		return;
+-	if (len == 2)
+-		what = "bootloader";
+-	else
++	what = "bootloader";
++	uart_port_lock_irqsave(&up->port, &flags);
++	if (eud_reboot_pending || up->window_quiet) {
++		uart_port_unlock_irqrestore(&up->port, flags);
+ 		return;
++	}
+ 	eud_reboot_pending = true;
+-
+-	uart_port_lock_irqsave(&up->port, &flags);
+ 	up->rx_stopping = true;
+ 	eud_rx_irq_stop_locked(up, 0);
+ 	uart_port_unlock_irqrestore(&up->port, flags);
+@@ -804,7 +817,8 @@
+         u32 s1;
+         int ret;
+ 
+-        if (!up->rx_irq_started || up->rx_stopping || up->rx_bootloader_pending)
++        if (!up->rx_irq_started || up->rx_stopping || up->window_quiet ||
++            up->rx_bootloader_pending)
+                 return 0;
+         up->rx_console_checks++;
+         s1 = readl(up->port.membase + EUD_REG_INT_STATUS_1);
+@@ -872,7 +886,7 @@
+         up->rx_irq_events++;
+         console_credit = up->rx_console_irq_credit;
+         up->rx_console_irq_credit = false;
+-        if (!up->rx_stopping && up->rx_irq_enabled) {
++        if (!up->rx_stopping && !up->window_quiet && up->rx_irq_enabled) {
+                 s1 = readl(up->port.membase + EUD_REG_INT_STATUS_1);
+                 ret = eud_rx_collect_locked(up, s1, EUD_RX_SOURCE_IRQ);
+                 if (!ret) {
+@@ -900,7 +914,8 @@
+                 }
+         }
+         uart_port_unlock_irqrestore(&up->port, flags);
+-        if (kick && !READ_ONCE(up->rx_stopping))
++        if (kick && !READ_ONCE(up->rx_stopping) &&
++            !READ_ONCE(up->window_quiet))
+                 mod_delayed_work(system_percpu_wq, &up->rx_work, 0);
+         return IRQ_HANDLED;
+ }
+@@ -941,7 +956,7 @@
+         u32 s1;
+ 
+         uart_port_lock_irqsave(&up->port, &flags);
+-        if (up->rx_stopping) {
++        if (up->rx_stopping || up->window_quiet) {
+                 uart_port_unlock_irqrestore(&up->port, flags);
+                 return;
+         }
+@@ -1059,7 +1074,7 @@
+         if (frame.id == EUD_RX_UART_ID && up->rx_delivered != frame.len)
+                 pr_warn("eud: tty accepted %u/%u bytes\n", up->rx_delivered, frame.len);
+ out:
+-        if (!READ_ONCE(up->rx_stopping))
++        if (!READ_ONCE(up->rx_stopping) && !READ_ONCE(up->window_quiet))
+                 schedule_delayed_work(&up->rx_work,
+                                       queued ? 0 : msecs_to_jiffies(EUD_RX_POLL_MS));
+ }
+@@ -1292,14 +1307,256 @@
+         return ret;
+ }
+ 
+-static int eud_probe(struct platform_device *pdev)
++/* Internal COM software window. eud_window_lock also serializes pointer
++ * lifetime with probe/remove and both PM paths. No inter-driver calls here.
++ */
++static DEFINE_MUTEX(eud_window_lock);
++static u64 eud_window_sequence;
++static u64 eud_window_orphan;
++
++static void eud_window_result(struct eud_port *up,
++                              struct eud_com_window_result *result, int error)
++{
++        *result = (struct eud_com_window_result) {
++                .cookie = up ? up->window_cookie : 0,
++                .state = up ? up->window_state : EUD_COM_REMOVED,
++                .software_quiet = up && up->window_quiet,
++                .cancelled = up && up->window_state == EUD_COM_CANCELLED,
++                .error = error,
++        };
++}
++
++int eud_com_quiet_begin(struct eud_com_window_result *result)
++{
++        struct eud_port *up;
++        unsigned long flags;
++        int ret = 0;
++
++        if (!result)
++                return -EINVAL;
++        mutex_lock(&eud_window_lock);
++        up = eud;
++        if (!up) {
++                ret = -ENODEV;
++                goto out;
++        }
++        if (current_work() == &up->rx_work.work ||
++            current_work() == &up->tx_work) {
++                ret = -EDEADLK;
++                goto out;
++        }
++        uart_port_lock_irqsave(&up->port, &flags);
++        if (up->window_quiet || up->window_state != EUD_COM_ACTIVE)
++                ret = -EBUSY;
++        else if (up->window_system_pm || up->window_runtime_pm)
++                ret = -EHOSTDOWN;
++        else if (up->tx_stopping || up->rx_stopping || eud_reboot_pending ||
++                 up->rx_bootloader_pending)
++                ret = -ESHUTDOWN;
++        else if (!up->rx_irq_started)
++                ret = -EAGAIN; /* Do not reinterpret probe's delayed startup. */
++        if (ret) {
++                uart_port_unlock_irqrestore(&up->port, flags);
++                goto out;
++        }
++        /* Never reuse a token, including after an unbind/reprobe. */
++        if (++eud_window_sequence == 0)
++                ++eud_window_sequence;
++        up->window_cookie = eud_window_sequence;
++        up->window_state = EUD_COM_QUIETING;
++        up->window_quiet = true;
++        up->window_irq_enabled = up->rx_irq_enabled;
++        up->rx_irq_waiting = false;
++        up->rx_console_irq_credit = false;
++        if (up->rx_irq_enabled) {
++                up->rx_irq_enabled = false;
++                disable_irq_nosync(up->rx_irq);
++        }
++        uart_port_unlock_irqrestore(&up->port, flags);
++
++        if (up->rx_irq_requested)
++                synchronize_irq(up->rx_irq);
++        cancel_delayed_work_sync(&up->rx_work);
++        cancel_work_sync(&up->tx_work);
++        /* Do not hold this mutex while joining RX: command/reboot dispatch
++         * may print. Atomic console callbacks are fenced by the UART gate.
++         */
++        mutex_lock(&up->tx_mutex);
++        mutex_unlock(&up->tx_mutex);
++        uart_port_lock_irqsave(&up->port, &flags);
++        up->window_state = EUD_COM_QUIET;
++        uart_port_unlock_irqrestore(&up->port, flags);
++out:
++        eud_window_result(up, result, ret);
++        if (ret)
++                result->cookie = 0;
++        mutex_unlock(&eud_window_lock);
++        return ret;
++}
++
++int eud_com_quiet_cancel(u64 cookie, struct eud_com_window_result *result)
++{
++        struct eud_port *up;
++        unsigned long flags;
++        int ret = 0;
++
++        if (!result)
++                return -EINVAL;
++        mutex_lock(&eud_window_lock);
++        up = eud;
++        if (!up)
++                ret = -ENODEV;
++        else if (!cookie || cookie != up->window_cookie || !up->window_quiet)
++                ret = -ESTALE;
++        else {
++                uart_port_lock_irqsave(&up->port, &flags);
++                up->window_state = EUD_COM_CANCELLED;
++                uart_port_unlock_irqrestore(&up->port, flags);
++        }
++        eud_window_result(up, result, ret ? ret : -ECANCELED);
++        if (ret)
++                result->cookie = cookie;
++        mutex_unlock(&eud_window_lock);
++        return ret;
++}
++
++int eud_com_quiet_end(u64 cookie, struct eud_com_window_result *result)
++{
++        struct eud_port *up;
++        unsigned long flags;
++        bool cancelled = false;
++        int ret = 0;
++
++        if (!result)
++                return -EINVAL;
++        mutex_lock(&eud_window_lock);
++        up = eud;
++        if (!up) {
++                /* The removed borrower finishes its other components first.
++                 * Only its exact end token releases the reprobe interlock.
++                 */
++                cancelled = cookie && cookie == eud_window_orphan;
++                if (cancelled)
++                        eud_window_orphan = 0;
++                ret = -ENODEV;
++                goto out;
++        }
++        uart_port_lock_irqsave(&up->port, &flags);
++        if (!cookie || cookie != up->window_cookie || !up->window_quiet)
++                ret = -ESTALE;
++        else if (up->window_system_pm || up->window_runtime_pm ||
++                 up->rx_stopping || up->tx_stopping || eud_reboot_pending ||
++                 up->rx_bootloader_pending)
++                ret = -ESHUTDOWN;
++        else if (up->window_irq_enabled && !up->rx_irq_requested)
++                ret = -ENXIO;
++        if (ret) {
++                uart_port_unlock_irqrestore(&up->port, flags);
++                goto out;
++        }
++        cancelled = up->window_state == EUD_COM_CANCELLED;
++        up->window_quiet = false;
++        up->window_state = EUD_COM_ACTIVE;
++        if (up->window_irq_enabled) {
++                up->rx_irq_enabled = true;
++                enable_irq(up->rx_irq);
++        }
++        /* Do not reset an old fault, rearm a disabled diagnostic IRQ, or
++         * restore its old watchdog timestamp after the pause.
++         */
++        if (up->port.state && !uart_tx_stopped(&up->port) &&
++            kfifo_len(&up->port.state->port.xmit_fifo))
++                schedule_work(&up->tx_work);
++        schedule_delayed_work(&up->rx_work,
++                              msecs_to_jiffies(EUD_RX_POLL_MS));
++        uart_port_unlock_irqrestore(&up->port, flags);
++out:
++        eud_window_result(up, result, ret ? ret : cancelled ? -ECANCELED : 0);
++        result->restored = !ret;
++        result->cancelled = cancelled;
++        result->restore_error = ret;
++        result->cookie = cookie;
++        mutex_unlock(&eud_window_lock);
++        return ret;
++}
++
++static int eud_window_prepare(struct device *dev)
++{
++        struct uart_port *port;
++        struct eud_port *up;
++        int ret = 0;
++
++        mutex_lock(&eud_window_lock);
++        port = dev_get_drvdata(dev);
++        if (port) {
++                up = to_eud_port(port);
++                if (up->window_quiet)
++                        ret = -EBUSY;
++                else
++                        up->window_system_pm = true;
++        }
++        mutex_unlock(&eud_window_lock);
++        return ret;
++}
++
++static void eud_window_complete(struct device *dev)
++{
++        struct uart_port *port;
++
++        mutex_lock(&eud_window_lock);
++        port = dev_get_drvdata(dev);
++        if (port)
++                to_eud_port(port)->window_system_pm = false;
++        mutex_unlock(&eud_window_lock);
++}
++
++static int eud_window_runtime_suspend(struct device *dev)
++{
++        struct uart_port *port;
++        struct eud_port *up;
++        int ret = 0;
++
++        mutex_lock(&eud_window_lock);
++        port = dev_get_drvdata(dev);
++        if (port) {
++                up = to_eud_port(port);
++                if (up->window_quiet)
++                        ret = -EBUSY;
++                else
++                        up->window_runtime_pm = true;
++        }
++        mutex_unlock(&eud_window_lock);
++        return ret;
++}
++
++static int eud_window_runtime_resume(struct device *dev)
++{
++        struct uart_port *port;
++
++        mutex_lock(&eud_window_lock);
++        port = dev_get_drvdata(dev);
++        if (port)
++                to_eud_port(port)->window_runtime_pm = false;
++        mutex_unlock(&eud_window_lock);
++        return 0;
++}
++
++static const struct dev_pm_ops eud_window_pm_ops = {
++        .prepare = eud_window_prepare,
++        .complete = eud_window_complete,
++        .runtime_suspend = eud_window_runtime_suspend,
++        .runtime_resume = eud_window_runtime_resume,
++};
++
++
++static int eud_probe_locked(struct platform_device *pdev)
+ {
+         struct eud_port *up;
+         struct uart_port *port;
+         struct resource *res;
+         int ret;
+ 
+-        if (eud)
++        if (eud || eud_window_orphan)
+                 return -EBUSY;
+ 
+         up = devm_kzalloc(&pdev->dev, sizeof(*up), GFP_KERNEL);
+@@ -1376,13 +1633,29 @@
+         return 0;
+ }
+ 
+-static void eud_remove(struct platform_device *pdev)
++static int eud_probe(struct platform_device *pdev)
++{
++        int ret;
++
++        mutex_lock(&eud_window_lock);
++        ret = eud_probe_locked(pdev);
++        mutex_unlock(&eud_window_lock);
++        return ret;
++}
++
++static void eud_remove_locked(struct platform_device *pdev)
+ {
+         struct uart_port *port = platform_get_drvdata(pdev);
+         struct eud_port *up = to_eud_port(port);
+         unsigned long flags;
++        bool borrowed = up->window_quiet;
+ 
+         uart_port_lock_irqsave(port, &flags);
++        if (borrowed) {
++                eud_window_orphan = up->window_cookie;
++                up->window_state = EUD_COM_REMOVED;
++                up->tx_stopping = true;
++        }
+         up->rx_stopping = true;
+         eud_rx_irq_stop_locked(up, 0);
+         uart_port_unlock_irqrestore(port, flags);
+@@ -1395,10 +1668,26 @@
+         if (up->console_registered)
+                 unregister_console(&eud_console);
+         uart_remove_one_port(&eud_uart_driver, port);
+-        eud_restore_ahb2phy(up);
++        if (borrowed)
++                cancel_work_sync(&up->tx_work);
++        /* A live software borrower never changed AHB2PHY. Do not impose
++         * probe history on its external controller/PHY session during unbind.
++         * The endpoint is terminal; end(old_cookie) returns ENODEV and
++         * acknowledges cancellation before a later probe may touch hardware.
++         */
++        if (!borrowed)
++                eud_restore_ahb2phy(up);
+         if (up->rx_irq_mapping_owned)
+                 irq_dispose_mapping(up->rx_irq);
+         eud = NULL;
++}
++
++static void eud_remove(struct platform_device *pdev)
++{
++        mutex_lock(&eud_window_lock);
++        eud_remove_locked(pdev);
++        platform_set_drvdata(pdev, NULL);
++        mutex_unlock(&eud_window_lock);
+ }
+ 
+ static const struct of_device_id eud_com_dt_match[] = {
+@@ -1414,6 +1703,7 @@
+                 .name           = "qcom_eud_com",
+                 .of_match_table = eud_com_dt_match,
+                 .dev_groups     = eud_groups,
++                .pm             = &eud_window_pm_ops,
+         },
+ };
+ 
+--- /dev/null
++++ b/drivers/tty/serial/eud-com-window.h
+@@ -0,0 +1,40 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++#ifndef _QCOM_EUD_COM_WINDOW_H
++#define _QCOM_EUD_COM_WINDOW_H
++
++#include <linux/types.h>
++
++/* Built-in, explicit consumer only. No exported symbol or userspace switch.
++ * This API suppresses COM software I/O; it never changes CSR/AHB2PHY and does
++ * not grant DP/DM, analog high-Z, USB routing or charging permission.
++ */
++enum eud_com_window_state {
++        EUD_COM_ACTIVE,
++        EUD_COM_QUIETING,
++        EUD_COM_QUIET,
++        EUD_COM_CANCELLED,
++        EUD_COM_REMOVED,
++};
++
++struct eud_com_window_result {
++        u64 cookie;
++        enum eud_com_window_state state;
++        bool software_quiet;
++        bool cancelled;
++        bool restored;
++        bool csr_touched;
++        bool ahb2phy_touched;
++        int error;
++        int restore_error;
++};
++
++/* Process context outside EUD callbacks; no UART/tx/console lock held.
++ * Calls return with no EUD lock held. A bounded owner session
++ * must cancel/end explicitly. Cancellation never resumes hardware producers.
++ * A removed endpoint invalidates the token and cannot be restored by end().
++ */
++int eud_com_quiet_begin(struct eud_com_window_result *result);
++int eud_com_quiet_cancel(u64 cookie, struct eud_com_window_result *result);
++int eud_com_quiet_end(u64 cookie, struct eud_com_window_result *result);
++
++#endif

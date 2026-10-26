@@ -1,0 +1,44 @@
+{
+  "schema": "samurai-usb-irq-protection-host-contract-v1",
+  "source_only": true,
+  "transaction_regex": "usb-irq-protection-activate-[a-z0-9-]{8,48}",
+  "device_contract_sha256": "13bc81d89bfe34e573b4a23287c7841c67cd82c563cfc3266004b9ab3eba0914",
+  "actions": [
+    "bind",
+    "prepare",
+    "quiesce",
+    "status",
+    "fetch",
+    "inspect",
+    "restart"
+  ],
+  "bind_inputs": [
+    "actual stage host directory",
+    "actual stage fetch directory",
+    "new activation transaction"
+  ],
+  "host_private_base": "E:/edk2-samurai-out/charging-management-20261023/usb-irq-protection-activation",
+  "remote_root": "/root/charging-management-20261023/<activation>",
+  "remote_owner": "/run/samurai-usb-irq-protection-activation-owner-private.json",
+  "context_schema": "samurai-usb-irq-protection-fastboot-context-v1",
+  "context_files": [
+    "guard",
+    "quiesce_state",
+    "quiesce_summary",
+    "quiesce_boot_id",
+    "quiesce_process",
+    "restart_dispatch",
+    "restart_claim"
+  ],
+  "host_only_stage_refs": [
+    "stage_directory",
+    "stage_fetch_directory"
+  ],
+  "mutations_once": true,
+  "pending_recovery": "original status/fetch and exact terminal/raw proof only; no retry/replay/cleanup",
+  "original_ssh_nonzero_not_syscall_success": true,
+  "fresh_fastboot_identity_separate": true,
+  "partitions_written_by_this_leaf": [],
+  "charging_control_or_service_stop": false,
+  "actual_runtime_material_generated": false
+}

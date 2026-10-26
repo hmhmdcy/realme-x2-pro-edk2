@@ -1,0 +1,49 @@
+--- a/drivers/gpu/drm/msm/adreno/a6xx_gpu.c
++++ b/drivers/gpu/drm/msm/adreno/a6xx_gpu.c
+@@ -357,6 +357,15 @@
+ 	}
+ }
+ 
++static void a6xx_invalidate_ccu(struct msm_ringbuffer *ring)
++{
++	OUT_PKT7(ring, CP_EVENT_WRITE, 1);
++	OUT_RING(ring, CP_EVENT_WRITE_0_EVENT(PC_CCU_INVALIDATE_DEPTH));
++
++	OUT_PKT7(ring, CP_EVENT_WRITE, 1);
++	OUT_RING(ring, CP_EVENT_WRITE_0_EVENT(PC_CCU_INVALIDATE_COLOR));
++}
++
+ static void a6xx_submit(struct msm_gpu *gpu, struct msm_gem_submit *submit)
+ {
+ 	unsigned int index = submit->seqno % MSM_GPU_SUBMIT_STATS_COUNT;
+@@ -380,12 +389,9 @@
+ 	get_stats_counter(ring, REG_A6XX_CP_ALWAYS_ON_CONTEXT,
+ 		rbmemptr_stats(ring, index, alwayson_start));
+ 
+-	/* Invalidate CCU depth and color */
+-	OUT_PKT7(ring, CP_EVENT_WRITE, 1);
+-	OUT_RING(ring, CP_EVENT_WRITE_0_EVENT(PC_CCU_INVALIDATE_DEPTH));
+-
+-	OUT_PKT7(ring, CP_EVENT_WRITE, 1);
+-	OUT_RING(ring, CP_EVENT_WRITE_0_EVENT(PC_CCU_INVALIDATE_COLOR));
++	/* A640 invalidates its attachment state before retiring this submit. */
++	if (!adreno_is_a640(adreno_gpu))
++		a6xx_invalidate_ccu(ring);
+ 
+ 	/* Submit the commands */
+ 	for (i = 0; i < submit->nr_cmds; i++) {
+@@ -415,6 +421,14 @@
+ 		if ((ibs % 32) == 0)
+ 			update_shadow_rptr(gpu, ring);
+ 	}
++
++	/*
++	 * Retire A640 attachment cache state while this submit's pagetable and
++	 * BOs are still valid.  Invalidating only after the next pagetable switch
++	 * can make the CCU access the previous submit's attachments in a new VM.
++	 */
++	if (adreno_is_a640(adreno_gpu))
++		a6xx_invalidate_ccu(ring);
+ 
+ 	get_stats_counter(ring, REG_A6XX_RBBM_PERFCTR_CP(0),
+ 		rbmemptr_stats(ring, index, cpcycles_end));

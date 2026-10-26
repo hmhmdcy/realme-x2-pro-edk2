@@ -1,0 +1,123 @@
+{
+  "schema": "samurai-usb-irq-protection-activation-contract-v1",
+  "source_only": true,
+  "guard_schema": "samurai-usb-irq-protection-activation-v1",
+  "context_schema": "samurai-usb-irq-protection-fastboot-context-v1",
+  "transaction_regex": "usb-irq-protection-activate-[a-z0-9-]{8,48}",
+  "stage_transaction_regex": "usb-irq-protection-stage-[a-z0-9-]{8,48}",
+  "fixed_guard_fields": {
+    "schema": "samurai-usb-irq-protection-activation-v1",
+    "kernel_release": "7.3.0-rc6-rmx1931-samurai-k363+",
+    "kernel_version": "#502 SMP PREEMPT Tue Oct 20 03:03:47 UTC 2026",
+    "source_kernel_version": "#502 SMP PREEMPT Tue Oct 20 03:03:47 UTC 2026",
+    "partitions": [
+      "boot"
+    ],
+    "candidate_boot_sha256": "eddadec33fcd1d114c45af76cb9fc6d6b5f1de2c81c0e9fada099c5b884f6e06",
+    "rollback_boot_sha256": "97811cc4ae13b36fec98b2eae7cd54a4f12bca988864df0f3d8f663a8c67f695",
+    "unchanged_logdump_sha256": "ace2e261bbfbd923fc3e631e857163f172d09bfb3489f7107782394fbf763ed1",
+    "boot_bytes": 100663296,
+    "logdump_bytes": 67108864,
+    "image502_sha256": "085d03066983a82d1d1c74b74f69c85560698d6fc49f62d6db511a8799b25955",
+    "charging_manifest_sha256": "5fca8e5a0795325bd780b7965579068c7edc35fa7da12bac357bb30bbde69417",
+    "source_manifest_sha256": "320316c3d93c1dbcaae29440f1f17d72c75e4994d656a9da9fcd5aeb93c10a1f",
+    "cohort_delivery_sha256": "3d5b78bc4c7a6b476bfb97c2fbad3e0d76497c94e13bd755a8e4aaa0b032a07b",
+    "startup500_sha256": "2a364e12d72229ef7b0ddfd7620d5ff434b97eaf93eb60899fd24a03b5b9a54a",
+    "startup500_path": "/usr/local/sbin/samurai-usb",
+    "max_power_ma": 500,
+    "camera481_expected_sha256": "1c4584915dade64a0978a0138c6775bf99e56af9f8036d7d2276c33f132f4705",
+    "new_disk_files": {
+      "/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-gauge-protection.ko": "7848cfab264dde1f7f02b24b8022b951d4f3a604eba120b313bac23d0f4a3044",
+      "/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-usb-input.ko": "7cbf10c0f74609effb415c30145e58b0fbe554511ef55a96baeeaf367c94ff5f",
+      "/usr/share/samurai-charging/manifest.json": "5fca8e5a0795325bd780b7965579068c7edc35fa7da12bac357bb30bbde69417"
+    },
+    "old_resident_notes": {
+      "samurai_usb_input": "f0edb792d30ee1168ee1793e89707aa48b2085c845acde8f472f2c13a03804b0",
+      "samurai_gauge_protection": "930e0e1f34e89e4e06a7632ca14a26181975f9f35e55a51209af71480b56fe76",
+      "samurai_mp2650": "f4d5768a4250b901ea956560d9c6b4b1dd32ac80893cbbd31609d9c032c4680d"
+    }
+  },
+  "dynamic_guard_fields": [
+    "transaction_id",
+    "token",
+    "boot_id",
+    "soc_serial_sha256",
+    "compatible_sha256",
+    "rootfs_release_sha256",
+    "adoption",
+    "stage"
+  ],
+  "adoption_fields": [
+    "transaction_id",
+    "guard_path",
+    "guard_sha256",
+    "postboot_raw_sha256",
+    "fresh_validation_sha256"
+  ],
+  "stage_fields": [
+    "transaction_id",
+    "request_sha256",
+    "result_sha256",
+    "host_binding_sha256",
+    "worker_sha256",
+    "supervisor_sha256",
+    "evidence"
+  ],
+  "stage_evidence_keys": [
+    "request",
+    "result",
+    "before",
+    "stopped",
+    "after",
+    "worker_process",
+    "adoption_proof",
+    "worker_launch",
+    "worker_terminal",
+    "supervisor_launch",
+    "supervisor_process",
+    "supervisor_terminal",
+    "worker_source",
+    "supervisor_source"
+  ],
+  "evidence_item_exact_keys": [
+    "path",
+    "sha256"
+  ],
+  "stage_worker_sha256": "47794e53b8f31e974a968cb6610c69a49e456042be940bca7104bb182595c83a",
+  "stage_supervisor_sha256": "b29ab985159ecc911571514cdc5fa72a1a44886037e35ff024dfa6fe623440cc",
+  "remote_root": "/root/charging-management-20261023/<activation_tx>",
+  "state_root": "/var/lib/samurai/<activation_tx>",
+  "quiesce_argv": [
+    "python3",
+    "-B",
+    "/root/charging-management-20261023/<activation_tx>/eud-quiesce.py",
+    "--guard",
+    "/root/charging-management-20261023/<activation_tx>/guard-private.json",
+    "--commit-quiesce"
+  ],
+  "restart_argv": [
+    "python3",
+    "-B",
+    "/root/charging-management-20261023/<activation_tx>/eud-restart.py",
+    "--guard",
+    "/root/charging-management-20261023/<activation_tx>/guard-private.json",
+    "--commit-restart2-bootloader"
+  ],
+  "context_files": [
+    "guard",
+    "quiesce_state",
+    "quiesce_summary",
+    "quiesce_boot_id",
+    "quiesce_process",
+    "restart_dispatch",
+    "restart_claim"
+  ],
+  "restart_host_claim_schema": "samurai-eud-restart-host-claim-v1",
+  "restart_dispatch_schema": "samurai-eud-restart-dispatch-v1",
+  "host_only_context_fields": [
+    "stage_directory",
+    "stage_fetch_directory"
+  ],
+  "no_current_runtime_request_generated": true,
+  "no_device_operation": true
+}

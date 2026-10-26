@@ -1,0 +1,263 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Samsung SOFEF03F_M, Realme X2 Pro RMX1931.
+ * Initialization and power sequencing from the handset's stock live DT and
+ * realmeX2Pro-kernel-source, commit 9668fcdc6ec15be7a10d66f7b93c347829e0fdb6.
+ * Vendor sequences: Copyright (c) 2018, The Linux Foundation.
+ */
+#include <linux/backlight.h>
+#include <linux/delay.h>
+#include <linux/gpio/consumer.h>
+#include <linux/module.h>
+#include <linux/regulator/consumer.h>
+
+#include <drm/display/drm_dsc.h>
+#include <drm/display/drm_dsc_helper.h>
+#include <drm/drm_mipi_dsi.h>
+#include <drm/drm_panel.h>
+#include <drm/drm_probe_helper.h>
+
+struct sofef03f {
+	struct drm_panel panel;
+	struct mipi_dsi_device *dsi;
+	struct drm_dsc_config dsc;
+	struct regulator_bulk_data *supplies;
+	struct gpio_desc *reset;
+	struct gpio_desc *vci;
+	struct gpio_desc *vddd;
+};
+
+static const struct regulator_bulk_data sofef03f_supplies[] = {
+	{ .supply = "vddio", .init_load_uA = 62000 },
+	{ .supply = "vdda", .init_load_uA = 100000 },
+};
+
+static inline struct sofef03f *to_sofef03f(struct drm_panel *panel)
+{
+	return container_of(panel, struct sofef03f, panel);
+}
+
+/* The stock Samsung DDIC receives PPS as DCS command 0x9e. */
+static const u8 sofef03f_stock_pps[128] = {
+/* @STOCK_PPS@ */
+};
+
+static int sofef03f_on(struct sofef03f *ctx)
+{
+	struct mipi_dsi_multi_context dsi_ctx = { .dsi = ctx->dsi };
+	struct drm_dsc_picture_parameter_set pps;
+	u8 command[1 + sizeof(pps)];
+
+	drm_dsc_pps_payload_pack(&pps, &ctx->dsc);
+	if (memcmp(&pps, sofef03f_stock_pps, sizeof(pps))) {
+		dev_err(&ctx->dsi->dev, "Calculated DSC PPS differs from stock\n");
+		print_hex_dump(KERN_ERR, "sofef03f PPS: ", DUMP_PREFIX_OFFSET,
+			       16, 1, &pps, sizeof(pps), false);
+		return -EINVAL;
+	}
+	command[0] = 0x9e;
+	memcpy(command + 1, &pps, sizeof(pps));
+
+/* @ON_COMMANDS@ */
+	return dsi_ctx.accum_err;
+}
+
+static void sofef03f_power_off(struct sofef03f *ctx)
+{
+	gpiod_set_value_cansleep(ctx->reset, 1);
+	usleep_range(12000, 15000);
+	gpiod_set_value_cansleep(ctx->vddd, 0);
+	usleep_range(2000, 7000);
+	gpiod_set_value_cansleep(ctx->vci, 0);
+	regulator_disable(ctx->supplies[1].consumer);
+	regulator_disable(ctx->supplies[0].consumer);
+}
+
+static int sofef03f_prepare(struct drm_panel *panel)
+{
+	struct sofef03f *ctx = to_sofef03f(panel);
+	int ret;
+
+	ret = regulator_enable(ctx->supplies[0].consumer);
+	if (ret)
+		return ret;
+	msleep(20);
+	ret = regulator_enable(ctx->supplies[1].consumer);
+	if (ret) {
+		regulator_disable(ctx->supplies[0].consumer);
+		return ret;
+	}
+	gpiod_set_value_cansleep(ctx->vci, 1);
+	usleep_range(1000, 5000);
+	gpiod_set_value_cansleep(ctx->vddd, 1);
+	usleep_range(1000, 12000);
+	/* Logical reset is active low: stock raw levels 1/0/1, 5/10/10 ms. */
+	gpiod_set_value_cansleep(ctx->reset, 0);
+	usleep_range(5000, 5100);
+	gpiod_set_value_cansleep(ctx->reset, 1);
+	usleep_range(10000, 10100);
+	gpiod_set_value_cansleep(ctx->reset, 0);
+	usleep_range(10000, 10100);
+	ret = sofef03f_on(ctx);
+	if (ret)
+		sofef03f_power_off(ctx);
+	return ret;
+}
+
+static int sofef03f_enable(struct drm_panel *panel)
+{
+	struct sofef03f *ctx = to_sofef03f(panel);
+	struct mipi_dsi_multi_context dsi_ctx = { .dsi = ctx->dsi };
+	u8 power_mode;
+	int ret;
+
+	mipi_dsi_dcs_set_display_on_multi(&dsi_ctx);
+	mipi_dsi_msleep(&dsi_ctx, 20);
+	if (dsi_ctx.accum_err)
+		return dsi_ctx.accum_err;
+	ret = mipi_dsi_dcs_get_power_mode(ctx->dsi, &power_mode);
+	if (ret < 0)
+		return ret;
+	dev_info(&ctx->dsi->dev, "DSC 1080x2400@60, power mode 0x%02x (stock 0x9c)\n",
+		 power_mode);
+	return 0;
+}
+
+static int sofef03f_disable(struct drm_panel *panel)
+{
+	struct sofef03f *ctx = to_sofef03f(panel);
+	struct mipi_dsi_multi_context dsi_ctx = { .dsi = ctx->dsi };
+
+	mipi_dsi_dcs_set_display_off_multi(&dsi_ctx);
+	mipi_dsi_msleep(&dsi_ctx, 22);
+	return dsi_ctx.accum_err;
+}
+
+static int sofef03f_unprepare(struct drm_panel *panel)
+{
+	struct sofef03f *ctx = to_sofef03f(panel);
+	struct mipi_dsi_multi_context dsi_ctx = { .dsi = ctx->dsi };
+
+	mipi_dsi_dcs_enter_sleep_mode_multi(&dsi_ctx);
+	mipi_dsi_msleep(&dsi_ctx, 120);
+	sofef03f_power_off(ctx);
+	return dsi_ctx.accum_err;
+}
+
+static const struct drm_display_mode sofef03f_mode = {
+	.clock = (1080 + 32 + 16 + 16) * (2400 + 12 + 4 + 12) * 60 / 1000,
+	.hdisplay = 1080,
+	.hsync_start = 1080 + 32,
+	.hsync_end = 1080 + 32 + 16,
+	.htotal = 1080 + 32 + 16 + 16,
+	.vdisplay = 2400,
+	.vsync_start = 2400 + 12,
+	.vsync_end = 2400 + 12 + 4,
+	.vtotal = 2400 + 12 + 4 + 12,
+	.width_mm = 68,
+	.height_mm = 152,
+	.type = DRM_MODE_TYPE_DRIVER | DRM_MODE_TYPE_PREFERRED,
+};
+
+static int sofef03f_get_modes(struct drm_panel *panel,
+			     struct drm_connector *connector)
+{
+	return drm_connector_helper_get_modes_fixed(connector, &sofef03f_mode);
+}
+
+static const struct drm_panel_funcs sofef03f_funcs = {
+	.prepare = sofef03f_prepare,
+	.enable = sofef03f_enable,
+	.disable = sofef03f_disable,
+	.unprepare = sofef03f_unprepare,
+	.get_modes = sofef03f_get_modes,
+};
+
+static int sofef03f_bl_update(struct backlight_device *bl)
+{
+	struct sofef03f *ctx = bl_get_data(bl);
+
+	if (!ctx->panel.prepared)
+		return 0;
+	return mipi_dsi_dcs_set_display_brightness_large(ctx->dsi,
+						      backlight_get_brightness(bl));
+}
+
+static const struct backlight_ops sofef03f_bl_ops = {
+	.update_status = sofef03f_bl_update,
+};
+
+static int sofef03f_probe(struct mipi_dsi_device *dsi)
+{
+	struct device *dev = &dsi->dev;
+	struct sofef03f *ctx;
+	const struct backlight_properties props = {
+		.type = BACKLIGHT_RAW, .brightness = 400, .max_brightness = 2047,
+	};
+	int ret;
+
+	ctx = devm_drm_panel_alloc(dev, struct sofef03f, panel,
+				   &sofef03f_funcs, DRM_MODE_CONNECTOR_DSI);
+	if (IS_ERR(ctx))
+		return PTR_ERR(ctx);
+	ctx->dsi = dsi;
+	ret = devm_regulator_bulk_get_const(dev, ARRAY_SIZE(sofef03f_supplies),
+					    sofef03f_supplies, &ctx->supplies);
+	if (ret)
+		return dev_err_probe(dev, ret, "Failed to get supplies\n");
+	ctx->reset = devm_gpiod_get(dev, "reset", GPIOD_OUT_HIGH);
+	if (IS_ERR(ctx->reset))
+		return dev_err_probe(dev, PTR_ERR(ctx->reset), "Failed to get reset\n");
+	ctx->vci = devm_gpiod_get(dev, "vci-enable", GPIOD_OUT_LOW);
+	if (IS_ERR(ctx->vci))
+		return dev_err_probe(dev, PTR_ERR(ctx->vci), "Failed to get VCI enable\n");
+	ctx->vddd = devm_gpiod_get(dev, "vddd-enable", GPIOD_OUT_LOW);
+	if (IS_ERR(ctx->vddd))
+		return dev_err_probe(dev, PTR_ERR(ctx->vddd), "Failed to get VDDD enable\n");
+	ctx->panel.backlight = devm_backlight_device_register(dev, dev_name(dev),
+				dev, ctx, &sofef03f_bl_ops, &props);
+	if (IS_ERR(ctx->panel.backlight))
+		return PTR_ERR(ctx->panel.backlight);
+	ctx->panel.prepare_prev_first = true;
+	mipi_dsi_set_drvdata(dsi, ctx);
+	dsi->lanes = 4;
+	dsi->format = MIPI_DSI_FMT_RGB888;
+	dsi->mode_flags = MIPI_DSI_MODE_LPM | MIPI_DSI_MODE_DSC_ALL_SLICES_IN_PKT;
+	ctx->dsc.dsc_version_major = 1;
+	ctx->dsc.dsc_version_minor = 1;
+	ctx->dsc.slice_width = 540;
+	ctx->dsc.slice_height = 30;
+	ctx->dsc.slice_count = 2;
+	ctx->dsc.bits_per_component = 8;
+	ctx->dsc.bits_per_pixel = 8 << 4;
+	ctx->dsc.block_pred_enable = true;
+	dsi->dsc = &ctx->dsc;
+	drm_panel_add(&ctx->panel);
+	ret = mipi_dsi_attach(dsi);
+	if (ret)
+		drm_panel_remove(&ctx->panel);
+	return ret;
+}
+
+static void sofef03f_remove(struct mipi_dsi_device *dsi)
+{
+	struct sofef03f *ctx = mipi_dsi_get_drvdata(dsi);
+
+	mipi_dsi_detach(dsi);
+	drm_panel_remove(&ctx->panel);
+}
+
+static const struct of_device_id sofef03f_match[] = {
+	{ .compatible = "samsung,sofef03f-m" },
+	{ }
+};
+MODULE_DEVICE_TABLE(of, sofef03f_match);
+
+static struct mipi_dsi_driver sofef03f_driver = {
+	.probe = sofef03f_probe,
+	.remove = sofef03f_remove,
+	.driver = { .name = "panel-samsung-sofef03f", .of_match_table = sofef03f_match },
+};
+module_mipi_dsi_driver(sofef03f_driver);
+MODULE_DESCRIPTION("Samsung SOFEF03F_M DSC command mode panel");
+MODULE_LICENSE("GPL");

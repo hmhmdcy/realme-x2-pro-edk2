@@ -1,0 +1,32 @@
+--- a/src/freedreno/vulkan/tu_knl_drm.cc
++++ b/src/freedreno/vulkan/tu_knl_drm.cc
+@@ -23,6 +23,15 @@
+ {
+    *iova = 0;
+ 
++   /* Match the A640 kernel-managed address alignment for automatic VM_BIND
++    * allocations. Mapping sizes and explicit capture/replay addresses retain
++    * their original granularity.
++    */
++   uint64_t alignment = os_page_size;
++   if (dev->physical_device->has_vm_bind &&
++       dev->physical_device->dev_id.gpu_id == 640)
++      alignment = MAX2(alignment, UINT64_C(0x10000));
++
+    if (flags & TU_BO_ALLOC_REPLAYABLE) {
+       if (client_iova) {
+          if (util_vma_heap_alloc_addr(&dev->vma, client_iova, size)) {
+@@ -36,11 +45,11 @@
+           * them from the other end of the address space.
+           */
+          dev->vma.alloc_high = true;
+-         *iova = util_vma_heap_alloc(&dev->vma, size, os_page_size);
++         *iova = util_vma_heap_alloc(&dev->vma, size, alignment);
+       }
+    } else {
+       dev->vma.alloc_high = false;
+-      *iova = util_vma_heap_alloc(&dev->vma, size, os_page_size);
++      *iova = util_vma_heap_alloc(&dev->vma, size, alignment);
+    }
+ 
+    if (!*iova)

@@ -1,0 +1,56 @@
+--- a/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
++++ b/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
+@@ -517,3 +517,53 @@
+ 		bias-pull-down;
+ 	};
+ };
++
++/* Session92: same-handset Android UART13 and NQ-NCI wiring. */
++&gpi_dma1 { status = "okay"; };
++&qupv3_id_1 { status = "okay"; };
++
++&tlmm {
++    samurai_bt_uart_default: samurai-bt-uart-default-state {
++        pins = "gpio43", "gpio44", "gpio45", "gpio46";
++        function = "qup13";
++        drive-strength = <2>;
++        bias-disable;
++    };
++    samurai_nfc_irq_default: samurai-nfc-irq-default-state {
++        pins = "gpio47";
++        function = "gpio";
++        drive-strength = <2>;
++        bias-disable;
++        input-enable;
++    };
++};
++
++&uart13 {
++    status = "okay";
++    pinctrl-names = "default";
++    pinctrl-0 = <&samurai_bt_uart_default>;
++    bluetooth {
++        compatible = "qcom,wcn3990-bt";
++        /* Logic rail shares the existing WCN supply; no voltage is changed. */
++        vddio-supply = <&vreg_l1a_0p75>;
++        vddxo-supply = <&vreg_l7a_1p8>;
++        vddrf-supply = <&vreg_l2c_1p3>;
++        vddch0-supply = <&vreg_l11c_3p3>;
++        max-speed = <3200000>;
++    };
++};
++
++&i2c9 {
++    status = "okay";
++    clock-frequency = <400000>;
++    nfc@28 {
++        compatible = "nxp,nxp-nci-i2c";
++        reg = <0x28>;
++        interrupt-parent = <&tlmm>;
++        interrupts = <47 IRQ_TYPE_LEVEL_HIGH>;
++        enable-gpios = <&tlmm 36 GPIO_ACTIVE_HIGH>;
++        firmware-gpios = <&tlmm 48 GPIO_ACTIVE_HIGH>;
++        pinctrl-names = "default";
++        pinctrl-0 = <&samurai_nfc_irq_default>;
++    };
++};

@@ -1,0 +1,66 @@
+{
+  "passed": true,
+  "base_source_sha256": "4bc1f53e40b04ac52620a9dedb641799b479de9034c3b658d0d1f3435c4d95d3",
+  "candidate_source_sha256": "1ad0c168874448dabd6a38121a7a6b6b73384856798cbefdefaa4b759da9e2bc",
+  "decoder_sha256": "a17caa2cbeb2352da249474e0265fa96745f544d96a29d0ebe8f14c656d548fd",
+  "base_CRLF_normalized_for_function_text_comparison": true,
+  "changed_functions": [
+    "samurai_usb_suspend",
+    "samurai_usb_resume",
+    "samurai_usb_request_events",
+    "samurai_usb_probe",
+    "samurai_usb_shutdown"
+  ],
+  "unchanged_functions": [
+    "samurai_usb_read_status",
+    "samurai_usb_get_budget",
+    "samurai_usb_type",
+    "samurai_usb_get_property",
+    "samurai_usb_changed",
+    "samurai_usb_set_property",
+    "samurai_usb_poll",
+    "samurai_usb_stop",
+    "samurai_usb_prepare",
+    "samurai_usb_complete",
+    "samurai_usb_retain_for_native_consumer",
+    "samurai_usb_event",
+    "samurai_usb_unlink_native_consumer",
+    "samurai_usb_link_native_consumer",
+    "samurai_usb_parent_match",
+    "samurai_usb_init",
+    "samurai_usb_exit"
+  ],
+  "added_functions": [
+    "samurai_usb_clear_wake",
+    "samurai_usb_arm_wake",
+    "samurai_usb_restart_work",
+    "samurai_usb_cleanup_wake"
+  ],
+  "primary_Image504_source_references": {
+    "drivers/spmi/spmi-pmic-arb.c": {
+      "sha256": "320e71b64915eb4e32be90b49fd65f12da2241e877bf4f68f0c0c1eb4ab3e28d",
+      "bytes": 60204
+    },
+    "kernel/irq/pm.c": {
+      "sha256": "e6080439cec4e1c64e04b1d334a31dcad4a5531a880878d9905f8d6e4fd9118b",
+      "bytes": 6272
+    },
+    "include/linux/interrupt.h": {
+      "sha256": "f75c0a916391a51c9572f27c8ea56bc1fae06919b2c204a2d335b841842022d4",
+      "bytes": 27921
+    },
+    "include/linux/pm_wakeup.h": {
+      "sha256": "49567a015e0169a2e9b5d1ffdf71a376b8ca2a57c5043ddfd076de941b74ea03",
+      "bytes": 7402
+    }
+  },
+  "reason": "pmic_arb MASK_ON_SUSPEND; irq_set_wake delegates to parent, current provider never requests wake",
+  "PSY_wakeup_switch_respected": true,
+  "partial_arm_unwind_and_failed_suspend_restart": true,
+  "failed_disarm_bits_retained_and_no_double_arm": true,
+  "cleanup_before_PSY_and_IRQ_release": true,
+  "budget_notification_and_real_event_handlers_unchanged": true,
+  "charger_or_PMIC_policy_registers_written": false,
+  "device_accessed": false,
+  "physical_USB_wakeup_accepted": false
+}

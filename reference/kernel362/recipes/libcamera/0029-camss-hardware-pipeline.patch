@@ -1,0 +1,3281 @@
+--- /dev/null
++++ b/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
+@@ -0,0 +1,1260 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++/* CAMSS hardware processing with optional zero-copy RAW capture. */
++
++#include <algorithm>
++#include <array>
++#include <cerrno>
++#include <chrono>
++#include <time.h>
++#include "hardware_focus.h"
++#include "libcamera/internal/camera_lens.h"
++#include <cmath>
++#include <cstring>
++#include <deque>
++#include <iomanip>
++#include <map>
++#include <queue>
++#include <set>
++#include <unordered_map>
++
++#include <linux/media-bus-format.h>
++#include <linux/videodev2.h>
++#include <optional>
++#include <limits>
++#include <linux/qcom-camss-config.h>
++
++#include <libcamera/base/log.h>
++#include <libcamera/base/timer.h>
++#include <libcamera/base/utils.h>
++#include <libcamera/control_ids.h>
++#include <libcamera/formats.h>
++
++#include "libcamera/internal/bayer_format.h"
++#include "libcamera/internal/camera.h"
++#include "libcamera/internal/camera_sensor.h"
++#include "libcamera/internal/device_enumerator.h"
++#include "libcamera/internal/delayed_controls.h"
++#include "libcamera/internal/framebuffer.h"
++#include "libcamera/internal/media_device.h"
++#include "libcamera/internal/pipeline_handler.h"
++#include "libcamera/internal/request.h"
++#include "libcamera/internal/v4l2_subdevice.h"
++#include "libcamera/internal/v4l2_videodevice.h"
++
++#include <libcamera/ipa/camss_ipa_proxy.h>
++
++namespace libcamera {
++
++LOG_DEFINE_CATEGORY(CamssVfe)
++
++class CamssVfePipeline;
++
++class CamssVfeData : public Camera::Private
++{
++public:
++	struct Endpoint {
++		MediaEntity *image;
++		MediaEntity *params;
++		MediaEntity *stats;
++		MediaEntity *pix;
++	};
++	CamssVfeData(CamssVfePipeline *pipe, std::shared_ptr<MediaDevice> media);
++	int init(MediaEntity *sensor, const Endpoint &endpoint);
++	int configurePath(const V4L2SubdeviceFormat &sensorFormat, const Size &output);
++	void restoreLinks();
++ StreamFormats streamFormats(bool raw);
++	void submitStatistics();
++	void completeMissingStatistics();
++	void statsProcessed(uint64_t epoch, uint32_t sof, uint32_t id,
++		const ipa::camss::Statistics &statistics, const ControlList &metadata);
++
++ void imageReady(FrameBuffer *buffer);
++ void rawReady(FrameBuffer *buffer);
++ void pixFrameStart(uint32_t sequence, uint64_t timestamp);
++ void rawFrameStart(uint32_t sequence, uint64_t timestamp);
++ void tryComplete(Request *request, bool timeout = false);
++ Request *imageRequest(FrameBuffer *buffer);
++ struct PendingFrame {
++  FrameBuffer *image = nullptr, *raw = nullptr;
++  bool imageFinished = false, rawReady = false, failed = false;
++ };
++ std::map<Request *, PendingFrame> requests_;
++ std::map<FrameBuffer *, Request *> internalRequests_;
++ std::vector<std::unique_ptr<FrameBuffer>> internalImages_;
++ std::queue<FrameBuffer *> freeImages_;
++ std::map<uint32_t, uint64_t> pixStarts_, rawStarts_;
++ uint64_t framePeriod_ = 0, previousPixStart_ = 0;
++ bool rawEnabled_ = false, processedEnabled_ = true;
++ Size output_;
++ unsigned int outputStride_ = 0;
++ V4L2DeviceFormat rawFormat_;
++
++	void statsReady(FrameBuffer *buffer);
++	void paramsReady(FrameBuffer *buffer);
++	void queueIspUpdate(const ipa::camss::AutoIspUpdate &update);
++	struct IspControls { ControlList controls; uint32_t source; };
++	std::deque<IspControls> ispControls_;
++	std::optional<int64_t> imageSequenceOffset_;
++	void frameStart(uint32_t sequence);
++	void expired();
++	bool lensActive_=false;
++	std::string lensModel_;
++	void finish(uint32_t sequence, bool paired);
++	CamssVfePipeline *handler();
++
++	std::shared_ptr<MediaDevice> media_;
++	std::unique_ptr<CameraSensor> sensor_;
++	std::unique_ptr<V4L2VideoDevice> image_, params_, stats_, raw_;
++	std::map<MediaEntity *, std::unique_ptr<V4L2Subdevice>> subdevs_;
++	V4L2Subdevice *pix_ = nullptr, *rdi_ = nullptr;
++	std::vector<MediaLink *> path_, rawPath_;
++	std::vector<std::pair<MediaLink *, bool>> changedLinks_;
++	Stream stream_, rawStream_;
++	Size input_;
++	V4L2SubdeviceFormat configuredFormat_;
++	std::vector<std::unique_ptr<FrameBuffer>> paramsBuffers_, statsBuffers_;
++	std::unique_ptr<ipa::camss::IPAProxyCamss> ipa_;
++	bool ipaInitialized_ = false;
++	std::string ipaProfilePath_;
++	bool ipaMapped_ = false;
++ ipa::camss::SensorControlConfiguration sensorConfiguration_{};
++ ipa::camss::SensorContext startupSensor_{};
++ std::unique_ptr<DelayedControls> delayedControls_;
++ struct SensorUpdate { ControlList controls; uint32_t source; };
++ std::deque<SensorUpdate> sensorUpdates_;
++ std::map<uint32_t, ipa::camss::SensorContext> sensorContexts_;
++ std::optional<uint32_t> lastSof_;
++ bool sensorContextHealthy_ = false;
++ bool automatic_ = false;
++ uint32_t lastAutoRevision_ = 0;
++ std::optional<ipa::camss::AutoSensorUpdate> automaticUpdate_;
++
++	struct PendingStats { uint32_t sof; FrameBuffer *buffer; bool submitted; };
++	std::map<uint32_t, PendingStats> pendingStats_;
++	std::optional<uint32_t> newestStatsSof_;
++	bool running_ = false;
++	bool paramsApplied_ = false;
++	bool parameterBusy_ = false, ispHealthy_ = true;
++	uint32_t parameterRevision_ = 0, lastIspRevision_ = 0;
++	uint32_t firstParamSof_ = 0;
++	uint64_t epoch_ = 0;
++	std::map<uint32_t, FrameBuffer *> images_;
++	struct Histogram {
++		uint64_t population;
++		uint64_t weightedSum;
++		ControlList metadata;
++	};
++	std::map<uint32_t, Histogram> histograms_;
++	std::deque<uint32_t> histogramOrder_;
++	Timer deadline_;
++};
++
++class CamssVfeConfiguration : public CameraConfiguration
++{
++public:
++	explicit CamssVfeConfiguration(CamssVfeData *data) : data_(data) {}
++	Status validate() override;
++	V4L2SubdeviceFormat sensorFormat_;
++ bool raw_ = false, processed_ = false;
++private:
++	CamssVfeData *data_;
++};
++
++class CamssVfePipeline : public PipelineHandler
++{
++public:
++	explicit CamssVfePipeline(CameraManager *manager) : PipelineHandler(manager, 4) {}
++	bool match(DeviceEnumerator *enumerator) override;
++	int initIPA(CamssVfeData *data);
++	int configureIPA(CamssVfeData *data);
++	std::unique_ptr<CameraConfiguration> generateConfiguration(Camera *camera,
++					Span<const StreamRole> roles) override;
++	int configure(Camera *camera, CameraConfiguration *config) override;
++	int exportFrameBuffers(Camera *camera, Stream *stream,
++		std::vector<std::unique_ptr<FrameBuffer>> *buffers) override;
++	int start(Camera *camera, const ControlList *controls) override;
++	void stopDevice(Camera *camera) override;
++	int queueRequestDevice(Camera *camera, Request *request) override;
++	CamssVfeData *active_ = nullptr;
++private:
++	void releaseDevice(Camera *camera) override;
++	CamssVfeData *configured_ = nullptr;
++	CamssVfeData *data(Camera *camera) { return static_cast<CamssVfeData *>(camera->_d()); }
++};
++
++CamssVfeData::CamssVfeData(CamssVfePipeline *pipe, std::shared_ptr<MediaDevice> media)
++	: Camera::Private(pipe), media_(std::move(media))
++{
++	deadline_.timeout.connect(this, &CamssVfeData::expired);
++}
++
++CamssVfePipeline *CamssVfeData::handler()
++{
++	return static_cast<CamssVfePipeline *>(pipe());
++}
++
++int CamssVfePipeline::initIPA(CamssVfeData *d)
++{
++ if (d->ipaInitialized_) return 0;
++ IPACameraSensorInfo info;
++ int ret = d->sensor_->sensorInfo(&info);
++ if (ret) return ret;
++ d->ipa_ = createIPA<ipa::camss::IPAProxyCamss>(0, 0);
++ if (!d->ipa_) return -ENOENT;
++ const std::string profile=d->ipa_->configurationFile(d->sensor_->model()+".yaml");
++ CameraLens *lens=d->sensor_->focusLens();
++ const ControlInfoMap lensControls=lens?lens->controls():ControlInfoMap{};
++ ret = d->ipa_->init(IPASettings{ profile, d->sensor_->model() }, info, d->sensor_->controls(), lensControls, d->lensModel_, &d->controlInfo_);
++ if (ret) { d->ipa_.reset(); return ret; }
++ d->ipa_->statsProcessed.connect(d, &CamssVfeData::statsProcessed);
++ d->ipaInitialized_ = true;
++ return 0;
++}
++
++int CamssVfeData::init(MediaEntity *sensor, const Endpoint &endpoint)
++{
++	/* Traverse to the already capability-checked PIX output, never an RDI. */
++	std::queue<MediaEntity *> todo;
++	std::map<MediaEntity *, MediaLink *> parents;
++	std::set<MediaEntity *> visited{ sensor };
++	todo.push(sensor);
++	while (!todo.empty() && !visited.count(endpoint.image)) {
++		MediaEntity *entity = todo.front();
++		todo.pop();
++		for (const MediaPad *pad : entity->pads()) {
++			if (!(pad->flags() & MEDIA_PAD_FL_SOURCE))
++				continue;
++			for (MediaLink *link : pad->links()) {
++				MediaEntity *next = link->sink()->entity();
++				if (next->type() == MediaEntity::Type::V4L2VideoDevice && next != endpoint.image)
++					continue;
++				if (!visited.insert(next).second)
++					continue;
++				parents[next] = link;
++				todo.push(next);
++			}
++		}
++	}
++	if (!visited.count(endpoint.image))
++		return -ENOLINK;
++	for (MediaEntity *entity = endpoint.image; entity != sensor;) {
++		MediaLink *link = parents.at(entity);
++		path_.push_back(link);
++		entity = link->source()->entity();
++	}
++	std::reverse(path_.begin(), path_.end());
++	if (path_.back()->source()->entity() != endpoint.pix)
++		return -ENOLINK;
++
++	sensor_ = CameraSensorFactoryBase::create(sensor);
++	if (!sensor_)
++		return -ENODEV;
++ if (CameraLens *lens=sensor_->focusLens()) {
++  lensModel_=lens->model();lens->close();
++ }
++	for (MediaLink *link : path_) {
++		MediaEntity *entity = link->source()->entity();
++		if (entity == sensor || subdevs_.count(entity))
++			continue;
++		auto dev = std::make_unique<V4L2Subdevice>(entity);
++		int ret = dev->open();
++		if (ret)
++			return ret;
++		subdevs_[entity] = std::move(dev);
++	}
++
++ pix_ = subdevs_.at(endpoint.pix).get();
++ MediaLink *pixInput = path_[path_.size() - 2];
++ MediaEntity *csid = pixInput->source()->entity();
++ /* Shared input lifetime is handled by the matched CAMSS driver. This
++  * single-VC path needs no userspace routing API; the V4L2 core may hide
++  * CAP_STREAMS even when the driver's internal streams ops are active. */
++ for (const MediaPad *pad : csid->pads()) {
++  if (!(pad->flags() & MEDIA_PAD_FL_SOURCE) || raw_) continue;
++  for (MediaLink *input : pad->links()) {
++   MediaEntity *entity = input->sink()->entity();
++   if (entity == endpoint.pix || entity->type() != MediaEntity::Type::V4L2Subdevice) continue;
++   for (const MediaPad *output : entity->pads()) {
++    if (!(output->flags() & MEDIA_PAD_FL_SOURCE)) continue;
++    for (MediaLink *link : output->links()) {
++     MediaEntity *video = link->sink()->entity();
++     if (video->type() != MediaEntity::Type::V4L2VideoDevice) continue;
++     auto device = std::make_unique<V4L2VideoDevice>(video);
++     if (device->open() || !device->formats().count(V4L2PixelFormat(V4L2_PIX_FMT_SRGGB10P))) continue;
++     auto subdev = std::make_unique<V4L2Subdevice>(entity);
++     if (subdev->open() || !subdev->supportsFrameStartEvent()) continue;
++     rawPath_ = {input, link};
++     rdi_ = subdev.get();subdevs_[entity] = std::move(subdev);
++     raw_ = std::move(device);
++     break;
++    }
++    if (raw_) break;
++   }
++   if (raw_) break;
++  }
++ }
++ if (raw_) {
++  raw_->bufferReady.connect(this, &CamssVfeData::rawReady);
++  rdi_->frameStartTimestamp.connect(this, &CamssVfeData::rawFrameStart);
++ }
++
++	image_ = std::make_unique<V4L2VideoDevice>(endpoint.image);
++	params_ = std::make_unique<V4L2VideoDevice>(endpoint.params);
++	stats_ = std::make_unique<V4L2VideoDevice>(endpoint.stats);
++	for (auto *dev : { image_.get(), params_.get(), stats_.get() }) {
++		int ret = dev->open();
++		if (ret)
++			return ret;
++	}
++	image_->bufferReady.connect(this, &CamssVfeData::imageReady);
++	params_->bufferReady.connect(this, &CamssVfeData::paramsReady);
++	stats_->bufferReady.connect(this, &CamssVfeData::statsReady);
++	pix_->frameStartTimestamp.connect(this, &CamssVfeData::pixFrameStart);
++	properties_ = sensor_->properties();
++	return handler()->initIPA(this);
++}
++
++int CamssVfePipeline::configureIPA(CamssVfeData *d)
++{
++ int ret = initIPA(d);
++ if (ret) return ret;
++ IPACameraSensorInfo info;
++ ret = d->sensor_->sensorInfo(&info);
++ if (ret) return ret;
++ return d->ipa_->configure(info, d->input_, d->sensor_->controls(), d->ipaProfilePath_,
++                          &d->controlInfo_, &d->sensorConfiguration_);
++}
++
++void CamssVfeData::restoreLinks()
++{
++	for (auto it = changedLinks_.rbegin(); it != changedLinks_.rend(); ++it) {
++		int ret = it->first->setEnabled(it->second);
++		if (ret)
++			LOG(CamssVfe, Error) << "Restore link failed: " << ret;
++	}
++	changedLinks_.clear();
++}
++
++int CamssVfeData::configurePath(const V4L2SubdeviceFormat &requested, const Size &output)
++{
++	restoreLinks();
++	auto change = [&](MediaLink *link, bool enabled) {
++		bool old = link->flags() & MEDIA_LNK_FL_ENABLED;
++		if (old == enabled)
++			return 0;
++		int ret = link->setEnabled(enabled);
++		if (!ret)
++			changedLinks_.emplace_back(link, old);
++		return ret;
++	};
++
++ std::vector<MediaLink *> routes = path_;
++ if (rawEnabled_) routes.insert(routes.end(), rawPath_.begin(), rawPath_.end());
++ /* Exclusive camera: deactivate competing routes touching the selected paths. */
++	std::set<MediaEntity *> used;
++	for (MediaLink *link : routes) {
++		used.insert(link->source()->entity());
++		used.insert(link->sink()->entity());
++	}
++	for (MediaEntity *entity : used) {
++		for (const MediaPad *pad : entity->pads()) {
++			for (MediaLink *link : pad->links()) {
++				if (link->flags() & MEDIA_LNK_FL_IMMUTABLE ||
++				    std::find(routes.begin(), routes.end(), link) != routes.end())
++					continue;
++				int ret = change(link, false);
++				if (ret)
++					return ret;
++			}
++		}
++	}
++	for (MediaLink *link : routes) {
++		int ret = change(link, true);
++		if (ret)
++			return ret;
++	}
++	V4L2SubdeviceFormat format = requested;
++	int ret = sensor_->setFormat(&format);
++	if (ret || format.code != requested.code || format.size != requested.size)
++		return ret ? ret : -EINVAL;
++	input_ = format.size;
++	for (MediaLink *link : path_) {
++		MediaEntity *source = link->source()->entity();
++		if (source != sensor_->entity()) {
++			ret = subdevs_.at(source)->getFormat(link->source()->index(), &format);
++			if (ret)
++				return ret;
++		}
++		MediaEntity *sink = link->sink()->entity();
++		if (sink->type() != MediaEntity::Type::V4L2Subdevice)
++			break;
++		ret = subdevs_.at(sink)->setFormat(link->sink()->index(), &format);
++		if (ret)
++			return ret;
++	}
++
++ if (rawEnabled_) {
++  MediaLink *link = rawPath_.front();
++  ret = subdevs_.at(link->source()->entity())->getFormat(link->source()->index(), &format);
++  if (!ret) ret = rdi_->setFormat(link->sink()->index(), &format);
++  if (ret || format.size != requested.size) return ret ? ret : -EINVAL;
++ }
++ Rectangle compose(output);
++	ret = pix_->setSelection(0, V4L2_SEL_TGT_COMPOSE, &compose);
++	if (ret || compose != Rectangle(output))
++		return ret ? ret : -EINVAL;
++	return 0;
++}
++
++
++StreamFormats CamssVfeData::streamFormats(bool raw)
++{
++ std::map<PixelFormat,std::vector<SizeRange>> formats;
++ const auto video=image_->formats();
++ auto nv12=video.find(V4L2PixelFormat(V4L2_PIX_FMT_NV12));
++ for (unsigned int code:sensor_->mbusCodes()) {
++  BayerFormat bayer=BayerFormat::fromMbusCode(code);
++  if (!bayer.isValid() || bayer.bitDepth!=10) continue;
++  bayer.packing=BayerFormat::Packing::CSI2;
++  for (const Size &size:sensor_->sizes(code)) {
++   if (raw) {formats[bayer.toPixelFormat()].emplace_back(size);continue;}
++   if (nv12==video.end()) continue;
++   V4L2SubdeviceFormat trial{code,size,{}};
++   if (pix_->setFormat(0,&trial,V4L2Subdevice::TryFormat)) continue;
++   for (const SizeRange &range:nv12->second) {
++    Rectangle minimum(range.min),maximum(range.max);
++    if (pix_->setSelection(0,V4L2_SEL_TGT_COMPOSE,&minimum,V4L2Subdevice::TryFormat) ||
++        pix_->setSelection(0,V4L2_SEL_TGT_COMPOSE,&maximum,V4L2Subdevice::TryFormat)) continue;
++    formats[libcamera::formats::NV12].emplace_back(minimum.size(),maximum.size(),range.hStep,range.vStep);
++   }
++  }
++ }
++ if (!raw) {
++  auto &ranges=formats[libcamera::formats::NV12];
++  if (ranges.size()>1) {
++   /* StreamFormats accepts one continuous range per pixel format. Publish
++    * advisory bounds across sensor modes; validate() still asks the selected
++    * mode's TRY compose for the exact scaling/alignment constraints. */
++   SizeRange bounds=ranges.front();
++   for (const SizeRange &range:ranges) {
++    bounds.min.width=std::min(bounds.min.width,range.min.width);
++    bounds.min.height=std::min(bounds.min.height,range.min.height);
++    bounds.max.width=std::max(bounds.max.width,range.max.width);
++    bounds.max.height=std::max(bounds.max.height,range.max.height);
++   }
++   ranges={bounds};
++  }
++ }
++ return StreamFormats(formats);
++}
++
++CameraConfiguration::Status CamssVfeConfiguration::validate()
++{
++ if (config_.empty() || config_.size() > 2) return Invalid;
++ Status status = Valid;
++ raw_ = processed_ = false;
++ Size desired;
++ for (auto &cfg : config_) {
++  bool raw = BayerFormat::fromPixelFormat(cfg.pixelFormat).isValid();
++  if (raw ? (raw_ || !data_->raw_) : processed_) return Invalid;
++  if (raw) { raw_ = true; desired = cfg.size; }
++  else { processed_ = true; if (desired.isNull()) desired = cfg.size; }
++ }
++ if (orientation != data_->sensor_->mountingOrientation()) {
++  orientation = data_->sensor_->mountingOrientation(); status = Adjusted;
++ }
++ const std::array<unsigned int, 4> codes{MEDIA_BUS_FMT_SRGGB10_1X10,
++  MEDIA_BUS_FMT_SGRBG10_1X10, MEDIA_BUS_FMT_SGBRG10_1X10, MEDIA_BUS_FMT_SBGGR10_1X10};
++ if (sensorConfig && (!sensorConfig->isValid() || sensorConfig->bitDepth != 10)) return Invalid;
++ sensorFormat_ = data_->sensor_->getFormat(codes, sensorConfig ? sensorConfig->outputSize : desired);
++ if (sensorConfig && sensorFormat_.size != sensorConfig->outputSize) return Invalid;
++ if (!sensorFormat_.code || sensorFormat_.size.width > 8192 || sensorFormat_.size.height > 16384) return Invalid;
++ BayerFormat bayer = BayerFormat::fromMbusCode(sensorFormat_.code);
++ bayer.packing = BayerFormat::Packing::CSI2;
++ for (auto &cfg : config_) {
++  const bool raw = BayerFormat::fromPixelFormat(cfg.pixelFormat).isValid();
++  const PixelFormat pixel = raw ? bayer.toPixelFormat() : formats::NV12;
++  Size size = sensorFormat_.size;
++  if (!raw) {
++   V4L2SubdeviceFormat trial = sensorFormat_;
++   if (data_->pix_->setFormat(0,&trial,V4L2Subdevice::TryFormat)) return Invalid;
++   Rectangle compose(cfg.size);
++   if (data_->pix_->setSelection(0,V4L2_SEL_TGT_COMPOSE,&compose,V4L2Subdevice::TryFormat)) return Invalid;
++   size=compose.size();
++  }
++  if (cfg.pixelFormat != pixel || cfg.size != size) status = Adjusted;
++  cfg.pixelFormat = pixel; cfg.size = size;
++  V4L2DeviceFormat format;
++  format.fourcc = raw ? bayer.toV4L2PixelFormat() : V4L2PixelFormat(V4L2_PIX_FMT_NV12);
++  format.size = size;
++  if ((raw ? data_->raw_ : data_->image_)->tryFormat(&format) || format.size != size) return Invalid;
++  cfg.stride = format.planes[0].bpl; cfg.frameSize = 0;
++  for (unsigned int i=0;i<format.planesCount;++i) cfg.frameSize += format.planes[i].size;
++  if (cfg.bufferCount != 4) {cfg.bufferCount=4;status=Adjusted;}
++  cfg.colorSpace = raw ? ColorSpace::Raw : ColorSpace::Sycc;
++ }
++ return status;
++}
++
++std::unique_ptr<CameraConfiguration> CamssVfePipeline::generateConfiguration(
++ Camera *camera, Span<const StreamRole> roles)
++{
++ auto *d = data(camera);
++ auto config = std::make_unique<CamssVfeConfiguration>(d);
++ if (roles.size() > 2) return nullptr;
++ for (StreamRole role : roles) {
++  StreamConfiguration cfg(d->streamFormats(role==StreamRole::Raw));
++  if (role == StreamRole::Raw) {
++   if (!d->raw_) return nullptr;
++   cfg.pixelFormat = formats::SRGGB10_CSI2P;
++   cfg.size = d->sensor_->resolution();
++  } else {cfg.pixelFormat=formats::NV12;cfg.size=Size(640,480);}
++  config->addConfiguration(cfg);
++ }
++ if (!roles.empty() && config->validate() == CameraConfiguration::Invalid) return nullptr;
++ return config;
++}
++
++int CamssVfePipeline::configure(Camera *camera, CameraConfiguration *configuration)
++{
++	auto *d = data(camera);
++	if (active_)
++		return -EBUSY;
++	if (configured_ && configured_ != d)
++		configured_->restoreLinks();
++	configured_ = nullptr;
++	auto *cfg = static_cast<CamssVfeConfiguration *>(configuration);
++
++ d->rawEnabled_ = cfg->raw_;d->processedEnabled_ = cfg->processed_;
++ d->output_ = Size(640,480);
++ for (auto &stream : *cfg) if (stream.pixelFormat == formats::NV12) d->output_ = stream.size;
++ int ret = d->configurePath(cfg->sensorFormat_, d->output_);
++	if (ret) {
++		d->restoreLinks();
++		return ret;
++	}
++	V4L2DeviceFormat format;
++	format.fourcc = V4L2PixelFormat(V4L2_PIX_FMT_NV12);
++	format.size = d->output_;
++	ret = d->image_->setFormat(&format);
++	if (ret || format.size != d->output_ || format.fourcc != V4L2PixelFormat(V4L2_PIX_FMT_NV12)) {
++		d->restoreLinks();
++		return ret ? ret : -EINVAL;
++	}
++ d->outputStride_=format.planes[0].bpl;
++ ret = initIPA(d);
++ if (ret) { d->restoreLinks(); return ret; }
++ const char *profile = utils::secure_getenv("LIBCAMERA_CAMSS_VFE_PROFILE");
++ d->ipaProfilePath_ = profile ? profile : d->ipa_->configurationFile(d->sensor_->model()+".yaml");
++ ret = configureIPA(d);
++ if (ret) { d->restoreLinks(); return ret; }
++
++ for (auto &stream : *cfg) {
++  if (stream.pixelFormat == formats::NV12) stream.setStream(&d->stream_);
++  else {
++   d->rawFormat_ = {};
++   d->rawFormat_.fourcc = BayerFormat::fromPixelFormat(stream.pixelFormat).toV4L2PixelFormat();
++   d->rawFormat_.size = stream.size;
++   ret = d->raw_->setFormat(&d->rawFormat_);
++   if (ret || d->rawFormat_.size != stream.size) {d->restoreLinks();return ret ? ret : -EINVAL;}
++   stream.setStream(&d->rawStream_);
++  }
++ }
++	d->configuredFormat_ = cfg->sensorFormat_;
++	configured_ = d;
++	return 0;
++}
++
++void CamssVfePipeline::releaseDevice(Camera *camera)
++{
++	if (configured_ == data(camera)) {
++		configured_->restoreLinks();
++		configured_ = nullptr;
++	}
++	auto *d = data(camera);
++	d->ipa_.reset();
++	d->ipaInitialized_ = false;
++	d->ipaProfilePath_.clear();
++	d->configuredFormat_.code = 0;
++}
++
++int CamssVfePipeline::exportFrameBuffers(Camera *camera, Stream *stream,
++	std::vector<std::unique_ptr<FrameBuffer>> *buffers)
++{
++	
++ auto *d = data(camera);
++ return (stream == &d->rawStream_ ? d->raw_ : d->image_)->exportBuffers(stream->configuration().bufferCount, buffers);
++}
++
++int CamssVfePipeline::start(Camera *camera, const ControlList *controls)
++{
++ auto *d = data(camera);
++ if (active_) return -EBUSY;
++ if (!d->configuredFormat_.code) return -EPIPE;
++ int ret;
++ if (configured_ != d) {
++  if (configured_) configured_->restoreLinks();
++  configured_ = nullptr;
++  ret = d->configurePath(d->configuredFormat_, d->output_);
++  V4L2DeviceFormat format;
++  format.fourcc = V4L2PixelFormat(V4L2_PIX_FMT_NV12);
++  format.size = d->output_;
++  if (!ret) ret = d->image_->setFormat(&format);
++  if (ret || format.size != d->output_) {
++   d->restoreLinks(); return ret ? ret : -EINVAL;
++  }
++
++  if (d->rawEnabled_) {ret=d->raw_->setFormat(&d->rawFormat_);if(ret){d->restoreLinks();return ret;}}
++  configured_ = d;
++ }
++ active_ = d;
++ ++d->epoch_;
++ d->paramsApplied_ = false;
++ d->images_.clear(); d->histograms_.clear(); d->histogramOrder_.clear(); d->pendingStats_.clear();
++ ret = configureIPA(d);
++ if (ret) goto error;
++
++ d->requests_.clear();d->internalRequests_.clear();d->pixStarts_.clear();d->rawStarts_.clear();
++ d->framePeriod_=d->previousPixStart_=0;
++ if (d->processedEnabled_) ret=d->image_->importBuffers(d->stream_.configuration().bufferCount);
++ else {
++  ret=d->image_->allocateBuffers(4,&d->internalImages_);
++  if (ret >= 4) {for(auto &buffer:d->internalImages_) d->freeImages_.push(buffer.get());ret=0;}
++  else ret=ret<0?ret:-ENOMEM;
++ }
++ if (ret) goto error;
++ if (d->rawEnabled_) {ret=d->raw_->importBuffers(d->rawStream_.configuration().bufferCount);if(ret)goto error;}
++ ret = d->params_->allocateBuffers(1, &d->paramsBuffers_);
++ if (ret < 1) { ret = ret < 0 ? ret : -ENOMEM; goto error; }
++ ret = d->stats_->allocateBuffers(4, &d->statsBuffers_);
++ if (ret < 3) { ret = ret < 0 ? ret : -ENOMEM; goto error; }
++ {
++  std::vector<IPABuffer> parameters, statistics;
++  auto append = [](FrameBuffer *buffer, uint32_t id, std::vector<IPABuffer> &buffers) {
++   buffer->setCookie(id);
++   auto planes = buffer->planes();
++   buffers.emplace_back(id, std::vector<FrameBuffer::Plane>(planes.begin(), planes.end()));
++  };
++  append(d->paramsBuffers_[0].get(), 1, parameters);
++  uint32_t id = 100;
++  for (auto &buffer : d->statsBuffers_) append(buffer.get(), id++, statistics);
++  ret = d->ipa_->mapBuffers(parameters, statistics);
++  if (ret) goto error;
++  d->ipaMapped_ = true;
++  ControlList empty(libcamera::controls::controls);
++  ControlList initial(d->sensor_->controls());
++  ret = d->ipa_->start(d->epoch_, controls ? *controls : empty, &initial);
++  if (ret) goto error;
++  d->automatic_ = (controls ? controls->get(libcamera::controls::ExposureTimeMode) : std::nullopt).value_or(d->controlInfo_.at(&libcamera::controls::ExposureTimeMode).def().get<int32_t>()) == libcamera::controls::ExposureTimeModeAuto;
++  d->lastAutoRevision_ = 0; d->automaticUpdate_.reset();
++  if (!initial.empty()) {
++   ret = d->sensor_->setControls(&initial);
++   if (ret) goto error;
++  }
++  const std::array<uint32_t, 2> ids{ V4L2_CID_EXPOSURE, V4L2_CID_ANALOGUE_GAIN };
++  ControlList actual = d->sensor_->getControls(ids);
++  if (!actual.contains(V4L2_CID_EXPOSURE) || !actual.contains(V4L2_CID_ANALOGUE_GAIN)) { ret = -EIO; goto error; }
++  d->startupSensor_ = { true, uint32_t(actual.get(V4L2_CID_EXPOSURE).get<int32_t>()),
++   uint32_t(actual.get(V4L2_CID_ANALOGUE_GAIN).get<int32_t>()), std::numeric_limits<uint32_t>::max() };
++  d->sensorUpdates_.clear(); d->sensorContexts_.clear(); d->lastSof_.reset(); d->sensorContextHealthy_ = true;
++  if (d->sensorConfiguration_.enabled) {
++   const std::unordered_map<uint32_t, DelayedControls::ControlParams> delays{
++    { V4L2_CID_EXPOSURE, { d->sensorConfiguration_.exposureDelay, false } },
++    { V4L2_CID_ANALOGUE_GAIN, { d->sensorConfiguration_.gainDelay, false } }
++   };
++   d->delayedControls_ = std::make_unique<DelayedControls>(d->sensor_->device(), delays);
++   d->delayedControls_->reset(std::numeric_limits<uint32_t>::max());
++  } else d->delayedControls_.reset();
++ }
++ d->parameterBusy_ = false; d->ispHealthy_ = true;
++ d->parameterRevision_ = d->lastIspRevision_ = 0;
++ d->ispControls_.clear();
++ d->newestStatsSof_.reset();
++ d->imageSequenceOffset_.reset();
++ for (auto &buffer : d->paramsBuffers_) {
++  uint32_t used = 0;
++  ret = d->ipa_->prepareParameters(d->epoch_, buffer->cookie(), 0, &used);
++  if (ret) goto error;
++  auto &metadata = buffer->_d()->metadata();
++  metadata.status = FrameMetadata::FrameSuccess; metadata.sequence = 0; metadata.timestamp = 0;
++  metadata.planes()[0].bytesused = used;
++  ret = d->params_->queueBuffer(buffer.get());
++  if (ret) goto error;
++  d->parameterBusy_ = true;
++ }
++ for (auto &buffer : d->statsBuffers_) {
++  ret = d->stats_->queueBuffer(buffer.get());
++  if (ret) goto error;
++ }
++ ret = d->pix_->setFrameStartEnabled(true);
++ if (ret) goto error;
++
++ if (d->rawEnabled_) {ret=d->rdi_->setFrameStartEnabled(true);if(ret)goto error;}
++ if (d->controlInfo_.find(&controls::AfMode)!=d->controlInfo_.end()) {
++  CameraLens *lens=d->sensor_->focusLens();
++  if (!lens) {ret=-ENODEV;goto error;}
++  ret=lens->open();if (ret) goto error;d->lensActive_=true;
++ }
++ d->running_ = true;
++ for (auto *device : { d->stats_.get(), d->params_.get(), d->image_.get() }) {
++  ret = device->streamOn();
++  if (ret) goto error;
++ }
++
++ if (d->rawEnabled_) {ret=d->raw_->streamOn();if(ret)goto error;}
++ return 0;
++error:
++ stopDevice(camera);
++ return ret;
++}
++
++void CamssVfePipeline::stopDevice(Camera *camera)
++{
++	auto *d = data(camera);
++	d->running_ = false;
++	d->deadline_.stop();
++	d->sensorContextHealthy_ = false;
++	d->sensorUpdates_.clear();
++ d->automaticUpdate_.reset(); d->automatic_ = false;
++	/* streamOff callbacks finish every queued application buffer once. */
++	if (d->rawEnabled_) d->raw_->streamOff();
++	d->image_->streamOff();
++	d->params_->streamOff();
++	d->stats_->streamOff();
++	d->pix_->setFrameStartEnabled(false);
++ if (d->rawEnabled_) d->rdi_->setFrameStartEnabled(false);
++	while (!d->images_.empty())
++		d->finish(d->images_.begin()->first, false);
++
++ /* All queues are stopped, including any partially queued request. */
++ while (!d->requests_.empty()) {
++  auto it=d->requests_.begin();
++  it->second.imageFinished=true;it->second.rawReady=true;it->second.failed=true;
++  d->tryComplete(it->first,true);
++ }
++ d->histograms_.clear();
++ d->histogramOrder_.clear();
++	if (d->ipa_) {
++		d->ipa_->stop();
++		if (d->ipaMapped_) {
++			std::vector<uint32_t> ids;
++			for (auto &buffer : d->paramsBuffers_) ids.push_back(buffer->cookie());
++			for (auto &buffer : d->statsBuffers_) ids.push_back(buffer->cookie());
++			d->ipa_->unmapBuffers(ids);
++		}
++	}
++	d->lensActive_=false;
++ if (CameraLens *lens=d->sensor_->focusLens()) lens->close();
++	d->ipaMapped_ = false;
++	d->pendingStats_.clear();
++	d->params_->releaseBuffers(); d->stats_->releaseBuffers(); d->image_->releaseBuffers();
++
++ if (d->rawEnabled_) d->raw_->releaseBuffers();
++ d->internalImages_.clear();d->freeImages_={};d->internalRequests_.clear();
++ d->pixStarts_.clear();d->rawStarts_.clear();
++ d->paramsBuffers_.clear(); d->statsBuffers_.clear();
++	d->paramsApplied_ = false;
++	d->delayedControls_.reset(); d->sensorContexts_.clear(); d->lastSof_.reset(); d->ispControls_.clear();
++	d->restoreLinks();
++	if (active_ == d)
++		active_ = nullptr;
++	if (configured_ == d)
++		configured_ = nullptr;
++}
++
++int CamssVfePipeline::queueRequestDevice(Camera *camera, Request *request)
++{
++ auto *d = data(camera);
++ FrameBuffer *buffer = request->findBuffer(&d->stream_);
++
++ FrameBuffer *raw = request->findBuffer(&d->rawStream_);
++ if ((d->processedEnabled_ && !buffer) || (d->rawEnabled_ && !raw)) return -EINVAL;
++ if (!buffer) {if(d->freeImages_.empty())return -ENOBUFS;buffer=d->freeImages_.front();}
++ ControlList sensorControls(d->sensor_->controls());
++ if (!request->controls().empty()) {
++  int ret = d->ipa_->convertControls(d->epoch_, request->controls(), &sensorControls);
++  if (ret) return ret;
++ }
++ const bool isp = request->controls().contains(controls::AwbEnable.id()) || request->controls().contains(controls::ColourGains.id());
++ if (isp && !d->ispHealthy_) return -EPIPE;
++ if (!sensorControls.empty() && (!d->delayedControls_ || !d->sensorContextHealthy_)) return -ENOTSUP;
++ if ((!sensorControls.empty() && d->sensorUpdates_.size() >= 8) || (isp && d->ispControls_.size() >= 8)) return -ENOSPC;
++
++ d->requests_.emplace(request,CamssVfeData::PendingFrame{buffer,raw,false,!raw,false});
++ if (!d->processedEnabled_) {d->freeImages_.pop();d->internalRequests_[buffer]=request;}
++ int ret = d->image_->queueBuffer(buffer);
++ if (ret) {
++  d->requests_.erase(request);
++  if(!d->processedEnabled_){d->internalRequests_.erase(buffer);d->freeImages_.push(buffer);}
++  return ret;
++ }
++ if (raw) {
++  ret=d->raw_->queueBuffer(raw);
++  if(ret){auto &frame=d->requests_.at(request);frame.rawReady=true;frame.failed=true;
++   LOG(CamssVfe,Error)<<"RAW queue failed after PIX accepted request: "<<ret;}
++ }
++ {
++  if (!sensorControls.empty()) d->sensorUpdates_.push_back({ std::move(sensorControls), request->sequence() });
++  if (isp) { d->ispControls_.push_back({ request->controls(), request->sequence() }); d->submitStatistics(); }
++ }
++ return 0;
++}
++
++
++Request *CamssVfeData::imageRequest(FrameBuffer *buffer)
++{
++ auto it=internalRequests_.find(buffer);
++ return it==internalRequests_.end()?buffer->request():it->second;
++}
++
++void CamssVfeData::pixFrameStart(uint32_t sequence,uint64_t timestamp)
++{
++ if(!running_)return;
++ if(previousPixStart_ && timestamp>previousPixStart_)framePeriod_=timestamp-previousPixStart_;
++ previousPixStart_=timestamp;
++ pixStarts_[sequence]=timestamp;
++ while(pixStarts_.size()>128)pixStarts_.erase(pixStarts_.begin());
++ frameStart(sequence);
++ std::vector<Request *> pending;
++ for(const auto &[request,frame]:requests_)if(frame.imageFinished && frame.rawReady)pending.push_back(request);
++ for(Request *request:pending)tryComplete(request);
++}
++
++void CamssVfeData::rawFrameStart(uint32_t sequence,uint64_t timestamp)
++{
++ if(!running_)return;
++ rawStarts_[sequence]=timestamp;
++ while(rawStarts_.size()>128)rawStarts_.erase(rawStarts_.begin());
++ std::vector<Request *> pending;
++ for(const auto &[request,frame]:requests_)if(frame.imageFinished && frame.rawReady)pending.push_back(request);
++ for(Request *request:pending)tryComplete(request);
++}
++
++void CamssVfeData::rawReady(FrameBuffer *buffer)
++{
++ Request *request=buffer->request();
++ auto it=requests_.find(request);
++ if(it==requests_.end())return;
++ it->second.rawReady=true;
++ it->second.failed |= buffer->metadata().status!=FrameMetadata::FrameSuccess;
++ tryComplete(request);
++}
++
++void CamssVfeData::tryComplete(Request *request,bool timeout)
++{
++ auto it=requests_.find(request);
++ if(it==requests_.end())return;
++ PendingFrame &frame=it->second;
++ if(!frame.imageFinished || !frame.rawReady)return;
++ if(rawEnabled_ && !frame.failed && running_) {
++  const uint32_t imageSof=frame.image->_d()->kernelSequence(),rawSof=frame.raw->_d()->kernelSequence();
++  auto pix=pixStarts_.find(imageSof),raw=rawStarts_.find(rawSof);
++  if(pix==pixStarts_.end() || raw==rawStarts_.end()) {
++   if(!timeout){if(!deadline_.isRunning())deadline_.start(std::chrono::milliseconds(250));return;}
++   frame.failed=true;
++   LOG(CamssVfe,Warning)<<"Frame sync event missing request="<<request->sequence();
++  } else {
++   uint64_t delta=pix->second>raw->second?pix->second-raw->second:raw->second-pix->second;
++   const uint64_t tolerance=framePeriod_?std::min<uint64_t>(1000000,framePeriod_/8):1000000;
++   frame.failed=delta>tolerance;
++   LOG(CamssVfe,Info)<<"RawPair request="<<request->sequence()<<" pix-sof="<<imageSof<<" raw-sof="<<rawSof
++    <<" pix-start="<<pix->second<<" raw-start="<<raw->second<<" delta-ns="<<delta
++    <<" tolerance-ns="<<tolerance<<" matched="<<!frame.failed;
++  }
++ }
++ if(timeout || !running_)frame.failed=true;
++ FrameBuffer *image=frame.image,*raw=frame.raw;
++ if(frame.failed){image->_d()->metadata().status=FrameMetadata::FrameError;if(raw)raw->_d()->metadata().status=FrameMetadata::FrameError;}
++ requests_.erase(it);
++ if(processedEnabled_)handler()->completeBuffer(request,image);
++ else {internalRequests_.erase(image);freeImages_.push(image);}
++ if(raw)handler()->completeBuffer(request,raw);
++ handler()->completeRequest(request);
++ if(images_.empty() && requests_.empty())deadline_.stop();
++}
++
++void CamssVfeData::paramsReady(FrameBuffer *buffer)
++{
++	if (!running_) return;
++	parameterBusy_ = false;
++	if (buffer->metadata().status != FrameMetadata::FrameSuccess) {
++		ispHealthy_ = false;
++		LOG(CamssVfe, Error) << "ISP parameter buffer failed";
++		return;
++	}
++	paramsApplied_ = true;
++	firstParamSof_ = buffer->_d()->kernelSequence();
++	ipa_->parametersApplied(epoch_, firstParamSof_, parameterRevision_);
++	completeMissingStatistics();
++	submitStatistics();
++	LOG(CamssVfe, Info) << "Parameters epoch=" << epoch_ << " first-sof=" << firstParamSof_ << " revision=" << parameterRevision_;
++}
++
++void CamssVfeData::queueIspUpdate(const ipa::camss::AutoIspUpdate &update)
++{
++	if (!running_ || !ispHealthy_ || !update.valid) return;
++	if (parameterBusy_ || update.revision != lastIspRevision_ + 1 ||
++	    !std::isfinite(update.red) || !std::isfinite(update.blue) ||
++	    update.red < 0 || update.red > 8 || update.blue < 0 || update.blue > 8) {
++		ispHealthy_ = false;
++		LOG(CamssVfe, Error) << "Rejected ISP gain proposal";
++		return;
++	}
++	FrameBuffer *buffer = paramsBuffers_[0].get();
++	parameterBusy_ = true;
++	uint32_t used = 0;
++	int ret = ipa_->prepareParameters(epoch_, buffer->cookie(), update.revision, &used);
++	if (!ret) {
++		auto &metadata = buffer->_d()->metadata();
++		metadata.status = FrameMetadata::FrameSuccess;
++		metadata.planes()[0].bytesused = used;
++		ret = params_->queueBuffer(buffer);
++	}
++	if (ret) {
++		parameterBusy_ = false; ispHealthy_ = false;
++		LOG(CamssVfe, Error) << "ISP parameter queue failed: " << ret;
++		return;
++	}
++	parameterRevision_ = lastIspRevision_ = update.revision;
++	LOG(CamssVfe, Info) << "WB queue epoch=" << epoch_ << " revision=" << update.revision
++		<< " red=" << std::setprecision(17) << update.red << " blue=" << update.blue << " precision=17";
++}
++
++void CamssVfeData::frameStart(uint32_t sequence)
++{
++ if (!running_) return;
++ LOG(CamssVfe, Debug) << "SOF epoch=" << epoch_ << " sequence=" << sequence;
++ if ((!lastSof_ && sequence != 0) || (lastSof_ && sequence != *lastSof_ + 1) ||
++     sequence >= uint32_t(std::numeric_limits<int32_t>::max() - 4)) {
++  LOG(CamssVfe, Error) << "Sensor context lost SOF continuity at " << sequence;
++  sensorContextHealthy_ = false;
++ }
++ lastSof_ = sequence;
++ ipa::camss::SensorContext context = startupSensor_;
++ if (delayedControls_ && sensorContextHealthy_) {
++  ControlList update(sensor_->controls());
++  std::optional<uint32_t> source;
++  if (automatic_ && automaticUpdate_) {
++   update.set(V4L2_CID_EXPOSURE, int32_t(automaticUpdate_->exposureLines));
++   update.set(V4L2_CID_ANALOGUE_GAIN, int32_t(automaticUpdate_->gainCode));
++   source = automaticUpdate_->revision;
++   automaticUpdate_.reset();
++  } else if (!sensorUpdates_.empty()) {
++   update = sensorUpdates_.front().controls;
++   source = sensorUpdates_.front().source;
++   sensorUpdates_.pop_front();
++  }
++  if (!delayedControls_->push(update, source)) sensorContextHealthy_ = false;
++  if (sensorContextHealthy_) {
++   delayedControls_->applyControls(sequence);
++   uint32_t delay = std::max(sensorConfiguration_.exposureDelay, sensorConfiguration_.gainDelay);
++   ControlList expected = delayedControls_->get(sequence + delay);
++   const std::array<uint32_t, 2> ids{ V4L2_CID_EXPOSURE, V4L2_CID_ANALOGUE_GAIN };
++   ControlList actual = sensor_->getControls(ids);
++   for (uint32_t id : ids)
++    if (!actual.contains(id) || !expected.contains(id) || actual.get(id) != expected.get(id)) sensorContextHealthy_ = false;
++   uint32_t cookie;
++   ControlList effective = delayedControls_->get(sequence, &cookie);
++   if (!effective.contains(V4L2_CID_EXPOSURE) || !effective.contains(V4L2_CID_ANALOGUE_GAIN)) sensorContextHealthy_ = false;
++   else context = { sensorContextHealthy_, uint32_t(effective.get(V4L2_CID_EXPOSURE).get<int32_t>()),
++    uint32_t(effective.get(V4L2_CID_ANALOGUE_GAIN).get<int32_t>()), cookie };
++  }
++ }
++ context.valid = sensorContextHealthy_;
++ sensorContexts_[sequence] = context;
++ while (sensorContexts_.size() > 64) sensorContexts_.erase(sensorContexts_.begin());
++ LOG(CamssVfe, Info) << "SensorContext epoch=" << epoch_ << " sof=" << sequence << " valid=" << context.valid
++  << " exposure-lines=" << context.exposureLines << " gain-code=" << context.gainCode << " source=" << context.source;
++ submitStatistics();
++}
++
++
++void CamssVfeData::imageReady(FrameBuffer *buffer)
++{
++ Request *request=imageRequest(buffer);
++ if(!request || !requests_.count(request)) return;
++	if (!running_ || buffer->metadata().status != FrameMetadata::FrameSuccess) {
++
++  auto &frame=requests_.at(request);frame.imageFinished=true;frame.failed=true;
++  tryComplete(request);
++  return;
++	}
++	const uint32_t sequence = buffer->_d()->kernelSequence();
++	const int64_t offset = int64_t(sequence) - request->sequence();
++	if (imageSequenceOffset_ && *imageSequenceOffset_ != offset) {
++		LOG(CamssVfe, Info) << "Resynced image/request mapping old=" << *imageSequenceOffset_ << " new=" << offset;
++	}
++	// A missing image buffer does not invalidate the ISP parameter queue.
++	// Pending request controls use the refreshed mapping when they are submitted.
++	imageSequenceOffset_ = offset;
++	if (images_.count(sequence)) {
++		LOG(CamssVfe, Error) << "Duplicate image SOF " << sequence;
++		buffer->_d()->metadata().status = FrameMetadata::FrameError;
++
++  auto &frame=requests_.at(request);frame.imageFinished=true;frame.failed=true;
++  tryComplete(request);
++  return;
++	}
++	images_[sequence] = buffer;
++	if (histograms_.count(sequence))
++		finish(sequence, true);
++	else {
++		completeMissingStatistics();
++		if (images_.count(sequence) && !deadline_.isRunning()) deadline_.start(std::chrono::milliseconds(250));
++	}
++}
++
++void CamssVfeData::statsReady(FrameBuffer *buffer)
++{
++ if (!running_) return;
++ if (buffer->metadata().status != FrameMetadata::FrameSuccess) {
++  int ret = stats_->queueBuffer(buffer);
++  if (ret) LOG(CamssVfe, Error) << "Requeue error statistics failed: " << ret;
++  return;
++ }
++ uint32_t id = buffer->cookie();
++ if (pendingStats_.count(id)) {
++  LOG(CamssVfe, Error) << "Duplicate outstanding statistics buffer " << id;
++  return;
++ }
++ pendingStats_.emplace(id, PendingStats{ buffer->_d()->kernelSequence(), buffer, false });
++ newestStatsSof_=std::max(newestStatsSof_.value_or(0),buffer->_d()->kernelSequence());
++ completeMissingStatistics();
++ submitStatistics();
++}
++
++void CamssVfeData::completeMissingStatistics()
++{
++ if (!running_ || !paramsApplied_ || parameterBusy_ || !newestStatsSof_) return;
++ std::vector<uint32_t> missing;
++ for (const auto &[sequence,buffer]:images_) {
++  (void)buffer;
++  if (sequence>=*newestStatsSof_ || histograms_.count(sequence)) continue;
++  const bool pending=std::any_of(pendingStats_.begin(),pendingStats_.end(),
++   [sequence](const auto &entry){return entry.second.sof==sequence;});
++  if (!pending) missing.push_back(sequence);
++ }
++ // Ordered stats buffers have moved past these images; do not wait for a missing packet.
++ for (uint32_t sequence:missing) finish(sequence,false);
++}
++
++void CamssVfeData::submitStatistics()
++{
++ if (!running_ || !paramsApplied_ || parameterBusy_) return;
++ while (!ispControls_.empty()) {
++  // Parameters latch at the following SOF. Do not change an earlier request's image.
++  if (!imageSequenceOffset_ || !lastSof_ ||
++      int64_t(*lastSof_) + 1 < int64_t(ispControls_.front().source) + *imageSequenceOffset_) break;
++  if (std::any_of(pendingStats_.begin(), pendingStats_.end(), [](const auto &entry) { return entry.second.submitted; })) return;
++  auto &request = ispControls_.front();
++  ipa::camss::AutoIspUpdate update{};
++  int ret = ipa_->applyIspControls(epoch_, request.controls, &update);
++  if (ret == -EAGAIN) return;
++  if (ret) { ispHealthy_=false; LOG(CamssVfe, Error) << "Runtime WB control failed: " << ret; return; }
++  LOG(CamssVfe, Info) << "WB request epoch=" << epoch_ << " source=" << request.source << " revision=" << update.revision
++   << " awb=" << (request.controls.contains(controls::AwbEnable.id()) ? int(*request.controls.get(controls::AwbEnable)) : -1);
++  ispControls_.pop_front();
++  if (update.valid) { queueIspUpdate(update); return; }
++ }
++ /* No iterators cross a proxy call: a direct module may return immediately. */
++ std::vector<std::pair<uint32_t, uint32_t>> ready;
++ for (const auto &[id, pending] : pendingStats_)
++  if (!pending.submitted && lastSof_ && static_cast<int32_t>(*lastSof_ - pending.sof) >= 0) ready.emplace_back(pending.sof, id);
++ std::sort(ready.begin(), ready.end());
++ for (const auto &[sequence, id] : ready) {
++  if (parameterBusy_) return;
++  (void)sequence;
++  auto it = pendingStats_.find(id);
++  if (it == pendingStats_.end()) continue;
++  it->second.submitted = true;
++  const uint32_t sof = it->second.sof;
++  auto known = sensorContexts_.find(sof);
++  const ipa::camss::SensorContext context = known != sensorContexts_.end() ? known->second : ipa::camss::SensorContext{};
++  ipa_->processStats(epoch_, sof, id, it->second.buffer->metadata().planes()[0].bytesused, context);
++ }
++}
++
++void CamssVfeData::statsProcessed(uint64_t epoch, uint32_t sof, uint32_t id,
++ const ipa::camss::Statistics &statistics, const ControlList &metadata)
++{
++ if (!running_ || epoch != epoch_) return;
++ auto it = pendingStats_.find(id);
++ if (it == pendingStats_.end() || !it->second.submitted || it->second.sof != sof) return;
++ FrameBuffer *buffer = it->second.buffer;
++ const auto &update = statistics.automaticUpdate;
++ if (update.valid && automatic_ && sensorContextHealthy_) {
++  const auto &range = sensor_->controls();
++  const auto sampled=sensorContexts_.find(sof);
++  const auto current=sensorContexts_.find(lastSof_.value_or(0));
++  const bool sameContext=sampled!=sensorContexts_.end() && current!=sensorContexts_.end() &&
++   sampled->second.valid && current->second.valid &&
++   sampled->second.exposureLines==current->second.exposureLines &&
++   sampled->second.gainCode==current->second.gainCode && sampled->second.source==current->second.source;
++  bool valid = !statistics.status && statistics.parametersKnown && statistics.sensorControlsKnown && delayedControls_ &&
++   !automaticUpdate_ && update.revision == lastAutoRevision_ + 1 && update.revision < UINT32_MAX - 1 &&
++   lastSof_ && *lastSof_ >= sof && sameContext &&
++   update.exposureLines >= uint32_t(range.at(V4L2_CID_EXPOSURE).min().get<int32_t>()) &&
++   update.exposureLines <= uint32_t(range.at(V4L2_CID_EXPOSURE).max().get<int32_t>()) &&
++   update.gainCode >= uint32_t(range.at(V4L2_CID_ANALOGUE_GAIN).min().get<int32_t>()) &&
++   update.gainCode <= uint32_t(range.at(V4L2_CID_ANALOGUE_GAIN).max().get<int32_t>());
++  if (valid) {
++   automaticUpdate_ = update; lastAutoRevision_ = update.revision;
++   LOG(CamssVfe, Info) << "AE update epoch=" << epoch << " stats-sof=" << sof << " revision=" << update.revision
++    << " exposure-lines=" << update.exposureLines << " gain-code=" << update.gainCode;
++  } else {
++   sensorContextHealthy_ = false;
++   LOG(CamssVfe, Error) << "Rejected AE update; sensor context invalid until restart";
++  }
++ }
++ pendingStats_.erase(it);
++ if (!statistics.status && statistics.parametersKnown) queueIspUpdate(statistics.ispUpdate);
++ LOG(CamssVfe, Info) << "WB context epoch=" << epoch << " sof=" << sof << " revision=" << statistics.ispRevision
++  << " known=" << statistics.parametersKnown;
++ if (!statistics.status && statistics.population == uint64_t(input_.width / 2) * (input_.height / 2)) {
++  if (std::find(histogramOrder_.begin(), histogramOrder_.end(), sof) == histogramOrder_.end()) {
++   histogramOrder_.push_back(sof);
++   histograms_.emplace(sof, Histogram{ statistics.population, statistics.weightedSum, metadata });
++   if (images_.count(sof)) finish(sof, true);
++  }
++ } else {
++  LOG(CamssVfe, Warning) << "IPA rejected statistics epoch=" << epoch << " sof=" << sof << " status=" << statistics.status;
++ }
++ while (histogramOrder_.size() > 32) {
++  histograms_.erase(histogramOrder_.front()); histogramOrder_.pop_front();
++ }
++ int ret = stats_->queueBuffer(buffer);
++ if (ret) LOG(CamssVfe, Error) << "Requeue IPA statistics failed: " << ret;
++ submitStatistics();
++}
++
++void CamssVfeData::finish(uint32_t sequence, bool paired)
++{
++	auto it = images_.find(sequence);
++	if (it == images_.end())
++		return;
++	FrameBuffer *buffer = it->second;
++	Request *request = imageRequest(buffer);
++	images_.erase(it);
++ if(!request || !requests_.count(request))return;
++	if (paired) {
++		const Histogram &h = histograms_.at(sequence);
++		request->_d()->metadata().merge(h.metadata);
++		LOG(CamssVfe, Info) << "Pair epoch=" << epoch_ << " sof=" << sequence
++			<< " request=" << request->sequence() << " population=" << h.population
++			<< " mean=" << double(h.weightedSum) / h.population
++			<< " parameters-acknowledged=" << paramsApplied_;
++		histograms_.erase(sequence);
++	} else {
++		ControlList metadata(controls::controls);
++		auto context=sensorContexts_.find(sequence);
++		int ret=context==sensorContexts_.end()?-ENODATA:ipa_->frameMetadata(epoch_,sequence,context->second,&metadata);
++		if (!ret) {
++			request->_d()->metadata().merge(metadata);
++			LOG(CamssVfe, Info) << "Image controls recovered epoch=" << epoch_ << " sof=" << sequence << " request=" << request->sequence();
++		} else {
++			buffer->_d()->metadata().status=FrameMetadata::FrameError;
++			LOG(CamssVfe, Warning) << "Image controls unavailable epoch=" << epoch_ << " sof=" << sequence;
++		}
++	}
++ if (lensActive_ && running_) {
++  
++  StreamConfiguration focusConfig;focusConfig.pixelFormat=formats::NV12;focusConfig.size=output_;focusConfig.stride=outputStride_;
++  const auto score=measureFrameFocus(buffer,focusConfig);
++  const auto found=sensorContexts_.find(sequence);
++  const ipa::camss::SensorContext context=found==sensorContexts_.end()?ipa::camss::SensorContext{}:found->second;
++  ControlList metadata(controls::controls);ipa::camss::LensMove move{};
++  uint64_t captured=buffer->_d()->timestampMonotonic()?buffer->metadata().timestamp:0;
++  int ret=ipa_->processFocus(epoch_,sequence,request->controls(),score.has_value(),score.value_or(0),captured,context,&metadata,&move);
++  if (!ret) request->_d()->metadata().merge(metadata);
++  else LOG(CamssVfe,Error)<<"Focus frame failed: "<<ret;
++  if (move.valid) {
++   CameraLens *lens=sensor_->focusLens();
++   int result=lens?lens->setFocusPosition(move.position):-ENODEV;
++   timespec clock{};uint64_t now=clock_gettime(CLOCK_MONOTONIC,&clock)?0:uint64_t(clock.tv_sec)*1000000000+clock.tv_nsec;
++   LOG(CamssVfe,Info)<<"Focus command serial="<<move.serial<<" position="<<move.position<<" result="<<result<<" at="<<now;
++   ipa_->lensPositionApplied(epoch_,move.serial,result,now);
++  }
++ }
++	sensorContexts_.erase(sequence);
++	request->_d()->metadata().set(controls::SensorTimestamp, buffer->metadata().timestamp);
++
++ requests_.at(request).imageFinished=true;
++ if(buffer->metadata().status!=FrameMetadata::FrameSuccess)requests_.at(request).failed=true;
++ tryComplete(request);
++ if(images_.empty() && requests_.empty())deadline_.stop();
++}
++
++void CamssVfeData::expired()
++{
++	/* Missing statistics never leave an application request stuck forever. */
++
++ while (!images_.empty()) finish(images_.begin()->first,false);
++ std::vector<Request *> pending;
++ for(const auto &[request,frame]:requests_) if(frame.imageFinished && frame.rawReady) pending.push_back(request);
++ for(Request *request:pending) tryComplete(request,true);
++}
++
++bool CamssVfePipeline::match(DeviceEnumerator *enumerator)
++{
++	/* An explicit opt-out retains the generic simple handler for diagnostics. */
++	const char *enabled = utils::secure_getenv("LIBCAMERA_CAMSS_VFE_ENABLE");
++	if (enabled && !std::strcmp(enabled, "0"))
++		return false;
++	DeviceMatch dm("qcom-camss");
++	auto media = acquireMediaDevice(enumerator, dm);
++	if (!media)
++		return false;
++	/* Group by the PIX subdevice's adjacent nodes and metadata FourCCs. */
++	std::vector<CamssVfeData::Endpoint> endpoints;
++	for (MediaEntity *entity : media->entities()) {
++		if (entity->type() != MediaEntity::Type::V4L2Subdevice)
++			continue;
++		CamssVfeData::Endpoint endpoint{ nullptr, nullptr, nullptr, entity };
++		for (const MediaPad *pad : entity->pads()) {
++			for (MediaLink *link : pad->links()) {
++				MediaEntity *other = link->source()->entity() == entity
++					? link->sink()->entity() : link->source()->entity();
++				if (other->type() != MediaEntity::Type::V4L2VideoDevice)
++					continue;
++				V4L2VideoDevice device(other);
++				V4L2DeviceFormat format;
++				if (device.open() || device.getFormat(&format))
++					continue;
++				if (format.fourcc == V4L2PixelFormat(V4L2_META_FMT_QCOM_ISP_PARAMS))
++					endpoint.params = other;
++				else if (format.fourcc == V4L2PixelFormat(V4L2_META_FMT_QCOM_ISP_STATS))
++					endpoint.stats = other;
++				else if (device.formats().count(V4L2PixelFormat(V4L2_PIX_FMT_NV12)))
++					endpoint.image = other;
++			}
++		}
++		if (endpoint.image && endpoint.params && endpoint.stats)
++			endpoints.push_back(endpoint);
++	}
++	bool registered = false;
++	for (MediaEntity *entity : media->entities()) {
++		if (entity->function() != MEDIA_ENT_F_CAM_SENSOR)
++			continue;
++		for (const auto &endpoint : endpoints) {
++			auto d = std::make_unique<CamssVfeData>(this, media);
++			int ret = d->init(entity, endpoint);
++			if (ret) {
++				LOG(CamssVfe, Debug) << "Cannot initialize " << entity->name()
++					<< " through " << endpoint.pix->name() << ": " << ret;
++				continue;
++			}
++			std::set<Stream *> streams{ &d->stream_ };
++   if(d->raw_)streams.insert(&d->rawStream_);
++			std::string id = d->sensor_->id();
++			auto camera = Camera::create(std::move(d), id, streams);
++			registerCamera(std::move(camera));
++			registered = true;
++			break;
++		}
++	}
++	return registered;
++}
++
++REGISTER_PIPELINE_HANDLER(CamssVfePipeline, "camss-vfe")
++
++} /* namespace libcamera */
+--- /dev/null
++++ b/src/libcamera/pipeline/camss-vfe/hardware_focus.h
+@@ -0,0 +1,59 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++/* Bounded spatial focus measurement on the owned NV12 Y plane. */
++#pragma once
++#include <algorithm>
++#include <optional>
++#include <vector>
++#include <linux/dma-buf.h>
++#include <sys/ioctl.h>
++#include <libcamera/stream.h>
++#include "libcamera/internal/mapped_framebuffer.h"
++#include "libcamera/internal/software_isp/focus_stats.h"
++
++namespace libcamera {
++inline FocusStatistics measureLumaFocus(const uint8_t *data,size_t bytes,unsigned width,unsigned height,unsigned stride)
++{
++ FocusStatistics result;
++ if (!data || width<12 || height<12 || stride<width || uint64_t(height-1)*stride+width>bytes) return result;
++ const unsigned columns=std::min(320U,width/2),rows=std::min(240U,height/2);
++ std::vector<uint16_t> grid(size_t(columns)*rows),smooth(grid.size());
++ for (unsigned y=0;y<rows;++y) for (unsigned x=0;x<columns;++x) {
++  unsigned px=uint64_t(x)*(width-2)/(columns-1),py=uint64_t(y)*(height-2)/(rows-1);
++  uint32_t sum=data[size_t(py)*stride+px]+data[size_t(py)*stride+px+1]+data[size_t(py+1)*stride+px]+data[size_t(py+1)*stride+px+1];
++  grid[size_t(y)*columns+x]=sum*257/4;
++ }
++ for (unsigned y=1;y+1<rows;++y) for (unsigned x=1;x+1<columns;++x) {
++  uint32_t sum=0;
++  for (unsigned j=y-1;j<=y+1;++j) for (unsigned i=x-1;i<=x+1;++i) sum+=grid[size_t(j)*columns+i];
++  smooth[size_t(y)*columns+x]=sum/9;
++ }
++ for (unsigned y=2;y+2<rows;++y) for (unsigned x=2;x+2<columns;++x) {
++  uint16_t mean=smooth[size_t(y)*columns+x];
++  if (mean<1024 || mean>64512) continue;
++  int64_t dx=int64_t(smooth[size_t(y)*columns+x+1])-smooth[size_t(y)*columns+x-1];
++  int64_t dy=int64_t(smooth[size_t(y+1)*columns+x])-smooth[size_t(y-1)*columns+x];
++  auto &r=result.regions[(y*FocusStatistics::kRows/rows)*FocusStatistics::kColumns+x*FocusStatistics::kColumns/columns];
++  r.energy+=dx*dx+dy*dy;r.sum+=mean;++r.samples;
++ }
++ result.valid=true;
++ return result;
++}
++
++inline std::optional<int32_t> measureFrameFocus(FrameBuffer *buffer,const StreamConfiguration &configuration)
++{
++ if (buffer->planes().empty() || buffer->metadata().planes().empty()) return std::nullopt;
++ const auto &plane=buffer->planes()[0];
++ dma_buf_sync sync{DMA_BUF_SYNC_START|DMA_BUF_SYNC_READ};
++ if (ioctl(plane.fd.get(),DMA_BUF_IOCTL_SYNC,&sync)) return std::nullopt;
++ std::optional<int32_t> score;
++ {
++  MappedFrameBuffer mapped(buffer,MappedFrameBuffer::MapFlag::Read);
++  if (mapped.isValid() && !mapped.planes().empty())
++   score=measureLumaFocus(mapped.planes()[0].data(),std::min<size_t>(mapped.planes()[0].size(),buffer->metadata().planes()[0].bytesused),
++                          configuration.size.width,configuration.size.height,configuration.stride).figureOfMerit();
++ }
++ sync.flags=DMA_BUF_SYNC_END|DMA_BUF_SYNC_READ;
++ if (ioctl(plane.fd.get(),DMA_BUF_IOCTL_SYNC,&sync)) return std::nullopt;
++ return score;
++}
++}
+--- /dev/null
++++ b/src/libcamera/pipeline/camss-vfe/meson.build
+@@ -0,0 +1,2 @@
++# SPDX-License-Identifier: CC0-1.0
++libcamera_internal_sources += files('camss_vfe.cpp')
+--- /dev/null
++++ b/src/ipa/camss-vfe/camss.cpp
+@@ -0,0 +1,632 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++/* CAMSS inline hardware IPA: explicit manual tuning and validated BHIST. */
++#include <array>
++#include <algorithm>
++#include <cmath>
++#include <limits>
++#include <linux/videodev2.h>
++#include <cerrno>
++#include <cstring>
++#include <map>
++#include <optional>
++#include <unistd.h>
++#include <time.h>
++#include "../libipa/contrast_af.h"
++
++#include <linux/qcom-camss-config.h>
++#include <libcamera/base/file.h>
++#include <libcamera/base/log.h>
++#include <libcamera/control_ids.h>
++#include <libcamera/ipa/camss_ipa_interface.h>
++#include <libcamera/ipa/ipa_module_info.h>
++#include "libcamera/internal/mapped_framebuffer.h"
++#include "libcamera/internal/yaml_parser.h"
++#include "parameter_encoder.h"
++#include "../libipa/camera_sensor_helper.h"
++#include "hardware_agc.h"
++#include "hardware_awb.h"
++#include "statistics.h"
++
++namespace libcamera::ipa::camss {
++
++LOG_DEFINE_CATEGORY(IPACamss)
++
++class IPACamss final : public IPACamssInterface
++{
++public:
++	int init(const IPASettings &settings, const IPACameraSensorInfo &info, const ControlInfoMap &sensorControls, const ControlInfoMap &lensControls, const std::string &lensModel, ControlInfoMap *ipaControls) override;
++	int configure(const IPACameraSensorInfo &sensorInfo, const Size &input, const ControlInfoMap &sensorControls, const std::string &profilePath, ControlInfoMap *ipaControls, SensorControlConfiguration *sensorConfiguration) override;
++	int mapBuffers(const std::vector<IPABuffer> &parameters, const std::vector<IPABuffer> &statistics) override;
++	void unmapBuffers(const std::vector<uint32_t> &ids) override;
++	int start(uint64_t epoch, const ControlList &controls, ControlList *sensorControls) override;
++	int convertControls(uint64_t epoch, const ControlList &controls, ControlList *sensorControls) override;
++	int applyIspControls(uint64_t epoch, const ControlList &controls, AutoIspUpdate *update) override;
++	int frameMetadata(uint64_t epoch, uint32_t sof, const SensorContext &sensorContext, ControlList *metadata) override;
++ int processFocus(uint64_t epoch,uint32_t sof,const ControlList &controls,bool valid,int32_t score,
++                  uint64_t captured,const SensorContext &sensorContext,ControlList *metadata,LensMove *move) override;
++ void lensPositionApplied(uint64_t epoch,uint32_t serial,int32_t status,uint64_t monotonic) override;
++	void stop() override;
++	int prepareParameters(uint64_t epoch, uint32_t id, uint32_t revision, uint32_t *bytesused) override;
++	void parametersApplied(uint64_t epoch, uint32_t firstSof, uint32_t revision) override;
++	void processStats(uint64_t epoch, uint32_t sof, uint32_t id, uint32_t bytesused, const SensorContext &sensorContext) override;
++private:
++ int describeSensor(const IPACameraSensorInfo &info, const ControlInfoMap &controls, ControlInfoMap *ipaControls);
++ int translate(const ControlList &controls, bool startup, ControlList *sensorControls);
++ int configureAutofocus(const ValueNode &tuning,ControlInfoMap *ipaControls);
++ ipa::ContrastAf af_;
++ bool afEnabled_=false;
++ std::optional<ControlInfo> focusControl_;
++ std::string lensModel_;
++ std::optional<int32_t> initialAfTrigger_;
++ uint32_t frameLength_=0;
++ std::unique_ptr<CameraSensorHelper> helper_;
++ std::unique_ptr<HardwareAgc> agc_;
++	std::unique_ptr<HardwareAwb> awb_;
++	bool awbEnabled_ = false;
++	uint32_t ispRevision_ = 0;
++	std::optional<AutoIspUpdate> pendingWhiteBalance_;
++	struct ParameterContext { uint32_t revision; double red, blue; bool awbEnabled; double sourceRed, sourceBlue; };
++	std::map<uint32_t, ParameterContext> preparedParameters_, parameterHistory_;
++ bool automatic_ = false;
++ uint32_t revision_ = 0;
++ std::optional<AutoSensorUpdate> awaiting_;
++ bool autoAvailable_ = false;
++ ControlInfoMap sensorControls_;
++ double lineUs_ = 0;
++ int32_t minLines_ = 0, maxLines_ = 0, minGainCode_ = 0, maxGainCode_ = 0;
++ int32_t minExposure_ = 0, maxExposure_ = 0;
++ double minGain_ = 1, maxGain_ = 1;
++	struct Buffer {
++		bool parameters;
++		std::unique_ptr<MappedFrameBuffer> memory;
++	};
++	std::map<uint32_t, Buffer> buffers_;
++	ResidualBlackProfile profile_{ 0, 1.0 };
++	std::string model_;
++	Size input_;
++	bool configured_ = false, running_ = false, applied_ = false, effective_ = false;
++	uint64_t epoch_ = 0;
++	uint32_t firstSof_ = 0;
++	std::optional<uint32_t> lastStats_;
++	double red_ = 1, blue_ = 1;
++};
++
++int IPACamss::describeSensor(const IPACameraSensorInfo &info, const ControlInfoMap &sensorControls, ControlInfoMap *ipaControls)
++{
++ if (!helper_ || !ipaControls || !info.pixelRate || !info.minLineLength ||
++     info.minLineLength != info.maxLineLength) return -EINVAL;
++ auto exposure = sensorControls.find(V4L2_CID_EXPOSURE);
++ auto gain = sensorControls.find(V4L2_CID_ANALOGUE_GAIN);
++ if (exposure == sensorControls.end() || gain == sensorControls.end()) return -ENOTSUP;
++ const ControlInfo &e = exposure->second, &g = gain->second;
++ minLines_ = e.min().get<int32_t>(); maxLines_ = e.max().get<int32_t>();
++ minGainCode_ = g.min().get<int32_t>(); maxGainCode_ = g.max().get<int32_t>();
++ lineUs_ = double(info.minLineLength) * 1000000 / info.pixelRate;
++ if (minLines_ <= 0 || maxLines_ < minLines_ || minGainCode_ < 0 || maxGainCode_ < minGainCode_ ||
++     !std::isfinite(lineUs_) || lineUs_ <= 0 || maxLines_ * lineUs_ > std::numeric_limits<int32_t>::max()) return -ERANGE;
++ minExposure_ = std::lround(minLines_ * lineUs_); maxExposure_ = std::lround(maxLines_ * lineUs_);
++ minGain_ = helper_->gain(minGainCode_); maxGain_ = helper_->gain(maxGainCode_);
++ if (!std::isfinite(minGain_) || !std::isfinite(maxGain_) || minGain_ <= 0 || maxGain_ < minGain_) return -ERANGE;
++ sensorControls_ = sensorControls;
++ *ipaControls = ControlInfoMap({
++  { &controls::ColourGains, ControlInfo(0.0f, 8.0f, 1.0f) },
++  { &controls::AwbEnable, ControlInfo(false, false, false) },
++  { &controls::ExposureTimeMode, ControlInfo(std::vector<ControlValue>{int32_t(controls::ExposureTimeModeManual)}) },
++  { &controls::AnalogueGainMode, ControlInfo(std::vector<ControlValue>{int32_t(controls::AnalogueGainModeManual)}) },
++  { &controls::ExposureTime, ControlInfo(minExposure_, maxExposure_, int32_t(std::lround(e.def().get<int32_t>() * lineUs_))) },
++  { &controls::AnalogueGain, ControlInfo(float(minGain_), float(maxGain_), float(helper_->gain(g.def().get<int32_t>()))) }
++ }, controls::controls);
++ return 0;
++}
++
++int IPACamss::init(const IPASettings &settings, const IPACameraSensorInfo &info,
++ const ControlInfoMap &sensorControls,const ControlInfoMap &lensControls,const std::string &lensModel,ControlInfoMap *ipaControls)
++{
++ if (running_) return -EBUSY;
++ model_ = settings.sensorModel;
++ if (info.model != model_) return -EINVAL;
++ /* The proxy resets V4L2 ControlIds at configure(); retain values only. */
++ const auto focus=lensControls.find(V4L2_CID_FOCUS_ABSOLUTE);
++ focusControl_=focus==lensControls.end()?std::nullopt:std::optional<ControlInfo>(focus->second);
++ lensModel_=lensModel;afEnabled_=false;
++ helper_ = CameraSensorHelperFactoryBase::create(model_);
++ if (!helper_) return -ENOTSUP;
++ int ret = describeSensor(info, sensorControls, ipaControls);
++ if (ret) return ret;
++ configured_ = false;
++ agc_.reset(); awb_.reset(); autoAvailable_ = false;
++ if (!settings.configurationFile.empty()) {
++  File file(settings.configurationFile);
++  if (!file.open(File::OpenModeFlag::ReadOnly)) return file.error();
++  auto root=YamlParser::parse(file);
++  if (!root || (*root)["sensor_model"].get<std::string>("")!=model_) return -EINVAL;
++  ret=configureAutofocus((*root)["autofocus"],ipaControls);
++  if (ret) return ret;
++ }
++ LOG(IPACamss, Info) << "IPA init pid=" << getpid() << " model=" << model_;
++ return 0;
++}
++
++int IPACamss::configureAutofocus(const ValueNode &tuning,ControlInfoMap *ipaControls)
++{
++ afEnabled_=false;af_.cancel();
++ LOG(IPACamss,Debug)<<"AF configuration lens="<<lensModel_<<" tuning="<<tuning["lens"].get<std::string>("")<<" focus-control="<<focusControl_.has_value();
++ if (!tuning || lensModel_.empty() || tuning["lens"].get<std::string>("")!=lensModel_) return 0;
++ if (!focusControl_) return 0;
++ ipa::ContrastAf::Config config{
++  tuning["minimumCode"].get<int32_t>(-1),tuning["maximumCode"].get<int32_t>(-1),
++  tuning["coarseStep"].get<int32_t>(0),tuning["fineStep"].get<int32_t>(0),tuning["samples"].get<unsigned int>(3),
++  uint64_t(tuning["settleMs"].get<unsigned int>(100))*1000000,
++  uint64_t(tuning["timeoutMs"].get<unsigned int>(120000))*1000000,
++  tuning["minimumPeak"].get<int32_t>(100),tuning["peakRatio"].get<double>(1.15),tuning["verifyRatio"].get<double>(.75)};
++ if (config.minimum<focusControl_->min().get<int32_t>() || config.maximum>focusControl_->max().get<int32_t>() || !af_.configure(config)) return -EINVAL;
++ afEnabled_=true;
++ ControlInfoMap::Map map;
++ for (const auto &[id,value]:*ipaControls) map.emplace(id,value);
++ map[&controls::AfMode]=ControlInfo(int32_t(controls::AfModeAuto),int32_t(controls::AfModeAuto),int32_t(controls::AfModeAuto));
++ map[&controls::AfTrigger]=ControlInfo(int32_t(controls::AfTriggerStart),int32_t(controls::AfTriggerCancel),int32_t(controls::AfTriggerCancel));
++ map[&controls::AfState]=ControlInfo(int32_t(controls::AfStateIdle),int32_t(controls::AfStateFailed),int32_t(controls::AfStateIdle));
++ *ipaControls=ControlInfoMap(std::move(map),controls::controls);
++ LOG(IPACamss,Debug)<<"AF enabled controls="<<ipaControls->size();
++ return 0;
++}
++
++int IPACamss::configure(const IPACameraSensorInfo &info, const Size &input,
++ const ControlInfoMap &sensorControls, const std::string &profilePath,
++ ControlInfoMap *ipaControls, SensorControlConfiguration *sensorConfiguration)
++{
++ if (running_) return -EBUSY;
++ configured_ = false;
++ agc_.reset(); awb_.reset(); autoAvailable_ = false;
++ if (!sensorConfiguration) return -EINVAL;
++ *sensorConfiguration = {};
++ if (info.model != model_ || info.outputSize != input || info.bitsPerPixel != 10 ||
++     input.width < 4 || input.height < 2 || ((input.width | input.height) & 1)) return -EINVAL;
++ int ret = describeSensor(info, sensorControls, ipaControls);
++ if (ret) return ret;
++ profile_ = { 0, 1.0 };
++ afEnabled_=false;af_.cancel();frameLength_=info.minFrameLength;
++ if (!profilePath.empty()) {
++  File file(profilePath);
++  if (!file.open(File::OpenModeFlag::ReadOnly)) return file.error();
++  auto root = YamlParser::parse(file);
++  if (!root || (*root)["sensor_model"].get<std::string>().value_or("") != model_) return -EINVAL;
++  const unsigned int version=(*root)["version"].get<unsigned int>().value_or(0);
++  const ValueNode *selected=root.get();
++  if (version==2) {
++   const auto &modes=(*root)["modes"];
++   if (!modes.isList()) return -EINVAL;
++   selected=nullptr;
++   for (const auto &mode:modes.asList()) {
++    const auto &match=mode["match"];
++    if (!mode.isDictionary() || !match.isDictionary()) return -EINVAL;
++    if (match["width"].get<unsigned int>().value_or(0)!=input.width ||
++        match["height"].get<unsigned int>().value_or(0)!=input.height ||
++        match["pixel_rate"].get<unsigned int>().value_or(0)!=info.pixelRate ||
++        match["line_length"].get<unsigned int>().value_or(0)!=info.minLineLength ||
++        match["frame_length"].get<unsigned int>().value_or(0)!=info.minFrameLength) continue;
++    if (selected) return -EINVAL;
++    selected=&mode;
++   }
++   if (!selected) return -ENOTSUP;
++  } else if (version!=1) return -EINVAL;
++  const ValueNode &tuning=*selected;
++  ret=configureAutofocus(tuning["autofocus"].isEmpty()?(*root)["autofocus"]:tuning["autofocus"],ipaControls);
++  if (ret) return ret;
++  auto subtraction = tuning["residual_black_subtraction"].get<uint16_t>();
++  auto normalization = tuning["range_normalization"].get<double>();
++  if (!subtraction || !normalization) return -EINVAL;
++  profile_ = { *subtraction, *normalization };
++  const auto &awb = tuning["awb"];
++  if (!awb.isEmpty()) {
++   auto candidate = std::make_unique<HardwareAwb>();
++   if (!awb.isDictionary() || candidate->initialise(awb)) return -EINVAL;
++   awb_ = std::move(candidate);
++   ControlInfoMap::Map map;
++   for (const auto &[id, value] : *ipaControls) map.emplace(id, value);
++   map[&controls::AwbEnable] = ControlInfo(false, true, true);
++   *ipaControls = ControlInfoMap(std::move(map), controls::controls);
++  }
++  const auto &timing = tuning["sensor_controls"];
++  if (!timing.isEmpty()) {
++   if (!timing.isDictionary()) return -EINVAL;
++   if (timing["width"].get<unsigned int>().value_or(0) != input.width ||
++       timing["height"].get<unsigned int>().value_or(0) != input.height ||
++       timing["pixel_rate"].get<unsigned int>().value_or(0) != info.pixelRate ||
++       timing["line_length"].get<unsigned int>().value_or(0) != info.minLineLength ||
++       timing["frame_length"].get<unsigned int>().value_or(0) != info.minFrameLength) return -EINVAL;
++   auto exposureDelay = timing["exposure_delay"].get<unsigned int>();
++   auto gainDelay = timing["gain_delay"].get<unsigned int>();
++   if (!exposureDelay || !gainDelay || *exposureDelay != *gainDelay ||
++       !*exposureDelay || *exposureDelay > 4) return -EINVAL;
++   *sensorConfiguration = { true, *exposureDelay, *gainDelay };
++  }
++  const auto &agc = tuning["agc"];
++  if (!agc.isEmpty()) {
++   if (!sensorConfiguration->enabled || !agc.isDictionary()) return -EINVAL;
++   auto candidate = std::make_unique<HardwareAgc>();
++   ret = candidate->initialise(agc, lineUs_, minLines_, maxLines_, minGain_, maxGain_, helper_.get());
++   if (ret) return ret;
++   agc_ = std::move(candidate);
++   autoAvailable_ = true;
++   ControlInfoMap::Map map;
++   for (const auto &[id, value] : *ipaControls) map.emplace(id, value);
++   map[&controls::ExposureTimeMode] = ControlInfo(std::vector<ControlValue>{
++    int32_t(controls::ExposureTimeModeAuto), int32_t(controls::ExposureTimeModeManual)}, int32_t(controls::ExposureTimeModeAuto));
++   map[&controls::AnalogueGainMode] = ControlInfo(std::vector<ControlValue>{
++    int32_t(controls::AnalogueGainModeAuto), int32_t(controls::AnalogueGainModeManual)}, int32_t(controls::AnalogueGainModeAuto));
++   *ipaControls = ControlInfoMap(std::move(map), controls::controls);
++  }
++ }
++ input_ = input; configured_ = true;
++ LOG(IPACamss, Info) << "Sensor configuration model=" << model_ << " pixel-rate=" << info.pixelRate
++  << " line-length=" << info.minLineLength << " frame-length=" << info.minFrameLength
++  << " delayed-controls=" << sensorConfiguration->enabled;
++ return 0;
++}
++
++int IPACamss::translate(const ControlList &controls, bool startup, ControlList *sensorControls)
++{
++ if (!sensorControls) return -EINVAL;
++ ControlList translated(sensorControls_);
++ for (const auto &[id, value] : controls) {
++  if (id==libcamera::controls::AfMode.id() || id==libcamera::controls::AfTrigger.id()) {
++   if (!afEnabled_) return -ENOTSUP;
++   if (value.type()!=ControlTypeInteger32 || value.isArray()) return -EINVAL;
++   if (id==libcamera::controls::AfMode.id() && value.get<int32_t>()!=libcamera::controls::AfModeAuto) return -ENOTSUP;
++   if (id==libcamera::controls::AfTrigger.id() && value.get<int32_t>()!=libcamera::controls::AfTriggerStart && value.get<int32_t>()!=libcamera::controls::AfTriggerCancel) return -ENOTSUP;
++   continue;
++  }
++  if (id == controls::ColourGains.id()) {
++   if (value.type() != ControlTypeFloat || !value.isArray() || value.numElements() != 2) return -EINVAL;
++   for (float gain : value.get<Span<const float>>())
++    if (!std::isfinite(gain) || gain < 0 || gain > 8) return -ERANGE;
++   continue;
++  }
++  if (id == controls::AwbEnable.id()) {
++   if (value.type() != ControlTypeBool || value.isArray()) return -EINVAL;
++   if (value.get<bool>() && !awb_) return -ENOTSUP;
++   continue;
++  }
++  if (id == controls::ExposureTimeMode.id() || id == controls::AnalogueGainMode.id()) {
++   if (value.type() != ControlTypeInteger32 || value.isArray()) return -EINVAL;
++   const int32_t wanted = id == controls::ExposureTimeMode.id() ? int32_t(controls::ExposureTimeModeManual) : int32_t(controls::AnalogueGainModeManual);
++   if (!startup && value.get<int32_t>() != wanted) return -ENOTSUP;
++   const int32_t autoMode = id == controls::ExposureTimeMode.id() ? int32_t(controls::ExposureTimeModeAuto) : int32_t(controls::AnalogueGainModeAuto);
++   if (startup && value.get<int32_t>() != wanted && value.get<int32_t>() != autoMode) return -ENOTSUP;
++   continue;
++  }
++  if (id == controls::ExposureTime.id()) {
++   if (value.type() != ControlTypeInteger32 || value.isArray()) return -EINVAL;
++   int32_t time = value.get<int32_t>();
++   if (time < minExposure_ || time > maxExposure_) return -ERANGE;
++   int32_t lines = std::clamp<int64_t>(std::llround(time / lineUs_), minLines_, maxLines_);
++   translated.set(V4L2_CID_EXPOSURE, lines);
++  } else if (id == controls::AnalogueGain.id()) {
++   if (value.type() != ControlTypeFloat || value.isArray()) return -EINVAL;
++   float gain = value.get<float>();
++   if (!std::isfinite(gain) || gain < minGain_ || gain > maxGain_) return -ERANGE;
++   int32_t code = std::clamp<int64_t>(helper_->gainCode(gain), minGainCode_, maxGainCode_);
++   translated.set(V4L2_CID_ANALOGUE_GAIN, code);
++  } else return -EINVAL;
++ }
++ *sensorControls = translated;
++ return 0;
++}
++
++int IPACamss::convertControls(uint64_t epoch, const ControlList &controls, ControlList *sensorControls)
++{
++ if (!running_ || epoch != epoch_) return -ESTALE;
++ ControlList sensorOnly(libcamera::controls::controls);
++ for (const auto &[id, value] : controls)
++  if (id != libcamera::controls::ColourGains.id() && id != libcamera::controls::AwbEnable.id() && id!=libcamera::controls::AfMode.id() && id!=libcamera::controls::AfTrigger.id()) sensorOnly.set(id,value);
++ ControlList ignored(sensorControls_);
++ int ret = translate(controls, true, &ignored);
++ if (ret) return ret;
++ if (automatic_ && !sensorOnly.empty()) return -ENOTSUP;
++ return translate(sensorOnly, false, sensorControls);
++}
++
++int IPACamss::applyIspControls(uint64_t epoch, const ControlList &controls, AutoIspUpdate *update)
++{
++ if (!update) return -EINVAL;
++ *update = {};
++ if (!running_ || epoch != epoch_) return -ESTALE;
++ if (pendingWhiteBalance_ || !preparedParameters_.empty() || parameterHistory_.empty()) return -EAGAIN;
++ ControlList ignored(sensorControls_);
++ int ret = translate(controls, true, &ignored);
++ if (ret) return ret;
++ const auto &current = parameterHistory_.rbegin()->second;
++ const bool enabled = controls.get(libcamera::controls::AwbEnable).value_or(awbEnabled_);
++ double red = current.sourceRed, blue = current.sourceBlue;
++ if (!enabled) {
++  auto gains = controls.get(libcamera::controls::ColourGains);
++  if (gains) { red=(*gains)[0];blue=(*gains)[1]; }
++ }
++ if (enabled == current.awbEnabled && red == current.sourceRed && blue == current.sourceBlue) return 0;
++ if (ispRevision_ >= UINT32_MAX-1) return -EOVERFLOW;
++ af_.cancelScan();
++ awbEnabled_ = enabled;
++ if (awb_) awb_->reset();
++ pendingWhiteBalance_ = AutoIspUpdate{ true, ++ispRevision_, red, blue };
++ *update = *pendingWhiteBalance_;
++ return 0;
++}
++
++int IPACamss::frameMetadata(uint64_t epoch, uint32_t sof, const SensorContext &sensorContext, ControlList *metadata)
++{
++ if (!metadata) return -EINVAL;
++ *metadata=ControlList(controls::controls);
++ if (!running_ || epoch!=epoch_) return -ESTALE;
++ auto context=parameterHistory_.upper_bound(sof);
++ if (context==parameterHistory_.begin()) return -ENODATA;
++ --context;
++ if (!sensorContext.valid || sensorContext.exposureLines<uint32_t(minLines_) ||
++     sensorContext.exposureLines>uint32_t(maxLines_) || sensorContext.gainCode<uint32_t(minGainCode_) ||
++     sensorContext.gainCode>uint32_t(maxGainCode_)) return -ENODATA;
++ const std::array<float,2> gains{float(context->second.red),float(context->second.blue)};
++ metadata->set(controls::ColourGains,Span<const float,2>(gains));
++ metadata->set(controls::AwbEnable,context->second.awbEnabled);
++ metadata->set(controls::AwbLocked,false);
++ metadata->set(controls::ExposureTimeMode,int32_t(automatic_?controls::ExposureTimeModeAuto:controls::ExposureTimeModeManual));
++ metadata->set(controls::AnalogueGainMode,int32_t(automatic_?controls::AnalogueGainModeAuto:controls::AnalogueGainModeManual));
++ metadata->set(controls::ExposureTime,int32_t(std::lround(sensorContext.exposureLines*lineUs_)));
++ metadata->set(controls::AnalogueGain,float(helper_->gain(sensorContext.gainCode)));
++ return 0;
++}
++
++int IPACamss::processFocus(uint64_t epoch,uint32_t sof,const ControlList &controls,bool valid,int32_t score,
++                         uint64_t captured,const SensorContext &sensorContext,ControlList *metadata,LensMove *move)
++{
++ if (!metadata || !move) return -EINVAL;
++ *metadata=ControlList(libcamera::controls::controls);*move={};
++ if (!running_ || epoch!=epoch_) return -ESTALE;
++ if (!afEnabled_) return -ENOTSUP;
++ timespec clock{};uint64_t now=clock_gettime(CLOCK_MONOTONIC,&clock)?0:uint64_t(clock.tv_sec)*1000000000+clock.tv_nsec;
++ auto trigger=controls.get(libcamera::controls::AfTrigger);
++ if (initialAfTrigger_) { if (!trigger) trigger=initialAfTrigger_;initialAfTrigger_.reset(); }
++ if (trigger && *trigger==libcamera::controls::AfTriggerCancel) af_.cancelScan();
++ else if (trigger && *trigger==libcamera::controls::AfTriggerStart) af_.trigger(now);
++ const uint64_t guard=std::ceil((uint64_t(frameLength_)+sensorContext.exposureLines)*lineUs_*1000);
++ af_.process(valid && sensorContext.valid,score,captured,guard,now);
++ if (auto command=af_.takeMove(now)) *move={true,command->serial,command->position};
++ if (valid) metadata->set(libcamera::controls::FocusFoM,score);
++ metadata->set(libcamera::controls::AfMode,libcamera::controls::AfModeAuto);
++ metadata->set(libcamera::controls::AfState,int32_t(af_.state()));
++ LOG(IPACamss,Info)<<"AF frame sof="<<sof<<" captured="<<captured<<" guard="<<guard<<" now="<<now<<" valid="<<valid<<" score="<<score<<" state="<<int(af_.state());
++ return 0;
++}
++
++void IPACamss::lensPositionApplied(uint64_t epoch,uint32_t serial,int32_t status,uint64_t monotonic)
++{
++ if (running_ && epoch==epoch_) af_.applied(serial,status,monotonic);
++}
++
++int IPACamss::mapBuffers(const std::vector<IPABuffer> &parameters, const std::vector<IPABuffer> &statistics)
++{
++	if (running_)
++		return -EBUSY;
++	std::map<uint32_t, Buffer> pending;
++	for (bool output : { true, false }) {
++		for (const IPABuffer &buffer : output ? parameters : statistics) {
++			if (!buffer.id || buffer.planes.size() != 1 ||
++			    pending.count(buffer.id) || buffers_.count(buffer.id))
++				return -EINVAL;
++			FrameBuffer frame(buffer.planes);
++			auto mapped = std::make_unique<MappedFrameBuffer>(&frame, output
++				? MappedFrameBuffer::MapFlag::ReadWrite : MappedFrameBuffer::MapFlag::Read);
++			if (!mapped->isValid())
++				return mapped->error();
++			const size_t required = sizeof(v4l2_isp_buffer) + (output
++				? sizeof(camss_params_wb_gain) + sizeof(camss_params_aec_bhist) : sizeof(camss_stats_bhist));
++			if (mapped->planes()[0].size() < required)
++				return -ENOSPC;
++			pending.emplace(buffer.id, Buffer{ output, std::move(mapped) });
++		}
++	}
++	buffers_.merge(pending);
++	return 0;
++}
++
++void IPACamss::unmapBuffers(const std::vector<uint32_t> &ids)
++{
++	/* Pipeline first stops the IPA and all V4L2 queues. */
++	if (running_)
++		return;
++	for (uint32_t id : ids)
++		buffers_.erase(id);
++}
++
++int IPACamss::start(uint64_t epoch, const ControlList &controls, ControlList *sensorControls)
++{
++	if (running_)
++		return -EBUSY;
++	if (!configured_ || !epoch || epoch <= epoch_)
++		return -EINVAL;
++ if (!sensorControls) return -EINVAL;
++ ControlList initial(sensorControls_);
++ int translated = translate(controls, true, &initial);
++ if (translated) return translated;
++ const int32_t exposureMode = controls.get(controls::ExposureTimeMode).value_or(autoAvailable_ ? controls::ExposureTimeModeAuto : controls::ExposureTimeModeManual);
++ const int32_t gainMode = controls.get(controls::AnalogueGainMode).value_or(autoAvailable_ ? controls::AnalogueGainModeAuto : controls::AnalogueGainModeManual);
++ const bool automatic = exposureMode == controls::ExposureTimeModeAuto && gainMode == controls::AnalogueGainModeAuto;
++ const bool manual = exposureMode == controls::ExposureTimeModeManual && gainMode == controls::AnalogueGainModeManual;
++ if ((!automatic && !manual) || (automatic && !autoAvailable_)) return -ENOTSUP;
++	const bool awbEnabled = controls.get(controls::AwbEnable).value_or(bool(awb_));
++	if (awbEnabled && !awb_) return -ENOTSUP;
++	double red = 1, blue = 1;
++	for (const auto &[id, value] : controls) {
++		if (id != controls::ColourGains.id())
++			continue;
++		if (value.type() != ControlTypeFloat || !value.isArray() || value.numElements() != 2)
++			return -EINVAL;
++		auto gains = value.get<Span<const float>>();
++		if (gains.size() != 2)
++			return -EINVAL;
++		red = gains[0]; blue = gains[1];
++	}
++	alignas(8) std::array<uint8_t, sizeof(v4l2_isp_buffer) + sizeof(camss_params_wb_gain) + sizeof(camss_params_aec_bhist)> packet;
++	size_t used;
++	int ret = encodeParameters(packet, profile_, red, blue, input_, Rectangle(input_), &used);
++	if (ret)
++		return ret;
++ *sensorControls = initial;
++ af_.cancel();initialAfTrigger_=controls.get(libcamera::controls::AfTrigger);
++ automatic_ = automatic;
++ revision_ = 0;
++ awaiting_.reset();
++ if (agc_) agc_->resetFrameCount();
++ epoch_ = epoch;
++	red_ = red; blue_ = blue;
++	awbEnabled_ = awbEnabled;
++	ispRevision_ = 0;
++	pendingWhiteBalance_.reset();
++	preparedParameters_.clear(); parameterHistory_.clear();
++	if (awb_) awb_->reset();
++	applied_ = effective_ = false;
++	lastStats_.reset();
++	running_ = true;
++	return 0;
++}
++
++void IPACamss::stop()
++{
++	running_ = false;af_.cancel();initialAfTrigger_.reset();
++ automatic_ = false; awaiting_.reset();
++	awbEnabled_ = false; pendingWhiteBalance_.reset();
++	preparedParameters_.clear(); parameterHistory_.clear();
++	applied_ = effective_ = false;
++	lastStats_.reset();
++}
++
++int IPACamss::prepareParameters(uint64_t epoch, uint32_t id, uint32_t revision, uint32_t *bytesused)
++{
++	if (!bytesused)
++		return -EINVAL;
++	*bytesused = 0;
++	if (!running_ || epoch != epoch_)
++		return -ESTALE;
++	auto it = buffers_.find(id);
++	if (it == buffers_.end() || !it->second.parameters)
++		return -ENOENT;
++	if (preparedParameters_.count(revision)) return -EALREADY;
++	double red = red_, blue = blue_;
++	if (revision) {
++		if (!pendingWhiteBalance_ || pendingWhiteBalance_->revision != revision) return -ESTALE;
++		red = pendingWhiteBalance_->red; blue = pendingWhiteBalance_->blue;
++	} else if (!parameterHistory_.empty()) return -ESTALE;
++	double effectiveRed, effectiveBlue;
++	int ret = effectiveColourGains(profile_, red, blue, &effectiveRed, &effectiveBlue);
++	if (ret) return ret;
++	size_t used;
++	ret = encodeParameters(it->second.memory->planes()[0], profile_, red, blue, input_, Rectangle(input_), &used);
++	if (!ret) {
++		preparedParameters_[revision] = { revision, effectiveRed, effectiveBlue, awbEnabled_, red, blue };
++		*bytesused = used;
++	}
++	return ret;
++}
++
++void IPACamss::parametersApplied(uint64_t epoch, uint32_t firstSof, uint32_t revision)
++{
++	if (!running_ || epoch != epoch_) return;
++	auto it = preparedParameters_.find(revision);
++	if (it == preparedParameters_.end() ||
++	    (!parameterHistory_.empty() &&
++	     (firstSof <= parameterHistory_.rbegin()->first || revision <= parameterHistory_.rbegin()->second.revision))) {
++		LOG(IPACamss, Error) << "Invalid ISP parameter acknowledgement revision=" << revision;
++		return;
++	}
++	parameterHistory_[firstSof] = it->second;
++	preparedParameters_.erase(it);
++	if (pendingWhiteBalance_ && pendingWhiteBalance_->revision == revision) pendingWhiteBalance_.reset();
++	while (parameterHistory_.size() > 64) parameterHistory_.erase(parameterHistory_.begin());
++	LOG(IPACamss, Info) << "ISP applied epoch=" << epoch << " revision=" << revision << " first-sof=" << firstSof << " awb=" << parameterHistory_.at(firstSof).awbEnabled;
++}
++
++void IPACamss::processStats(uint64_t epoch, uint32_t sof, uint32_t id, uint32_t bytesused, const SensorContext &sensorContext)
++{
++	Statistics result{};
++	ControlList metadata(controls::controls);
++	result.status = -ESTALE;
++	auto complete = [&]() {
++		LOG(IPACamss, Debug) << "IPA stats pid=" << getpid() << " epoch=" << epoch << " sof=" << sof << " status=" << result.status;
++		statsProcessed.emit(epoch, sof, id, result, metadata);
++	};
++	if (!running_ || epoch != epoch_) { complete(); return; }
++	auto it = buffers_.find(id);
++	if (it == buffers_.end() || it->second.parameters) { result.status = -ENOENT; complete(); return; }
++	const auto &memory = it->second.memory->planes()[0];
++	if (bytesused > memory.size()) { result.status = -EINVAL; complete(); return; }
++	if (lastStats_ && sof <= *lastStats_) {
++		result.status = sof == *lastStats_ ? -EALREADY : -ERANGE; complete(); return;
++	}
++	ParsedStatistics parsed;
++	result.status = parseStatistics({ memory.data(), bytesused }, input_.width, input_.height, &parsed);
++	if (result.status) { complete(); return; }
++	lastStats_ = sof;
++	result.population = parsed.population;
++	result.weightedSum = parsed.weightedSum;
++	result.rgbPresent = !parsed.grid.regions.empty();
++	auto context = parameterHistory_.upper_bound(sof);
++	if (context != parameterHistory_.begin()) {
++		--context;
++		result.parametersKnown = true;
++		result.ispRevision = context->second.revision;
++		const std::array<float, 2> gains{ float(context->second.red), float(context->second.blue) };
++		metadata.set(controls::ColourGains, Span<const float, 2>(gains));
++	}
++	effective_ = result.parametersKnown;
++	metadata.set(controls::AwbEnable, result.parametersKnown && context->second.awbEnabled);
++	metadata.set(controls::AwbLocked, false);
++	if (af_.state()!=ipa::ContrastAf::State::Scanning && awbEnabled_ && effective_ && context->second.awbEnabled && result.rgbPresent && context == std::prev(parameterHistory_.end()) &&
++	    !pendingWhiteBalance_ && preparedParameters_.empty()) {
++		auto awb = awb_->calculate(parsed.grid, context->second.red, context->second.blue);
++		result.awbRegions = awb.regions;
++		result.rgbMeans = { awb.means.r(), awb.means.g(), awb.means.b() };
++		metadata.set(controls::AwbLocked, awb.locked);
++		if (awb.valid && ispRevision_ < UINT32_MAX - 1) {
++			double red, blue;
++			if (!effectiveColourGains(profile_, awb.red, awb.blue, &red, &blue) &&
++			    (red != context->second.red || blue != context->second.blue)) {
++				pendingWhiteBalance_ = AutoIspUpdate{ true, ++ispRevision_, awb.red, awb.blue };
++				result.ispUpdate = *pendingWhiteBalance_;
++			}
++		}
++	}
++	LOG(IPACamss, Info) << "RGB epoch=" << epoch << " sof=" << sof << " present=" << result.rgbPresent
++		<< " regions=" << result.awbRegions << " revision=" << result.ispRevision
++		<< " parameters-known=" << result.parametersKnown;
++ if (sensorContext.valid && sensorContext.exposureLines >= uint32_t(minLines_) &&
++     sensorContext.exposureLines <= uint32_t(maxLines_) && sensorContext.gainCode >= uint32_t(minGainCode_) &&
++     sensorContext.gainCode <= uint32_t(maxGainCode_)) {
++  result.sensorControlsKnown = true;
++  metadata.set(controls::ExposureTimeMode, int32_t(automatic_ ? controls::ExposureTimeModeAuto : controls::ExposureTimeModeManual));
++  metadata.set(controls::AnalogueGainMode, int32_t(automatic_ ? controls::AnalogueGainModeAuto : controls::AnalogueGainModeManual));
++  metadata.set(controls::ExposureTime, int32_t(std::lround(sensorContext.exposureLines * lineUs_)));
++  metadata.set(controls::AnalogueGain, float(helper_->gain(sensorContext.gainCode)));
++ }
++ if (af_.state()!=ipa::ContrastAf::State::Scanning && automatic_ && effective_ && result.sensorControlsKnown &&
++     (!awaiting_ || (sensorContext.source == awaiting_->revision &&
++      sensorContext.exposureLines == awaiting_->exposureLines && sensorContext.gainCode == awaiting_->gainCode))) {
++  awaiting_.reset();
++  uint32_t lines, code;
++  if (!agc_->calculate(parsed.histogram, sensorContext.exposureLines, sensorContext.gainCode, &lines, &code) &&
++      (lines != sensorContext.exposureLines || code != sensorContext.gainCode) && revision_ < UINT32_MAX - 1) {
++   result.automaticUpdate = { true, ++revision_, lines, code };
++   awaiting_ = result.automaticUpdate;
++  }
++ }
++ complete();
++}
++
++} /* namespace libcamera::ipa::camss */
++
++namespace libcamera {
++extern "C" {
++const IPAModuleInfo ipaModuleInfo = {
++	IPA_MODULE_API_VERSION, 0, "camss-vfe", "camss-vfe",
++};
++IPAInterface *ipaCreate() { return new ipa::camss::IPACamss(); }
++}
++} /* namespace libcamera */
+--- /dev/null
++++ b/src/ipa/camss-vfe/hardware_agc.cpp
+@@ -0,0 +1,84 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#include "hardware_agc.h"
++#include <algorithm>
++#include <cerrno>
++#include <chrono>
++#include <cmath>
++#include <libcamera/control_ids.h>
++#include "../libipa/camera_sensor_helper.h"
++
++namespace libcamera::ipa::camss {
++
++int HardwareAgc::initialise(const ValueNode &tuning, double lineUs, int32_t minLines,
++ int32_t maxLines, double minGain, double maxGain, const CameraSensorHelper *helper)
++{
++ if (!tuning.isDictionary() || !helper || !std::isfinite(lineUs) || lineUs <= 0 ||
++     minLines <= 0 || maxLines < minLines || !std::isfinite(minGain) || !std::isfinite(maxGain) ||
++     minGain <= 0 || maxGain < minGain) return -EINVAL;
++ /* Require explicit policy. It is experimental tuning, not factory calibration. */
++ auto target = tuning["relativeLuminanceTarget"].get<double>();
++ if (!target || !std::isfinite(*target) || *target <= 0 || *target > .95 ||
++     !tuning["AeConstraintMode"].isDictionary() || !tuning["AeExposureMode"].isDictionary()) return -EINVAL;
++ const auto &constraints = tuning["AeConstraintMode"]["ConstraintNormal"];
++ const auto &exposure = tuning["AeExposureMode"]["ExposureNormal"];
++ if (tuning["AeConstraintMode"].size() != 1 || tuning["AeExposureMode"].size() != 1 ||
++     !constraints.isDictionary() || !constraints.size() || !exposure.isDictionary()) return -EINVAL;
++ for (const auto &[name, bound] : constraints.asDict()) {
++  auto lo = bound["qLo"].get<double>(), hi = bound["qHi"].get<double>(), y = bound["yTarget"].get<double>();
++  if ((name != "lower" && name != "upper") || !lo || !hi || !y ||
++      !std::isfinite(*lo) || !std::isfinite(*hi) || !std::isfinite(*y) ||
++      *lo < 0 || *hi > 1 || *lo >= *hi || *y <= 0 || *y > .95) return -EINVAL;
++ }
++ auto times = exposure["exposureTime"].get<std::vector<uint32_t>>();
++ auto gains = exposure["gain"].get<std::vector<double>>();
++ if (!times || !gains || times->empty() || times->size() != gains->size()) return -EINVAL;
++ for (size_t i = 0; i < times->size(); ++i)
++  if (!(*times)[i] || !std::isfinite((*gains)[i]) || (*gains)[i] <= 0 ||
++      (i && ((*times)[i] < (*times)[i - 1] || (*gains)[i] < (*gains)[i - 1]))) return -EINVAL;
++ int ret = parseTuningData(tuning);
++ if (ret) return ret;
++ if (constraintModes().size() != 1 || !constraintModes().count(controls::ConstraintNormal) ||
++     exposureModeHelpers().size() != 1 || !exposureModeHelpers().count(controls::ExposureNormal)) return -ENOTSUP;
++ lineUs_ = lineUs; minLines_ = minLines; maxLines_ = maxLines;
++ minGain_ = minGain; maxGain_ = maxGain; helper_ = helper;
++ configure(std::chrono::duration<double, std::micro>(lineUs), helper);
++ setLimits(std::chrono::duration<double, std::micro>(minLines * lineUs),
++           std::chrono::duration<double, std::micro>(maxLines * lineUs), minGain, maxGain, {});
++ resetFrameCount();
++ return 0;
++}
++
++double HardwareAgc::estimateLuminance(double gain) const
++{
++ double weighted = 0;
++ /* Bin centres avoid a zero estimate for a nonempty first bin. */
++ for (unsigned int i = 0; i < bins_.size(); ++i)
++  weighted += bins_[i] * std::min(1.0, (i + .5) / bins_.size() * gain);
++ return weighted / population_;
++}
++
++int HardwareAgc::calculate(Span<const uint32_t> bins, uint32_t exposureLines, uint32_t gainCode,
++ uint32_t *nextLines, uint32_t *nextCode)
++{
++ if (!helper_ || !nextLines || !nextCode || bins.size() != bins_.size() ||
++     exposureLines < uint32_t(minLines_) || exposureLines > uint32_t(maxLines_)) return -EINVAL;
++ double actualGain = helper_->gain(gainCode);
++ if (!std::isfinite(actualGain) || actualGain < minGain_ || actualGain > maxGain_) return -ERANGE;
++ population_ = 0;
++ std::copy(bins.begin(), bins.end(), bins_.begin());
++ for (uint32_t count : bins_) population_ += count;
++ if (!population_) return -ENODATA;
++ Histogram histogram(bins);
++ const auto [time, gain, quantization, digital] = calculateNewEv(controls::ConstraintNormal, controls::ExposureNormal,
++  histogram, std::chrono::duration<double, std::micro>(exposureLines * lineUs_ * actualGain));
++ (void)quantization; (void)digital;
++ double timeUs = std::chrono::duration<double, std::micro>(time).count();
++ if (!std::isfinite(timeUs) || !std::isfinite(gain) || timeUs <= 0 || gain <= 0) return -ERANGE;
++ const uint32_t lines = std::clamp<int64_t>(std::llround(timeUs / lineUs_), minLines_, maxLines_);
++ const uint32_t code = helper_->gainCode(std::clamp(gain, minGain_, maxGain_));
++ const double quantizedGain = helper_->gain(code);
++ if (!std::isfinite(quantizedGain) || quantizedGain < minGain_ || quantizedGain > maxGain_) return -ERANGE;
++ *nextLines = lines; *nextCode = code;
++ return 0;
++}
++}
+--- /dev/null
++++ b/src/ipa/camss-vfe/hardware_agc.h
+@@ -0,0 +1,27 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++
++#include <array>
++#include "../libipa/agc_mean_luminance.h"
++#include <linux/qcom-camss-config.h>
++
++namespace libcamera::ipa::camss {
++
++/* BHIST is post-BLS, pre-WB, linear Y; it supplies no RGB AWB information. */
++class HardwareAgc final : public AgcMeanLuminance
++{
++public:
++ int initialise(const ValueNode &tuning, double lineUs, int32_t minLines, int32_t maxLines,
++                double minGain, double maxGain, const CameraSensorHelper *helper);
++ int calculate(Span<const uint32_t> bins, uint32_t exposureLines, uint32_t gainCode,
++               uint32_t *nextLines, uint32_t *nextCode);
++private:
++ double estimateLuminance(double gain) const override;
++ std::array<uint32_t, CAMSS_STATS_BHIST_BINS> bins_{};
++ uint64_t population_ = 0;
++ double lineUs_ = 0;
++ int32_t minLines_ = 0, maxLines_ = 0;
++ double minGain_ = 0, maxGain_ = 0;
++ const CameraSensorHelper *helper_ = nullptr;
++};
++}
+--- /dev/null
++++ b/src/ipa/camss-vfe/hardware_awb.cpp
+@@ -0,0 +1,89 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#include "hardware_awb.h"
++
++#include <algorithm>
++#include <cmath>
++
++namespace libcamera::ipa::camss {
++
++int HardwareAwb::initialise(const ValueNode &tuning)
++{
++	if (tuning["algorithm"].get<std::string>().value_or("") != "grey")
++		return -EINVAL;
++	const auto &black = tuning["statistics_black"];
++	if (!black.isList() || black.size() != 4)
++		return -EINVAL;
++	for (unsigned int c = 0; c < 4; ++c) {
++		auto value = black[c].get<double>();
++		if (!value || !std::isfinite(*value) || *value < 0 || *value > 16383)
++			return -EINVAL;
++		black_[c] = *value;
++	}
++	minRegions_ = tuning["minimum_regions"].get<unsigned int>().value_or(16);
++	minSignal_ = tuning["minimum_signal"].get<double>().value_or(32);
++	if (!minRegions_ || minRegions_ > 14400 ||
++	    !std::isfinite(minSignal_) || minSignal_ < 1 || minSignal_ > 8192)
++		return -EINVAL;
++	/* Grey-world needs no fabricated colour-temperature calibration curve. */
++	return 0;
++}
++
++namespace {
++struct Means final : AwbStats {
++	RGB<double> value;
++	explicit Means(const RGB<double> &rgb) : value(rgb) {}
++	RGB<double> rgbMeans() const override { return value; }
++	double computeColourError(const RGB<double> &gains) const override
++	{
++		const double green = value.g() * gains.g();
++		return std::pow(value.r() * gains.r() - green, 2) +
++		       std::pow(value.b() * gains.b() - green, 2);
++	}
++};
++}
++
++HardwareAwb::Result HardwareAwb::calculate(const GridStatistics &grid, double red, double blue)
++{
++	Result result;
++	std::array<double, 4> sum{};
++	std::array<uint64_t, 4> count{};
++	const unsigned int maximum = unsigned(grid.width) * grid.height / 4;
++	for (const auto &r : grid.regions) {
++		std::array<uint32_t, 4> sums{r.r_sum,r.b_sum,r.gr_sum,r.gb_sum};
++		std::array<uint16_t, 4> counts{r.r_count,r.b_count,r.gr_count,r.gb_count};
++		bool valid = maximum != 0;
++		std::array<double, 4> means{};
++		for (unsigned int c = 0; c < 4; ++c) {
++			if (!counts[c] || uint32_t(counts[c]) * 10 < maximum * 9) { valid = false; break; }
++			means[c] = double(sums[c]) / counts[c] - black_[c];
++			if (means[c] < minSignal_ ||
++			    double(sums[c]) / counts[c] > grid.highThreshold * .9)
++				valid = false;
++		}
++		if (!valid || *std::max_element(means.begin(), means.end()) >
++			      8 * *std::min_element(means.begin(), means.end()))
++			continue;
++		for (unsigned int c = 0; c < 4; ++c) {
++			sum[c] += double(sums[c]) - black_[c] * counts[c];
++			count[c] += counts[c];
++		}
++		++result.regions;
++	}
++	if (result.regions < minRegions_) { stable_ = 0; return result; }
++	result.means = {{sum[0]/count[0], (sum[2]+sum[3])/(count[2]+count[3]), sum[1]/count[1]}};
++	auto calculated = algorithm_.calculateAwb(Means(result.means), 0);
++	const double targetRed = std::clamp(calculated.gains.r(), minGain_, maxGain_);
++	const double targetBlue = std::clamp(calculated.gains.b(), minGain_, maxGain_);
++	if (!std::isfinite(targetRed) || !std::isfinite(targetBlue)) { stable_ = 0; return result; }
++	result.valid = true;
++	if (std::abs(targetRed - red) < tolerance_ && std::abs(targetBlue - blue) < tolerance_) {
++		result.red = red; result.blue = blue;
++		result.locked = ++stable_ >= 3;
++	} else {
++		stable_ = 0;
++		result.red = std::clamp(red + speed_ * (targetRed - red), minGain_, maxGain_);
++		result.blue = std::clamp(blue + speed_ * (targetBlue - blue), minGain_, maxGain_);
++	}
++	return result;
++}
++}
+--- /dev/null
++++ b/src/ipa/camss-vfe/hardware_awb.h
+@@ -0,0 +1,30 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++#include <array>
++#include <optional>
++
++#include "../libipa/awb_grey.h"
++#include "statistics.h"
++
++namespace libcamera::ipa::camss {
++
++/* Adapt pre-WB hardware grids to libipa's existing grey-world algorithm. */
++class HardwareAwb {
++public:
++	int initialise(const ValueNode &tuning);
++	struct Result {
++		unsigned int regions = 0;
++		RGB<double> means{{0, 0, 0}};
++		bool valid = false, locked = false;
++		double red = 1, blue = 1;
++	};
++	Result calculate(const GridStatistics &grid, double red, double blue);
++	void reset() { stable_ = 0; }
++private:
++	AwbGrey algorithm_;
++	std::array<double, 4> black_{};
++	unsigned int minRegions_ = 16, stable_ = 0;
++	double minSignal_ = 32, minGain_ = .25, maxGain_ = 4;
++	double speed_ = .3, tolerance_ = .015;
++};
++}
+--- /dev/null
++++ b/src/ipa/camss-vfe/meson.build
+@@ -0,0 +1,15 @@
++# SPDX-License-Identifier: CC0-1.0
++ipa_name = 'ipa_camss_vfe'
++mod = shared_module(ipa_name, ['camss.cpp', 'parameter_encoder.cpp', 'hardware_agc.cpp', 'hardware_awb.cpp'],
++    name_prefix : '',
++    include_directories : [ipa_includes],
++    dependencies : [libcamera_private, libipa_dep],
++    install : true,
++    install_dir : ipa_install_dir)
++if ipa_sign_module
++    custom_target(ipa_name + '.so.sign', input : mod,
++        output : ipa_name + '.so.sign',
++        command : [ipa_sign, ipa_priv_key, '@INPUT@', '@OUTPUT@'],
++        install : false, build_by_default : true)
++endif
++ipa_names += ipa_name
+--- /dev/null
++++ b/src/ipa/camss-vfe/parameter_encoder.cpp
+@@ -0,0 +1,98 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++
++#include "parameter_encoder.h"
++
++#include <algorithm>
++#include <cerrno>
++#include <cmath>
++#include <limits>
++
++#include "params.h"
++
++namespace libcamera::ipa::camss {
++
++static int gainQ10(double value, uint16_t *encoded)
++{
++	if (!std::isfinite(value) || value < 0 || value > 32767.0 / 1024)
++		return -ERANGE;
++
++	*encoded = std::lround(value * 1024);
++	return 0;
++}
++
++int effectiveColourGains(const ResidualBlackProfile &profile, double red, double blue,
++			 double *effectiveRed, double *effectiveBlue)
++{
++	uint16_t r, g, b;
++	if (!effectiveRed || !effectiveBlue ||
++	    gainQ10(red * profile.normalization, &r) ||
++	    gainQ10(profile.normalization, &g) ||
++	    gainQ10(blue * profile.normalization, &b))
++		return -ERANGE;
++	/* VFE175 converts the common U15Q10 fields to U12Q7. */
++	const unsigned int rq7 = std::min<unsigned int>((r + 4) >> 3, 4095);
++	const unsigned int gq7 = std::min<unsigned int>((g + 4) >> 3, 4095);
++	const unsigned int bq7 = std::min<unsigned int>((b + 4) >> 3, 4095);
++	if (!gq7)
++		return -ERANGE;
++	*effectiveRed = double(rq7) / gq7;
++	*effectiveBlue = double(bq7) / gq7;
++	return 0;
++}
++
++int encodeParameters(Span<uint8_t> output, const ResidualBlackProfile &profile,
++		     double redGain, double blueGain, const Size &input,
++		     const Rectangle &roi, size_t *bytesused)
++{
++	if (!bytesused)
++		return -EINVAL;
++	*bytesused = 0;
++
++	constexpr size_t required = sizeof(v4l2_isp_buffer) +
++				    sizeof(camss_params_wb_gain) +
++				    sizeof(camss_params_aec_bhist);
++	if (output.size() < required)
++		return -ENOSPC;
++	if (!output.data() ||
++	    reinterpret_cast<uintptr_t>(output.data()) % alignof(v4l2_isp_buffer))
++		return -EINVAL;
++
++	if (!std::isfinite(profile.normalization) || profile.normalization <= 0 ||
++	    !std::isfinite(redGain) || redGain < 0 ||
++	    !std::isfinite(blueGain) || blueGain < 0)
++		return -ERANGE;
++
++	if (roi.x < 0 || roi.y < 0 || roi.width < 4 || roi.height < 2 ||
++	    ((roi.x | roi.y | roi.width | roi.height) & 1) ||
++	    static_cast<uint64_t>(roi.x) + roi.width > input.width ||
++	    static_cast<uint64_t>(roi.y) + roi.height > input.height ||
++	    roi.x > 65535 || roi.y > 65535 ||
++	    roi.width > 65535 || roi.height > 65535)
++		return -EINVAL;
++
++	uint16_t red, green, blue;
++	if (gainQ10(redGain * profile.normalization, &red) ||
++	    gainQ10(profile.normalization, &green) ||
++	    gainQ10(blueGain * profile.normalization, &blue))
++		return -ERANGE;
++
++	CamssParams params(output);
++	auto wb = params.block<CamssBlocks::AwbGains>();
++	wb.setEnabled(true);
++	wb->r_gain = red;
++	wb->g_gain = green;
++	wb->b_gain = blue;
++	wb->r_sub = wb->g_sub = wb->b_sub = profile.subtraction;
++
++	auto bhist = params.block<CamssBlocks::AecBhist>();
++	bhist.setEnabled(true);
++	bhist->left = roi.x;
++	bhist->top = roi.y;
++	bhist->width = roi.width;
++	bhist->height = roi.height;
++
++	*bytesused = params.bytesused();
++	return 0;
++}
++
++} /* namespace libcamera::ipa::camss */
+--- /dev/null
++++ b/src/ipa/camss-vfe/parameter_encoder.h
+@@ -0,0 +1,26 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++
++#include <cstddef>
++#include <cstdint>
++
++#include <libcamera/base/span.h>
++#include <libcamera/geometry.h>
++
++namespace libcamera::ipa::camss {
++
++/* Residual BLS at this ISP stage, not sensor black metadata for software ISP. */
++struct ResidualBlackProfile {
++	uint16_t subtraction;
++	double normalization;
++};
++
++int effectiveColourGains(const ResidualBlackProfile &profile, double red, double blue,
++			 double *effectiveRed, double *effectiveBlue);
++
++/* Serialize only supported blocks through the shared libipa V4L2Params helper. */
++int encodeParameters(Span<uint8_t> output, const ResidualBlackProfile &profile,
++		     double redGain, double blueGain, const Size &input,
++		     const Rectangle &roi, size_t *bytesused);
++
++} /* namespace libcamera::ipa::camss */
+--- /dev/null
++++ b/src/ipa/camss-vfe/statistics.h
+@@ -0,0 +1,99 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++
++#include <array>
++#include <cerrno>
++#include <cstdint>
++#include <cstring>
++#include <span>
++#include <vector>
++#include <linux/qcom-camss-config.h>
++
++namespace libcamera::ipa::camss {
++
++struct GridStatistics {
++	uint16_t left = 0, top = 0, width = 0, height = 0, columns = 0, rows = 0;
++	uint16_t highThreshold = 0, inputBits = 0;
++	std::vector<camss_stats_bg_region> regions;
++};
++struct ParsedStatistics {
++	std::array<uint32_t, CAMSS_STATS_BHIST_BINS> histogram{};
++	uint64_t population = 0, weightedSum = 0;
++	GridStatistics grid;
++};
++
++/* Parse sized blocks, including legacy BHIST packets, without aligned loads. */
++inline int parseStatistics(std::span<const uint8_t> data, uint32_t width,
++			  uint32_t height, ParsedStatistics *result)
++{
++	if (!result || data.size() < sizeof(v4l2_isp_buffer))
++		return -EINVAL;
++	v4l2_isp_buffer envelope;
++	std::memcpy(&envelope, data.data(), sizeof(envelope));
++	if (envelope.version != V4L2_ISP_VERSION_V1 ||
++	    envelope.data_size != data.size() - sizeof(envelope))
++		return -EPROTO;
++	ParsedStatistics parsed;
++	bool histogramFound = false, gridFound = false;
++	size_t offset = sizeof(envelope);
++	while (offset < data.size()) {
++		v4l2_isp_block_header header;
++		if (data.size() - offset < sizeof(header))
++			return -EPROTO;
++		std::memcpy(&header, data.data() + offset, sizeof(header));
++		if (header.size < sizeof(header) || header.size % 8 ||
++		    header.size > data.size() - offset || header.flags)
++			return -EPROTO;
++		if (header.type == CAMSS_STATS_AEC_BHIST) {
++			if (histogramFound || header.size != sizeof(camss_stats_bhist))
++				return -EPROTO;
++			histogramFound = true;
++			std::memcpy(parsed.histogram.data(), data.data() + offset + sizeof(header),
++				    sizeof(parsed.histogram));
++		} else if (header.type == CAMSS_STATS_AWB_BG) {
++			if (gridFound || header.size < sizeof(camss_stats_awb_bg))
++				return -EPROTO;
++			gridFound = true;
++			camss_stats_awb_bg config;
++			std::memcpy(&config, data.data() + offset, sizeof(config));
++			const uint32_t count = uint32_t(config.columns) * config.rows;
++			if (!config.columns || !config.rows || config.columns > 160 || config.rows > 90 ||
++			    config.region_width < 6 || config.region_width > 390 ||
++			    config.region_height < 2 || config.region_height > 512 ||
++			    ((config.left | config.top | config.region_width | config.region_height) & 1) ||
++			    uint32_t(config.left) + uint32_t(config.columns) * config.region_width > width ||
++			    uint32_t(config.top) + uint32_t(config.rows) * config.region_height > height ||
++			    config.input_bits != 14 || !config.high_threshold || config.high_threshold > 16383 ||
++			    header.size != sizeof(config) + count * sizeof(camss_stats_bg_region))
++				return -EPROTO;
++			auto &grid = parsed.grid;
++			grid = { config.left, config.top, config.region_width, config.region_height,
++				 config.columns, config.rows, config.high_threshold, config.input_bits, {} };
++			grid.regions.resize(count);
++			std::memcpy(grid.regions.data(), data.data() + offset + sizeof(config),
++				    count * sizeof(camss_stats_bg_region));
++			const uint32_t maximum = uint32_t(config.region_width) * config.region_height / 4;
++			for (const auto &region : grid.regions) {
++				const std::array<uint32_t, 4> sums{region.r_sum,region.b_sum,region.gr_sum,region.gb_sum};
++				const std::array<uint16_t, 4> counts{region.r_count,region.b_count,region.gr_count,region.gb_count};
++				for (unsigned int c = 0; c < 4; ++c)
++					if (counts[c] > maximum || sums[c] > uint64_t(counts[c]) * config.high_threshold)
++						return -EPROTO;
++			}
++		}
++		/* Unknown, structurally valid blocks can be added without breaking BHIST. */
++		offset += header.size;
++	}
++	if (!histogramFound)
++		return -ENODATA;
++	for (unsigned int i = 0; i < parsed.histogram.size(); ++i) {
++		parsed.population += parsed.histogram[i];
++		parsed.weightedSum += uint64_t(i) * parsed.histogram[i];
++	}
++	if (parsed.population != uint64_t(width / 2) * (height / 2))
++		return -ENODATA;
++	*result = std::move(parsed);
++	return 0;
++}
++
++} /* namespace libcamera::ipa::camss */
+--- a/src/libcamera/v4l2_device.cpp
++++ b/src/libcamera/v4l2_device.cpp
+@@ -519,6 +519,14 @@
+ 
+ 	return ret;
+ }
++
++/**
++ * \var V4L2Device::frameStartTimestamp
++ * \brief Signal a frame-sync event with its CLOCK_MONOTONIC timestamp
++ *
++ * The arguments are the received frame sequence and the kernel event timestamp
++ * in nanoseconds. This marks reception of a frame, not start of exposure.
++ */
+ 
+ /**
+  * \var V4L2Device::frameStart
+@@ -868,6 +876,9 @@
+ 		return;
+ 	}
+ 
++	const uint64_t timestamp = uint64_t(event.timestamp.tv_sec) * 1000000000ULL
++				 + event.timestamp.tv_nsec;
++	frameStartTimestamp.emit(event.u.frame_sync.frame_sequence, timestamp);
+ 	frameStart.emit(event.u.frame_sync.frame_sequence);
+ }
+ 
+--- a/src/libcamera/v4l2_subdevice.cpp
++++ b/src/libcamera/v4l2_subdevice.cpp
+@@ -1227,9 +1227,15 @@
+ int V4L2Subdevice::setSelection(const Stream &stream, unsigned int target,
+ 				Rectangle *rect)
+ {
++	return setSelection(stream,target,rect,ActiveFormat);
++}
++
++int V4L2Subdevice::setSelection(const Stream &stream, unsigned int target,
++				Rectangle *rect, Whence whence)
++{
+ 	struct v4l2_subdev_selection sel = {};
+ 
+-	sel.which = V4L2_SUBDEV_FORMAT_ACTIVE;
++	sel.which = whence;
+ 	sel.pad = stream.pad;
+ 	sel.stream = stream.stream;
+ 	sel.target = target;
+--- a/include/libcamera/internal/v4l2_device.h
++++ b/include/libcamera/internal/v4l2_device.h
+@@ -49,6 +49,7 @@
+ 	bool supportsFrameStartEvent();
+ 	int setFrameStartEnabled(bool enable);
+ 	Signal<uint32_t> frameStart;
++	Signal<uint32_t, uint64_t> frameStartTimestamp;
+ 
+ 	void updateControlInfo();
+ 
+--- a/include/libcamera/internal/v4l2_subdevice.h
++++ b/include/libcamera/internal/v4l2_subdevice.h
+@@ -130,6 +130,12 @@
+ 	}
+ 	int setSelection(const Stream &stream, unsigned int target,
+ 			 Rectangle *rect);
++ int setSelection(const Stream &stream, unsigned int target, Rectangle *rect, Whence whence);
++ int setSelection(unsigned int pad, unsigned int target, Rectangle *rect, Whence whence)
++ {
++  return setSelection({pad,0},target,rect,whence);
++ }
++
+ 	int setSelection(unsigned int pad, unsigned int target, Rectangle *rect)
+ 	{
+ 		return setSelection({ pad, 0 }, target, rect);
+--- /dev/null
++++ b/include/libcamera/ipa/camss.mojom
+@@ -0,0 +1,72 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++module ipa.camss;
++import "include/libcamera/ipa/core.mojom";
++
++struct SensorControlConfiguration {
++	bool enabled;
++	uint32 exposureDelay;
++	uint32 gainDelay;
++};
++struct SensorContext {
++	bool valid;
++	uint32 exposureLines;
++	uint32 gainCode;
++	uint32 source;
++};
++struct AutoSensorUpdate {
++ bool valid;
++ uint32 revision;
++ uint32 exposureLines;
++ uint32 gainCode;
++};
++struct AutoIspUpdate {
++	bool valid;
++	uint32 revision;
++	double red;
++	double blue;
++};
++struct LensMove {
++ bool valid;
++ uint32 serial;
++ int32 position;
++};
++struct Statistics {
++	int32 status;
++	uint64 population;
++	uint64 weightedSum;
++	bool parametersKnown;
++	bool sensorControlsKnown;
++ AutoSensorUpdate automaticUpdate;
++	AutoIspUpdate ispUpdate;
++	uint32 ispRevision;
++	bool rgbPresent;
++	uint32 awbRegions;
++	array<double> rgbMeans;
++};
++
++interface IPACamssInterface {
++	init(libcamera.IPASettings settings, libcamera.IPACameraSensorInfo sensorInfo,
++	     libcamera.ControlInfoMap sensorControls, libcamera.ControlInfoMap lensControls, string lensModel) => (int32 ret, libcamera.ControlInfoMap ipaControls);
++	configure(libcamera.IPACameraSensorInfo sensorInfo, libcamera.Size input,
++		  libcamera.ControlInfoMap sensorControls, string profilePath)
++		=> (int32 ret, libcamera.ControlInfoMap ipaControls, SensorControlConfiguration sensorConfiguration);
++	mapBuffers(array<libcamera.IPABuffer> parameters, array<libcamera.IPABuffer> statistics) => (int32 ret);
++	unmapBuffers(array<uint32> ids);
++	start(uint64 epoch, libcamera.ControlList controls) => (int32 ret, libcamera.ControlList sensorControls);
++	convertControls(uint64 epoch, libcamera.ControlList controls) => (int32 ret, libcamera.ControlList sensorControls);
++	applyIspControls(uint64 epoch, libcamera.ControlList controls) => (int32 ret, AutoIspUpdate update);
++	frameMetadata(uint64 epoch, uint32 sof, SensorContext sensorContext) => (int32 ret, libcamera.ControlList metadata);
++ processFocus(uint64 epoch, uint32 sof, libcamera.ControlList controls, bool valid, int32 score,
++              uint64 capturedMonotonic, SensorContext sensorContext)
++              => (int32 ret, libcamera.ControlList metadata, LensMove move);
++ [async] lensPositionApplied(uint64 epoch, uint32 serial, int32 status, uint64 monotonic);
++	stop();
++	prepareParameters(uint64 epoch, uint32 bufferId, uint32 revision) => (int32 ret, uint32 bytesused);
++	[async] parametersApplied(uint64 epoch, uint32 firstSof, uint32 revision);
++	[async] processStats(uint64 epoch, uint32 sof, uint32 bufferId, uint32 bytesused, SensorContext sensorContext);
++};
++
++interface IPACamssEventInterface {
++	statsProcessed(uint64 epoch, uint32 sof, uint32 bufferId,
++		       Statistics statistics, libcamera.ControlList metadata);
++};
+--- /dev/null
++++ b/include/linux/qcom-camss-config.h
+@@ -0,0 +1,341 @@
++/* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */
++/*
++ * Qualcomm CAMSS ISP Driver - Userspace API
++ *
++ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
++ */
++
++#ifndef _UAPI_LINUX_QCOM_CAMSS_CONFIG_H
++#define _UAPI_LINUX_QCOM_CAMSS_CONFIG_H
++
++#include <linux/types.h>
++#include <linux/media/v4l2-isp.h>
++
++/**
++ * enum camss_params_block_type - CAMSS ISP parameter block identifiers
++ *
++ * Each value identifies one ISP processing block.  The value is placed in
++ * the @type field of &struct v4l2_isp_params_block_header.
++ *
++ * @CAMSS_PARAMS_WB_GAIN: white balance gains and offsets (CLC_WB),
++ *	&struct camss_params_wb_gain
++ * @CAMSS_PARAMS_CHROMA_ENHAN: RGB to YUV colour transfer matrix
++ *	(CLC_CHROMA_ENHAN), &struct camss_params_chroma_enhan
++ * @CAMSS_PARAMS_COLOR_CORRECT: colour correction matrix (CLC_CC),
++ *	&struct camss_params_color_correct
++ * @CAMSS_PARAMS_GAMMA: per-channel gamma correction curves (CLC_GLUT),
++ *	&struct camss_params_gamma
++ * @CAMSS_PARAMS_AEC_BHIST: region of the AEC Bayer histogram statistics,
++ *	&struct camss_params_aec_bhist
++ */
++enum camss_params_block_type {
++	CAMSS_PARAMS_WB_GAIN = 1,
++	CAMSS_PARAMS_CHROMA_ENHAN = 2,
++	CAMSS_PARAMS_COLOR_CORRECT = 3,
++	CAMSS_PARAMS_GAMMA = 4,
++	CAMSS_PARAMS_AEC_BHIST = 5,
++};
++
++/* Number of entries in each gamma channel LUT. */
++#define CAMSS_GAMMA_LUT_SIZE	256
++
++/**
++ * struct camss_params_wb_gain - White Balance gains
++ *
++ * Implements the CLC_WB pipeline module.  The pipeline applies three
++ * sequential operations per channel:
++ *   1. Subtract sub-offset (black-level subtraction)
++ *   2. Multiply by gain    (colour balance)
++ *   3. Add add-offset      (output pedestal)
++ *
++ * Gains are 15uQ10 (15-bit unsigned, 10 fractional bits). Offsets
++ * are 16-bit unsigned, normalised to full input scale (65535 = 1.0)
++ *
++ * @header:   block header; @header.type = CAMSS_PARAMS_WB_GAIN
++ * @g_gain:   green channel gain (15uQ10, 1024 = 1.0)
++ * @b_gain:   blue  channel gain (15uQ10, 1024 = 1.0)
++ * @r_gain:   red   channel gain (15uQ10, 1024 = 1.0)
++ * @g_sub:    green sub-offset, subtracted before gain (16u)
++ * @b_sub:    blue  sub-offset, subtracted before gain (16u)
++ * @r_sub:    red   sub-offset, subtracted before gain (16u)
++ * @g_add:    green add-offset, added after gain (16u)
++ * @b_add:    blue  add-offset, added after gain (16u)
++ * @r_add:    red   add-offset, added after gain (16u)
++ * @_pad:     padding for 64-bit alignment, must be zero
++ */
++struct camss_params_wb_gain {
++	struct v4l2_isp_params_block_header header;
++	__u16 g_gain;
++	__u16 b_gain;
++	__u16 r_gain;
++	__u16 g_sub;
++	__u16 b_sub;
++	__u16 r_sub;
++	__u16 g_add;
++	__u16 b_add;
++	__u16 r_add;
++	__u16 _pad[3];
++} __attribute__((aligned(8)));
++
++/**
++ * struct camss_params_chroma_enhan - RGB to YUV colour transfer matrix
++ *
++ * Implements the CLC_CHROMA_ENHAN pipeline module. All coefficients are
++ * signed 12-bit fixed-point Q3.8 (range roughly -8.0 to +7.996).
++ *
++ * RGB2Y - Luma (Y) coefficients
++ * Y = v0 * R + v1 * G + v2 * B
++ *
++ * @luma_v0:  R-to-Y coefficient (12sQ8)
++ * @luma_v1:  G-to-Y coefficient (12sQ8)
++ * @luma_v2:  B-to-Y coefficient (12sQ8)
++ * @luma_k:   Y output offset    (9s,  0 = no offset)
++ *
++ * RGB2Cb - Chroma (Cb) coefficients
++ * Cb = a x ((B - G) + b(R - G)) + KCb
++ * with:
++ *   a = ap, when (B-G) + b(R-G) > 0; a = am, when (B-G) + b(R-G) ≤ 0;
++ *   b = bp when (R-G) > 0; b = bm when (R-G) ≤ 0
++ *
++ * @coeff_ap: Cb positive coefficient (12sQ8)
++ * @coeff_am: Cb negative coefficient (12sQ8)
++ * @coeff_bp: Cb positive coefficient (12sQ8)
++ * @coeff_bm: Cb negative coefficient (12sQ8)
++ * @kcb:      Cb output offset        (11s)
++ *
++ * RGB2Cr - Chroma (Cr) coefficients:
++ * Cr = c x ((R - G) + d(B - G)) + KCr
++ * with:
++ *   c = cp, when (R-G) + d(B-G) > 0; c = cm, when (R-G) + d(B-G) ≤ 0
++ *   d = dp when (B-G) > 0; d = dm when (B-G) ≤ 0
++ *
++ * @coeff_cp: Cr positive coefficient (12sQ8)
++ * @coeff_cm: Cr negative coefficient (12sQ8)
++ * @coeff_dp: Cr positive coefficient (12sQ8)
++ * @coeff_dm: Cr negative coefficient (12sQ8)
++ * @kcr:      Cr output offset        (11s)
++ *
++ * @header: generic block header; @header.type = CAMSS_PARAMS_CHROMA_ENHAN
++ * @_pad:   padding for 64-bit alignment, must be zero
++ */
++struct camss_params_chroma_enhan {
++	struct v4l2_isp_params_block_header header;
++	__u16 luma_v0;
++	__u16 luma_v1;
++	__u16 luma_v2;
++	__u16 luma_k;
++	__u16 coeff_ap;
++	__u16 coeff_am;
++	__u16 coeff_bp;
++	__u16 coeff_bm;
++	__u16 coeff_cp;
++	__u16 coeff_cm;
++	__u16 coeff_dp;
++	__u16 coeff_dm;
++	__u16 kcb;
++	__u16 kcr;
++	__u16 _pad[2];
++} __attribute__((aligned(8)));
++
++/**
++ * struct camss_params_color_correct - colour correction matrix
++ *
++ * Implements the CLC_CC pipeline module.  The matrix computes:
++ *   Out_ch0 (G) = a0*G + b0*B + c0*R + k0
++ *   Out_ch1 (B) = a1*G + b1*B + c1*R + k1
++ *   Out_ch2 (R) = a2*G + b2*B + c2*R + k2
++ *
++ * @header:  block header; @header.type = CAMSS_PARAMS_COLOR_CORRECT
++ * @a:       G-input coefficients per output channel (12s;
++ *           a[0]=Out_G, a[1]=Out_B, a[2]=Out_R)
++ * @b:       B-input coefficients (12s)
++ * @c:       R-input coefficients (12s)
++ * @k:       per-output-channel offsets (typically 9s effective)
++ * @qfactor: Q-format selector (2u):
++ *           0 = 12sQ7  (range ~-16.0 .. +15.992)
++ *           1 = 12sQ8  (range  ~-8.0 ..  +7.996)
++ *           2 = 12sQ9  (range  ~-4.0 ..  +3.998)
++ *           3 = 12sQ10 (range  ~-2.0 ..  +1.999)
++ * @_pad:    padding for 64-bit alignment, must be zero
++ */
++struct camss_params_color_correct {
++	struct v4l2_isp_params_block_header header;
++	__u16 a[3];
++	__u16 b[3];
++	__u16 c[3];
++	__u16 k[3];
++	__u16 qfactor;
++	__u16 _pad[3];
++} __attribute__((aligned(8)));
++
++/**
++ * struct camss_params_gamma - per-channel gamma correction curves
++ *
++ * Implements the CLC_GLUT pipeline module, applied in the RGB domain.  It
++ * holds one independent lookup table per colour channel. Each table is a
++ * direct (not segmented) map of input level to output level.
++ *
++ * Each table has @CAMSS_GAMMA_LUT_SIZE (256) entries of 16-bit unsigned
++ * output. The number of significant output bits follows the width of the
++ * engine's internal bus; the upper bits are ignored by the hardware.
++ *
++ * The module maps a 12-bit input to an 8-bit output: the top 8 input bits
++ * index the table and the low 4 bits are used to linearly interpolate
++ * between adjacent entries. Entry i therefore represents the output for
++ * input level i/255 of full scale.
++ * Output range: 0x00 = black, 0xFF = white.
++ *
++ * How to fill a curve (same on all three channels for pure luminance
++ * gamma; different curves per channel additionally shift colour balance):
++ *
++ *   Identity (pass-through, gamma 1.0):
++ *     lut[i] = i;                                // i = 0..255
++ *
++ *   Encode with gamma g (e.g. sRGB-like, g = 2.2):
++ *     lut[i] = round(pow(i / 255.0, 1.0 / g) * 255.0);
++ *
++ * @header:  block header; @header.type = CAMSS_PARAMS_GAMMA
++ * @glut:    green channel gamma curve
++ * @blut:    blue  channel gamma curve
++ * @rlut:    red   channel gamma curve
++ */
++struct camss_params_gamma {
++	struct v4l2_isp_params_block_header header;
++	__u16 glut[CAMSS_GAMMA_LUT_SIZE];
++	__u16 blut[CAMSS_GAMMA_LUT_SIZE];
++	__u16 rlut[CAMSS_GAMMA_LUT_SIZE];
++} __attribute__((aligned(8)));
++
++#define CAMSS_PARAMS_OPE_MAX_PAYLOAD		\
++	(sizeof(struct camss_params_wb_gain)	+\
++	 sizeof(struct camss_params_chroma_enhan)	+\
++	 sizeof(struct camss_params_color_correct)	+\
++	 sizeof(struct camss_params_gamma))
++
++/**
++ * struct camss_params_aec_bhist - AEC Bayer histogram configuration
++ *
++ * Selects the region of the frame the AEC Bayer histogram,
++ * &struct camss_stats_bhist, counts. The region is given in pixels of the
++ * Bayer frame entering the ISP; every value must be even, as the histogram
++ * counts 2x2 Bayer quads. A region reaching past the frame is clipped to it.
++ *
++ * @header: block header; @header.type = CAMSS_PARAMS_AEC_BHIST
++ * @left:   horizontal offset of the region
++ * @top:    vertical offset of the region
++ * @width:  width of the region, at least 2
++ * @height: height of the region, at least 2
++ */
++struct camss_params_aec_bhist {
++	struct v4l2_isp_params_block_header header;
++	__u16 left;
++	__u16 top;
++	__u16 width;
++	__u16 height;
++} __attribute__((aligned(8)));
++
++#define CAMSS_PARAMS_IFE_MAX_PAYLOAD		\
++	(sizeof(struct camss_params_aec_bhist) +	\
++	 sizeof(struct camss_params_wb_gain))
++
++/**
++ * enum camss_stats_block_type - CAMSS ISP statistics block identifiers
++ *
++ * Each value identifies one statistics block in a
++ * V4L2_META_FMT_QCOM_ISP_STATS buffer. The value is placed in the @type field
++ * of &struct v4l2_isp_block_header.
++ *
++ * @CAMSS_STATS_AEC_BHIST: AEC Bayer histogram, &struct camss_stats_bhist
++ * @CAMSS_STATS_AWB_BG: Bayer RGB grid, &struct camss_stats_awb_bg
++ */
++enum camss_stats_block_type {
++	CAMSS_STATS_AEC_BHIST = 1,
++	CAMSS_STATS_AWB_BG = 2,
++};
++
++/* Number of bins in a Bayer histogram. */
++#define CAMSS_STATS_BHIST_BINS	1024
++
++/**
++ * struct camss_stats_bhist - Bayer histogram
++ *
++ * Histogram of the luma of each 2x2 Bayer quad inside the histogram's region,
++ * over CAMSS_STATS_BHIST_BINS equal bins spanning its input range. Quads
++ * whose luma falls outside the input range are not counted.
++ *
++ * @header: block header; @header.type = CAMSS_STATS_AEC_BHIST
++ * @bins:   number of quads per bin
++ */
++struct camss_stats_bhist {
++	struct v4l2_isp_block_header header;
++	__u32 bins[CAMSS_STATS_BHIST_BINS];
++} __attribute__((aligned(8)));
++
++/**
++ * struct camss_stats_bg_region - Bayer channel sums and sample counts
++ *
++ * Each channel sum includes only samples admitted by the statistics threshold.
++ * Counts are per Bayer channel, not the number of pixels in the region.
++ *
++ * @r_sum: red sum
++ * @b_sum: blue sum
++ * @gr_sum: green-on-red-row sum
++ * @gb_sum: green-on-blue-row sum
++ * @r_count: red sample count
++ * @b_count: blue sample count
++ * @gr_count: green-on-red-row sample count
++ * @gb_count: green-on-blue-row sample count
++ */
++struct camss_stats_bg_region {
++	__u32 r_sum;
++	__u32 b_sum;
++	__u32 gr_sum;
++	__u32 gb_sum;
++	__u16 r_count;
++	__u16 b_count;
++	__u16 gr_count;
++	__u16 gb_count;
++};
++
++/**
++ * struct camss_stats_awb_bg - Bayer RGB grid statistics for one input frame
++ *
++ * The driver selects an even, centred grid in the input Bayer frame.
++ * Regions are ordered left to right, top to bottom. All dimensions and
++ * offsets refer to input pixels before image scaling. The sum/count ratio
++ * gives the channel mean in the scale described by @input_bits.
++ *
++ * @header: block header; @header.type = CAMSS_STATS_AWB_BG
++ * @left: horizontal grid offset
++ * @top: vertical grid offset
++ * @region_width: width of each region
++ * @region_height: height of each region
++ * @columns: number of regions per row
++ * @rows: number of region rows
++ * @high_threshold: common channel threshold in the input scale
++ * @input_bits: number of significant input bits
++ * @regions: @columns * @rows channel sum/count records
++ */
++struct camss_stats_awb_bg {
++	struct v4l2_isp_block_header header;
++	__u16 left;
++	__u16 top;
++	__u16 region_width;
++	__u16 region_height;
++	__u16 columns;
++	__u16 rows;
++	__u16 high_threshold;
++	__u16 input_bits;
++	struct camss_stats_bg_region regions[];
++} __attribute__((aligned(8)));
++
++/* Maximum grid exported by the current VFE175 statistics configuration. */
++#define CAMSS_STATS_BG_COLUMNS		32
++#define CAMSS_STATS_BG_ROWS		24
++#define CAMSS_STATS_BG_MAX_REGIONS	(CAMSS_STATS_BG_COLUMNS * CAMSS_STATS_BG_ROWS)
++#define CAMSS_STATS_BG_MAX_PAYLOAD	(sizeof(struct camss_stats_awb_bg) + \
++	CAMSS_STATS_BG_MAX_REGIONS * sizeof(struct camss_stats_bg_region))
++#define CAMSS_STATS_MAX_PAYLOAD		(sizeof(struct camss_stats_bhist) + \
++	CAMSS_STATS_BG_MAX_PAYLOAD)
++
++#endif /* _UAPI_LINUX_QCOM_CAMSS_CONFIG_H */
+--- a/meson.build
++++ b/meson.build
+@@ -215,6 +215,7 @@
+ arch_arm = ['arm', 'aarch64']
+ arch_x86 = ['x86', 'x86_64']
+ pipelines_support = {
++    'camss-vfe':    arch_arm,
+     'imx8-isi':     arch_arm,
+     'ipu3':         arch_x86,
+     'mali-c55':     arch_arm,
+--- a/meson_options.txt
++++ b/meson_options.txt
+@@ -53,7 +53,7 @@
+ 
+ option('ipas',
+         type : 'array',
+-        choices : ['ipu3', 'mali-c55', 'rkisp1', 'rpi/pisp', 'rpi/vc4', 'simple',
++        choices : ['camss-vfe', 'ipu3', 'mali-c55', 'rkisp1', 'rpi/pisp', 'rpi/vc4', 'simple',
+                    'vimc'],
+         description : 'Select which IPA modules to build')
+ 
+@@ -83,6 +83,7 @@
+         choices : [
+             'all',
+             'auto',
++            'camss-vfe',
+             'imx8-isi',
+             'ipu3',
+             'mali-c55',
+--- a/include/libcamera/ipa/meson.build
++++ b/include/libcamera/ipa/meson.build
+@@ -63,6 +63,7 @@
+ 
+ # Mapping from pipeline handler name to mojom file
+ pipeline_ipa_mojom_mapping = {
++    'camss-vfe': 'camss.mojom',
+     'ipu3': 'ipu3.mojom',
+     'mali-c55': 'mali-c55.mojom',
+     'rkisp1': 'rkisp1.mojom',
+--- a/include/linux/media/v4l2-isp.h
++++ b/include/linux/media/v4l2-isp.h
+@@ -6,31 +6,39 @@
+  * Author: Jacopo Mondi <jacopo.mondi@ideasonboard.com>
+  */
+ 
+-#ifndef _V4L2_ISP_H_
+-#define _V4L2_ISP_H_
++#ifndef _UAPI_V4L2_ISP_H_
++#define _UAPI_V4L2_ISP_H_
+ 
+ #include <linux/stddef.h>
+ #include <linux/types.h>
+ 
+ /**
+- * enum v4l2_isp_params_version - V4L2 ISP parameters versioning
++ * enum v4l2_isp_version - V4L2 ISP serialization format versioning
+  *
+- * @V4L2_ISP_PARAMS_VERSION_V0: First version of the V4L2 ISP parameters format
+- *				(for compatibility)
+- * @V4L2_ISP_PARAMS_VERSION_V1: First version of the V4L2 ISP parameters format
++ * @V4L2_ISP_VERSION_V0: First version of the V4L2 ISP serialization format
++ *                       (for compatibility)
++ * @V4L2_ISP_VERSION_V1: First version of the V4L2 ISP serialization format
+  *
+  * V0 and V1 are identical in order to support drivers compatible with the V4L2
+- * ISP parameters format already upstreamed which use either 0 or 1 as their
+- * versioning identifier. Both V0 and V1 refers to the first version of the
+- * V4L2 ISP parameters format.
++ * ISP format already upstreamed which use either 0 or 1 as their versioning
++ * identifier. Both V0 and V1 refers to the first version of the V4L2 ISP
++ * serialization format.
+  *
+- * Future revisions of the V4L2 ISP parameters format should start from the
++ * Future revisions of the V4L2 ISP serialization format should start from the
+  * value of 2.
+  */
+-enum v4l2_isp_params_version {
+-	V4L2_ISP_PARAMS_VERSION_V0 = 0,
+-	V4L2_ISP_PARAMS_VERSION_V1
++enum v4l2_isp_version {
++	V4L2_ISP_VERSION_V0 = 0,
++	V4L2_ISP_VERSION_V1
+ };
++
++/*
++ * Compatibility with existing users of v4l2_isp_params which pre-date the
++ * introduction of v4l2_isp_stats.
++ */
++#define v4l2_isp_params_version			v4l2_isp_version
++#define V4L2_ISP_PARAMS_VERSION_V0		V4L2_ISP_VERSION_V0
++#define V4L2_ISP_PARAMS_VERSION_V1		V4L2_ISP_VERSION_V1
+ 
+ #define V4L2_ISP_PARAMS_FL_BLOCK_DISABLE	(1U << 0)
+ #define V4L2_ISP_PARAMS_FL_BLOCK_ENABLE		(1U << 1)
+@@ -39,64 +47,89 @@
+  * Reserve the first 8 bits for V4L2_ISP_PARAMS_FL_* flag.
+  *
+  * Driver-specific flags should be defined as:
+- * #define DRIVER_SPECIFIC_FLAG0     ((1U << V4L2_ISP_PARAMS_FL_DRIVER_FLAGS(0))
+- * #define DRIVER_SPECIFIC_FLAG1     ((1U << V4L2_ISP_PARAMS_FL_DRIVER_FLAGS(1))
++ * #define DRIVER_SPECIFIC_FLAG0     ((1U << V4L2_ISP_FL_DRIVER_FLAGS(0))
++ * #define DRIVER_SPECIFIC_FLAG1     ((1U << V4L2_ISP_FL_DRIVER_FLAGS(1))
+  */
+-#define V4L2_ISP_PARAMS_FL_DRIVER_FLAGS(n)       ((n) + 8)
++#define V4L2_ISP_FL_DRIVER_FLAGS(n)		((n) + 8)
+ 
+ /**
+- * struct v4l2_isp_params_block_header - V4L2 extensible parameters block header
+- * @type: The parameters block type (driver-specific)
++ * struct v4l2_isp_block_header - V4L2 extensible block header
++ * @type: The parameters or statistics block type (driver-specific)
+  * @flags: A bitmask of block flags (driver-specific)
+- * @size: Size (in bytes) of the parameters block, including this header
++ * @size: Size (in bytes) of the block, including this header
+  *
+- * This structure represents the common part of all the ISP configuration
+- * blocks. Each parameters block shall embed an instance of this structure type
+- * as its first member, followed by the block-specific configuration data.
++ * This structure represents the common part of all the ISP configuration or
++ * statistic blocks. Each block shall embed an instance of this structure type
++ * as its first member, followed by the block-specific configuration or
++ * statistic data.
+  *
+  * The @type field is an ISP driver-specific value that identifies the block
+- * type. The @size field specifies the size of the parameters block.
++ * type. The @size field specifies the size of the block, including this
++ * header.
+  *
+- * The @flags field is a bitmask of per-block flags V4L2_PARAMS_ISP_FL_* and
+- * driver-specific flags specified by the driver header.
++ * The @flags field is a bitmask of per-block flags. If a block is used for
++ * configuration parameters this field can be a combination of
++ * V4L2_ISP_PARAMS_FL_* and driver-specific flags. If a block is used
++ * for statistics this fields is used to report optional
++ * driver-specific flags, if any.
+  */
+-struct v4l2_isp_params_block_header {
++struct v4l2_isp_block_header {
+ 	__u16 type;
+ 	__u16 flags;
+ 	__u32 size;
+ } __attribute__((aligned(8)));
+ 
+ /**
+- * struct v4l2_isp_params_buffer - V4L2 extensible parameters configuration
+- * @version: The parameters buffer version (driver-specific)
+- * @data_size: The configuration data effective size, excluding this header
+- * @data: The configuration data
++ * v4l2_isp_params_block_header - V4L2 extensible parameters block header
+  *
+- * This structure contains the configuration parameters of the ISP algorithms,
+- * serialized by userspace into a data buffer. Each configuration parameter
+- * block is represented by a block-specific structure which contains a
+- * :c:type:`v4l2_isp_params_block_header` entry as first member. Userspace
+- * populates the @data buffer with configuration parameters for the blocks that
+- * it intends to configure. As a consequence, the data buffer effective size
+- * changes according to the number of ISP blocks that userspace intends to
+- * configure and is set by userspace in the @data_size field.
++ * Compatibility with existing users of v4l2_isp_params_block_header
++ * which pre-date the introduction of v4l2_isp_block_header.
++ */
++#define v4l2_isp_params_block_header v4l2_isp_block_header
++
++/**
++ * struct v4l2_isp_buffer - V4L2 extensible buffer
++ * @version: The extensible buffer version (driver-specific)
++ * @data_size: The data effective size, excluding this header
++ * @data: The configuration or statistics data
+  *
+- * The parameters buffer is versioned by the @version field to allow modifying
+- * and extending its definition. Userspace shall populate the @version field to
+- * inform the driver about the version it intends to use. The driver will parse
+- * and handle the @data buffer according to the data layout specific to the
+- * indicated version and return an error if the desired version is not
++ * This structure contains ISP configuration parameters or ISP hardware
++ * statistics serialized into a data buffer. Each block is represented by a
++ * block-specific structure which contains a :c:type:`v4l2_isp_block_header`
++ * entry as first member.
++ *
++ * When used for ISP parameters, userspace populates the @data buffer with
++ * configuration parameters for the blocks that it intends to configure. As a
++ * consequence, the data buffer effective size changes according to the number
++ * of ISP blocks that userspace intends to configure.
++ *
++ * When used to report ISP statistics, the driver populates the @data buffer
++ * with statistics for each supported measurement block.
++ *
++ * The buffer is versioned by the @version field to allow modifying
++ * and extending its definition. The writer shall populate the @version field
++ * to inform the reader about the version it intends to use. The reader will
++ * parse and handle the @data buffer according to the data layout specific to
++ * the indicated version and return an error if the desired version is not
+  * supported.
+  *
+- * For each ISP block that userspace wants to configure, a block-specific
+- * structure is appended to the @data buffer, one after the other without gaps
+- * in between. Userspace shall populate the @data_size field with the effective
+- * size, in bytes, of the @data buffer.
++ * For each ISP block, a block-specific structure is appended to the @data
++ * buffer, one after the other without gaps in between. The writer shall
++ * populate the @data_size field with the effective size, in bytes, of the
++ * @data buffer.
+  */
+-struct v4l2_isp_params_buffer {
++struct v4l2_isp_buffer {
+ 	__u32 version;
+ 	__u32 data_size;
+ 	__u8 data[] __counted_by(data_size);
+ };
+ 
+-#endif /* _V4L2_ISP_H_ */
++/**
++ * v4l2_isp_params_buffer - V4L2 extensible parameters compatibility
++ *
++ * Compatibility with existing users of v4l2_isp_params_buffer which
++ * pre-date the introduction of v4l2_isp_buffer.
++ */
++#define v4l2_isp_params_buffer v4l2_isp_buffer
++
++#endif /* _UAPI_V4L2_ISP_H_ */
+--- /dev/null
++++ b/src/ipa/camss-vfe/params.h
+@@ -0,0 +1,69 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++/*
++ * Qualcomm CAMSS ISP Parameters
++ *
++ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
++ */
++
++#pragma once
++
++#include <linux/qcom-camss-config.h>
++#include <linux/videodev2.h>
++
++/*
++ * FIXME must be moved to a to-be-written camss IPA and then this should be:
++ * #include <libipa/v4l2_params.h>
++ */
++#include "../libipa/v4l2_params.h"
++
++namespace libcamera {
++
++namespace ipa::camss {
++
++enum class CamssBlocks : uint16_t {
++	AwbGains,
++	ChromaEnh,
++	ColorCorrect,
++	AecBhist,
++};
++
++namespace details {
++
++template<CamssBlocks B>
++struct block_type {
++};
++
++#define CAMSS_DEFINE_BLOCK_TYPE(id, cfgType, blkType)                    \
++	template<>                                                       \
++	struct block_type<CamssBlocks::id> {                             \
++		using type = struct camss_params_##cfgType;              \
++		static constexpr camss_params_block_type blockType =     \
++			camss_params_block_type::CAMSS_PARAMS_##blkType; \
++	}
++
++CAMSS_DEFINE_BLOCK_TYPE(AwbGains, wb_gain, WB_GAIN);
++CAMSS_DEFINE_BLOCK_TYPE(ChromaEnh, chroma_enhan, CHROMA_ENHAN);
++CAMSS_DEFINE_BLOCK_TYPE(ColorCorrect, color_correct, COLOR_CORRECT);
++CAMSS_DEFINE_BLOCK_TYPE(AecBhist, aec_bhist, AEC_BHIST);
++
++struct param_traits {
++	using id_type = CamssBlocks;
++
++	template<id_type Id>
++	using id_to_details = block_type<Id>;
++};
++
++} /* namespace details */
++
++class CamssParams : public V4L2Params<details::param_traits>
++{
++public:
++	CamssParams(Span<uint8_t> data)
++		: V4L2Params(data, V4L2_ISP_PARAMS_VERSION_V1)
++	{
++	}
++};
++
++} /* namespace ipa::camss */
++
++} /* namespace libcamera */
+--- a/include/libcamera/internal/framebuffer.h
++++ b/include/libcamera/internal/framebuffer.h
+@@ -29,6 +29,8 @@
+ 
+ 	void setRequest(Request *request) { request_ = request; }
+ 	bool isContiguous() const { return isContiguous_; }
++	uint32_t kernelSequence() const { return kernelSequence_; }
++	void setKernelSequence(uint32_t sequence) { kernelSequence_ = sequence; }
+ 	bool timestampMonotonic() const { return timestampMonotonic_; }
+ 	void setTimestampMonotonic(bool monotonic) { timestampMonotonic_ = monotonic; }
+ 
+@@ -47,6 +49,7 @@
+ 	std::unique_ptr<Fence> fence_;
+ 	Request *request_;
+ 	bool isContiguous_;
++	uint32_t kernelSequence_ = 0;
+ 	bool timestampMonotonic_ = false;
+ };
+ 
+--- a/src/libcamera/v4l2_videodevice.cpp
++++ b/src/libcamera/v4l2_videodevice.cpp
+@@ -1896,6 +1896,8 @@
+ 			? FrameMetadata::FrameError
+ 			: FrameMetadata::FrameSuccess;
+ 	metadata.sequence = buf.sequence;
++	/* Keep the shared kernel frame identity across independently started queues. */
++	buffer->_d()->setKernelSequence(buf.sequence);
+ 	metadata.timestamp = buf.timestamp.tv_sec * 1000000000ULL
+ 			   + buf.timestamp.tv_usec * 1000ULL;
+ 	buffer->_d()->setTimestampMonotonic((buf.flags & V4L2_BUF_FLAG_TIMESTAMP_MASK) ==
+--- a/include/linux/videodev2.h
++++ b/include/linux/videodev2.h
+@@ -837,6 +837,9 @@
+ #define V4L2_TCH_FMT_TU08	v4l2_fourcc('T', 'U', '0', '8') /* 8-bit unsigned touch data */
+ 
+ /* Meta-data formats */
++/* Qualcomm ISP metadata, synchronized from the deployed kernel UAPI. */
++#define V4L2_META_FMT_QCOM_ISP_STATS	v4l2_fourcc('Q', 'C', 'I', 'S') /* Qualcomm CAMSS ISP Statistics */
++#define V4L2_META_FMT_QCOM_ISP_PARAMS	v4l2_fourcc('Q', 'C', 'I', 'P') /* Qualcomm CAMSS ISP Parameters */
+ #define V4L2_META_FMT_VSP1_HGO    v4l2_fourcc('V', 'S', 'P', 'H') /* R-Car VSP1 1-D Histogram */
+ #define V4L2_META_FMT_VSP1_HGT    v4l2_fourcc('V', 'S', 'P', 'T') /* R-Car VSP1 2-D Histogram */
+ #define V4L2_META_FMT_UVC         v4l2_fourcc('U', 'V', 'C', 'H') /* UVC Payload Header metadata */

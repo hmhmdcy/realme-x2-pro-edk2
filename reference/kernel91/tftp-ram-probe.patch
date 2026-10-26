@@ -1,0 +1,113 @@
+--- a/tqftpserv.c
++++ b/tqftpserv.c
+@@ -535,6 +535,7 @@
+ 	}
+ 
+ 	client = calloc(1, sizeof(*client));
++	if (!client) goto out_close_sock;
+ 	client->sq = *sq;
+ 	client->sock = sock;
+ 	client->fd = fd;
+@@ -657,6 +658,11 @@
+ 		}
+ 	}
+ 
++	log_debug("WRQ options: block=%zu window=%zu size=%zd seek=%lld\n", blksize, wsize, tsize, (long long)seek);
++	if (blksize > 65535 || wsize > 128 || blksize * wsize > 1048576 || seek != 0 || tsize > 4096) {
++		tftp_send_error_to(sq, TFTP_ERROR_EACCESS, "RAM probe limits");
++		return;
++	}
+ 	fd = translate_open(filename, O_WRONLY | O_CREAT);
+ 	if (fd < 0) {
+ 		log_debug("unable to open %s (%d), reject\n", filename, errno);
+@@ -679,6 +685,7 @@
+ 	}
+ 
+ 	client = calloc(1, sizeof(*client));
++	if (!client) goto out_close_sock;
+ 	client->sq = *sq;
+ 	client->sock = sock;
+ 	client->fd = fd;
+@@ -718,7 +725,7 @@
+ 			       rsize ? &rsize : NULL,
+ 			       seek ? &seek : NULL);
+ 	} else {
+-		tftp_send_data(client, 1, 0, 0);
++		tftp_send_ack(client->sock, 0);
+ 	}
+ 
+ 	return;
+@@ -738,7 +745,7 @@
+ 	struct sockaddr_qrtr sq;
+ 	uint16_t block;
+ 	uint16_t last;
+-	char buf[128];
++	char buf[129];
+ 	socklen_t sl;
+ 	ssize_t len;
+ 	ssize_t n = 0;
+@@ -746,13 +753,15 @@
+ 	int ret;
+ 
+ 	sl = sizeof(sq);
+-	len = recvfrom(client->sock, buf, sizeof(buf), 0, (void *)&sq, &sl);
++	len = recvfrom(client->sock, buf, sizeof(buf)-1, MSG_TRUNC, (void *)&sq, &sl);
+ 	if (len < 0) {
+ 		ret = -errno;
+ 		if (ret != -ENETRESET)
+ 			log_err("recvfrom failed when handling reader: %d\n", ret);
+ 		return -1;
+ 	}
++
++	if (len < 4 || len > 128) return -1;
+ 
+ 	/* Drop unsolicited messages */
+ 	if (sq.sq_node != client->sq.sq_node ||
+@@ -820,13 +829,15 @@
+ 	int ret;
+ 
+ 	sl = sizeof(sq);
+-	len = recvfrom(client->sock, buf, client->blksize + 4, 0, (void *)&sq, &sl);
++	len = recvfrom(client->sock, buf, client->blksize + 4, MSG_TRUNC, (void *)&sq, &sl);
+ 	if (len < 0) {
+ 		ret = -errno;
+ 		if (ret != -ENETRESET)
+ 			log_err("recvfrom failed when handling writer: %d\n", ret);
+ 		return -1;
+ 	}
++
++	if (len < 4 || (size_t)len > client->blksize + 4) return -1;
+ 
+ 	/* Drop unsolicited messages */
+ 	if (sq.sq_node != client->sq.sq_node ||
+@@ -865,6 +876,7 @@
+ 
+ 	client->blk_expected++;
+ 
++	if (payload > client->rw_buf_size - client->blk_offset) return -1;
+ 	/* Copy the data to the destination buffer */
+ 	memcpy(client->rw_buf + client->blk_offset, buf, payload);
+ 	client->blk_offset += payload;
+@@ -872,8 +884,13 @@
+ 	/* Write to file if all the wsize blocks are recieved
+ 	 * or received buffer that is less than blksize */
+ 	if ((block % client->wsize == 0) || (payload < client->blksize)) {
++		off_t pos = lseek(client->fd, 0, SEEK_CUR);
++		if (pos < 0 || pos > 4096 || client->blk_offset > 4096 - (size_t)pos) {
++			tftp_send_error(client->sock, TFTP_ERROR_ENOSPACE, "RAM probe limit");
++			return -1;
++		}
+ 		ret = write(client->fd, client->rw_buf, client->blk_offset);
+-		if (ret < 0) {
++		if (ret < 0 || (size_t)ret != client->blk_offset) {
+ 			log_err("failed to write data: %s\n", strerror(errno));
+ 			tftp_send_error(client->sock, TFTP_ERROR_ENOSPACE, "Disk full or write error");
+ 			return -1;
+@@ -907,6 +924,7 @@
+ 
+ int main(int argc, char **argv)
+ {
++	setvbuf(stdout, NULL, _IOLBF, 0);
+ 	struct tftp_client *client;
+ 	struct tftp_client *next;
+ 	struct sockaddr_qrtr sq;

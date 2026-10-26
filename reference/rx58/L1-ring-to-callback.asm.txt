@@ -1,0 +1,37 @@
+0000d67f 48 63 86 48 0e 00 00     movsxd   rax, dword ptr [rsi + 0xe48]
+0000d686 33 db                    xor      ebx, ebx
+0000d688 48 69 c8 f8 00 00 00     imul     rcx, rax, 0xf8
+0000d68f 48 8b 86 20 0e 00 00     mov      rax, qword ptr [rsi + 0xe20]
+0000d696 8b 54 01 10              mov      edx, dword ptr [rcx + rax + 0x10]
+0000d69a 41 89 56 58              mov      dword ptr [r14 + 0x58], edx
+0000d69e 48 63 86 48 0e 00 00     movsxd   rax, dword ptr [rsi + 0xe48]
+0000d6a5 48 69 c8 f8 00 00 00     imul     rcx, rax, 0xf8
+0000d6ac 48 8b 86 20 0e 00 00     mov      rax, qword ptr [rsi + 0xe20]
+0000d6b3 44 8b 44 01 20           mov      r8d, dword ptr [rcx + rax + 0x20]
+0000d6b8 45 89 46 48              mov      dword ptr [r14 + 0x48], r8d
+0000d6bc 48 63 86 48 0e 00 00     movsxd   rax, dword ptr [rsi + 0xe48]
+0000d6c3 48 69 c8 f8 00 00 00     imul     rcx, rax, 0xf8
+0000d6ca 48 8b 86 20 0e 00 00     mov      rax, qword ptr [rsi + 0xe20]
+0000d6d1 48 8b 4c 01 18           mov      rcx, qword ptr [rcx + rax + 0x18]
+0000d6d6 49 89 4e 20              mov      qword ptr [r14 + 0x20], rcx
+0000d6da 85 d2                    test     edx, edx
+0000d6dc 75 0c                    jne      0xd6ea
+0000d6de 45 85 c0                 test     r8d, r8d
+0000d6e1 74 07                    je       0xd6ea
+0000d6e3 44 88 be 15 0e 00 00     mov      byte ptr [rsi + 0xe15], r15b
+0000d6ea 41 b0 04                 mov      r8b, 4
+0000d6ed 33 d2                    xor      edx, edx
+0000d6ef 49 8b ce                 mov      rcx, r14
+0000d6f2 41 ff 56 60              call     qword ptr [r14 + 0x60]
+0000d6f6 48 63 8e 48 0e 00 00     movsxd   rcx, dword ptr [rsi + 0xe48]
+0000d6fd 44 8b c3                 mov      r8d, ebx
+0000d700 48 69 d1 f8 00 00 00     imul     rdx, rcx, 0xf8
+0000d707 48 8b 8e 20 0e 00 00     mov      rcx, qword ptr [rsi + 0xe20]
+0000d70e 4c 8b cb                 mov      r9, rbx
+0000d711 44 8b f8                 mov      r15d, eax
+0000d714 c7 44 0a 10 03 01 00 00  mov      dword ptr [rdx + rcx + 0x10], 0x103
+0000d71c 48 63 8e 48 0e 00 00     movsxd   rcx, dword ptr [rsi + 0xe48]
+0000d723 48 69 d1 f8 00 00 00     imul     rdx, rcx, 0xf8
+0000d72a 48 8b 8e 20 0e 00 00     mov      rcx, qword ptr [rsi + 0xe20]
+0000d731 89 5c 0a 20              mov      dword ptr [rdx + rcx + 0x20], ebx
+0000d735 bb 01 00 00 00           mov      ebx, 1

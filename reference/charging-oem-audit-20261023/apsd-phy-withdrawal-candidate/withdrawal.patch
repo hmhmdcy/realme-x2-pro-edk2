@@ -1,0 +1,489 @@
+--- a/drivers/phy/qualcomm/phy-qcom-snps-femto-v2.c
++++ b/drivers/phy/qualcomm/phy-qcom-snps-femto-v2.c
+@@ -4,6 +4,9 @@
+  */
+ 
+ #include <linux/clk.h>
++#include <linux/completion.h>
++#include <linux/kref.h>
++#include <linux/list.h>
+ #include <linux/delay.h>
+ #include <linux/err.h>
+ #include <linux/io.h>
+@@ -108,6 +111,8 @@
+ };
+ 
+ #define NUM_HSPHY_TUNING_PARAMS	(9)
++
++struct qcom_hsphy_window_provider;
+ 
+ /**
+  * struct qcom_snps_hsphy - snps hs phy attributes
+@@ -125,6 +130,8 @@
+  * @window: owned masked-state receipt, protected by generic PHY mutex
+  * @window_generation: never-zero per-provider cookie generation
+  * @window_pm_ref: active-only provider runtime reference retained by window
++ * @window_withdrawing: provider removal/shutdown has revoked new operations
++ * @window_provider: separately referenced publication and withdrawal state
+  * @mode: contains the current mode the PHY is in
+  * @update_seq_cfg: tuning parameters for phy init
+  */
+@@ -143,6 +150,8 @@
+ 	struct qcom_snps_hsphy_window_result window;
+ 	u64 window_generation;
+ 	bool window_pm_ref;
++	bool window_withdrawing;
++	struct qcom_hsphy_window_provider *window_provider;
+ 	enum phy_mode mode;
+ 	struct phy_override_seq update_seq_cfg[NUM_HSPHY_TUNING_PARAMS];
+ };
+@@ -228,7 +237,7 @@
+ };
+ 
+ /**
+- * qcom_snps_hsphy_window_begin - borrow this active PHY's masked UTMI state
++ * qcom_snps_hsphy_window_bound_begin - borrow this active PHY's masked UTMI state
+  * @phy: bound femto-v2 PHY protected by the caller's DWC active HALT window
+  * @result: cookie, exact old values, and per-step readback receipt
+  *
+@@ -236,7 +245,7 @@
+  * enter with a cookie remains owned, with its PM reference and old values.
+  * It is not a high-Z success and requires explicit end after detection stops.
+  */
+-int qcom_snps_hsphy_window_begin(struct phy *phy,
++static int qcom_snps_hsphy_window_bound_begin(struct phy *phy,
+ 		struct qcom_snps_hsphy_window_result *result)
+ {
+ 	struct qcom_snps_hsphy_window_result *window;
+@@ -296,7 +305,7 @@
+ }
+ 
+ /**
+- * qcom_snps_hsphy_window_end - restore exactly the borrowed masked state
++ * qcom_snps_hsphy_window_bound_end - restore exactly the borrowed masked state
+  * @phy: same bound PHY, still under caller's active DWC/lifetime protection
+  * @cookie: nonzero begin cookie, including a failed enter's cookie
+  * @result: old values and independent enter/restore error receipt
+@@ -305,7 +314,7 @@
+  * and PM reference for explicit retry; it never reconnects DWC/EUD. Success
+  * means these masked values were restored, not that USB enumerated.
+  */
+-int qcom_snps_hsphy_window_end(struct phy *phy, u64 cookie,
++static int qcom_snps_hsphy_window_bound_end(struct phy *phy, u64 cookie,
+ 		struct qcom_snps_hsphy_window_result *result)
+ {
+ 	struct qcom_snps_hsphy_window_result *window;
+@@ -358,6 +367,292 @@
+ 	return ret;
+ }
+ 
++/* Registry protects publication only. Provider lock protects bound storage;
++ * no client callback runs under either it or the generic PHY mutex. */
++struct qcom_hsphy_window_provider;
++struct qcom_snps_hsphy_window_client {
++	struct kref ref;
++	struct qcom_hsphy_window_provider *provider;
++	struct qcom_snps_hsphy_window_client_ops ops;
++	void *context;
++};
++struct qcom_hsphy_window_provider {
++	struct list_head node;
++	struct kref ref;
++	struct mutex lock;
++	struct completion withdrawn;
++	struct phy *key; /* compare only under registry; never dereference */
++	struct qcom_snps_hsphy *bound;
++	struct qcom_snps_hsphy_window_client *client;
++	struct qcom_snps_hsphy_window_result receipt;
++	bool withdrawing, dead;
++	int withdraw_error;
++};
++static LIST_HEAD(qcom_hsphy_window_providers);
++static DEFINE_MUTEX(qcom_hsphy_window_registry);
++
++static void qcom_hsphy_window_provider_free(struct kref *ref)
++{
++	struct qcom_hsphy_window_provider *p = container_of(ref,
++		struct qcom_hsphy_window_provider, ref);
++	mutex_destroy(&p->lock);
++	kfree(p);
++}
++
++static void qcom_hsphy_window_client_free(struct kref *ref)
++{
++	struct qcom_snps_hsphy_window_client *c = container_of(ref,
++		struct qcom_snps_hsphy_window_client, ref);
++	/* Context release can destroy the owner; always outside component locks. */
++	c->ops.put(c->context);
++	kref_put(&c->provider->ref, qcom_hsphy_window_provider_free);
++	kfree(c);
++}
++
++int qcom_snps_hsphy_window_client_register(struct phy *phy,
++		const struct qcom_snps_hsphy_window_client_ops *ops, void *context,
++		struct qcom_snps_hsphy_window_client **client)
++{
++	struct qcom_snps_hsphy_window_client *c;
++	struct qcom_hsphy_window_provider *p;
++	int ret = -ENODEV;
++
++	if (!client)
++		return -EINVAL;
++	*client = NULL;
++	if (!phy || !ops || !ops->get_unless_zero || !ops->put || !ops->cancel_join)
++		return -EINVAL;
++	c = kzalloc(sizeof(*c), GFP_KERNEL);
++	if (!c)
++		return -ENOMEM;
++	/* Pins callback code/data until final client or withdrawal callback put. */
++	if (!ops->get_unless_zero(context)) {
++		kfree(c);
++		return -ESHUTDOWN;
++	}
++	kref_init(&c->ref);
++	c->ops = *ops;
++	c->context = context;
++	mutex_lock(&qcom_hsphy_window_registry);
++	list_for_each_entry(p, &qcom_hsphy_window_providers, node) {
++		if (p->key != phy)
++			continue;
++		mutex_lock(&p->lock);
++		if (p->withdrawing || p->dead)
++			ret = -ESHUTDOWN;
++		else if (p->client)
++			ret = -EBUSY;
++		else {
++			kref_get(&p->ref);
++			c->provider = p;
++			p->client = c;
++			*client = c;
++			ret = 0;
++		}
++		mutex_unlock(&p->lock);
++		break;
++	}
++	mutex_unlock(&qcom_hsphy_window_registry);
++	if (ret) {
++		ops->put(context);
++		kfree(c);
++	}
++	return ret;
++}
++
++int qcom_snps_hsphy_window_client_unregister(struct qcom_snps_hsphy_window_client *c)
++{
++	struct qcom_hsphy_window_provider *p;
++	bool busy = false;
++
++	if (!c)
++		return -EINVAL;
++	p = c->provider;
++	mutex_lock(&p->lock);
++	if (p->bound) {
++		mutex_lock(&p->bound->phy->mutex);
++		busy = qcom_snps_hsphy_window_busy(p->bound);
++		mutex_unlock(&p->bound->phy->mutex);
++	}
++	if (!busy)
++		p->client = NULL;
++	mutex_unlock(&p->lock);
++	if (busy)
++		return -EBUSY; /* preserve context/handle until restored or revoked */
++	kref_put(&c->ref, qcom_hsphy_window_client_free);
++	return 0;
++}
++
++int qcom_snps_hsphy_window_begin(struct qcom_snps_hsphy_window_client *c,
++		struct qcom_snps_hsphy_window_result *result)
++{
++	struct qcom_hsphy_window_provider *p;
++	int ret;
++
++	if (!c || !result)
++		return -EINVAL;
++	memset(result, 0, sizeof(*result));
++	p = c->provider;
++	mutex_lock(&p->lock);
++	if (p->withdrawing || !p->bound)
++		ret = -ESHUTDOWN;
++	else
++		ret = qcom_snps_hsphy_window_bound_begin(p->bound->phy, result);
++	mutex_unlock(&p->lock);
++	return ret;
++}
++
++int qcom_snps_hsphy_window_end(struct qcom_snps_hsphy_window_client *c, u64 cookie,
++		struct qcom_snps_hsphy_window_result *result)
++{
++	struct qcom_hsphy_window_provider *p;
++	int ret;
++
++	if (!c || !result)
++		return -EINVAL;
++	memset(result, 0, sizeof(*result));
++	p = c->provider;
++	mutex_lock(&p->lock);
++	/* The withdrawal callback may restore while storage is still bound.
++	 * Once tombstoned, no stale handle may touch PHY/PM/devres again. */
++	if (!p->bound) {
++		*result = p->receipt;
++		ret = -ESHUTDOWN;
++	} else {
++		ret = qcom_snps_hsphy_window_bound_end(p->bound->phy, cookie, result);
++	}
++	mutex_unlock(&p->lock);
++	return ret;
++}
++
++int qcom_snps_hsphy_window_status(struct qcom_snps_hsphy_window_client *c,
++		struct qcom_snps_hsphy_window_result *result)
++{
++	struct qcom_hsphy_window_provider *p;
++
++	if (!c || !result)
++		return -EINVAL;
++	p = c->provider;
++	mutex_lock(&p->lock);
++	if (p->bound) {
++		mutex_lock(&p->bound->phy->mutex);
++		*result = p->bound->window;
++		mutex_unlock(&p->bound->phy->mutex);
++		result->revoked = p->withdrawing;
++	} else {
++		*result = p->receipt;
++	}
++	mutex_unlock(&p->lock);
++	return 0;
++}
++
++static int qcom_hsphy_window_withdraw(struct qcom_hsphy_window_provider *p)
++{
++	struct qcom_snps_hsphy_window_client *c;
++	struct qcom_snps_hsphy *hsphy;
++	bool put_pm = false;
++	int error = 0;
++
++	/* Each concurrent withdrawal keeps its completion/receipt storage alive,
++	 * even if devres drops the publication reference before a waiter wakes. */
++	kref_get(&p->ref);
++	mutex_lock(&qcom_hsphy_window_registry);
++	mutex_lock(&p->lock);
++	if (p->withdrawing) {
++		mutex_unlock(&p->lock);
++		mutex_unlock(&qcom_hsphy_window_registry);
++		wait_for_completion(&p->withdrawn);
++		error = p->withdraw_error;
++		kref_put(&p->ref, qcom_hsphy_window_provider_free);
++		return error;
++	}
++	p->withdrawing = true;
++	list_del_init(&p->node);
++	hsphy = p->bound;
++	mutex_lock(&hsphy->phy->mutex);
++	hsphy->window_withdrawing = true;
++	mutex_unlock(&hsphy->phy->mutex);
++	c = p->client;
++	if (c)
++		kref_get(&c->ref);
++	mutex_unlock(&p->lock);
++	mutex_unlock(&qcom_hsphy_window_registry);
++	if (c)
++		error = c->ops.cancel_join(c->context);
++	mutex_lock(&p->lock);
++	mutex_lock(&hsphy->phy->mutex);
++	p->receipt = hsphy->window;
++	if (qcom_snps_hsphy_window_busy(hsphy)) {
++		if (!error)
++			error = p->receipt.restore_error ? p->receipt.restore_error : -ESHUTDOWN;
++		p->receipt.high_z = false;
++		p->receipt.restored = false;
++		/* Forced removal cannot retain permission to retry on freed MMIO.
++		 * No second restore attempt or reconnect is invented here. */
++		put_pm = hsphy->window_pm_ref;
++		hsphy->window_pm_ref = false;
++	}
++	p->receipt.revoked = true;
++	p->receipt.withdraw_error = error;
++	p->withdraw_error = error;
++	p->bound = NULL;
++	p->dead = true;
++	mutex_unlock(&hsphy->phy->mutex);
++	mutex_unlock(&p->lock);
++	if (put_pm)
++		pm_runtime_put_noidle(hsphy->dev);
++	if (c)
++		kref_put(&c->ref, qcom_hsphy_window_client_free);
++	complete_all(&p->withdrawn);
++	kref_put(&p->ref, qcom_hsphy_window_provider_free);
++	return error;
++}
++
++static void qcom_hsphy_window_release(void *data)
++{
++	struct qcom_hsphy_window_provider *p = data;
++
++	qcom_hsphy_window_withdraw(p);
++	kref_put(&p->ref, qcom_hsphy_window_provider_free);
++}
++
++static int qcom_hsphy_window_publish(struct qcom_snps_hsphy *hsphy)
++{
++	struct qcom_hsphy_window_provider *p;
++
++	p = kzalloc(sizeof(*p), GFP_KERNEL);
++	if (!p)
++		return -ENOMEM;
++	kref_init(&p->ref);
++	mutex_init(&p->lock);
++	init_completion(&p->withdrawn);
++	INIT_LIST_HEAD(&p->node);
++	p->key = hsphy->phy;
++	p->bound = hsphy;
++	hsphy->window_provider = p;
++	mutex_lock(&qcom_hsphy_window_registry);
++	list_add_tail(&p->node, &qcom_hsphy_window_providers);
++	mutex_unlock(&qcom_hsphy_window_registry);
++	/* Installed after generic PHY/provider/PM devres: withdrawal runs first
++	 * on probe rollback as well as ordinary unbind. */
++	return devm_add_action_or_reset(hsphy->dev, qcom_hsphy_window_release, p);
++}
++
++static void qcom_snps_hsphy_remove(struct platform_device *pdev)
++{
++	struct qcom_snps_hsphy *hsphy = dev_get_drvdata(&pdev->dev);
++	int ret = qcom_hsphy_window_withdraw(hsphy->window_provider);
++
++	if (ret)
++		dev_warn(&pdev->dev, "PHY window revoked without successful cleanup: %d\n", ret);
++}
++
++static void qcom_snps_hsphy_shutdown(struct platform_device *pdev)
++{
++	qcom_snps_hsphy_remove(pdev);
++}
++
++
+ static int qcom_snps_hsphy_suspend(struct qcom_snps_hsphy *hsphy)
+ {
+ 	dev_dbg(&hsphy->phy->dev, "Suspend QCOM SNPS PHY\n");
+@@ -390,6 +685,9 @@
+ 	int ret = 0;
+ 
+ 	mutex_lock(&hsphy->phy->mutex);
++	if (hsphy->window_withdrawing)
++		ret = -ESHUTDOWN;
++	else
+ 	if (qcom_snps_hsphy_window_busy(hsphy))
+ 		ret = -EBUSY;
+ 	else if (hsphy->phy_initialized)
+@@ -404,6 +702,9 @@
+ 	int ret = 0;
+ 
+ 	mutex_lock(&hsphy->phy->mutex);
++	if (hsphy->window_withdrawing)
++		ret = -ESHUTDOWN;
++	else
+ 	if (qcom_snps_hsphy_window_busy(hsphy))
+ 		ret = -EBUSY;
+ 	else if (hsphy->phy_initialized)
+@@ -416,6 +717,9 @@
+ 				    int submode)
+ {
+ 	struct qcom_snps_hsphy *hsphy = phy_get_drvdata(phy);
++
++	if (hsphy->window_withdrawing)
++		return -ESHUTDOWN;
+ 
+ 	if (qcom_snps_hsphy_window_busy(hsphy))
+ 		return -EBUSY;
+@@ -577,6 +881,9 @@
+ 	struct qcom_snps_hsphy *hsphy = phy_get_drvdata(phy);
+ 	int ret, i;
+ 
++	if (hsphy->window_withdrawing)
++		return -ESHUTDOWN;
++
+ 	if (qcom_snps_hsphy_window_busy(hsphy))
+ 		return -EBUSY;
+ 
+@@ -672,6 +979,9 @@
+ {
+ 	struct qcom_snps_hsphy *hsphy = phy_get_drvdata(phy);
+ 
++	if (hsphy->window_withdrawing)
++		return -ESHUTDOWN;
++
+ 	if (qcom_snps_hsphy_window_busy(hsphy))
+ 		return -EBUSY;
+ 
+@@ -831,6 +1141,12 @@
+ 		return PTR_ERR(phy_provider);
+ 	}
+ 
++	ret = qcom_hsphy_window_publish(hsphy);
++	if (ret) {
++		pm_runtime_put_noidle(dev);
++		return ret;
++	}
++
+ 	dev_dbg(dev, "Registered Qcom-SNPS HS phy\n");
+ 	pm_runtime_put(dev);
+ 
+@@ -839,6 +1155,8 @@
+ 
+ static struct platform_driver qcom_snps_hsphy_driver = {
+ 	.probe		= qcom_snps_hsphy_probe,
++	.remove		= qcom_snps_hsphy_remove,
++	.shutdown	= qcom_snps_hsphy_shutdown,
+ 	.driver = {
+ 		.name	= "qcom-snps-hs-femto-v2-phy",
+ 		.pm = &qcom_snps_hsphy_pm_ops,
+--- a/drivers/phy/qualcomm/phy-qcom-snps-femto-v2-window.h
++++ b/drivers/phy/qualcomm/phy-qcom-snps-femto-v2-window.h
+@@ -4,9 +4,13 @@
+ #include <linux/types.h>
+ struct phy;
+ 
+-/* Internal same-Image interface; no exported module symbol or UAPI. The
+- * caller owns the bound PHY lifetime and a successful active DWC HALT window
+- * through end; it must cancel/join its work before UDC/PHY removal. */
++/* Internal same-Image interface. Registration pins the real owner context.
++ * The caller joins all of its API users before unregister. EBUSY retains the
++ * handle/context until exact restoration or completed provider revocation.
++ * Withdrawal calls cancel_join without component locks; the callback must
++ * stop/join detection and may call end/unregister. A failed end must never
++ * reconnect DWC/EUD. status remains readable after provider devres is gone.
++ * No handle authorizes route, PD, DWC HALT or a PMIC detection transfer. */
+ enum qcom_snps_hsphy_window_state {
+ 	QCOM_HSPHY_WINDOW_IDLE,
+ 	QCOM_HSPHY_WINDOW_CLAIMED,
+@@ -18,11 +22,23 @@
+ 	enum qcom_snps_hsphy_window_state state;
+ 	u32 saved[3]; /* masked old CTRL2, UTMI_CTRL0, CFG0, in entry order */
+ 	u8 attempted, verified, restored_mask;
+-	bool high_z, restored;
+-	int enter_error, restore_error;
++	bool high_z, restored, revoked;
++	int enter_error, restore_error, withdraw_error;
+ };
+-int qcom_snps_hsphy_window_begin(struct phy *phy,
+-		struct qcom_snps_hsphy_window_result *result);
+-int qcom_snps_hsphy_window_end(struct phy *phy, u64 cookie,
+-		struct qcom_snps_hsphy_window_result *result);
++struct qcom_snps_hsphy_window_client;
++struct qcom_snps_hsphy_window_client_ops {
++ bool (*get_unless_zero)(void *context);
++ void (*put)(void *context);
++ int (*cancel_join)(void *context);
++};
++int qcom_snps_hsphy_window_client_register(struct phy *phy,
++ const struct qcom_snps_hsphy_window_client_ops *ops, void *context,
++ struct qcom_snps_hsphy_window_client **client);
++int qcom_snps_hsphy_window_client_unregister(struct qcom_snps_hsphy_window_client *client);
++int qcom_snps_hsphy_window_begin(struct qcom_snps_hsphy_window_client *client,
++ struct qcom_snps_hsphy_window_result *result);
++int qcom_snps_hsphy_window_end(struct qcom_snps_hsphy_window_client *client, u64 cookie,
++ struct qcom_snps_hsphy_window_result *result);
++int qcom_snps_hsphy_window_status(struct qcom_snps_hsphy_window_client *client,
++ struct qcom_snps_hsphy_window_result *result);
+ #endif

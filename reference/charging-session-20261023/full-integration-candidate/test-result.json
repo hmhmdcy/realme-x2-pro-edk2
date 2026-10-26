@@ -1,0 +1,176 @@
+{
+  "passed": true,
+  "tests": {
+    "test-hold": {
+      "result": {
+        "hold_sequences": 14,
+        "assertions": 97,
+        "writes_under_fault": 8,
+        "passed": true
+      },
+      "command": [
+        "gcc",
+        "-std=c11",
+        "-g",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-fsanitize=address,undefined",
+        "-fno-omit-frame-pointer",
+        "-I/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/full-integration-candidate",
+        "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/full-integration-candidate/test-hold.c",
+        "-o",
+        "/home/cy122/charging-session-20261023/full-integration-candidate/test-hold"
+      ],
+      "sha256": "bba5f372994a859438c7b992f7915fd135b5ab12eaab7d7aa0c98e969202365b"
+    },
+    "test-gauge": {
+      "result": {
+        "gauge_sequences": 7,
+        "assertions": 20,
+        "passed": true
+      },
+      "command": [
+        "gcc",
+        "-std=c11",
+        "-g",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-fsanitize=address,undefined",
+        "-fno-omit-frame-pointer",
+        "-I/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/full-integration-candidate",
+        "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/full-integration-candidate/test-gauge.c",
+        "-o",
+        "/home/cy122/charging-session-20261023/full-integration-candidate/test-gauge"
+      ],
+      "sha256": "eb5cfdd0686a7d707e9c5862251643397ce5ce85c6fd7b85cc193b6ed7140037"
+    },
+    "test-step": {
+      "result": {
+        "integration_sequences": 19,
+        "assertions": 111,
+        "passed": true
+      },
+      "command": [
+        "gcc",
+        "-std=c11",
+        "-g",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-fsanitize=address,undefined",
+        "-fno-omit-frame-pointer",
+        "-I/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/full-integration-candidate",
+        "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/full-integration-candidate/test-step.c",
+        "-o",
+        "/home/cy122/charging-session-20261023/full-integration-candidate/test-step"
+      ],
+      "sha256": "f310e5737fddc27027b1ad653da4bbd77ce0041f272fa262cad07e04b7cc8efa"
+    },
+    "test-oem-full": {
+      "result": {
+        "sequences": 16,
+        "assertions": 251,
+        "passed": true
+      },
+      "command": [
+        "gcc",
+        "-std=c11",
+        "-g",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-fsanitize=address,undefined",
+        "-fno-omit-frame-pointer",
+        "-I/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/full-integration-candidate",
+        "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/full-integration-candidate/test-oem-full.c",
+        "-o",
+        "/home/cy122/charging-session-20261023/full-integration-candidate/test-oem-full"
+      ],
+      "sha256": "b1feecdcd0bc91ff57bff40bc3a6f17f0def7154f27255da664485b47d54d52e"
+    },
+    "test-oem-differential": {
+      "result": {
+        "differential_cases": 52,
+        "passed": true
+      },
+      "command": [
+        "gcc",
+        "-std=c11",
+        "-g",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-fsanitize=address,undefined",
+        "-fno-omit-frame-pointer",
+        "-I/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/full-integration-candidate",
+        "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/full-integration-candidate/test-oem-differential.c",
+        "-o",
+        "/home/cy122/charging-session-20261023/full-integration-candidate/test-oem-differential"
+      ],
+      "sha256": "73ea2ad1d737eb7ab80f1e60f76a452ade2546ea7cb11be906db45a70139f246"
+    },
+    "test-core": {
+      "result": {
+        "source_latch_sequence_cases": 8,
+        "policy_cases": 6016,
+        "transaction_cases": 113,
+        "passed": true
+      },
+      "command": [
+        "gcc",
+        "-std=c11",
+        "-g",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-fsanitize=address,undefined",
+        "-fno-omit-frame-pointer",
+        "-I/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/full-integration-candidate",
+        "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/full-integration-candidate/test-core.c",
+        "-o",
+        "/home/cy122/charging-session-20261023/full-integration-candidate/test-core"
+      ],
+      "sha256": "0704b618123d110b595416c3fc287b7eab990c3664245e24646e40085c23db8d"
+    }
+  },
+  "extracted_functions": {
+    "sm_step_locked": "235795cd28fd2215dfefd04fe312f010c4feac5c2249452f89522ba0dcc9b9c5",
+    "sm_gauge_sample": "35f4e3399a9590a5c0cf4a1a7e5fcf25d07bddcb5b2465bdb445b184e76933e5"
+  },
+  "candidate_files": {
+    "samurai-mp2650.c": "06e92aa75a3c65382169d786295b9e2808b5499feaf27bbb22b12fccca561f09",
+    "mp2650-core.h": "6ddeec6edbf61e50257b39ce97beab41b7607dcdacbf09259f8a162aa20a851a",
+    "oem-full-cycle.h": "d297312f4d0edae7c70fc0d277f569ab672851b3ed84ea5d6e63c9227d7388a6",
+    "charging-notify.h": "3619110d1ef2b2abb2c5b64fe6188e3c0a5f900ef3d7e5d39dec9c0614efd5dd",
+    "oem-profile.h": "14a425065aadcca1cc38efcc75cb112c0c25ac05567195b04feaa2bec21b0729",
+    "charge-cycle.h": "1ad3e8a4cdb4fa2dabc979c58265ff76efb2074a54dbc54ce811ca2485c42782",
+    "gauge-i2c.h": "897a961d765f794af2358205b46998ac4889f4ad9e91db2265d99cd70d701e77",
+    "gauge-protocol.h": "0903f3fa9740f8645dfc8fb5c16f9a35ded63c4ea06f5c9c93475e37bc375f0f"
+  },
+  "baseline_production_unchanged": {
+    "samurai-mp2650.c": true,
+    "mp2650-core.h": true,
+    "oem-profile.h": true,
+    "charge-cycle.h": true,
+    "charging-notify.h": true,
+    "gauge-i2c.h": true,
+    "gauge-protocol.h": true
+  },
+  "baseline": {
+    "samurai-mp2650.c": "986e16af8289deedcbf2885211c5cd407ca2c0aff2692ca4bc7fdbfa3a6a458e",
+    "mp2650-core.h": "f9ffc2d380967d787d042c9780c5e5968a6e46d902089b7ad1ba511d5ba00af3",
+    "oem-profile.h": "14a425065aadcca1cc38efcc75cb112c0c25ac05567195b04feaa2bec21b0729",
+    "charge-cycle.h": "1ad3e8a4cdb4fa2dabc979c58265ff76efb2074a54dbc54ce811ca2485c42782",
+    "charging-notify.h": "20a03e02c884a8e1c9307373e67f10ca5836cbd75a8507a08c7a18b3d436baba",
+    "gauge-i2c.h": "897a961d765f794af2358205b46998ac4889f4ad9e91db2265d99cd70d701e77",
+    "gauge-protocol.h": "0903f3fa9740f8645dfc8fb5c16f9a35ded63c4ea06f5c9c93475e37bc375f0f"
+  },
+  "patch_sha256": "d5334ab79c5ed44de3cc3a0bf63f08e43fb4754143e782789c705f713f7d9106",
+  "scope": "Exact candidate step/gauge bodies plus real headers and masked transactions, host sanitizers only",
+  "kernel_module_built": false,
+  "phone_accessed": false,
+  "sdk_accessed": false,
+  "shared_kernel_storage_modified": false
+}

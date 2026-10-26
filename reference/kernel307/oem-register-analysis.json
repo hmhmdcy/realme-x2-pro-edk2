@@ -1,0 +1,256 @@
+{
+  "stage": 307,
+  "original_library_sha256": "e2b1b9b6379507052464d9f9573c2a5a1b1cf37c43947b53645ddc8948a70dde",
+  "library_bytes": 6087920,
+  "static_analysis_only": true,
+  "vendor_library_not_executed_or_loaded": true,
+  "firmware_instruction_words_checked": true,
+  "facts": [
+    {
+      "register": "AWB_BG_RGN_OFFSET",
+      "offset": "0xbc8",
+      "horizontal_bits": [
+        0,
+        12
+      ],
+      "vertical_bits": [
+        16,
+        29
+      ],
+      "even_pixel_offsets": true,
+      "evidence": [
+        {
+          "address": "0x3083ac",
+          "word": "0x121f2c56"
+        },
+        {
+          "address": "0x3083bc",
+          "word": "0x330f30e1"
+        }
+      ]
+    },
+    {
+      "register": "AWB_BG_RGN_NUM",
+      "offset": "0xbcc",
+      "horizontal_bits": [
+        0,
+        7
+      ],
+      "vertical_bits": [
+        16,
+        22
+      ],
+      "encoded_minus_one": true,
+      "evidence": [
+        {
+          "address": "0x3083d8",
+          "word": "0x12101b80"
+        },
+        {
+          "address": "0x3083f0",
+          "word": "0x33001d60"
+        }
+      ]
+    },
+    {
+      "register": "AWB_BG_RGN_SIZE",
+      "offset": "0xbd0",
+      "width_bits": [
+        0,
+        8
+      ],
+      "height_bits": [
+        16,
+        25
+      ],
+      "encoded_minus_one": true,
+      "evidence": [
+        {
+          "address": "0x308404",
+          "word": "0x12102529"
+        },
+        {
+          "address": "0x308410",
+          "word": "0x33002149"
+        }
+      ]
+    },
+    {
+      "register": "AWB_BG_HIGH_THRESHOLDS",
+      "offsets": [
+        "0xbd4",
+        "0xbd8"
+      ],
+      "first_bits": [
+        0,
+        13
+      ],
+      "second_bits": [
+        16,
+        29
+      ],
+      "channel_order": [
+        [
+          "R",
+          "Gr"
+        ],
+        [
+          "B",
+          "Gb"
+        ]
+      ],
+      "evidence": [
+        {
+          "address": "0x308414",
+          "word": "0x120284b0"
+        },
+        {
+          "address": "0x308418",
+          "word": "0x531035ea"
+        },
+        {
+          "address": "0x30842c",
+          "word": "0x53103631"
+        }
+      ]
+    },
+    {
+      "register": "AWB_BG_LOW_THRESHOLDS",
+      "offsets": [
+        "0xbdc",
+        "0xbe0"
+      ],
+      "first_bits": [
+        0,
+        13
+      ],
+      "second_bits": [
+        16,
+        29
+      ],
+      "original_programmed_zero": true,
+      "evidence": [
+        {
+          "address": "0x3083a0",
+          "word": "0xf06a400"
+        },
+        {
+          "address": "0x308408",
+          "word": "0xe201c22"
+        },
+        {
+          "address": "0x308444",
+          "word": "0xfc03c262"
+        }
+      ]
+    },
+    {
+      "register": "AWB_BG_CH_Y",
+      "offset": "0xc14",
+      "y_enable_bit": 0,
+      "green_selection_bits": [
+        1,
+        2
+      ],
+      "coefficient_bits": [
+        [
+          4,
+          11
+        ],
+        [
+          13,
+          20
+        ],
+        [
+          22,
+          29
+        ]
+      ],
+      "evidence": [
+        {
+          "address": "0x308498",
+          "word": "0x331c1ee5"
+        },
+        {
+          "address": "0x3084a0",
+          "word": "0x331f0405"
+        },
+        {
+          "address": "0x3084a4",
+          "word": "0x33131c45"
+        },
+        {
+          "address": "0x3084ac",
+          "word": "0x330a1d69"
+        }
+      ]
+    },
+    {
+      "register": "AWB_BG_CFG",
+      "offset": "0xcb0",
+      "saturation_enable_bit": 0,
+      "shift_bits": [
+        1,
+        3
+      ],
+      "sample_pattern_bits": [
+        8,
+        23
+      ],
+      "evidence": [
+        {
+          "address": "0x3084b8",
+          "word": "0x121c6ccf"
+        },
+        {
+          "address": "0x3084c0",
+          "word": "0x32183db1"
+        }
+      ]
+    },
+    {
+      "register": "STATS_ENABLE",
+      "offset": "0x44",
+      "awb_bg_enable_bit": 3,
+      "bhist_enable_bit": 4,
+      "evidence": [
+        {
+          "address": "0x2a8ec0",
+          "word": "0x331d0308"
+        },
+        {
+          "address": "0x2a8ecc",
+          "word": "0x331c00e8"
+        },
+        {
+          "address": "0x2a99ac",
+          "word": "0x52800881"
+        }
+      ]
+    },
+    {
+      "register": "STATS_CONFIG",
+      "offset": "0xaac",
+      "awb_bg_quad_sync_enable_bit_candidate": 6,
+      "evidence": [
+        {
+          "address": "0x2a8a30",
+          "word": "0x321a0129"
+        },
+        {
+          "address": "0x2a99c4",
+          "word": "0x52815581"
+        }
+      ],
+      "candidate_reason": "Original IFE ProgramIQModuleEnableConfig forces 0x40; corresponding public source forces AWB_BG_QUAD_SYNC_EN. Other configuration inputs are ORed separately."
+    }
+  ],
+  "bus_client_and_native_packet_sources": "../kernel306/awb-primary",
+  "hardware_implementation_or_validation": false,
+  "pending": [
+    "Confirm global enable/config inputs against original output-port layout",
+    "Verify stats CGC policy and DMA/composite/no-sync semantics",
+    "Design optional RGB statistics preserving legacy BHIST-only buffers",
+    "Validate initial enable, disable, FIFO starvation, same-SOF completion and stop paths"
+  ]
+}

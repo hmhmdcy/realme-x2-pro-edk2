@@ -1,0 +1,17 @@
+--- a/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
++++ b/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
+@@ -942,7 +942,13 @@
+  }
+  if(timeout || !running_)frame.failed=true;
+  FrameBuffer *image=frame.image,*raw=frame.raw,*ife=frame.ifeImage;
+- if(frame.failed){image->_d()->metadata().status=FrameMetadata::FrameError;if(raw)raw->_d()->metadata().status=FrameMetadata::FrameError;}
++ if(frame.failed){
++  /* completeBuffer() propagates FrameCancelled into RequestCancelled.
++   * Preserve FrameError for live failures; stopping is a cancellation. */
++  const auto status=running_?FrameMetadata::FrameError:FrameMetadata::FrameCancelled;
++  image->_d()->metadata().status=status;if(raw)raw->_d()->metadata().status=status;
++  if(!running_)LOG(CamssVfe,Info)<<"REQUEST_STOP_CANCEL epoch="<<epoch_<<" request="<<request->sequence()<<" raw="<<bool(raw);
++ }
+  const uint64_t ipeToken=frame.ipeToken;const uint32_t ipeSof=frame.ipeSof;
+   const bool ipeSuccess=!frame.failed && processedEnabled_ && bool(ipe_);
+   requests_.erase(it);

@@ -1,0 +1,39 @@
+{
+  "passed": true,
+  "groups": [
+    "1 final two fresh seven-field reads, exact last callback, one forced masked transfer and new post-read serial",
+    "2 every final read errno and unstable pair consumes the epoch without callback or transfer",
+    "3 each of seven changed fields, off expectation and stale serial reject the cached request",
+    "4 final lease/cancellation error and copied identity refuse; paused/withdrawing paths consume without I/O",
+    "5 command errno and independent post-read error both survive; unknown outcome is never retried",
+    "6 post-command DONE clear/result changes are preserved for the real once core",
+    "7 post-write detach, source/role changes or QC are failure/unknown, never atomic attachment proof",
+    "8 provider re-registration keeps physical epoch and serial history; no source-budget writes",
+    "9 malformed attempts and exhausted serial never reach a write"
+  ],
+  "group_count": 9,
+  "flags": [
+    "-std=gnu11",
+    "-g",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-Wno-unused-parameter",
+    "-fsanitize=address,undefined",
+    "-fno-omit-frame-pointer",
+    "-no-pie"
+  ],
+  "actual_backend_and_reader": true,
+  "actual_kernel_forced_regmap_inline": true,
+  "hardware_registration_and_owner_validation_modeled": true,
+  "fixture_sha256": "9f50f30fe1718c846c2524f76e88e448e19abde8e9b358b8298b31c80e9c2529",
+  "phone_accessed": false,
+  "files": {
+    "samurai-apsd-backend.h": "0fca3bcde2a421871c4c8e9f74b41bd465b98b48c06b8462de1a2464bd391b89",
+    "samurai-apsd-input.inc": "6cc5c2046f1888cfe4e53cf272e1f8f1b8e8ec5e347b567f8e03474ac039e95e",
+    "samurai-usb-input.c": "fc7c42cf6f0df20a522c0d41e8d78d6c50d38dc85ab00f35e3583edf3c4427d7",
+    "samurai-usb-input-decode.h": "a17caa2cbeb2352da249474e0265fa96745f544d96a29d0ebe8f14c656d548fd",
+    "test-transfer.c": "031702a9355c52be28f137c283640e3a916ada9369e207a41d557698bfe21365",
+    "run-transfer-tests.py": "3618207a570a92cbfcfab3894b5572c56d3c6f99ec2feab0cd0281d5c25e19db"
+  }
+}

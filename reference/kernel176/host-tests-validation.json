@@ -1,0 +1,27 @@
+{
+  "stage": 176,
+  "actual_core_absent_get_address_and_bus_probe_executed": true,
+  "actual_mfd_probe_and_cleanup_executed": true,
+  "address_result": "address_cases=25 concurrent_rounds=20 threads=16",
+  "probe_result": "probe_cases=46 io_failure_points=13 wrapper_failure_managed_cleanup=1",
+  "sanitizers": [
+    "address",
+    "undefined"
+  ],
+  "concurrent_absent_rounds": 20,
+  "threads_per_round": 16,
+  "hardware_reset_changes_logical_addresses_in_fixture": true,
+  "main_and_interface_query_before_io_verified": true,
+  "address_assignment_notification_outside_wcd_lock_verified": true,
+  "early_notification_deferred": true,
+  "failures_after_client_probe_managed_cleanup_verified": true,
+  "negative_controls_rejected": [
+    "duplicate-ida-free",
+    "stale-main-address",
+    "stale-interface-address",
+    "missing-ready-gate",
+    "disabled-power-cleanup",
+    "disabled-stop-cleanup"
+  ],
+  "all_passed": true
+}

@@ -1,0 +1,23 @@
+Subject: [PATCH] soft: preserve computed targets when statistics are invalid
+
+An invalid statistics frame may still contain an older captured exposure
+and gain. Keep the latest prepared automatic targets in that case, instead
+of scheduling the older captured values again. Metadata continues to
+describe the actual captured controls and their source.
+
+---
+diff --git a/src/ipa/simple/algorithms/agc.cpp b/src/ipa/simple/algorithms/agc.cpp
+--- a/src/ipa/simple/algorithms/agc.cpp
++++ b/src/ipa/simple/algorithms/agc.cpp
+@@ -243,9 +243,9 @@
+ 
+ 	/* Targets belong to this request; metadata above belongs to the captured SOF. */
+ 	bool sourcesMatch = frameContext.sensor.source == frameContext.agc.source();
+-	if (!frameContext.agc.autoExposure || !sourcesMatch)
++	if (!frameContext.agc.autoExposure || !sourcesMatch || !stats->valid)
+ 		frameContext.sensor.exposure = frameContext.agc.exposure;
+-	if (!frameContext.agc.autoGain || !sourcesMatch)
++	if (!frameContext.agc.autoGain || !sourcesMatch || !stats->valid)
+ 		frameContext.sensor.gain = frameContext.agc.gain;
+ 	if (!stats->valid || !sourcesMatch ||
+ 	    (!frameContext.agc.autoExposure && !frameContext.agc.autoGain))

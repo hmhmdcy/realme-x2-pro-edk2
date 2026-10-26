@@ -1,0 +1,142 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/dts-v1/;
+/plugin/;
+#include <dt-bindings/clock/qcom,sm8150-camcc.h>
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/media/video-interfaces.h>
+#include <dt-bindings/power/qcom,rpmhpd.h>
+
+/ {
+	fragment@0 {
+		target-path = "/soc@0/geniqup@8c0000/i2c@890000";
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			pmic@4 {
+				compatible = "qcom,pm8008";
+				reg = <4>;
+				qcom,initial-address = <8>;
+				reset-gpios = <PMIC_GPIO_PHANDLE 4 GPIO_ACTIVE_LOW>;
+				vdd-l1-l2-supply = <S8C_PHANDLE>;
+				/* Four PLDO input nets remain unknown; no fake parents. */
+				regulators {
+					front_vdig: ldo2 {
+						regulator-name = "cam-front-vdig-k196";
+						regulator-min-microvolt = <1050000>;
+						regulator-max-microvolt = <1056000>;
+						regulator-enable-ramp-delay = <1000>;
+					};
+					front_vana: ldo5 {
+						regulator-name = "cam-front-vana-k196";
+						regulator-min-microvolt = <2800000>;
+						regulator-max-microvolt = <2800000>;
+						regulator-enable-ramp-delay = <1000>;
+					};
+				};
+			};
+		};
+	};
+	fragment@1 {
+		target-path = "/soc@0/pinctrl@3100000";
+		__overlay__ {
+			front_mclk_active: samurai-front-mclk-active-state {
+				pins = "gpio15";
+				function = "cam_mclk";
+				drive-strength = <2>;
+				bias-disable;
+			};
+			front_mclk_sleep: samurai-front-mclk-sleep-state {
+				pins = "gpio15";
+				function = "gpio";
+				drive-strength = <2>;
+				bias-disable;
+				input-enable;
+			};
+			front_select_active: samurai-front-select-active-state {
+				pins = "gpio29";
+				function = "gpio";
+				drive-strength = <2>;
+				bias-disable;
+				output-high;
+			};
+			front_select_sleep: samurai-front-select-sleep-state {
+				pins = "gpio29";
+				function = "gpio";
+				drive-strength = <2>;
+				bias-pull-down;
+				output-low;
+			};
+			front_reset: samurai-front-reset-state {
+				pins = "gpio12";
+				function = "gpio";
+				drive-strength = <2>;
+				bias-pull-down;
+			};
+		};
+	};
+	fragment@2 {
+		target-path = "/soc@0/cci@ac4b000/i2c-bus@1";
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			camera@10 {
+				compatible = "sony,imx471";
+				reg = <0x10>;
+				vana-supply = <&front_vana>;
+				vdig-supply = <&front_vdig>;
+				vif-supply = <VIO_PHANDLE>;
+				clocks = <CAMCC_PHANDLE CAM_CC_MCLK2_CLK>;
+				assigned-clocks = <CAMCC_PHANDLE CAM_CC_MCLK2_CLK>;
+				assigned-clock-rates = <19200000>;
+				reset-gpios = <TLMM_PHANDLE 12 GPIO_ACTIVE_LOW>;
+				pinctrl-names = "default", "sleep";
+				pinctrl-0 = <&front_mclk_active &front_select_active &front_reset>;
+				pinctrl-1 = <&front_mclk_sleep &front_select_sleep &front_reset>;
+				orientation = <0>;
+				port {
+					front_ep: endpoint {
+						data-lanes = <1 2 3 4>;
+						link-frequencies = /bits/ 64 <200000000>;
+						remote-endpoint = <&front_csiphy2_ep>;
+					};
+				};
+			};
+		};
+	};
+	fragment@3 {
+		target-path = "/";
+		__overlay__ {
+			samurai-front-restore {
+				pinctrl-names = "default";
+				pinctrl-0 = <&front_mclk_sleep &front_select_sleep &front_reset>;
+			};
+		};
+	};
+	fragment@4 {
+		target-path = "/soc@0/camss@acb3000/ports";
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			port@2 {
+				reg = <2>;
+				front_csiphy2_ep: endpoint {
+					clock-lanes = <7>;
+					data-lanes = <0 1 2 3>;
+					bus-type = <MEDIA_BUS_TYPE_CSI2_DPHY>;
+					remote-endpoint = <&front_ep>;
+				};
+			};
+		};
+	};
+	fragment@5 {
+		target-path = "/soc@0/camss@acb3000";
+		__overlay__ {
+			power-domains = <CAMCC_PHANDLE IFE_0_GDSC>,
+					<CAMCC_PHANDLE IFE_1_GDSC>,
+					<CAMCC_PHANDLE TITAN_TOP_GDSC>,
+					<RPMHPD_PHANDLE SM8150_MMCX>;
+			power-domain-names = "ife0", "ife1", "top", "mmcx";
+		};
+	};
+
+};

@@ -1,0 +1,420 @@
+--- a/drivers/media/i2c/imx471.c
++++ b/drivers/media/i2c/imx471.c
+@@ -6,7 +6,10 @@
+  * Copyright (C) 2026 Kate Hsuan <hpa@redhat.com>
+  */
+ 
++#include <linux/atomic.h>
+ #include <linux/clk.h>
++#include <linux/kref.h>
++#include <linux/slab.h>
+ #include <linux/delay.h>
+ #include <linux/i2c.h>
+ #include <linux/module.h>
+@@ -166,6 +169,15 @@
+ 
+ struct imx471 {
+ 	struct v4l2_subdev sd;
++	struct kref ref;
++	atomic_t framework_ref;
++	struct list_head instance_entry;
++	struct mutex lock;
++	bool removing;
++	bool sd_initialized;
++	bool ctrls_initialized;
++	bool entity_initialized;
++	bool pm_enabled;
+ 	struct media_pad pad;
+ 
+ 	struct v4l2_ctrl_handler ctrl_handler;
+@@ -512,6 +524,83 @@
+ 	return best;
+ }
+ 
++/* The async registration and video node own one reference, distinct
++ * from the bound driver's base reference. Final release can follow unbind.
++ * Requires core 0064: clear sd->devnode before a callback can free sd.
++ */
++static LIST_HEAD(imx471_instances);
++static DEFINE_MUTEX(imx471_instances_lock);
++
++static void imx471_destroy(struct kref *ref)
++{
++	struct imx471 *sensor = container_of(ref, struct imx471, ref);
++
++	if (sensor->sd_initialized)
++		v4l2_subdev_cleanup(&sensor->sd);
++	if (sensor->entity_initialized)
++		media_entity_cleanup(&sensor->sd.entity);
++	if (sensor->ctrls_initialized)
++		v4l2_ctrl_handler_free(&sensor->ctrl_handler);
++	mutex_lock(&imx471_instances_lock);
++	list_del(&sensor->instance_entry);
++	mutex_unlock(&imx471_instances_lock);
++	mutex_destroy(&sensor->lock);
++	put_device(sensor->dev);
++	kfree(sensor);
++}
++
++static struct imx471 *imx471_alloc(struct device *dev)
++{
++	struct imx471 *sensor, *existing;
++
++	sensor = kzalloc(sizeof(*sensor), GFP_KERNEL);
++	if (!sensor)
++		return ERR_PTR(-ENOMEM);
++	sensor->dev = get_device(dev);
++	kref_init(&sensor->ref);
++	atomic_set(&sensor->framework_ref, 0);
++	INIT_LIST_HEAD(&sensor->instance_entry);
++	mutex_init(&sensor->lock);
++	mutex_lock(&imx471_instances_lock);
++	list_for_each_entry(existing, &imx471_instances, instance_entry) {
++		if (existing->dev == dev) {
++			mutex_unlock(&imx471_instances_lock);
++			mutex_destroy(&sensor->lock);
++			put_device(sensor->dev);
++			kfree(sensor);
++			return ERR_PTR(-EBUSY);
++		}
++	}
++	list_add_tail(&sensor->instance_entry, &imx471_instances);
++	mutex_unlock(&imx471_instances_lock);
++	return sensor;
++}
++
++static int imx471_registered(struct v4l2_subdev *sd)
++{
++	struct imx471 *sensor = to_imx471(sd);
++	int ret = 0;
++
++	mutex_lock(&sensor->lock);
++	if (sensor->removing || atomic_read(&sensor->framework_ref)) {
++		ret = -EBUSY;
++	} else {
++		kref_get(&sensor->ref);
++		atomic_set(&sensor->framework_ref, 1);
++	}
++	mutex_unlock(&sensor->lock);
++	return ret;
++}
++
++static void imx471_release(struct v4l2_subdev *sd)
++{
++	struct imx471 *sensor = to_imx471(sd);
++
++	/* release may be synchronous inside unregister; never acquire lock here. */
++	if (atomic_xchg(&sensor->framework_ref, 0))
++		kref_put(&sensor->ref, imx471_destroy);
++}
++
+ static int imx471_get_regulators(struct device *dev, struct imx471 *sensor)
+ {
+ 	for (unsigned int i = 0; i < ARRAY_SIZE(imx471_supply_name); i++)
+@@ -531,6 +620,9 @@
+ 	const struct v4l2_mbus_framefmt *format =
+ 			v4l2_subdev_state_get_format(state, 0);
+ 	int ret;
++
++	if (sensor->removing)
++		return -ENODEV;
+ 
+ 	/* Mode metadata controls do not program sensor registers. */
+ 	if (ctrl->id == V4L2_CID_LINK_FREQ || ctrl->id == V4L2_CID_PIXEL_RATE ||
+@@ -659,6 +751,9 @@
+ 	const struct imx471_mode *mode;
+ 	int h_blank, ret;
+ 
++	if (sensor->removing)
++		return -ENODEV;
++
+ 	mode = imx471_find_mode(sensor, fmt->format.width, fmt->format.height);
+ 	if (!mode)
+ 		return -EINVAL;
+@@ -1140,6 +1235,9 @@
+ 	struct v4l2_mbus_framefmt *fmt;
+ 	int ret;
+ 
++	if (sensor->removing)
++		return -ENODEV;
++
+ 	ret = pm_runtime_resume_and_get(sensor->dev);
+ 	if (ret)
+ 		return ret;
+@@ -1203,6 +1301,9 @@
+ {
+ 	struct imx471 *sensor = to_imx471(sd);
+ 	int ret;
++
++	if (sensor->removing)
++		return -ENODEV;
+ 
+ 	ret = cci_write(sensor->regmap, IMX471_REG_MODE_SELECT,
+ 			IMX471_MODE_STANDBY, NULL);
+@@ -1240,6 +1341,8 @@
+ 
+ static const struct v4l2_subdev_internal_ops imx471_internal_ops = {
+ 	.init_state = imx471_init_state,
++	.registered = imx471_registered,
++	.release = imx471_release,
+ };
+ 
+ static int imx471_init_controls(struct imx471 *sensor)
+@@ -1260,6 +1363,8 @@
+ 
+ 	ctrl_hdlr = &sensor->ctrl_handler;
+ 	v4l2_ctrl_handler_init(ctrl_hdlr, 12);
++	sensor->ctrls_initialized = true;
++	ctrl_hdlr->lock = &sensor->lock;
+ 
+ 	v4l2_ctrl_new_fwnode_properties(ctrl_hdlr, &imx471_ctrl_ops, &props);
+ 
+@@ -1337,8 +1442,6 @@
+ 	return 0;
+ 
+ error:
+-	v4l2_ctrl_handler_free(ctrl_hdlr);
+-
+ 	return ctrl_hdlr->error;
+ }
+ 
+@@ -1403,149 +1506,142 @@
+ 	return ret;
+ }
+ 
++/* No control/state lock is held across async unregister or PM barrier.
++ * The base reference protects a synchronous framework release during detach.
++ * 'powered' describes only the early probe interval before PM was enabled.
++ */
++static void imx471_detach(struct imx471 *sensor, bool powered)
++{
++	mutex_lock(&sensor->lock);
++	sensor->removing = true;
++	mutex_unlock(&sensor->lock);
++	if (sensor->sd_initialized)
++		v4l2_async_unregister_subdev(&sensor->sd);
++	if (sensor->pm_enabled) {
++		pm_runtime_disable(sensor->dev);
++		sensor->pm_enabled = false;
++		powered = !pm_runtime_status_suspended(sensor->dev);
++	}
++	if (sensor->shared) {
++		if (!imx471_shared_detach(sensor->shared))
++			pm_runtime_set_suspended(sensor->dev);
++		sensor->shared = NULL;
++	} else if (powered && !imx471_power_off(sensor->dev)) {
++		pm_runtime_set_suspended(sensor->dev);
++	}
++	/* r2 keeps an independently quarantined resource holder if required.
++	 * Sensor memory can now follow only driver/framework object references.
++	 */
++	kref_put(&sensor->ref, imx471_destroy);
++}
++
+ static int imx471_probe(struct i2c_client *client)
+ {
+ 	struct imx471 *sensor;
++	bool powered = false;
+ 	int ret;
+ 
+-	sensor = devm_kzalloc(&client->dev, sizeof(*sensor), GFP_KERNEL);
+-	if (!sensor)
+-		return dev_err_probe(&client->dev, -ENOMEM,
+-				     "failed to allocate memory\n");
+-
+-	sensor->dev = &client->dev;
++	sensor = imx471_alloc(&client->dev);
++	if (IS_ERR(sensor))
++		return dev_err_probe(&client->dev, PTR_ERR(sensor),
++				     "failed to allocate sensor generation\n");
+ 
+ 	if (device_property_present(sensor->dev, "mux-states")) {
+-		if (!dev_of_node(sensor->dev))
+-			return -EINVAL;
++		if (!dev_of_node(sensor->dev)) {
++			ret = -EINVAL;
++			goto detach;
++		}
+ 		sensor->shared = imx471_shared_create(sensor->dev);
+-		if (IS_ERR(sensor->shared))
+-			return dev_err_probe(sensor->dev, PTR_ERR(sensor->shared),
+-					     "failed to acquire shared resources\n");
++		if (IS_ERR(sensor->shared)) {
++			ret = dev_err_probe(sensor->dev, PTR_ERR(sensor->shared),
++					    "failed to acquire shared resources\n");
++			sensor->shared = NULL;
++			goto detach;
++		}
+ 	}
+ 
+ 	ret = imx471_check_hwcfg(sensor);
+ 	if (ret) {
+ 		dev_err_probe(sensor->dev, ret, "failed to check hwcfg: %d\n", ret);
+-		goto error_shared_detach;
+-	}
+-
++		goto detach;
++	}
+ 	if (!sensor->shared) {
+ 		ret = imx471_get_regulators(sensor->dev, sensor);
+-		if (ret)
+-			return dev_err_probe(sensor->dev, ret, "failed to get regulators\n");
++		if (ret) {
++			dev_err_probe(sensor->dev, ret, "failed to get regulators\n");
++			goto detach;
++		}
+ 		sensor->reset_gpio = devm_gpiod_get_optional(sensor->dev, "reset", GPIOD_OUT_HIGH);
+-		if (IS_ERR(sensor->reset_gpio))
+-			return dev_err_probe(sensor->dev, PTR_ERR(sensor->reset_gpio),
+-					     "failed to get reset gpio\n");
++		if (IS_ERR(sensor->reset_gpio)) {
++			ret = dev_err_probe(sensor->dev, PTR_ERR(sensor->reset_gpio),
++					    "failed to get reset gpio\n");
++			goto detach;
++		}
+ 		sensor->img_clk = devm_v4l2_sensor_clk_get(sensor->dev, NULL);
+-		if (IS_ERR(sensor->img_clk))
+-			return dev_err_probe(sensor->dev, PTR_ERR(sensor->img_clk),
+-					     "failed to get imaging clock\n");
+-	}
+-
++		if (IS_ERR(sensor->img_clk)) {
++			ret = dev_err_probe(sensor->dev, PTR_ERR(sensor->img_clk),
++					    "failed to get imaging clock\n");
++			goto detach;
++		}
++	}
+ 	v4l2_i2c_subdev_init(&sensor->sd, client, &imx471_subdev_ops);
+-
++	sensor->sd_initialized = true;
+ 	sensor->regmap = devm_cci_regmap_init_i2c(client, 16);
+ 	if (IS_ERR(sensor->regmap)) {
+-		ret = dev_err_probe(sensor->dev, PTR_ERR(sensor->regmap),
+-				    "failed to initialize CCI\n");
+-		goto error_shared_detach;
+-	}
+-
++		ret = dev_err_probe(sensor->dev, PTR_ERR(sensor->regmap), "failed to initialize CCI\n");
++		goto detach;
++	}
+ 	ret = imx471_power_on(sensor->dev);
+ 	if (ret) {
+ 		dev_err_probe(sensor->dev, ret, "failed to power on\n");
+-		goto error_shared_detach;
+-	}
+-
++		goto detach;
++	}
++	powered = true;
+ 	ret = imx471_identify_module(sensor);
+ 	if (ret) {
+-		dev_err_probe(sensor->dev, ret, "failed to find sensor: %d\n",
+-			      ret);
+-		goto error_power_off;
+-	}
+-
++		dev_err_probe(sensor->dev, ret, "failed to find sensor: %d\n", ret);
++		goto detach;
++	}
+ 	ret = imx471_init_controls(sensor);
+ 	if (ret) {
+-		dev_err_probe(sensor->dev, ret, "failed to init controls: %d\n",
+-			      ret);
+-		goto error_power_off;
+-	}
+-
++		dev_err_probe(sensor->dev, ret, "failed to init controls: %d\n", ret);
++		goto detach;
++	}
+ 	sensor->sd.internal_ops = &imx471_internal_ops;
+ 	sensor->sd.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
+ 	sensor->pad.flags = MEDIA_PAD_FL_SOURCE;
+ 	sensor->sd.entity.function = MEDIA_ENT_F_CAM_SENSOR;
+-
+ 	ret = media_entity_pads_init(&sensor->sd.entity, 1, &sensor->pad);
+ 	if (ret) {
+-		dev_err_probe(sensor->dev, ret,
+-			      "failed to init entity pads: %d\n", ret);
+-		goto error_v4l2_ctrl_handler_free;
+-	}
+-
+-	sensor->sd.state_lock = sensor->ctrl_handler.lock;
++		dev_err_probe(sensor->dev, ret, "failed to init entity pads: %d\n", ret);
++		goto detach;
++	}
++	sensor->entity_initialized = true;
++	sensor->sd.state_lock = &sensor->lock;
+ 	ret = v4l2_subdev_init_finalize(&sensor->sd);
+-	if (ret < 0) {
+-		dev_err_probe(sensor->dev, ret, "failed to init subdev: %d\n",
+-			      ret);
+-		goto error_media_entity_pm;
+-	}
+-
++	if (ret) {
++		dev_err_probe(sensor->dev, ret, "failed to init subdev: %d\n", ret);
++		goto detach;
++	}
+ 	pm_runtime_set_active(sensor->dev);
+ 	pm_runtime_enable(sensor->dev);
+-
++	sensor->pm_enabled = true;
+ 	ret = v4l2_async_register_subdev_sensor(&sensor->sd);
+-	if (ret < 0)
+-		goto error_v4l2_subdev_cleanup;
+-
++	if (ret)
++		goto detach;
+ 	pm_runtime_idle(sensor->dev);
+-
+ 	return 0;
+ 
+-error_v4l2_subdev_cleanup:
+-	pm_runtime_disable(sensor->dev);
+-	v4l2_subdev_cleanup(&sensor->sd);
+-
+-error_media_entity_pm:
+-	media_entity_cleanup(&sensor->sd.entity);
+-
+-error_v4l2_ctrl_handler_free:
+-	v4l2_ctrl_handler_free(sensor->sd.ctrl_handler);
+-
+-error_power_off:
+-	if (!sensor->shared && !imx471_power_off(sensor->dev))
+-		pm_runtime_set_suspended(sensor->dev);
+-error_shared_detach:
+-	if (sensor->shared) {
+-		if (!imx471_shared_detach(sensor->shared))
+-			pm_runtime_set_suspended(sensor->dev);
+-		sensor->shared = NULL;
+-	}
++detach:
++	imx471_detach(sensor, powered);
+ 	return ret;
+ }
+ 
+ static void imx471_remove(struct i2c_client *client)
+ {
+ 	struct v4l2_subdev *sd = i2c_get_clientdata(client);
+-	struct imx471 *sensor = to_imx471(sd);
+-
+-	v4l2_async_unregister_subdev(sd);
+-	v4l2_subdev_cleanup(sd);
+-	media_entity_cleanup(&sd->entity);
+-	v4l2_ctrl_handler_free(sd->ctrl_handler);
+-
+-	pm_runtime_disable(&client->dev);
+-
+-	if (sensor->shared) {
+-		if (!imx471_shared_detach(sensor->shared))
+-			pm_runtime_set_suspended(&client->dev);
+-		sensor->shared = NULL;
+-	} else if (!pm_runtime_status_suspended(&client->dev)) {
+-		imx471_power_off(&client->dev);
+-		pm_runtime_set_suspended(&client->dev);
+-	}
++
++	imx471_detach(to_imx471(sd), false);
+ }
+ 
+ static DEFINE_RUNTIME_DEV_PM_OPS(imx471_pm_ops, imx471_power_off,

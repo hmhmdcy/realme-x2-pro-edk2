@@ -1,0 +1,60 @@
+Subject: [PATCH] drm/panel: sofef03f: defer GPIO shutdown until prepare
+
+The panel probe precedes DPU boot scanout quiescence via mipi_dsi_attach.
+Driving reset and both enable GPIOs at probe can cut a DSC frame short
+before the inherited CTL is stopped. Preserve firmware pin state while
+acquiring the GPIOs, then configure directions and off levels in prepare.
+Retain native power sequencing, DSC setup and error teardown.
+
+---
+
+diff --git a/drivers/gpu/drm/panel/panel-samsung-sofef03f.c b/drivers/gpu/drm/panel/panel-samsung-sofef03f.c
+--- a/drivers/gpu/drm/panel/panel-samsung-sofef03f.c
++++ b/drivers/gpu/drm/panel/panel-samsung-sofef03f.c
+@@ -161,10 +161,28 @@
+ 	sofef03f_supply_disable(ctx, 0);
+ }
+ 
++/* Configure outputs only after KMS has stopped the firmware scanout. */
++static int sofef03f_init_gpios(struct sofef03f *ctx)
++{
++	int ret;
++
++	ret = gpiod_direction_output(ctx->reset, 1);
++	if (ret)
++		return ret;
++	ret = gpiod_direction_output(ctx->vddd, 0);
++	if (ret)
++		return ret;
++	return gpiod_direction_output(ctx->vci, 0);
++}
++
+ static int sofef03f_prepare(struct drm_panel *panel)
+ {
+ 	struct sofef03f *ctx = to_sofef03f(panel);
+ 	int ret;
++
++	ret = sofef03f_init_gpios(ctx);
++	if (ret)
++		return ret;
+ 
+ 	ret = sofef03f_supply_enable(ctx, 0);
+ 	if (ret)
+@@ -302,13 +320,14 @@
+ 					    sofef03f_supplies, &ctx->supplies);
+ 	if (ret)
+ 		return dev_err_probe(dev, ret, "Failed to get supplies\n");
+-	ctx->reset = devm_gpiod_get(dev, "reset", GPIOD_OUT_HIGH);
++	/* mipi_dsi_attach() must quiesce the boot frame before panel reset. */
++	ctx->reset = devm_gpiod_get(dev, "reset", GPIOD_ASIS);
+ 	if (IS_ERR(ctx->reset))
+ 		return dev_err_probe(dev, PTR_ERR(ctx->reset), "Failed to get reset\n");
+-	ctx->vci = devm_gpiod_get(dev, "vci-enable", GPIOD_OUT_LOW);
++	ctx->vci = devm_gpiod_get(dev, "vci-enable", GPIOD_ASIS);
+ 	if (IS_ERR(ctx->vci))
+ 		return dev_err_probe(dev, PTR_ERR(ctx->vci), "Failed to get VCI enable\n");
+-	ctx->vddd = devm_gpiod_get(dev, "vddd-enable", GPIOD_OUT_LOW);
++	ctx->vddd = devm_gpiod_get(dev, "vddd-enable", GPIOD_ASIS);
+ 	if (IS_ERR(ctx->vddd))
+ 		return dev_err_probe(dev, PTR_ERR(ctx->vddd), "Failed to get VDDD enable\n");
+ 	ctx->panel.backlight = devm_backlight_device_register(dev, dev_name(dev),

@@ -1,0 +1,93 @@
+Subject: [PATCH] drm/msm/dsi: stop firmware host before initial PHY setup
+
+Stop the inherited controller with runtime bus clocks before touching
+its PHY and PLL. Check readback, balance runtime references on failures,
+and skip the operation after the first successful handoff. Retain the
+existing native power-on reset and first-frame backlight policy.
+
+---
+
+diff --git a/drivers/gpu/drm/msm/dsi/dsi_host.c b/drivers/gpu/drm/msm/dsi/dsi_host.c
+--- a/drivers/gpu/drm/msm/dsi/dsi_host.c
++++ b/drivers/gpu/drm/msm/dsi/dsi_host.c
+@@ -189,6 +189,7 @@
+ 
+ 	bool registered;
+ 	bool power_on;
++	bool firmware_quiesced;
+ 	bool enabled;
+ 	int irq;
+ };
+@@ -2530,6 +2531,42 @@
+ 		 dsi_read(msm_host, REG_DSI_FIFO_STATUS));
+ }
+ 
++/* Quiesce firmware output before the manager reconfigures the PHY/PLL. */
++int msm_dsi_host_quiesce_firmware(struct mipi_dsi_host *host)
++{
++	struct msm_dsi_host *msm_host = to_msm_dsi_host(host);
++	struct device *dev = &msm_host->pdev->dev;
++	u32 before, after;
++	int ret = 0;
++
++	mutex_lock(&msm_host->dev_mutex);
++	if (msm_host->firmware_quiesced || msm_host->power_on)
++		goto unlock;
++
++	/* Runtime resume enables the bus clocks needed for controller MMIO. */
++	ret = pm_runtime_resume_and_get(dev);
++	if (ret < 0)
++		goto unlock;
++
++	before = dsi_read(msm_host, REG_DSI_CTRL);
++	dsi_ctrl_disable(msm_host);
++	wmb(); /* Stop output before the later PHY reset and PLL rate change. */
++	after = dsi_read(msm_host, REG_DSI_CTRL);
++	if (after & DSI_CTRL_ENABLE) {
++		dev_err(dev, "firmware controller stop failed: CTRL=0x%x\n", after);
++		ret = -EIO;
++	} else {
++		msm_host->firmware_quiesced = true;
++		dev_info(dev, "DSI firmware stop before PHY: CTRL=0x%x -> 0x%x\n",
++			 before, after);
++		ret = 0;
++	}
++	pm_runtime_put_sync(dev);
++unlock:
++	mutex_unlock(&msm_host->dev_mutex);
++	return ret;
++}
++
+ int msm_dsi_host_power_on(struct mipi_dsi_host *host,
+ 			struct msm_dsi_phy_shared_timings *phy_shared_timings,
+ 			bool is_bonded_dsi, struct msm_dsi_phy *phy)
+diff --git a/drivers/gpu/drm/msm/dsi/dsi_manager.c b/drivers/gpu/drm/msm/dsi/dsi_manager.c
+--- a/drivers/gpu/drm/msm/dsi/dsi_manager.c
++++ b/drivers/gpu/drm/msm/dsi/dsi_manager.c
+@@ -220,6 +220,15 @@
+ 
+ 	DBG("id=%d", id);
+ 
++	ret = msm_dsi_host_quiesce_firmware(host);
++	if (ret)
++		goto phy_en_fail;
++	if (is_bonded_dsi && msm_dsi1) {
++		ret = msm_dsi_host_quiesce_firmware(msm_dsi1->host);
++		if (ret)
++			goto phy_en_fail;
++	}
++
+ 	ret = dsi_mgr_phy_enable(id, phy_shared_timings);
+ 	if (ret)
+ 		goto phy_en_fail;
+diff --git a/drivers/gpu/drm/msm/dsi/dsi.h b/drivers/gpu/drm/msm/dsi/dsi.h
+--- a/drivers/gpu/drm/msm/dsi/dsi.h
++++ b/drivers/gpu/drm/msm/dsi/dsi.h
+@@ -72,6 +72,7 @@
+ int msm_dsi_host_disable(struct mipi_dsi_host *host);
+ void msm_dsi_host_enable_irq(struct mipi_dsi_host *host);
+ void msm_dsi_host_disable_irq(struct mipi_dsi_host *host);
++int msm_dsi_host_quiesce_firmware(struct mipi_dsi_host *host);
+ int msm_dsi_host_power_on(struct mipi_dsi_host *host,
+ 			struct msm_dsi_phy_shared_timings *phy_shared_timings,
+ 			bool is_bonded_dsi, struct msm_dsi_phy *phy);

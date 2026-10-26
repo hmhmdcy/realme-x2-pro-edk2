@@ -1,0 +1,102 @@
+Subject: [PATCH] arm64: dts: samurai: enable board-native S3706 touch
+
+Use the RMX1931 19781 vendor/live wiring: I2C17, TLMM122 IRQ, TLMM54
+reset, PM8150 L17 at 3.0V and PM8150L GPIO5 active-high VIO enable.
+Enable QUP2/GPI DMA2 without changing DMA masks or other bus engines.
+The generic RMI compatible is intentional; hardware identifies S3706A.
+
+--- a/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
++++ b/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
+@@ -48,6 +48,18 @@
+ 		 */
+ 		/delete-property/ stdout-path;
+ 		bootargs = "earlycon=eud,mmio,0x88e0000 console=tty0 console=eud loglevel=7 ignore_loglevel panic=15 clk_ignore_unused pd_ignore_unused regulator_ignore_unused";
++	};
++
++	/* 19781 vendor DTS/common power code: PM8150L GPIO5 high enables VIO. */
++	vreg_touch_1p8: regulator-touch-1p8 {
++		compatible = "regulator-fixed";
++		regulator-name = "touch-vio-1p8";
++		regulator-min-microvolt = <1800000>;
++		regulator-max-microvolt = <1800000>;
++		gpio = <&pm8150l_gpios 5 GPIO_ACTIVE_HIGH>;
++		enable-active-high;
++		pinctrl-names = "default";
++		pinctrl-0 = <&touch_vio_enable_default>;
+ 	};
+ 
+ 	/*
+@@ -325,3 +337,73 @@
+ 		opp-peak-kBps = <8368000 51609600>;
+ 	};
+ };
++
++/* S3706 wiring from this handset's 19781 overlay and saved Android tree. */
++&gpi_dma2 {
++	status = "okay";
++};
++
++&qupv3_id_2 {
++	status = "okay";
++};
++
++&i2c17 {
++	status = "okay";
++
++	touchscreen@20 {
++		compatible = "syna,rmi4-i2c";
++		reg = <0x20>;
++		#address-cells = <1>;
++		#size-cells = <0>;
++		interrupt-parent = <&tlmm>;
++		interrupts = <122 IRQ_TYPE_LEVEL_LOW>;
++		reset-gpios = <&tlmm 54 GPIO_ACTIVE_LOW>;
++		pinctrl-names = "default";
++		pinctrl-0 = <&touch_irq_default &touch_reset_default>;
++		vdd-supply = <&vreg_l17a_3p0>;
++		vio-supply = <&vreg_touch_1p8>;
++		/* Vendor: 10 ms power-to-reset release, 80 ms reset-to-normal. */
++		syna,startup-delay-ms = <80>;
++		syna,reset-delay-ms = <80>;
++
++		rmi4-f12@12 {
++			reg = <0x12>;
++			syna,sensor-type = <1>;
++			touchscreen-size-x = <1080>;
++			touchscreen-size-y = <2400>;
++		};
++	};
++};
++
++&vreg_l17a_3p0 {
++	regulator-min-microvolt = <3000000>;
++	regulator-max-microvolt = <3000000>;
++};
++
++&pm8150l_gpios {
++	touch_vio_enable_default: touch-vio-enable-default-state {
++		pins = "gpio5";
++		function = "normal";
++		bias-disable;
++		power-source = <0>;
++		qcom,drive-strength = <3>;
++		drive-push-pull;
++	};
++};
++
++&tlmm {
++	touch_irq_default: touch-irq-default-state {
++		pins = "gpio122";
++		function = "gpio";
++		drive-strength = <8>;
++		bias-pull-up;
++		input-enable;
++	};
++
++	touch_reset_default: touch-reset-default-state {
++		pins = "gpio54";
++		function = "gpio";
++		drive-strength = <8>;
++		bias-disable;
++	};
++};

@@ -1,0 +1,206 @@
+--- a/spa/plugins/libcamera/libcamera-source.cpp
++++ b/spa/plugins/libcamera/libcamera-source.cpp
+@@ -54,6 +54,7 @@
+ #define MASK_BUFFERS	31
+ 
+ #define BUFFER_FLAG_OUTSTANDING	(1<<0)
++#define BUFFER_FLAG_PENDING_RECYCLE (1<<1)
+ 
+ struct buffer {
+ 	uint32_t id;
+@@ -61,6 +62,7 @@
+ 	struct spa_list link;
+ 	struct spa_buffer *outbuf;
+ 	struct spa_meta_header *h;
++	struct spa_meta_busy *busy;
+ 	struct spa_meta_videotransform *videotransform;
+ };
+ 
+@@ -157,7 +159,10 @@
+ 
+ 	void requestComplete(libcamera::Request *request);
+ 
+-	struct spa_source source = {};
++	struct spa_source source = { .fd = -1 };
++	struct spa_source recycle_source = { .fd = -1 };
++	bool recycle_timer_armed = false;
++	uint64_t busy_deferrals = 0, deferred_requeues = 0;
+ 
+ 	ControlList ctrls;
+ 	ControlList initial_controls;
+@@ -179,6 +184,9 @@
+ 
+ 				if (self->source.loop)
+ 					spa_loop_remove_source(self->data_loop, &self->source);
++				if (self->recycle_source.loop)
++					spa_loop_remove_source(self->data_loop, &self->recycle_source);
++				self->recycle_timer_armed = false;
+ 
+ 				return 0;
+ 			},
+@@ -194,6 +202,10 @@
+ 
+ 		if (source.fd >= 0)
+ 			spa_system_close(system, std::exchange(source.fd, -1));
++		if (recycle_source.fd >= 0)
++			spa_system_close(system, std::exchange(recycle_source.fd, -1));
++		spa_log_info(log, "busy-ownership deferrals:%" PRIu64 " requeues:%" PRIu64,
++			busy_deferrals, deferred_requeues);
+ 
+ 		completed_requests_rb = SPA_RINGBUFFER_INIT();
+ 		active = false;
+@@ -269,32 +281,72 @@
+ 	return 0;
+ }
+ 
++
++int arm_recycle_timer(struct impl *impl)
++{
++	if (impl->recycle_timer_armed)
++		return 0;
++	struct itimerspec timeout = {};
++	timeout.it_value.tv_nsec = 5 * SPA_NSEC_PER_MSEC;
++	int res = spa_system_timerfd_settime(impl->system,
++		impl->recycle_source.fd, 0, &timeout, nullptr);
++	if (res >= 0)
++		impl->recycle_timer_armed = true;
++	return res;
++}
++
+ int spa_libcamera_buffer_recycle(struct impl *impl, struct port *port, uint32_t buffer_id)
+ {
++	if (buffer_id >= port->n_buffers || buffer_id >= impl->requestPool.size())
++		return -EINVAL;
+ 	struct buffer *b = &port->buffers[buffer_id];
+-	int res;
+-
+ 	if (!SPA_FLAG_IS_SET(b->flags, BUFFER_FLAG_OUTSTANDING))
+ 		return 0;
+ 
+-	SPA_FLAG_CLEAR(b->flags, BUFFER_FLAG_OUTSTANDING);
+-
+-	if (buffer_id >= impl->requestPool.size()) {
+-		spa_log_warn(impl->log, "invalid buffer_id %u >= %zu",
+-				buffer_id, impl->requestPool.size());
+-		return -EINVAL;
+-	}
+-	Request *request = impl->requestPool[buffer_id].get();
++	/* The graph can return its IO slot while an asynchronous consumer still
++	 * owns the memory. Never hand that memory back to the camera yet. */
++	if (impl->active && b->busy && SPA_ATOMIC_LOAD(b->busy->count) > 0) {
++		SPA_FLAG_SET(b->flags, BUFFER_FLAG_PENDING_RECYCLE);
++		impl->busy_deferrals++;
++		return arm_recycle_timer(impl);
++	}
++	bool deferred = SPA_FLAG_IS_SET(b->flags, BUFFER_FLAG_PENDING_RECYCLE);
+ 	if (impl->active) {
++		Request *request = impl->requestPool[buffer_id].get();
+ 		request->controls().merge(impl->ctrls);
+ 		impl->ctrls.clear();
+-		if ((res = impl->camera->queueRequest(request)) < 0) {
+-			spa_log_warn(impl->log, "can't queue buffer %u: %s",
+-				buffer_id, spa_strerror(res));
++		int res = impl->camera->queueRequest(request);
++		if (res < 0) {
++			spa_log_warn(impl->log, "can't queue buffer %u: %s", buffer_id, spa_strerror(res));
+ 			return res == -EACCES ? -EBUSY : res;
+ 		}
+-	}
+-	return 0;
++		if (deferred)
++			impl->deferred_requeues++;
++	}
++	SPA_FLAG_CLEAR(b->flags, BUFFER_FLAG_OUTSTANDING | BUFFER_FLAG_PENDING_RECYCLE);
++	return 0;
++}
++
++void libcamera_recycle_timer(struct spa_source *source)
++{
++	auto *impl = static_cast<struct impl *>(source->data);
++	uint64_t expirations;
++	if (spa_system_timerfd_read(impl->system, source->fd, &expirations) < 0)
++		return;
++	impl->recycle_timer_armed = false;
++	if (!impl->active)
++		return;
++	struct port *port = &impl->out_ports[0];
++	for (uint32_t i = 0; i < port->n_buffers; i++) {
++		if (!SPA_FLAG_IS_SET(port->buffers[i].flags, BUFFER_FLAG_PENDING_RECYCLE))
++			continue;
++		int res = spa_libcamera_buffer_recycle(impl, port, i);
++		if (res < 0) {
++			spa_log_error(impl->log, "deferred recycle failed: %s", spa_strerror(res));
++			spa_node_call_ready(&impl->callbacks, res);
++			return;
++		}
++	}
+ }
+ 
+ void freeBuffers(struct impl *impl, struct port *port)
+@@ -1230,6 +1282,7 @@
+ 		b->outbuf = buffers[i];
+ 		b->flags = 0;
+ 		b->h = (struct spa_meta_header*)spa_buffer_find_meta_data(buffers[i], SPA_META_Header, sizeof(*b->h));
++		b->busy = (struct spa_meta_busy*)spa_buffer_find_meta_data(buffers[i], SPA_META_Busy, sizeof(*b->busy));
+ 
+ 		b->videotransform = (struct spa_meta_videotransform*)spa_buffer_find_meta_data(
+ 			buffers[i], SPA_META_VideoTransform, sizeof(*b->videotransform));
+@@ -1354,9 +1407,25 @@
+ 	impl->source.mask = SPA_IO_IN | SPA_IO_ERR;
+ 	impl->source.rmask = 0;
+ 
++	res = spa_system_timerfd_create(impl->system, CLOCK_MONOTONIC,
++		SPA_FD_CLOEXEC | SPA_FD_NONBLOCK);
++	if (res < 0)
++		goto err_stop;
++	impl->recycle_source.fd = res;
++	impl->recycle_source.func = libcamera_recycle_timer;
++	impl->recycle_source.data = impl;
++	impl->recycle_source.mask = SPA_IO_IN | SPA_IO_ERR;
++	impl->recycle_source.rmask = 0;
++	impl->recycle_timer_armed = false;
++
+ 	for (auto& req : impl->requestPool) {
+ 		req->reuse(libcamera::Request::ReuseFlag::ReuseBuffers);
+-
++		struct buffer *b = &port->buffers[req->cookie()];
++		if (b->busy && SPA_ATOMIC_LOAD(b->busy->count) > 0) {
++			SPA_FLAG_SET(b->flags, BUFFER_FLAG_OUTSTANDING | BUFFER_FLAG_PENDING_RECYCLE);
++			continue;
++		}
++		SPA_FLAG_CLEAR(b->flags, BUFFER_FLAG_OUTSTANDING | BUFFER_FLAG_PENDING_RECYCLE);
+ 		if ((res = impl->camera->queueRequest(req.get())) < 0)
+ 			goto err_stop;
+ 	}
+@@ -1369,7 +1438,17 @@
+ 		[](spa_loop *, bool, uint32_t, const void *, size_t, void *user_data)
+ 		{
+ 			auto *impl = static_cast<struct impl *>(user_data);
+-			return spa_loop_add_source(impl->data_loop, &impl->source);
++			int res = spa_loop_add_source(impl->data_loop, &impl->source);
++			if (res < 0)
++				return res;
++			res = spa_loop_add_source(impl->data_loop, &impl->recycle_source);
++			if (res < 0)
++				return res;
++			for (uint32_t i = 0; i < impl->out_ports[0].n_buffers; i++) {
++				if (SPA_FLAG_IS_SET(impl->out_ports[0].buffers[i].flags, BUFFER_FLAG_PENDING_RECYCLE))
++					return arm_recycle_timer(impl);
++			}
++			return 0;
+ 		},
+ 		0, nullptr, 0, impl
+ 	);
+@@ -1771,6 +1850,12 @@
+ 				SPA_TYPE_OBJECT_ParamMeta, id,
+ 				SPA_PARAM_META_type, SPA_POD_Id(SPA_META_VideoTransform),
+ 				SPA_PARAM_META_size, SPA_POD_Int(sizeof(struct spa_meta_videotransform)));
++			break;
++		case 2:
++			param = (struct spa_pod*)spa_pod_builder_add_object(&b,
++				SPA_TYPE_OBJECT_ParamMeta, id,
++				SPA_PARAM_META_type, SPA_POD_Id(SPA_META_Busy),
++				SPA_PARAM_META_size, SPA_POD_Int(sizeof(struct spa_meta_busy)));
+ 			break;
+ 		default:
+ 			return 0;

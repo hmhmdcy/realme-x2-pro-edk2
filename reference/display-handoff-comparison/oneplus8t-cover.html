@@ -1,0 +1,195 @@
+        <!DOCTYPE html>
+        <html lang="en">
+        <head><title>qcom: initial support for the OnePlus 8T [LWN.net]</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta property="og:title" content="qcom: initial support for the OnePlus 8T">
+<meta property="og:site_name" content="LWN.net">
+<meta property="og:type" content="article">
+<meta property="og:description" content="">
+<meta HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=utf-8">
+<META NAME="robots" CONTENT="noai, noimageai">
+        <link rel="icon" href="https://static.lwn.net/images/favicon.png"
+              type="image/png">
+        <link rel="alternate" type="application/rss+xml" title="LWN.net headlines" href="https://lwn.net/headlines/rss">
+        <link rel="stylesheet" href="/CSS/lwn-v1">
+<style>div.MakeALink { display: none }</style>
+
+        
+        </head>
+        <body>
+        <a name="t"></a>
+<div id="menu"><a href="/" aria-label="Return to the front page">
+            <img src="https://static.lwn.net/images/logo/barepenguin-70.webp" class="logo"
+                 border="0" alt="LWN.net Logo">
+            <span class="logo">LWN<br>.net</span>
+            <span class="logobl">News from the source</span></a>
+            <a href="/" aria-label="Return to the front page">
+            <img src="https://static.lwn.net/images/lcorner-ss.png" class="sslogo"
+                 border="0" alt="LWN"></a><div class="navmenu-container">
+           <ul class="navmenu">
+        <li><a class="navmenu" href="#t"><b>Content</b></a><ul><li><a href="/current/">Weekly Edition</a></li><li><a href="/Archives/">Archives</a></li><li><a href="/Search/">Search</a></li><li><a href="/Kernel/">Kernel</a></li><li><a href="/Security/">Security</a></li><li><a href="/Calendar/">Events calendar</a></li><li><a href="/Comments/unread">Unread comments</a></li><li><hr></li><li><a href="/op/FAQ.lwn">LWN FAQ</a></li><li><a href="/op/AuthorGuide.lwn">Write for us</a></li></ul></li>
+<li><a class="navmenu" href="#t"><b>Edition</b></a><ul><li><a href="/Articles/979855/">Return to the Announcements page</a></li></ul></li>
+</ul></div>
+</div> <!-- menu -->
+<div class="topnav-spacer"></div>
+<div class="top-banner not-print"><!-- no top ad served --></div>
+<div class="topnav-container">
+<div class="not-handset"><form action="https://lwn.net/Login/" method="post" name="loginform"
+                 class="loginform">
+        <label><b>User:</b> <input type="text" name="uname" value="" size="8" id="uc" /></label> 
+		<label><b>Password:</b> <input type="password" name="pword" size="8" id="pc" /></label> <input type="hidden" name="target" value="/Articles/980163/" /> <input type="submit" name="submit" value="Log in" /></form> |
+           <form action="https://lwn.net/subscribe/" method="post" class="loginform">
+           <input type="submit" name="submit" value="Subscribe" />
+           </form> |
+           <form action="https://lwn.net/Login/newaccount" method="post" class="loginform">
+           <input type="submit" name="submit" value="Register" />
+           </form>
+        </div>
+               <div class="handset-only">
+               <a href="/Login/"><b>Log in</b></a> /
+               <a href="/subscribe/"><b>Subscribe</b></a> /
+               <a href="/Login/newaccount"><b>Register</b></a>
+               </div>
+               </div><div class="maincolumn flexcol">
+<div class="middlecolumn">
+<div class="PageHeadline">
+<h1>qcom: initial support for the OnePlus 8T</h1>
+</div>
+<div class="ArticleText"><main>
+<table>
+<tr><td valign="top"><b>From</b>:</td>
+             <td>&nbsp;</td><td valign="top">Caleb Connolly &lt;caleb-AT-postmarketos.org&gt;</td></tr>
+<tr><td valign="top"><b>To</b>:</td>
+             <td>&nbsp;</td><td valign="top">Caleb Connolly &lt;caleb-AT-postmarketos.org&gt;,  Neil Armstrong &lt;neil.armstrong-AT-linaro.org&gt;,  Jessica Zhang &lt;quic_jesszhan-AT-quicinc.com&gt;, David Airlie &lt;airlied-AT-gmail.com&gt;,  Daniel Vetter &lt;daniel-AT-ffwll.ch&gt;,  Maarten Lankhorst &lt;maarten.lankhorst-AT-linux.intel.com&gt;,  Maxime Ripard &lt;mripard-AT-kernel.org&gt;, Thomas Zimmermann &lt;tzimmermann-AT-suse.de&gt;,  Rob Herring &lt;robh-AT-kernel.org&gt;, Krzysztof Kozlowski &lt;krzk+dt-AT-kernel.org&gt;,  Conor Dooley &lt;conor+dt-AT-kernel.org&gt;,  Dmitry Torokhov &lt;dmitry.torokhov-AT-gmail.com&gt;,  Bjorn Andersson &lt;andersson-AT-kernel.org&gt;,  Konrad Dybcio &lt;konrad.dybcio-AT-linaro.org&gt;,  Henrik Rydberg &lt;rydberg-AT-bitmath.org&gt;</td></tr>
+<tr><td valign="top"><b>Subject</b>:</td>
+             <td>&nbsp;</td><td valign="top">[PATCH v2 0/8] qcom: initial support for the OnePlus 8T</td></tr>
+<tr><td valign="top"><b>Date</b>:</td>
+             <td>&nbsp;</td><td valign="top">Sun, 30 Jun 2024 20:36:23 +0200</td></tr>
+<tr><td valign="top"><b>Message-ID</b>:</td>
+             <td>&nbsp;</td><td valign="top">&lt;20240630-oneplus8-v2-0-c4a1f8da74f1@postmarketos.org&gt;</td></tr>
+<tr><td valign="top"><b>Cc</b>:</td>
+             <td>&nbsp;</td><td valign="top">Dmitry Baryshkov &lt;dmitry.baryshkov-AT-linaro.org&gt;,  dri-devel-AT-lists.freedesktop.org, devicetree-AT-vger.kernel.org,  linux-input-AT-vger.kernel.org, linux-arm-msm-AT-vger.kernel.org,  ~postmarketos/upstreaming-AT-lists.sr.ht,  Krzysztof Kozlowski &lt;krzysztof.kozlowski-AT-linaro.org&gt;,  Frieder Hannenheim &lt;frieder.hannenheim-AT-proton.me&gt;</td></tr>
+<tr><td valign="top"><b>Archive-link</b>:</td>
+             <td>&nbsp;</td><td valign="top"><a href="https://lwn.net/ml/all/20240630-oneplus8-v2-0-c4a1f8da74f1@postmarketos.org/">Article</a></td></tr>
+</table><p>
+<pre>
+Add bindings for the SM8250 OnePlus devices, a common devicetree,
+touchscreen and display drivers, and a dts for the OnePlus 8T (kebab).
+
+The OnePlus 8 series is made up of 3 flagship smartphones from 2019,
+featuring the Qualcomm X55 5G PCIe modem.
+
+This series introduces initial support for the 8T, adding drivers for
+the 1080x2400 120Hz DSC panel and the Synaptics TCM Oncell touchscreen.
+
+The panel features a Pixelworks Iris 5 co-processor, what this exactly
+does is not very well explained by their website, but as far as we're
+concerned it's a chip that sits between the panel and the SoC, we talk
+to it over i2c/i3c. The bootloader has some init sequence which can get
+the panel working, and if we then reset the panel it becomes impossible
+to get it initialized again without adding a driver for this
+co-processor.
+
+Note that we can still power down the panel regulators, as long as we
+don't toggle the reset pin.
+
+I think it is still useful to accept this panel drivers into
+upstream. From a users perspective, the panel is fully functional
+just by leaving the reset GPIO alone and keeping the regulator on.
+
+The Synaptics TCM Oncell touchscreens are a new generation of Synaptics
+controllers with a totally incompatible firmware compared to the older
+rmi4 touchscreens. A new driver is written which currently only supports
+the S3908 controller found on the OnePlus 8T. Downstream vendor drivers
+suggest that the controller supports custom touch report configuration,
+one can define the exact bit packing of the touch reports, however the
+combination of controller and firmware available on this device does not
+allow for programming in cusotm configs, so for simplicity this initial
+driver uses a hardcoded bit packing to decode the touch reports.
+
+With this series, the OnePlus 8T can boot up to GNOME shell, connect to
+a wifi network and browse the web with GPU acceleration, with battery
+status reporting via the BQ27541 fuel gauge IC.
+
+The touchscreen driver included here is loosely based on a previous
+attempt by Frieder Hannenheim which can be found below.
+
+Link: <a href="https://lore.kernel.org/lkml/20240327214643.7055-1-friederhannenheim@riseup.net/">https://lore.kernel.org/lkml/20240327214643.7055-1-friede...</a>
+
+---
+Changes in v2:
+- Panel:
+- 	Fix amb655x dt-bindings example
+- 	Fully switch to *_multi helpers
+- 	Fix regulator refcount handling (skip enabling regulators during
+	first prepare() call since they're already powered up).
+- DTS:
+- 	Add BQ27541 fuel gauge ic
+- 	Remove erroneous i2c-ls1 comment
+- 	Add chassis-type propery
+- 	Don't make panel regulators always-on (not needed)
+- 	Describe pielworks iris 5 i2c chip
+- Touchscreen:
+- 	Fix potential IRQ race condition during probe
+- 	Handle big endian hosts correctly
+- 	Removed unused macros and generally clean up
+- Link to v1: <a href="https://lore.kernel.org/r/20240624-oneplus8-v1-0-388eecf2dff7@postmarketos.org">https://lore.kernel.org/r/20240624-oneplus8-v1-0-388eecf2...</a>
+
+---
+Caleb Connolly (8):
+      dt-bindings: panel: document Samsung AMB655X
+      dt-bindings: input: touchscreen: document synaptics TCM oncell
+      dt-bindings: arm: qcom: add OnePlus 8 series
+      drm: mipi: add mipi_dsi_generic_write_multi_type()
+      drm/mipi-dsi: add set column/page multi helpers
+      drm/panel: add driver for samsung amb655x
+      Input: touchscreen: add Synaptics TCM oncell S3908
+      arm64: dts: qcom: add OnePlus 8T (kebab)
+
+ Documentation/devicetree/bindings/arm/qcom.yaml    |   3 +
+ .../bindings/display/panel/samsung,amb655x.yaml    |  63 ++
+ .../input/touchscreen/syna,tcm-oncell.yaml         |  68 ++
+ MAINTAINERS                                        |  14 +
+ arch/arm64/boot/dts/qcom/Makefile                  |   1 +
+ .../arm64/boot/dts/qcom/sm8250-oneplus-common.dtsi | 909 +++++++++++++++++++++
+ arch/arm64/boot/dts/qcom/sm8250-oneplus-kebab.dts  |  36 +
+ drivers/gpu/drm/drm_mipi_dsi.c                     |  40 +
+ drivers/gpu/drm/panel/Kconfig                      |   9 +
+ drivers/gpu/drm/panel/Makefile                     |   1 +
+ drivers/gpu/drm/panel/panel-samsung-amb655x.c      | 399 +++++++++
+ drivers/input/touchscreen/Kconfig                  |  11 +
+ drivers/input/touchscreen/Makefile                 |   1 +
+ drivers/input/touchscreen/synaptics_tcm_oncell.c   | 571 +++++++++++++
+ include/drm/drm_mipi_dsi.h                         |  32 +
+ 15 files changed, 2158 insertions(+)
+---
+change-id: 20240622-oneplus8-788005cc74ae
+base-commit: f76698bd9a8ca01d3581236082d786e9a6b72bb7
+
+// Caleb (they/them)
+
+
+
+</pre>
+
+</main></div> <!-- ArticleText -->
+</div> <!-- middlecolumn -->
+<div class="rightcol not-print">
+<ins data-revive-zoneid="12085" 
+data-revive-id="fa8c6c9da7f33852f7097c4a94da1070"></ins>
+<script async src="//servedby.aqua-adserver.com/asyncjs.php"></script>
+</div>
+</div> <!-- maincolumn -->
+
+            <br clear="all">
+            <center>
+            <P>
+            <span class="ReallySmall">
+            Copyright &copy; 2024, Eklektix, Inc.<BR>
+            
+            Comments and public postings are copyrighted by their creators.<br>
+            Linux  is a registered trademark of Linus Torvalds<br>
+            </span>
+            </center>
+            
+            </body></html>

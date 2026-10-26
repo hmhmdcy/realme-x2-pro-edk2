@@ -1,0 +1,166 @@
+diff --git a/arch/arm64/boot/dts/qcom/sm8150-samurai.dts b/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
+index 36b9dc922..0ae0b4294 100755
+--- a/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
++++ b/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
+@@ -108,6 +108,12 @@ key-vol-down {
+ 	 * the EFI memory map (drivers/firmware/efi/efi-init.c), not from here.
+ 	 */
+ 	reserved-memory {
++		/* RMX1931 firmware IFE exclusions, enforced by the IOMMU core. */
++		camss_iova_resv: reservation-camss-ife {
++			iommu-addresses = <&camss 0 0 0 0x07400000>,
++					  <&camss 0 0xe0000000 0 0x20000000>;
++		};
++
+ 		/delete-node/ memory@85d00000;	/* MTP xbl_mem 0x85d00000+0x140000 */
+ 		/delete-node/ memory@85f00000;	/* MTP aop_mem 0x85f00000+0x20000 */
+ 		/delete-node/ memory@89b00000;	/* MTP rmtfs_mem: not present here */
+@@ -1068,3 +1074,8 @@ cam_front_csiphy2_ep: endpoint {
+ };
+ 
+ #include "imx319.dtsi"
++
++&camss {
++	memory-region = <&camss_iova_resv>;
++	memory-region-names = "ife-iova";
++};
+diff --git a/arch/arm64/boot/dts/qcom/sm8150.dtsi b/arch/arm64/boot/dts/qcom/sm8150.dtsi
+index 5c596f77c..12f24fa36 100644
+--- a/arch/arm64/boot/dts/qcom/sm8150.dtsi
++++ b/arch/arm64/boot/dts/qcom/sm8150.dtsi
+@@ -687,10 +687,6 @@ reserved-memory {
+ 		#address-cells = <2>;
+ 		#size-cells = <2>;
+ 		ranges;
+-		camss_iova_resv: reservation-camss-ife {
+-			iommu-addresses = <&camss 0 0 0 0x07400000>,
+-					  <&camss 0 0xe0000000 0 0x20000000>;
+-		};
+ 
+ 
+ 		hyp_mem: memory@85700000 {
+@@ -4113,8 +4109,6 @@ camss: camss@acb3000 {
+ 				 <&apps_smmu 0xe40 0x620>,
+ 				 <&apps_smmu 0xe60 0x620>;
+ 
+-			memory-region = <&camss_iova_resv>;
+-			memory-region-names = "ife-iova";
+ 			status = "disabled";
+ 
+ 			ports {
+diff --git a/drivers/media/platform/qcom/camss/camss-cpas.c b/drivers/media/platform/qcom/camss/camss-cpas.c
+index b3a6fad0d..b2d07e249 100644
+--- a/drivers/media/platform/qcom/camss/camss-cpas.c
++++ b/drivers/media/platform/qcom/camss/camss-cpas.c
+@@ -46,28 +46,16 @@ static const struct camss_cpas_reg sm8150_ife_qos[] = {
+ 	{ 0x0848, 0xffffffff, 0x00000001 },
+ };
+ 
+-static int camss_sm8150_check_iova(struct device *dev)
++/* The DMA/IOMMU core reserves the IOVA regions described by firmware. */
++static int camss_cpas_check_dma_domain(struct device *dev)
+ {
+ 	struct iommu_domain *domain = iommu_get_domain_for_dev(dev);
+-	struct iommu_resv_region *region;
+-	bool low = false, high = false;
+-	LIST_HEAD(regions);
+ 
+ 	if (!domain || (domain->type != IOMMU_DOMAIN_DMA &&
+ 			domain->type != IOMMU_DOMAIN_DMA_FQ))
+ 		return -ENODEV;
+-	iommu_get_resv_regions(dev, &regions);
+-	list_for_each_entry(region, &regions, list) {
+-		if (region->type != IOMMU_RESV_RESERVED)
+-			continue;
+-		if (region->start == 0 && region->length == 0x07400000)
+-			low = true;
+-		if (region->start == 0xe0000000 && region->length == 0x20000000)
+-			high = true;
+-	}
+-	iommu_put_resv_regions(dev, &regions);
+-	/* Do not replace the safe mask without both reservation callback policies. */
+-	return low && high ? 0 : -EINVAL;
++
++	return 0;
+ }
+ 
+ static int camss_cpas_stop(struct camss_cpas *cpas)
+@@ -117,9 +105,9 @@ int camss_cpas_init(struct camss *camss)
+ 
+ 	if (camss->res->version != CAMSS_8150)
+ 		return 0;
+-	ret = camss_sm8150_check_iova(dev);
++	ret = camss_cpas_check_dma_domain(dev);
+ 	if (ret)
+-		return dev_err_probe(dev, ret, "native IFE IOVA reservations missing\n");
++		return dev_err_probe(dev, ret, "translated DMA domain is required\n");
+ 	cpas = devm_kzalloc(dev, sizeof(*cpas), GFP_KERNEL);
+ 	if (!cpas)
+ 		return -ENOMEM;
+diff --git a/drivers/media/platform/qcom/camss/camss-video.c b/drivers/media/platform/qcom/camss/camss-video.c
+index d0eed9944..05ccdd136 100644
+--- a/drivers/media/platform/qcom/camss/camss-video.c
++++ b/drivers/media/platform/qcom/camss/camss-video.c
+@@ -7,6 +7,7 @@
+  * Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+  * Copyright (C) 2015-2018 Linaro Ltd.
+  */
++#include <linux/dma-mapping.h>
+ #include <linux/module.h>
+ #include <linux/slab.h>
+ #include <media/media-entity.h>
+@@ -147,11 +148,6 @@ static int video_queue_setup(struct vb2_queue *q,
+ 	return 0;
+ }
+ 
+-/* Bounded bring-up diagnostics; normal camera operation stays quiet. */
+-static bool trace_dma;
+-module_param_named(dma_trace, trace_dma, bool, 0600);
+-MODULE_PARM_DESC(dma_trace, "Log prepared SM8150 DMA plane ranges");
+-
+ /* Verify every byte the SM8150 write master may address, including SG joins. */
+ static int video_check_dma_mapping(struct camss_video *video,
+ 				   struct sg_table *sgt, size_t size)
+@@ -159,6 +155,7 @@ static int video_check_dma_mapping(struct camss_video *video,
+ 	struct scatterlist *sg;
+ 	dma_addr_t address, expected;
+ 	size_t remaining = size;
++	u64 limit = dma_get_mask(video->camss->dev);
+ 	unsigned int i;
+ 
+ 	if (video->camss->res->version != CAMSS_8150)
+@@ -166,8 +163,7 @@ static int video_check_dma_mapping(struct camss_video *video,
+ 	if (!sgt || !sgt->sgl || !sgt->nents || !size)
+ 		return -EINVAL;
+ 	address = sg_dma_address(sgt->sgl);
+-	if (address < 0x07400000 || address >= 0xe0000000 ||
+-	    size > 0xe0000000 - address)
++	if (address > limit || size - 1 > limit - address)
+ 		return -ERANGE;
+ 	expected = address;
+ 	for_each_sgtable_dma_sg(sgt, sg, i) {
+@@ -204,9 +200,8 @@ static int video_buf_init(struct vb2_buffer *vb)
+ 		if (ret)
+ 			return ret;
+ 		buffer->addr[i] = sg_dma_address(sgt->sgl);
+-		if (trace_dma && video->camss->res->version == CAMSS_8150)
+-			dev_info(video->camss->dev, "DMA plane %u address %pad size %lu\n",
+-				i, &buffer->addr[i], vb2_plane_size(vb, i));
++		dev_dbg(video->camss->dev, "DMA plane %u address %pad size %lu\n",
++			i, &buffer->addr[i], vb2_plane_size(vb, i));
+ 	}
+ 
+ 	if (format->pixelformat == V4L2_PIX_FMT_NV12 ||
+diff --git a/drivers/media/platform/qcom/camss/camss.c b/drivers/media/platform/qcom/camss/camss.c
+index 39c0f8396..f6e53a653 100644
+--- a/drivers/media/platform/qcom/camss/camss.c
++++ b/drivers/media/platform/qcom/camss/camss.c
+@@ -5649,7 +5649,7 @@ static int camss_probe(struct platform_device *pdev)
+ 	if (ret < 0)
+ 		goto err_genpd_cleanup;
+ 
+-	/* Full native IFE window is enforced by checked IOMMU reservations. */
++	/* Hardware address width; IOVA reservations come from firmware data. */
+ 	ret = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(32));
+ 	if (ret)
+ 		goto err_genpd_cleanup;

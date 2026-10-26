@@ -1,0 +1,1124 @@
+diff --git a/drivers/media/platform/qcom/camss/Kconfig b/drivers/media/platform/qcom/camss/Kconfig
+index bc9700667..3375ed81b 100644
+--- a/drivers/media/platform/qcom/camss/Kconfig
++++ b/drivers/media/platform/qcom/camss/Kconfig
+@@ -12,7 +12,7 @@ config VIDEO_QCOM_CAMSS
+ 
+ config VIDEO_QCOM_CAMSS_ICP_A5_CORE
+ 	tristate
+-	depends on VIDEO_QCOM_CAMSS && IOMMU_DMA && OF && PM_GENERIC_DOMAINS
++	depends on VIDEO_QCOM_CAMSS && IOMMU_DMA && OF && PM_GENERIC_DOMAINS && RESET_CONTROLLER
+ 
+ config VIDEO_QCOM_CAMSS_ICP_A5_MEMORY_TEST
+ 	tristate
+@@ -21,3 +21,7 @@ config VIDEO_QCOM_CAMSS_ICP_A5_MEMORY_TEST
+ config VIDEO_QCOM_CAMSS_ICP_A5_POWER_TEST
+ 	tristate
+ 	depends on VIDEO_QCOM_CAMSS_ICP_A5_CORE && OF_OVERLAY && PM
++
++config VIDEO_QCOM_CAMSS_ICP_A5_BOOT_TEST
++	tristate
++	depends on VIDEO_QCOM_CAMSS_ICP_A5_CORE && OF_OVERLAY
+diff --git a/drivers/media/platform/qcom/camss/Makefile b/drivers/media/platform/qcom/camss/Makefile
+index da139da61..f0249343b 100644
+--- a/drivers/media/platform/qcom/camss/Makefile
++++ b/drivers/media/platform/qcom/camss/Makefile
+@@ -54,3 +54,6 @@ CFLAGS_camss-icp-a5-memory-test.o += -I$(obj)
+ 
+ qcom-camss-icp-a5-core-y += camss-icp-a5-resources.o
+ obj-$(CONFIG_VIDEO_QCOM_CAMSS_ICP_A5_POWER_TEST) += camss-icp-a5-power-test.o
++
++qcom-camss-icp-a5-core-y += camss-icp-a5-boot.o
++obj-$(CONFIG_VIDEO_QCOM_CAMSS_ICP_A5_BOOT_TEST) += camss-icp-a5-boot-test.o
+diff --git a/drivers/media/platform/qcom/camss/camss-icp-a5-boot-test.c b/drivers/media/platform/qcom/camss/camss-icp-a5-boot-test.c
+new file mode 100644
+index 000000000..3a226a8dc
+--- /dev/null
++++ b/drivers/media/platform/qcom/camss/camss-icp-a5-boot-test.c
+@@ -0,0 +1,241 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/* Temporary bootstrap diagnostic. No image sessions or sensor changes. */
++#include <linux/firmware.h>
++#include <linux/iommu.h>
++#include <linux/module.h>
++#include <linux/mutex.h>
++#include <linux/of.h>
++#include <linux/platform_device.h>
++#include <linux/pm_runtime.h>
++#include <linux/slab.h>
++
++#include "camss-icp-a5-boot.h"
++#include "camss-icp-a5-boot-test-blob.h"
++
++static DEFINE_MUTEX(test_lock);
++static struct camss_a5 *device_a5;
++static char result[2048] = "{\"terminal\":false}";
++static char sfr[512];
++module_param_string(result, result, sizeof(result), 0444);
++module_param_string(sfr, sfr, sizeof(sfr), 0444);
++static int overlay_id, test_error;
++static bool finished, pinned;
++static const char *phase = "waiting";
++static unsigned int group_devices;
++
++static int group_device(struct device *dev, void *target)
++{
++	group_devices++;
++	return dev == target ? 0 : -EBUSY;
++}
++
++static void update_result(void)
++{
++	struct camss_a5 *a5 = device_a5;
++
++	if (!a5) {
++		scnprintf(result, sizeof(result),
++			  "{\"terminal\":%s,\"phase\":\"%s\",\"error\":%d,\"backing_owned\":false,\"cpu_enabled\":false}",
++			  finished ? "true" : "false", phase, test_error);
++		return;
++	}
++	strscpy(sfr, a5->sfr, sizeof(sfr));
++	scnprintf(result, sizeof(result),
++		  "{\"terminal\":%s,\"phase\":\"%s\",\"error\":%d,\"cleanup_error\":%d,\"pc_error\":%d,"
++		  "\"cpu_release_attempted\":%s,\"init_response\":%u,\"fw_version\":%u,\"response_before\":%u,\"init_bytes\":%u,"
++		  "\"init_done\":%s,\"ping_done\":%s,\"pc_done\":%s,\"reset_asserted\":%s,"
++		  "\"cpu_enabled\":%s,\"irq_enabled\":%s,\"power_held\":%s,\"backing_owned\":%s,"
++		  "\"mapped_bytes\":%u,\"remaining_groups\":%u,\"remaining_domains\":%u,"
++		  "\"interrupts\":%u,\"messages\":%u,\"debug_packets\":%u,\"watchdogs\":%u,\"protocol_errors\":%u,"
++		  "\"last_type\":%u,\"queue_state\":[%u,%u,%u,%u,%u,%u],\"image_sessions\":0}",
++		  finished ? "true" : "false", phase, test_error, a5->cleanup_error, a5->pc_error,
++		  a5->cpu_release_attempted ? "true" : "false", a5->init_response, a5->fw_version,
++		  a5->response_before, a5->init_bytes,
++		  a5->init_done ? "true" : "false", a5->ping_done ? "true" : "false",
++		  a5->pc_done ? "true" : "false", a5->reset_asserted ? "true" : "false",
++		  a5->cpu_enabled ? "true" : "false", a5->irq_enabled ? "true" : "false",
++		  a5->power_held ? "true" : "false", camss_a5_backing_owned(a5) ? "true" : "false",
++		  a5->firmware.mapped + a5->shared.mapped + a5->heap.mapped,
++		  a5->resources.enabled_groups, a5->resources.held_domains,
++		  a5->interrupts, a5->messages, a5->debug_packets, a5->watchdogs, a5->protocol_errors,
++		  a5->last_type, a5->queue_state[0], a5->queue_state[1], a5->queue_state[2],
++		  a5->queue_state[3], a5->queue_state[4], a5->queue_state[5]);
++}
++
++static int cleanup(void)
++{
++	int ret = device_a5 ? camss_a5_stop(device_a5) : 0;
++
++	if (!ret && pinned && !camss_a5_backing_owned(device_a5) &&
++	    !device_a5->cpu_enabled && !device_a5->power_held) {
++		pinned = false;
++		module_put(THIS_MODULE);
++	}
++	return ret;
++}
++
++static ssize_t cleanup_store(struct device *dev, struct device_attribute *attr,
++			     const char *buffer, size_t count)
++{
++	int ret;
++
++	if (!sysfs_streq(buffer, "1"))
++		return -EINVAL;
++	mutex_lock(&test_lock);
++	ret = cleanup();
++	if (ret)
++		test_error = ret;
++	update_result();
++	mutex_unlock(&test_lock);
++	return ret ? ret : count;
++}
++static DEVICE_ATTR_WO(cleanup);
++static struct attribute *test_attributes[] = { &dev_attr_cleanup.attr, NULL };
++static const struct attribute_group test_group = { .attrs = test_attributes };
++static const struct attribute_group *test_groups[] = { &test_group, NULL };
++
++static int test_resume(struct device *dev)
++{
++	struct camss_a5 *a5 = dev_get_drvdata(dev);
++
++	return camss_a5_runtime_resume(a5);
++}
++
++static int test_suspend(struct device *dev)
++{
++	struct camss_a5 *a5 = dev_get_drvdata(dev);
++
++	return camss_a5_runtime_suspend(a5);
++}
++
++static const struct dev_pm_ops test_ops = {
++	RUNTIME_PM_OPS(test_suspend, test_resume, NULL)
++};
++
++static int boot_test_probe(struct platform_device *pdev)
++{
++	struct device *dev = &pdev->dev;
++	const struct firmware *firmware;
++	struct camss_a5 *a5;
++	struct iommu_group *group;
++	int ret, stop;
++
++	a5 = devm_kzalloc(dev, sizeof(*a5), GFP_KERNEL);
++	if (!a5)
++		return -ENOMEM;
++	mutex_lock(&test_lock);
++	phase = "iommu-group";
++	group_devices = 0;
++	group = iommu_group_get(dev);
++	ret = group ? iommu_group_for_each_dev(group, dev, group_device) : -ENODEV;
++	if (group)
++		iommu_group_put(group);
++	if (ret || group_devices != 1) {
++		test_error = ret ? ret : -EBUSY;
++		finished = true;
++		update_result();
++		mutex_unlock(&test_lock);
++		return test_error;
++	}
++	phase = "resources";
++	ret = camss_a5_init(pdev, a5);
++	if (ret) {
++		test_error = ret;
++		finished = true;
++		update_result();
++		mutex_unlock(&test_lock);
++		return ret;
++	}
++	device_a5 = a5;
++	platform_set_drvdata(pdev, a5);
++	pm_runtime_set_suspended(dev);
++	pm_runtime_enable(dev);
++	phase = "request-firmware";
++	ret = request_firmware_direct(&firmware, "qcom/sm8150/samurai-icp356.elf", dev);
++	if (ret)
++		goto done;
++	phase = "start";
++	ret = camss_a5_start(a5, firmware);
++	release_firmware(firmware);
++	if (ret)
++		goto done;
++	phase = "ping";
++	ret = camss_a5_ping(a5, 0x353536706d636173ULL);
++done:
++	stop = cleanup();
++	if (stop)
++		ret = stop;
++	if ((camss_a5_backing_owned(a5) || a5->cpu_enabled || a5->power_held) && !pinned) {
++		__module_get(THIS_MODULE);
++		pinned = true;
++	}
++	if (!ret && a5->pc_error)
++		ret = a5->pc_error;
++	test_error = ret;
++	finished = true;
++	if (!ret)
++		phase = "done";
++	update_result();
++	mutex_unlock(&test_lock);
++	return 0;
++}
++
++static void boot_test_remove(struct platform_device *pdev)
++{
++	mutex_lock(&test_lock);
++	cleanup();
++	pm_runtime_disable(&pdev->dev);
++	/* The driver core may runtime-resume the device before ->remove. */
++	if (device_a5->resources.enabled_groups || device_a5->resources.held_domains)
++		camss_a5_runtime_suspend(device_a5);
++	camss_a5_resources_release(&device_a5->resources);
++	device_a5 = NULL;
++	mutex_unlock(&test_lock);
++}
++
++static const struct of_device_id boot_test_match[] = {
++	{ .compatible = "realme,samurai-a5-icp-boot-test" }, {}
++};
++MODULE_DEVICE_TABLE(of, boot_test_match);
++
++static struct platform_driver boot_test_driver = {
++	.probe = boot_test_probe,
++	.remove = boot_test_remove,
++	.driver = {
++		.name = "samurai-a5-icp-boot-test",
++		.of_match_table = boot_test_match,
++		.pm = pm_ptr(&test_ops),
++		.dev_groups = test_groups,
++		.probe_type = PROBE_FORCE_SYNCHRONOUS,
++	},
++};
++
++static int __init boot_test_init(void)
++{
++	int ret;
++
++	ret = platform_driver_register(&boot_test_driver);
++	if (ret)
++		return ret;
++	ret = of_overlay_fdt_apply(a5_boot_test_overlay,
++				  sizeof(a5_boot_test_overlay), &overlay_id, NULL);
++	if (ret) {
++		if (pinned)
++			return 0;
++		if (overlay_id > 0)
++			of_overlay_remove(&overlay_id);
++		platform_driver_unregister(&boot_test_driver);
++	}
++	return ret;
++}
++
++static void __exit boot_test_exit(void)
++{
++	of_overlay_remove(&overlay_id);
++	platform_driver_unregister(&boot_test_driver);
++}
++
++module_init(boot_test_init);
++module_exit(boot_test_exit);
++MODULE_DESCRIPTION("Temporary SM8150 A5 firmware bootstrap diagnostic");
++MODULE_LICENSE("GPL");
+diff --git a/drivers/media/platform/qcom/camss/camss-icp-a5-boot.c b/drivers/media/platform/qcom/camss/camss-icp-a5-boot.c
+new file mode 100644
+index 000000000..bb8383b42
+--- /dev/null
++++ b/drivers/media/platform/qcom/camss/camss-icp-a5-boot.c
+@@ -0,0 +1,566 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/* SM8150 A5 firmware transport. No image sessions or IPE commands yet. */
++#include <linux/bitops.h>
++#include <linux/delay.h>
++#include <linux/dma-mapping.h>
++#include <linux/interrupt.h>
++#include <linux/io.h>
++#include <linux/iopoll.h>
++#include <linux/module.h>
++#include <linux/of_address.h>
++#include <linux/platform_device.h>
++#include <linux/pm_runtime.h>
++#include <linux/slab.h>
++#include <linux/unaligned.h>
++
++#include "camss-icp-a5-boot.h"
++
++#define A5_RESET 0x04
++#define A5_CONTROL 0x08
++#define A5_INT_ENABLE 0x10
++#define A5_INT_CLEAR 0x18
++#define A5_INT_STATUS 0x1c
++#define A5_HOST_INTERRUPT 0x30
++#define A5_FW_VERSION 0x44
++#define A5_INIT_REQUEST 0x48
++#define A5_INIT_RESPONSE 0x4c
++#define A5_SHARED_PTR 0x50
++#define A5_SHARED_SIZE 0x54
++#define A5_QTABLE_PTR 0x58
++#define A5_HEAP_PTR 0x5c
++#define A5_HEAP_SIZE 0x60
++#define A5_SFR_PTR 0x68
++#define A5_QDSS_PTR 0x6c
++#define A5_QDSS_SIZE 0x70
++#define A5_IO_PTR 0x74
++#define A5_IO_SIZE 0x78
++#define A5_STATUS 0x200
++#define A5_ENABLE BIT(9)
++#define A5_WAKE BIT(4)
++#define A5_WFI_GATE BIT(12)
++#define A5_WFI BIT(7)
++
++#define SHARED_IOVA 0x07400000U
++#define SHARED_WINDOW 0x09600000U
++#define SHARED_BYTES 0x1e000U
++#define HEAP_IOVA 0x10a00000U
++#define HEAP_BYTES 0x100000U
++#define IO_IOVA 0x10c00000U
++#define IO_BYTES 0xcf300000U
++#define CMD_OFFSET 0x1000U
++#define MSG_OFFSET 0x2000U
++#define DBG_OFFSET 0x3000U
++#define SFR_OFFSET 0x1c000U
++#define CMD_BYTES 4096U
++#define MSG_BYTES 4096U
++#define DBG_BYTES 102400U
++#define SYS_INIT 0x10001U
++#define SYS_PC_PREP 0x10002U
++#define SYS_PING 0x10005U
++#define INIT_DONE 0x20001U
++#define PC_DONE 0x20002U
++#define PING_ACK 0x20006U
++#define EVENT_NOTIFY 0x20008U
++
++static enum hrtimer_restart boot_timeout(struct hrtimer *timer)
++{
++	struct camss_a5 *a5 = container_of(timer, struct camss_a5, boot_timer);
++	unsigned long flags;
++	u32 control;
++
++	/* Enforce the same handshake deadline even if a faulting A5 keeps an
++	 * SMMU IRQ busy and the sleeping startup thread cannot run promptly.
++	 */
++	spin_lock_irqsave(&a5->control_lock, flags);
++	if (a5->power_held && a5->cpu_enabled) {
++		writel(0, a5->resources.sierra + A5_INT_ENABLE);
++		control = readl(a5->resources.sierra + A5_CONTROL);
++		writel(control & ~(A5_ENABLE | A5_WAKE), a5->resources.sierra + A5_CONTROL);
++		WRITE_ONCE(a5->boot_expired, true);
++	}
++	spin_unlock_irqrestore(&a5->control_lock, flags);
++	return HRTIMER_NORESTART;
++}
++
++static void command_failure(struct camss_a5 *a5, int error)
++{
++	WRITE_ONCE(a5->command_error, error);
++	complete(&a5->response);
++}
++
++static irqreturn_t a5_interrupt(int irq, void *data)
++{
++	struct camss_a5 *a5 = data;
++	u32 status = readl(a5->resources.sierra + A5_INT_STATUS);
++
++	if (!(status & 7))
++		return IRQ_NONE;
++	writel(status, a5->resources.sierra + A5_INT_CLEAR);
++	a5->interrupts++;
++	if (status & 6) {
++		a5->watchdogs++;
++		writel(0, a5->resources.sierra + A5_INT_ENABLE);
++		command_failure(a5, -EIO);
++	}
++	return IRQ_WAKE_THREAD;
++}
++
++static void process_message(struct camss_a5 *a5, size_t bytes)
++{
++	u32 type, error = 0;
++
++	if (bytes < 8)
++		goto malformed;
++	type = get_unaligned_le32(a5->message + 4);
++	a5->messages++;
++	a5->last_type = type;
++	if (type == EVENT_NOTIFY) {
++		command_failure(a5, -EREMOTEIO);
++		return;
++	}
++	if (type != READ_ONCE(a5->expected))
++		return;
++	switch (type) {
++	case INIT_DONE:
++		if (bytes < 16)
++			goto malformed;
++		error = get_unaligned_le32(a5->message + 8);
++		a5->init_bytes = min_t(size_t, bytes, sizeof(a5->init_data));
++		memcpy(a5->init_data, a5->message, a5->init_bytes);
++		a5->init_done = !error;
++		break;
++	case PC_DONE:
++		if (bytes < 12)
++			goto malformed;
++		error = get_unaligned_le32(a5->message + 8);
++		a5->pc_done = !error;
++		break;
++	case PING_ACK:
++		if (bytes != 16 || get_unaligned_le64(a5->message + 8) != a5->ping_cookie)
++			goto malformed;
++		a5->ping_done = true;
++		break;
++	default:
++		goto malformed;
++	}
++	WRITE_ONCE(a5->command_error, error ? -EREMOTEIO : 0);
++	complete(&a5->response);
++	return;
++malformed:
++	a5->protocol_errors++;
++	command_failure(a5, -EPROTO);
++}
++
++static irqreturn_t a5_interrupt_thread(int irq, void *data)
++{
++	struct camss_a5 *a5 = data;
++	size_t bytes;
++	int ret;
++
++	while (!(ret = camss_a5_ring_read(&a5->rings[CAMSS_A5_MSG],
++					 a5->message, MSG_BYTES, &bytes)))
++		process_message(a5, bytes);
++	if (ret != -EAGAIN) {
++		a5->protocol_errors++;
++		command_failure(a5, ret);
++	}
++	while (!(ret = camss_a5_ring_read(&a5->rings[CAMSS_A5_DBG],
++					 a5->debug, DBG_BYTES, &bytes)))
++		a5->debug_packets++;
++	if (ret != -EAGAIN) {
++		a5->protocol_errors++;
++		command_failure(a5, ret);
++	}
++	return IRQ_HANDLED;
++}
++
++static int send_command(struct camss_a5 *a5, u32 type, u32 response)
++{
++	__le32 packet[4];
++	u32 bytes = type == SYS_PING ? 16 : 8;
++	int ret;
++
++	if (!a5->cpu_enabled || !a5->irq_enabled || a5->watchdogs)
++		return -EIO;
++	reinit_completion(&a5->response);
++	WRITE_ONCE(a5->command_error, 0);
++	WRITE_ONCE(a5->expected, response);
++	packet[0] = cpu_to_le32(bytes);
++	packet[1] = cpu_to_le32(type);
++	put_unaligned_le64(a5->ping_cookie, packet + 2);
++	ret = camss_a5_ring_write(&a5->rings[CAMSS_A5_CMD], packet, bytes);
++	if (ret)
++		goto done;
++	writel(1, a5->resources.sierra + A5_HOST_INTERRUPT);
++	if (!wait_for_completion_timeout(&a5->response, msecs_to_jiffies(5000)))
++		ret = -ETIMEDOUT;
++	else
++		ret = READ_ONCE(a5->command_error);
++done:
++	WRITE_ONCE(a5->expected, 0);
++	return ret;
++}
++
++bool camss_a5_backing_owned(const struct camss_a5 *a5)
++{
++	return a5->firmware.cpu || a5->shared.cpu || a5->heap.cpu;
++}
++EXPORT_SYMBOL_GPL(camss_a5_backing_owned);
++
++static int free_memory(struct camss_a5 *a5)
++{
++	struct camss_a5_fw_memory *memories[] = { &a5->heap, &a5->shared, &a5->firmware };
++	unsigned int i;
++	int ret;
++
++	if (a5->cpu_enabled)
++		return -EBUSY;
++	if (a5->shared.cpu && a5->table) {
++		for (i = 0; i < CAMSS_A5_QUEUE_COUNT; i++) {
++			a5->queue_state[i * 2] = le32_to_cpu(READ_ONCE(a5->table->queues[i].read));
++			a5->queue_state[i * 2 + 1] = le32_to_cpu(READ_ONCE(a5->table->queues[i].write));
++		}
++		memcpy(a5->sfr, a5->shared.cpu + SFR_OFFSET + 4, sizeof(a5->sfr) - 1);
++		a5->sfr[sizeof(a5->sfr) - 1] = 0;
++	}
++	for (i = 0; i < ARRAY_SIZE(memories); i++) {
++		ret = camss_a5_fw_memory_unmap(memories[i]);
++		if (ret)
++			return ret;
++		ret = camss_a5_fw_memory_free(memories[i]);
++		if (ret)
++			return ret;
++	}
++	a5->table = NULL;
++	return 0;
++}
++
++static int prepare_memory(struct camss_a5 *a5, const struct firmware *firmware)
++{
++	struct camss_a5_fw_layout layout;
++	const u32 offsets[] = { CMD_OFFSET, MSG_OFFSET, DBG_OFFSET };
++	const u32 sizes[] = { CMD_BYTES, MSG_BYTES, DBG_BYTES };
++	u64 iovas[CAMSS_A5_QUEUE_COUNT];
++	unsigned int i;
++	int ret;
++
++	ret = camss_a5_fw_inspect(firmware, CAMSS_A5_FW_WINDOW, &layout);
++	if (ret)
++		return ret;
++	ret = camss_a5_fw_carveout_alloc(a5->dev, &a5->firmware,
++					 a5->firmware_physical, CAMSS_A5_FW_WINDOW);
++	if (ret)
++		return ret;
++	ret = camss_a5_fw_load(firmware, a5->firmware.cpu, CAMSS_A5_FW_WINDOW, &layout);
++	if (ret)
++		return ret;
++	ret = camss_a5_iova_memory_alloc(a5->dev, &a5->shared, SHARED_IOVA, SHARED_BYTES);
++	if (ret)
++		return ret;
++	ret = camss_a5_iova_memory_alloc(a5->dev, &a5->heap, HEAP_IOVA, HEAP_BYTES);
++	if (ret)
++		return ret;
++	a5->table = a5->shared.cpu;
++	for (i = 0; i < CAMSS_A5_QUEUE_COUNT; i++)
++		iovas[i] = SHARED_IOVA + offsets[i];
++	ret = camss_a5_qtable_init(a5->table, iovas, sizes);
++	if (ret)
++		return ret;
++	for (i = 0; i < CAMSS_A5_QUEUE_COUNT; i++) {
++		ret = camss_a5_ring_init(&a5->rings[i], &a5->table->queues[i],
++					 a5->shared.cpu + offsets[i], sizes[i]);
++		if (ret)
++			return ret;
++	}
++	put_unaligned_le32(4096, a5->shared.cpu + SFR_OFFSET);
++	ret = camss_a5_fw_memory_map(&a5->firmware);
++	if (ret)
++		return ret;
++	ret = camss_a5_fw_memory_map(&a5->shared);
++	if (ret)
++		return ret;
++	return camss_a5_fw_memory_map(&a5->heap);
++}
++
++static int stop_locked(struct camss_a5 *a5)
++{
++	void __iomem *base = a5->resources.sierra;
++	u32 value;
++	int ret, error = 0;
++
++	hrtimer_cancel(&a5->boot_timer);
++	if (a5->cpu_enabled) {
++		if (a5->initialized) {
++			a5->pc_error = send_command(a5, SYS_PC_PREP, PC_DONE);
++			if (!a5->pc_error)
++				a5->pc_error = readl_poll_timeout(base + A5_STATUS, value,
++							 value & A5_WFI, 1000, 300000);
++		}
++		writel(0, base + A5_INT_ENABLE);
++		if (a5->irq_enabled) {
++			disable_irq(a5->irq);
++			a5->irq_enabled = false;
++		}
++		value = readl(base + A5_CONTROL) & ~(A5_ENABLE | A5_WAKE);
++		writel(value, base + A5_CONTROL);
++		value = readl(base + A5_RESET);
++		writel(value, base + A5_RESET);
++		writel(0, base + A5_INIT_REQUEST);
++		/* The block reset is owned exclusively. Retain all RAM and the
++		 * runtime-PM reference if it cannot quiesce a failed firmware.
++		 */
++		ret = reset_control_assert(a5->reset);
++		if (ret)
++			return ret;
++		a5->reset_asserted = true;
++		a5->cpu_enabled = false;
++		a5->initialized = false;
++		dev_info(a5->dev, "A5 stopped, block reset asserted; pc_error=%d\n", a5->pc_error);
++	}
++	if (a5->irq_enabled) {
++		disable_irq(a5->irq);
++		a5->irq_enabled = false;
++	}
++	if (a5->power_held) {
++		ret = pm_runtime_put_sync_suspend(a5->dev);
++		a5->power_held = false;
++		if (ret < 0)
++			error = ret;
++	}
++	ret = free_memory(a5);
++	return ret ? ret : error;
++}
++
++int camss_a5_stop(struct camss_a5 *a5)
++{
++	int ret;
++
++	mutex_lock(&a5->lock);
++	ret = stop_locked(a5);
++	a5->cleanup_error = ret;
++	mutex_unlock(&a5->lock);
++	return ret;
++}
++EXPORT_SYMBOL_GPL(camss_a5_stop);
++
++int camss_a5_start(struct camss_a5 *a5, const struct firmware *firmware)
++{
++	void __iomem *base = a5->resources.sierra;
++	u32 value;
++	unsigned long flags;
++	int ret;
++
++	mutex_lock(&a5->lock);
++	if (camss_a5_backing_owned(a5) || a5->power_held || a5->cpu_enabled) {
++		ret = -EBUSY;
++		goto unlock;
++	}
++	a5->init_done = a5->ping_done = a5->pc_done = false;
++	a5->init_response = a5->fw_version = a5->last_type = 0;
++	a5->interrupts = a5->messages = a5->debug_packets = 0;
++	a5->watchdogs = a5->protocol_errors = 0;
++	a5->pc_error = a5->cleanup_error = 0;
++	a5->cpu_release_attempted = false;
++	a5->boot_expired = false;
++	ret = prepare_memory(a5, firmware);
++	if (ret)
++		goto fail;
++	dev_info(a5->dev, "A5 firmware and shared aliases ready; firmware privileged\n");
++	ret = pm_runtime_resume_and_get(a5->dev);
++	if (ret < 0)
++		goto fail;
++	a5->power_held = true;
++	dev_info(a5->dev, "A5/BPS/IPE resources powered\n");
++	ret = reset_control_assert(a5->reset);
++	if (ret)
++		goto fail;
++	a5->reset_asserted = true;
++	udelay(2);
++	ret = reset_control_deassert(a5->reset);
++	if (ret)
++		goto fail;
++	a5->reset_asserted = false;
++	writel(0, base + A5_INT_ENABLE);
++	writel(7, base + A5_INT_CLEAR);
++	writel(0, base + A5_INIT_REQUEST);
++	writel(0, base + A5_INIT_RESPONSE);
++	a5->response_before = readl(base + A5_INIT_RESPONSE);
++	writel(SHARED_IOVA, base + A5_QTABLE_PTR);
++	writel(SHARED_IOVA + SFR_OFFSET, base + A5_SFR_PTR);
++	writel(SHARED_IOVA, base + A5_SHARED_PTR);
++	writel(SHARED_WINDOW, base + A5_SHARED_SIZE);
++	writel(HEAP_IOVA, base + A5_HEAP_PTR);
++	writel(HEAP_BYTES, base + A5_HEAP_SIZE);
++	/* Trace transport is never enabled by this bootstrap. */
++	writel(0, base + A5_QDSS_PTR);
++	writel(0, base + A5_QDSS_SIZE);
++	writel(IO_IOVA, base + A5_IO_PTR);
++	writel(IO_BYTES, base + A5_IO_SIZE);
++	dma_wmb();
++	enable_irq(a5->irq);
++	a5->irq_enabled = true;
++	dev_info(a5->dev, "A5 CPU release, HFI request prepared\n");
++	hrtimer_start(&a5->boot_timer, ms_to_ktime(500), HRTIMER_MODE_REL);
++	spin_lock_irqsave(&a5->control_lock, flags);
++	a5->cpu_enabled = true;
++	a5->cpu_release_attempted = true;
++	writel(A5_ENABLE, base + A5_CONTROL);
++	writel(0x10, base + A5_RESET);
++	writel(A5_ENABLE | A5_WAKE | A5_WFI_GATE, base + A5_CONTROL);
++	writel(1, base + A5_INIT_REQUEST);
++	spin_unlock_irqrestore(&a5->control_lock, flags);
++	ret = readl_poll_timeout(base + A5_INIT_RESPONSE, value,
++				 value || READ_ONCE(a5->boot_expired), 100, 500000);
++	hrtimer_cancel(&a5->boot_timer);
++	a5->init_response = value;
++	a5->fw_version = readl(base + A5_FW_VERSION);
++	dev_info(a5->dev, "A5 HFI response=%u firmware=%x expired=%u\n",
++		 value, a5->fw_version, a5->boot_expired);
++	if (a5->boot_expired)
++		ret = -ETIMEDOUT;
++	if (ret)
++		goto fail;
++	/* The retained OEM host rejects 2 and a persistent 0, but continues
++	 * after other nonzero responses. This image/hardware reports 3.
++	 * Treat that as permission to try SYS_INIT, never as proof of success:
++	 * the complete typed response must still acknowledge initialization.
++	 */
++	if (value != 1 && value != 3) {
++		ret = -EREMOTEIO;
++		goto fail;
++	}
++	writel(3, base + A5_INT_ENABLE);
++	ret = send_command(a5, SYS_INIT, INIT_DONE);
++	if (ret)
++		goto fail;
++	a5->initialized = true;
++	dev_info(a5->dev, "A5 SYS_INIT acknowledged\n");
++	goto unlock;
++fail:
++	a5->cleanup_error = stop_locked(a5);
++unlock:
++	mutex_unlock(&a5->lock);
++	return ret;
++}
++EXPORT_SYMBOL_GPL(camss_a5_start);
++
++int camss_a5_ping(struct camss_a5 *a5, u64 cookie)
++{
++	int ret;
++
++	mutex_lock(&a5->lock);
++	if (!a5->initialized) {
++		ret = -ENODEV;
++		goto done;
++	}
++	a5->ping_cookie = cookie;
++	ret = send_command(a5, SYS_PING, PING_ACK);
++done:
++	mutex_unlock(&a5->lock);
++	return ret;
++}
++EXPORT_SYMBOL_GPL(camss_a5_ping);
++
++int camss_a5_runtime_resume(struct camss_a5 *a5)
++{
++	int ret;
++
++	/* ICP BCR also holds its AHB branch off. Release the block reset
++	 * before the clock framework waits for that branch to report running.
++	 * A5 itself remains disabled until the explicit CPU release sequence.
++	 */
++	ret = reset_control_deassert(a5->reset);
++	if (ret)
++		return ret;
++	a5->reset_asserted = false;
++	return camss_a5_resources_resume(&a5->resources);
++}
++EXPORT_SYMBOL_GPL(camss_a5_runtime_resume);
++
++int camss_a5_runtime_suspend(struct camss_a5 *a5)
++{
++	int ret;
++
++	if (a5->cpu_enabled)
++		return -EBUSY;
++	ret = reset_control_assert(a5->reset);
++	if (ret)
++		return ret;
++	a5->reset_asserted = true;
++	return camss_a5_resources_suspend(&a5->resources);
++}
++EXPORT_SYMBOL_GPL(camss_a5_runtime_suspend);
++
++static int firmware_region_get(struct device *dev, struct resource *firmware)
++{
++	struct device_node *node;
++	int index, ret;
++
++	/* Firmware RAM is a dedicated board reservation, not an MMIO range
++	 * inside any larger no-map pool. In particular, a generic SoC address
++	 * can fall inside this board's protected-memory reservation.
++	 */
++	index = of_property_match_string(dev->of_node, "memory-region-names", "firmware");
++	if (index < 0)
++		return index;
++	node = of_parse_phandle(dev->of_node, "memory-region", index);
++	if (!node)
++		return -EINVAL;
++	ret = -EINVAL;
++	if (!of_device_is_available(node) || !of_property_present(node, "no-map"))
++		goto put;
++	ret = of_address_to_resource(node, 0, firmware);
++	if (ret)
++		goto put;
++	if (!firmware->start || !IS_ALIGNED(firmware->start, PAGE_SIZE) ||
++	    firmware->end < firmware->start ||
++	    resource_size(firmware) != CAMSS_A5_FW_WINDOW) {
++		ret = -EINVAL;
++		goto put;
++	}
++put:
++	of_node_put(node);
++	return ret;
++}
++
++int camss_a5_init(struct platform_device *pdev, struct camss_a5 *a5)
++{
++	struct device *dev = &pdev->dev;
++	struct resource firmware;
++	int ret;
++
++	mutex_init(&a5->lock);
++	spin_lock_init(&a5->control_lock);
++	hrtimer_setup(&a5->boot_timer, boot_timeout, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
++	init_completion(&a5->response);
++	a5->dev = dev;
++	ret = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(32));
++	if (ret)
++		return ret;
++	ret = camss_a5_resources_init(pdev, &a5->resources);
++	if (ret)
++		return ret;
++	a5->reset = devm_reset_control_get_exclusive(dev, "icp");
++	if (IS_ERR(a5->reset))
++		return PTR_ERR(a5->reset);
++	if (!a5->reset)
++		return -ENODEV;
++	ret = firmware_region_get(dev, &firmware);
++	if (ret)
++		return ret;
++	if (!devm_request_mem_region(dev, firmware.start, resource_size(&firmware), dev_name(dev)))
++		return -EBUSY;
++	a5->firmware_physical = firmware.start;
++	a5->message = devm_kzalloc(dev, MSG_BYTES, GFP_KERNEL);
++	a5->debug = devm_kzalloc(dev, DBG_BYTES, GFP_KERNEL);
++	if (!a5->message || !a5->debug)
++		return -ENOMEM;
++	a5->irq = platform_get_irq(pdev, 0);
++	if (a5->irq < 0)
++		return a5->irq;
++	return devm_request_threaded_irq(dev, a5->irq, a5_interrupt,
++					a5_interrupt_thread,
++					IRQF_TRIGGER_RISING | IRQF_ONESHOT | IRQF_NO_AUTOEN,
++					dev_name(dev), a5);
++}
++EXPORT_SYMBOL_GPL(camss_a5_init);
+diff --git a/drivers/media/platform/qcom/camss/camss-icp-a5-boot.h b/drivers/media/platform/qcom/camss/camss-icp-a5-boot.h
+new file mode 100644
+index 000000000..f3201ab4a
+--- /dev/null
++++ b/drivers/media/platform/qcom/camss/camss-icp-a5-boot.h
+@@ -0,0 +1,51 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++#ifndef CAMSS_ICP_A5_BOOT_H
++#define CAMSS_ICP_A5_BOOT_H
++
++#include <linux/completion.h>
++#include <linux/hrtimer.h>
++#include <linux/reset.h>
++#include <linux/spinlock.h>
++#include "camss-icp-a5.h"
++#include "camss-icp-a5-resources.h"
++
++struct camss_a5 {
++	struct device *dev;
++	struct camss_a5_resources resources;
++	struct reset_control *reset;
++	phys_addr_t firmware_physical;
++	struct camss_a5_fw_memory firmware, shared, heap;
++	struct camss_a5_ring rings[CAMSS_A5_QUEUE_COUNT];
++	struct camss_a5_qtable *table;
++	struct completion response;
++	struct mutex lock;
++	spinlock_t control_lock;
++	struct hrtimer boot_timer;
++	void *message, *debug;
++	int irq, command_error, cleanup_error, pc_error;
++	u32 expected, fw_version, init_response, last_type;
++	u32 response_before;
++	u32 interrupts, messages, debug_packets, watchdogs, protocol_errors;
++	u32 init_bytes, init_data[32];
++	u32 queue_state[6];
++	char sfr[512];
++	u64 ping_cookie;
++	bool power_held, irq_enabled, cpu_enabled, initialized;
++	bool init_done, ping_done, pc_done, reset_asserted;
++	bool cpu_release_attempted;
++	bool boot_expired;
++};
++
++/* The owner installs PM callbacks which delegate to runtime_resume/suspend,
++ * and enables runtime PM after init. Lifecycle/commands use a sleeping mutex.
++ * Failed teardown retains mapped backing; do not unbind until cleanup succeeds.
++ */
++int camss_a5_init(struct platform_device *pdev, struct camss_a5 *a5);
++int camss_a5_runtime_resume(struct camss_a5 *a5);
++int camss_a5_runtime_suspend(struct camss_a5 *a5);
++int camss_a5_start(struct camss_a5 *a5, const struct firmware *firmware);
++int camss_a5_ping(struct camss_a5 *a5, u64 cookie);
++int camss_a5_stop(struct camss_a5 *a5);
++bool camss_a5_backing_owned(const struct camss_a5 *a5);
++
++#endif
+diff --git a/drivers/media/platform/qcom/camss/camss-icp-a5-memory.c b/drivers/media/platform/qcom/camss/camss-icp-a5-memory.c
+index d6eb80871..992a55aeb 100644
+--- a/drivers/media/platform/qcom/camss/camss-icp-a5-memory.c
++++ b/drivers/media/platform/qcom/camss/camss-icp-a5-memory.c
+@@ -5,13 +5,14 @@
+ #include <linux/errno.h>
+ #include <linux/export.h>
+ #include <linux/iommu.h>
++#include <linux/io.h>
+ #include <linux/limits.h>
+ #include <linux/mm.h>
+ #include <linux/string.h>
+ 
+ #include "camss-icp-a5.h"
+ 
+-static bool firmware_iova_reserved(struct device *device)
++static bool iova_reserved(struct device *device, u32 iova, u32 bytes)
+ {
+ 	struct iommu_resv_region *region;
+ 	LIST_HEAD(regions);
+@@ -19,8 +20,8 @@ static bool firmware_iova_reserved(struct device *device)
+ 
+ 	iommu_get_resv_regions(device, &regions);
+ 	list_for_each_entry(region, &regions, list) {
+-		if (region->type == IOMMU_RESV_RESERVED && !region->start &&
+-		    region->length >= CAMSS_A5_FW_WINDOW) {
++		if (region->type == IOMMU_RESV_RESERVED && region->start <= iova &&
++		    (u64)region->start + region->length >= (u64)iova + bytes) {
+ 			found = true;
+ 			break;
+ 		}
+@@ -29,12 +30,14 @@ static bool firmware_iova_reserved(struct device *device)
+ 	return found;
+ }
+ 
+-int camss_a5_fw_memory_alloc(struct device *device,
+-			     struct camss_a5_fw_memory *memory)
++int camss_a5_iova_memory_alloc(struct device *device,
++			       struct camss_a5_fw_memory *memory,
++			       u32 iova, u32 bytes)
+ {
+ 	struct camss_a5_fw_memory found = {};
+ 
+-	if (!device || !memory)
++	if (!device || !memory || !bytes || !IS_ALIGNED(iova, PAGE_SIZE) ||
++	    !IS_ALIGNED(bytes, PAGE_SIZE) || (u64)iova + bytes > (1ULL << 32))
+ 		return -EINVAL;
+ 	if (memory->cpu || memory->mapped || memory->bytes)
+ 		return -EBUSY;
+@@ -44,14 +47,16 @@ int camss_a5_fw_memory_alloc(struct device *device,
+ 	/* The DMA allocator must reserve the alias before allocating any RAM;
+ 	 * checking only that the IOVA currently looks empty is insufficient.
+ 	 */
+-	if (!firmware_iova_reserved(device))
++	if (!iova_reserved(device, iova, bytes))
+ 		return -EINVAL;
+ 	found.device = device;
+-	found.bytes = CAMSS_A5_FW_WINDOW;
++	found.iova = iova;
++	found.bytes = bytes;
+ 	found.cpu = dma_alloc_coherent(device, found.bytes, &found.dma, GFP_KERNEL);
+ 	if (!found.cpu)
+ 		return -ENOMEM;
+-	if (found.dma < CAMSS_A5_FW_WINDOW || found.dma > U32_MAX ||
++	if (found.dma > U32_MAX ||
++	    (found.dma < (u64)iova + bytes && found.dma + bytes > iova) ||
+ 	    found.bytes - 1 > U32_MAX - found.dma) {
+ 		dma_free_coherent(device, found.bytes, found.cpu, found.dma);
+ 		return -ERANGE;
+@@ -60,8 +65,52 @@ int camss_a5_fw_memory_alloc(struct device *device,
+ 	*memory = found;
+ 	return 0;
+ }
++EXPORT_SYMBOL_GPL(camss_a5_iova_memory_alloc);
++
++int camss_a5_fw_memory_alloc(struct device *device,
++			     struct camss_a5_fw_memory *memory)
++{
++	int ret = camss_a5_iova_memory_alloc(device, memory, 0, CAMSS_A5_FW_WINDOW);
++
++	/* The OEM firmware mapping is privileged. Writable unprivileged pages
++	 * fault on A5 instruction fetch even though CPU IOVA walks succeed.
++	 */
++	if (!ret)
++		memory->privileged = true;
++	return ret;
++}
+ EXPORT_SYMBOL_GPL(camss_a5_fw_memory_alloc);
+ 
++int camss_a5_fw_carveout_alloc(struct device *device,
++			       struct camss_a5_fw_memory *memory,
++			       phys_addr_t physical, u32 bytes)
++{
++	struct camss_a5_fw_memory found = {};
++
++	if (!device || !memory || !physical || !IS_ALIGNED(physical, PAGE_SIZE) ||
++	    bytes != CAMSS_A5_FW_WINDOW || physical + bytes < physical)
++		return -EINVAL;
++	if (memory->cpu || memory->mapped || memory->bytes)
++		return -EBUSY;
++	found.domain = iommu_get_domain_for_dev(device);
++	if (!found.domain || !iommu_is_dma_domain(found.domain))
++		return -ENODEV;
++	if (!iova_reserved(device, 0, bytes))
++		return -EINVAL;
++	found.cpu = memremap(physical, bytes, MEMREMAP_WC);
++	if (!found.cpu)
++		return -ENOMEM;
++	found.device = device;
++	found.physical = physical;
++	found.bytes = bytes;
++	found.privileged = true;
++	found.carveout = true;
++	memset(found.cpu, 0, bytes);
++	*memory = found;
++	return 0;
++}
++EXPORT_SYMBOL_GPL(camss_a5_fw_carveout_alloc);
++
+ int camss_a5_fw_memory_unmap(struct camss_a5_fw_memory *memory)
+ {
+ 	size_t unmapped;
+@@ -78,7 +127,7 @@ int camss_a5_fw_memory_unmap(struct camss_a5_fw_memory *memory)
+ 	 */
+ 	while (memory->mapped) {
+ 		unmapped = iommu_unmap(memory->domain,
+-				       memory->mapped - PAGE_SIZE, PAGE_SIZE);
++				       (u64)memory->iova + memory->mapped - PAGE_SIZE, PAGE_SIZE);
+ 		if (unmapped != PAGE_SIZE)
+ 			return -EIO;
+ 		memory->mapped -= PAGE_SIZE;
+@@ -93,29 +142,36 @@ int camss_a5_fw_memory_map(struct camss_a5_fw_memory *memory)
+ 	int ret, cleanup, prot = IOMMU_READ | IOMMU_WRITE;
+ 	phys_addr_t physical;
+ 
+-	if (!memory || !memory->cpu || memory->bytes != CAMSS_A5_FW_WINDOW)
++	if (!memory || !memory->cpu || !memory->bytes ||
++	    !IS_ALIGNED(memory->bytes, PAGE_SIZE) ||
++	    !IS_ALIGNED(memory->iova, PAGE_SIZE) ||
++	    (u64)memory->iova + memory->bytes > (1ULL << 32))
+ 		return -EINVAL;
+ 	if (memory->mapped)
+ 		return -EBUSY;
+ 	if (iommu_get_domain_for_dev(memory->device) != memory->domain)
+ 		return -EXDEV;
+ 	for (offset = 0; offset < memory->bytes; offset += PAGE_SIZE) {
+-		if (iommu_iova_to_phys(memory->domain, offset))
++		if (iommu_iova_to_phys(memory->domain, (u64)memory->iova + offset))
+ 			return -EBUSY;
+ 	}
+ 	if (dev_is_dma_coherent(memory->device))
+ 		prot |= IOMMU_CACHE;
++	if (memory->privileged)
++		prot |= IOMMU_PRIV;
+ 
+ 	for (offset = 0; offset < memory->bytes; offset += PAGE_SIZE) {
+ 		/* DMA allocations may use scattered physical pages. Translate each
+ 		 * original DMA page instead of assuming one physical extent.
+ 		 */
+-		physical = iommu_iova_to_phys(memory->domain, memory->dma + offset);
++		physical = memory->carveout ? memory->physical + offset :
++			iommu_iova_to_phys(memory->domain, memory->dma + offset);
+ 		if (!physical || !IS_ALIGNED(physical, PAGE_SIZE)) {
+ 			ret = -EFAULT;
+ 			goto rollback;
+ 		}
+-		ret = iommu_map(memory->domain, offset, physical, PAGE_SIZE, prot, GFP_KERNEL);
++		ret = iommu_map(memory->domain, (u64)memory->iova + offset, physical,
++				PAGE_SIZE, prot, GFP_KERNEL);
+ 		if (ret)
+ 			goto rollback;
+ 		memory->mapped += PAGE_SIZE;
+@@ -138,7 +194,10 @@ int camss_a5_fw_memory_free(struct camss_a5_fw_memory *memory)
+ 		return 0;
+ 	if (iommu_get_domain_for_dev(memory->device) != memory->domain)
+ 		return -EXDEV;
+-	dma_free_coherent(memory->device, memory->bytes, memory->cpu, memory->dma);
++	if (memory->carveout)
++		memunmap(memory->cpu);
++	else
++		dma_free_coherent(memory->device, memory->bytes, memory->cpu, memory->dma);
+ 	memset(memory, 0, sizeof(*memory));
+ 	return 0;
+ }
+diff --git a/drivers/media/platform/qcom/camss/camss-icp-a5.h b/drivers/media/platform/qcom/camss/camss-icp-a5.h
+index a3071ab7d..1989013ff 100644
+--- a/drivers/media/platform/qcom/camss/camss-icp-a5.h
++++ b/drivers/media/platform/qcom/camss/camss-icp-a5.h
+@@ -71,6 +71,10 @@ struct camss_a5_fw_memory {
+ 	dma_addr_t dma;
+ 	u32 bytes;
+ 	u32 mapped;
++	u32 iova;
++	bool privileged;
++	bool carveout;
++	phys_addr_t physical;
+ };
+ 
+ /* The owning platform driver serializes these lifecycle operations, keeps
+@@ -78,8 +82,16 @@ struct camss_a5_fw_memory {
+  * Start with a zeroed structure. A map failure normally rolls back; if an
+  * unmap fails, mapped remains nonzero and freeing the backing is refused.
+  */
++/* Allocate RAM for a fixed alias fully covered by a reserved IOVA region. */
++int camss_a5_iova_memory_alloc(struct device *device,
++			       struct camss_a5_fw_memory *memory,
++			       u32 iova, u32 bytes);
+ int camss_a5_fw_memory_alloc(struct device *device,
+ 			     struct camss_a5_fw_memory *memory);
++/* Caller owns a DT-reserved, no-map firmware RAM resource. */
++int camss_a5_fw_carveout_alloc(struct device *device,
++			       struct camss_a5_fw_memory *memory,
++			       phys_addr_t physical, u32 bytes);
+ int camss_a5_fw_memory_map(struct camss_a5_fw_memory *memory);
+ int camss_a5_fw_memory_unmap(struct camss_a5_fw_memory *memory);
+ int camss_a5_fw_memory_free(struct camss_a5_fw_memory *memory);

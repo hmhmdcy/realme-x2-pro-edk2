@@ -1,0 +1,53 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Offline draft only. Not included by any production DTS.
+ * Install/review matching driver and private firmware BEFORE including this
+ * file. A failed lens probe may also block the sensor async notifier because
+ * lens-focus creates a required dependency. Preserve the current DT rollback.
+ * First integration should enable only the selected lens, not both at once.
+ */
+&cam_pmic_q {
+	regulators {
+		cam_rear_vaf: ldo6 {
+			regulator-name = "cam-rear-vaf";
+			regulator-min-microvolt = <2800000>;
+			regulator-max-microvolt = <2800000>;
+		};
+	};
+};
+
+&cam_pmic_p {
+	regulators {
+		cam_tele_vaf: ldo3 {
+			regulator-name = "cam-tele-vaf";
+			regulator-min-microvolt = <2800000>;
+			regulator-max-microvolt = <2800000>;
+		};
+	};
+};
+
+&cci0_i2c1 {
+	cam_rear_lens: lens@c {
+		compatible = "rohm,bu64253";
+		reg = <0x0c>;
+		vdd-supply = <&cam_rear_vaf>;
+		firmware-name = "camera/realme-x2-pro/imx319-bu64253-init.bin";
+	};
+};
+
+&cam_rear {
+	lens-focus = <&cam_rear_lens>;
+};
+
+&cci1_i2c0 {
+	cam_tele_lens: lens@c {
+		compatible = "rohm,bu64253";
+		reg = <0x0c>;
+		vdd-supply = <&cam_tele_vaf>;
+		firmware-name = "camera/realme-x2-pro/s5k3m5sx-bu64253-init.bin";
+	};
+};
+
+&cam_tele {
+	lens-focus = <&cam_tele_lens>;
+};

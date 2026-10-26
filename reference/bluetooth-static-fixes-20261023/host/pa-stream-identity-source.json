@@ -1,0 +1,70 @@
+{
+  "commit": "1f020889c9aa44ea0f63d7222e8c2b62c3f45f68",
+  "claim": "paplay client name maps to application.name; client properties get process PID and merge into the sink-input; validates exact test stream attribution",
+  "sources": [
+    {
+      "source_url": "https://raw.githubusercontent.com/pulseaudio/pulseaudio/1f020889c9aa44ea0f63d7222e8c2b62c3f45f68/src/utils/pacat.c",
+      "status": 200,
+      "format": "Firecrawl markdown excerpt of fixed C source",
+      "excerpts": [
+        {
+          "first_line": 848,
+          "text": "\n                if (!(t = pa_locale_to_utf8(optarg)) ||\n                    pa_proplist_sets(proplist, PA_PROP_APPLICATION_NAME, t) < 0) {\n\n                    pa_log(_(\"Invalid client name '%s'\"), t ? t : optarg);\n                    pa_xfree(t);\n                    goto quit;"
+        },
+        {
+          "first_line": 1142,
+          "text": "\n    /* Fill in client name if none was set */\n    if (!pa_proplist_contains(proplist, PA_PROP_APPLICATION_NAME)) {\n        char *t;\n\n        if ((t = pa_locale_to_utf8(bn))) {\n            pa_proplist_sets(proplist, PA_PROP_APPLICATION_NAME, t);"
+        },
+        {
+          "first_line": 1146,
+          "text": "\n        if ((t = pa_locale_to_utf8(bn))) {\n            pa_proplist_sets(proplist, PA_PROP_APPLICATION_NAME, t);\n            pa_xfree(t);\n        }\n    }\n"
+        },
+        {
+          "first_line": 1156,
+          "text": "\n        if ((t = filename) ||\n            (t = pa_proplist_gets(proplist, PA_PROP_APPLICATION_NAME)))\n            pa_proplist_sets(proplist, PA_PROP_MEDIA_NAME, t);\n\n        if (!pa_proplist_contains(proplist, PA_PROP_MEDIA_NAME)) {\n            pa_log(_(\"Failed to set media name.\"));"
+        },
+        {
+          "first_line": 1199,
+          "text": "\n    /* Create a new connection context */\n    if (!(context = pa_context_new_with_proplist(mainloop_api, NULL, proplist))) {\n        pa_log(_(\"pa_context_new() failed.\"));\n        goto quit;\n    }\n"
+        }
+      ]
+    },
+    {
+      "source_url": "https://raw.githubusercontent.com/pulseaudio/pulseaudio/1f020889c9aa44ea0f63d7222e8c2b62c3f45f68/src/pulse/context.c",
+      "status": 200,
+      "format": "Firecrawl markdown excerpt of fixed C source",
+      "excerpts": [
+        {
+          "first_line": 579,
+          "text": "\n            if (c->version >= 13) {\n                pa_init_proplist(c->proplist);\n                pa_tagstruct_put_proplist(reply, c->proplist);\n            } else\n                pa_tagstruct_puts(reply, pa_proplist_gets(c->proplist, PA_PROP_APPLICATION_NAME));\n"
+        }
+      ]
+    },
+    {
+      "source_url": "https://raw.githubusercontent.com/pulseaudio/pulseaudio/1f020889c9aa44ea0f63d7222e8c2b62c3f45f68/src/pulsecore/proplist-util.c",
+      "status": 200,
+      "format": "Firecrawl markdown excerpt of fixed C source",
+      "excerpts": [
+        {
+          "first_line": 167,
+          "text": "    }\n\n    if (!pa_proplist_contains(p, PA_PROP_APPLICATION_PROCESS_ID)) {\n        char t[32];\n        pa_snprintf(t, sizeof(t), \"%lu\", (unsigned long) getpid());\n        pa_proplist_sets(p, PA_PROP_APPLICATION_PROCESS_ID, t);\n    }"
+        },
+        {
+          "first_line": 170,
+          "text": "        char t[32];\n        pa_snprintf(t, sizeof(t), \"%lu\", (unsigned long) getpid());\n        pa_proplist_sets(p, PA_PROP_APPLICATION_PROCESS_ID, t);\n    }\n\n    if (!pa_proplist_contains(p, PA_PROP_APPLICATION_PROCESS_USER)) {\n        char *u;"
+        }
+      ]
+    },
+    {
+      "source_url": "https://raw.githubusercontent.com/pulseaudio/pulseaudio/1f020889c9aa44ea0f63d7222e8c2b62c3f45f68/src/pulsecore/sink-input.c",
+      "status": 200,
+      "format": "Firecrawl markdown excerpt of fixed C source",
+      "excerpts": [
+        {
+          "first_line": 372,
+          "text": "\n    if (data->client)\n        pa_proplist_update(data->proplist, PA_UPDATE_MERGE, data->client->proplist);\n\n    if (data->origin_sink && (data->origin_sink->flags & PA_SINK_SHARE_VOLUME_WITH_MASTER))\n        data->volume_writable = false;\n"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,121 @@
+{
+  "schema": "samurai-gauge-vendor-extract-independent-review-v1",
+  "reviewed_at_utc": "2026-10-24T02:01:38.601284+00:00",
+  "disposition": "accepted_for_fixed_F10_host_extraction_source_scope",
+  "scope": "read-only source and existing tiny-fixture/default receipts; no author entry point, test, or real payload executed by reviewer",
+  "source_delivery_sha256": "4639f6b8ceead1fc6aa335f7f938ff38b120706766cc234141428394989a6d5b",
+  "source_files": {
+    "extract-vendor.py": {
+      "sha256": "1cb0061483e7cc9a60f1c698110ef0d93930f11d5a87ae9b6224a10f22262555",
+      "bytes": 12737
+    },
+    "brotli-stream.js": {
+      "sha256": "fbbd9edf189c1712b345a9e6fb1efe0bd917d6070335fead41e4e44278108c37",
+      "bytes": 3213
+    },
+    "test-small.py": {
+      "sha256": "9017b56311f573d92b91ed6d75ae5a508a18470d48bae14080d2306e09a890bc",
+      "bytes": 7414
+    },
+    "test-result.json": {
+      "sha256": "26d770f60bfca87f10efabce74001ad41f48e988f5f4bba08096dd986911175b",
+      "bytes": 1744
+    },
+    "tools-and-engine.json": {
+      "sha256": "41ca5ee4a9ac3ea752c844c83657efbc6c966fde00f5af24842dbe37e5c638ad",
+      "bytes": 1499
+    },
+    "plan-summary.json": {
+      "sha256": "0479a391cba83a5d7e385ce477a005c952b950ea473f182048d29feb148794a1",
+      "bytes": 1349
+    },
+    "local-check-result.json": {
+      "sha256": "e9eacbeecfc60b6a56f06f6c61ef66b75f5b551e8037d9aa85456331f8d32ed6",
+      "bytes": 721
+    },
+    "README.md": {
+      "sha256": "329e4b7630419e37527cc5d9f9458e692dda7026383ecc40dd81483563493ee1",
+      "bytes": 4588
+    }
+  },
+  "private_plan_sha256": "7c2bfa699612435566f9664fb0de348e7e8f4b915a14e714b7c542bd91e5c8e5",
+  "checks": {
+    "new_output_directory_exclusive_and_existing_output_refused": true,
+    "payload_outputs_xb_and_Node_output_wx": true,
+    "ZIP_fixed_size_member_count_unique_names_STORED_flags_bytes_CRC_and_small_hashes_checked": true,
+    "ZIP_stream_EOF_independent_CRC_and_ZipExtFile_CRC_required": true,
+    "Brotli_upstream_hash_count_and_native_engine_bytesWritten_required": true,
+    "Brotli_output_capped_and_exact_length_required": true,
+    "original_Node_Popen_always_waited_even_receipt_save_failure": true,
+    "transfer_only_v4_new_zero_erase_no_stash": true,
+    "global_complete_range_coverage_without_overlap_or_gap": true,
+    "raw_extent_1711276032_and_new_stream_1613049856": true,
+    "new_stream_digest_and_complete_EOF_rechecked_during_reconstruction": true,
+    "new_host_zero_erase_ranges_never_written_to_source_or_device": true,
+    "failure_stays_false_and_retains_exclusive_OUT_no_replay": true,
+    "source_readonly_stat_and_small_members_and_source_tool_pins_rechecked": true,
+    "extractor_never_writes_original_cache_or_invokes_debugfs_mount_device_tools": true
+  },
+  "existing_evidence": {
+    "test_result_sha256": "26d770f60bfca87f10efabce74001ad41f48e988f5f4bba08096dd986911175b",
+    "author_methods": 5,
+    "author_cases": 13,
+    "author_children": [
+      {
+        "label": "compress-fixture",
+        "pid": 199976,
+        "terminal": true,
+        "returncode": 0
+      },
+      {
+        "label": "valid",
+        "pid": 226956,
+        "terminal": true,
+        "returncode": 0
+      },
+      {
+        "label": "truncated",
+        "pid": 227424,
+        "terminal": true,
+        "returncode": 1
+      },
+      {
+        "label": "overflow",
+        "pid": 229716,
+        "terminal": true,
+        "returncode": 1
+      },
+      {
+        "label": "trailing",
+        "pid": 228452,
+        "terminal": true,
+        "returncode": 1
+      }
+    ],
+    "local_check_sha256": "e9eacbeecfc60b6a56f06f6c61ef66b75f5b551e8037d9aa85456331f8d32ed6",
+    "original_default_child": {
+      "pid": 181092,
+      "terminal": true,
+      "returncode": 0
+    },
+    "actual_default_response": {
+      "checked": true,
+      "payload_read": false,
+      "output_created": false,
+      "complete_target_coverage": true,
+      "new_bytes": 1613049856,
+      "extent_bytes": 1711276032
+    },
+    "reviewer_reran_tests_or_default": false
+  },
+  "limitations": [
+    "No actual vendor payload extraction, decompression, reconstruction, filesystem inspection, or descriptor search has passed yet.",
+    "Source archive is bound by exact size, central-directory and small-member facts plus vendor CRC, not a whole-archive SHA/signature or precise pack identity.",
+    "Support is restricted to this fixed F.10 transfer and its complete new/zero/erase range set; no unknown OTA or incremental-base support is asserted.",
+    "Stat/small-member pre-post checks are reported accurately and are not a proof that every other ZIP byte remained immutable.",
+    "The 5GB headroom check is a conservative preflight; real I/O or storage failure must retain partial outputs and fail.",
+    "This source review authorizes no device, SDK, storage guard, mount, installation, or firmware action."
+  ],
+  "device_SDK_storage_Git_access": false,
+  "readme_sha256": "bedebd893fc5145f1189f8a694ba7abdd958bea4241337bc0ae1f4a6ae7687a3"
+}

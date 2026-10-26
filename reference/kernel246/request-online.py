@@ -1,0 +1,3 @@
+from pathlib import Path
+import json
+r=Path('/var/lib/samurai');assert Path('/proc/sys/kernel/random/boot_id').read_bytes()==(r/'k246-runtime/boot-id-private.txt').read_bytes();base=r/'k246-nextboot';s=json.loads((base/'capture/state-private.json').read_text());p=Path('/proc',str(s['pid']));assert not s['terminal'] and s['state']=='ready' and s['phases_completed']==['baseline-off'] and p.joinpath('stat').read_text().split()[21]==s['start_ticks'];q=base/'online90-request';assert not q.exists();q.write_bytes(b'online90\n');print(json.dumps(dict(stage=246,online_request_written=True,first_startup_diag_endpoints_still_held=True)))

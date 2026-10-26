@@ -1,0 +1,10 @@
+from pathlib import Path
+import hashlib,importlib.util,json
+R=Path(__file__).resolve().parent;P=Path('/mnt/e/edk2-samurai-out/kernel248');spec=importlib.util.spec_from_file_location('host',R.parent/'kernel247/host.py');host=importlib.util.module_from_spec(spec);spec.loader.exec_module(host);v=json.loads((R/'rescue-tool-build-validation.json').read_text());source=P/'rescue-tools-private.tar.gz';assert hashlib.sha256(source.read_bytes()).hexdigest()==v['archive_sha256']
+assert json.loads((R/'partition-backup-validation.json').read_text())['verified_partition_count']==20 and json.loads((R/'logdump-backup-validation.json').read_text())['total_verified_partition_images']==21
+code="""from pathlib import Path
+import base64,json,os
+assert Path('/proc/sys/kernel/random/boot_id').read_bytes()==Path('/var/lib/samurai/k247-runtime/boot-id-private.txt').read_bytes();p=Path('/var/lib/samurai/k248-tools');assert not p.exists();p.mkdir(mode=0o700);marker=Path('/etc/samurai-rootfs-release');b=marker.read_bytes();assert b'ROOTFS_ID=samurai-f2fs-rootfs01' in b;Path('/run/k248-backup/stop-request').write_text('stop\\n');print(json.dumps(dict(marker_base64=base64.b64encode(b).decode())))
+"""
+x=host.ssh('python3 -',input=code.encode(),timeout=20);(P/'root-marker-before-rescue-private.json').write_bytes(x.stdout);host.upload(source,'/var/lib/samurai/k248-tools/rescue-tools-private.tar.gz')
+code="from pathlib import Path;import hashlib,json;assert Path('/proc/sys/kernel/random/boot_id').read_bytes()==Path('/var/lib/samurai/k247-runtime/boot-id-private.txt').read_bytes();p=Path('/var/lib/samurai/k248-tools/rescue-tools-private.tar.gz');assert hashlib.sha256(p.read_bytes()).hexdigest()==%r;print(json.dumps(dict(stage=248,rescue_tools_staged_and_sha256_verified=True,root_marker_unchanged=True,no_reboot_or_flash=True)))"%v['archive_sha256'];x=host.ssh('python3 -',input=code.encode(),timeout=20);(P/'rescue-tools-stage-private.log').write_bytes(x.stdout+x.stderr);result=json.loads(x.stdout);(R/'rescue-tools-stage-validation.json').write_text(json.dumps(result,indent=2)+'\n');print(json.dumps(result))

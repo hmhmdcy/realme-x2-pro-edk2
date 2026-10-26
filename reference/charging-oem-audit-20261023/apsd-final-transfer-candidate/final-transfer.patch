@@ -1,0 +1,309 @@
+--- a/drivers/usb/dwc3/samurai-apsd-owner.c
++++ b/drivers/usb/dwc3/samurai-apsd-owner.c
+@@ -45,6 +45,13 @@
+ 	const struct samurai_apsd_bus_ops *bus;
+ 	void *bus_ctx;
+ 	struct samurai_apsd_once once;
++ struct samurai_apsd_bus_sample last_sample;
++ struct samurai_apsd_attempt attempt;
++ struct samurai_apsd_transfer_result transfer;
++ void *attempt_bus;
++ struct samurai_pd5v *attempt_pd;
++ u64 attempt_generation;
++ bool attempt_active;
+ 	struct eud_com_window_result eud;
+ 	struct dwc3_gadget_window_result dwc_window;
+ 	struct qcom_snps_hsphy_window_result phy;
+@@ -393,7 +400,7 @@
+  /* Real PD acquisition is separate from these still-missing capabilities.
+   * This unconditional refusal MUST remain: no EUD/DWC/PHY begin or1341 path
+   * becomes reachable through the new PD bridge. */
+- return -EOPNOTSUPP; /* route + final-write contract absent */
++ return -EOPNOTSUPP; /* route capability absent */
+ }
+ 
+ /* Only this worker or its joined lifecycle owner calls component functions.
+@@ -478,6 +485,7 @@
+ 	ret = o->bus->read_sample(o->bus_ctx, &sample);
+ 	if (ret)
+ 		return ret;
++	o->last_sample = sample;
+ 	if (!sample.present) {
+ 		if (o->once.phase != SAMURAI_APSD_DETACHED)
+ 			samurai_apsd_detach(&o->once);
+@@ -501,6 +509,87 @@
+ 	return samurai_apsd_sample(&o->once, o->once.epoch, owner_now_ms(),
+ 			sample.serial, sample.raw[0], sample.raw[1]);
+ }
++
++/* The original worker owns this embedded identity until rerun returns.
++ * All teardown joins that worker before touching its tokens or bus context.
++ */
++static int owner_attempt_validate(const struct samurai_apsd_attempt *attempt,
++		const struct samurai_apsd_bus_sample *fresh)
++{
++	struct samurai_apsd_owner *o = attempt->context;
++	struct qcom_snps_hsphy_window_result phy;
++	int ret;
++
++	if (!IS_ENABLED(CONFIG_USB_DWC3_SAMURAI_APSD_PD5V_CLIENT) ||
++	    !IS_BUILTIN(CONFIG_TYPEC_QCOM_PMIC))
++		return -EOPNOTSUPP;
++	if (attempt != &o->attempt || !o->attempt_active ||
++	    !o->dwc || !o->bus || o->attempt_bus != o->bus_ctx ||
++	    attempt->epoch != o->once.epoch || !o->once.attempted ||
++	    o->once.phase != SAMURAI_APSD_WRITING ||
++	    attempt->expected.serial != o->last_sample.serial ||
++	    memcmp(attempt->expected.raw, o->last_sample.raw, sizeof(fresh->raw)) ||
++	    fresh->serial <= attempt->expected.serial ||
++	    owner_now_ms() >= o->once.deadline_ms)
++		return -ESTALE;
++	if (owner_aborted(o))
++		return -ECANCELED;
++	if (!o->pd_bridge || o->pd_phase != OWNER_PD_SINK_EPOCH ||
++	    !o->pd_prepared || o->attempt_pd != o->pd_lease.owner ||
++	    o->attempt_generation != o->pd_lease.generation)
++		return -ESTALE;
++	ret = samurai_pd5v_validate(&o->pd_lease);
++	if (ret)
++		return ret;
++	if (!o->phy_client || !o->phy.cookie || !o->phy.high_z ||
++	    !o->dwc_window.cookie || !o->dwc_window.halted || !o->extra_pm)
++		return -ESTALE;
++	ret = qcom_snps_hsphy_window_status(o->phy_client, &phy);
++	if (ret)
++		return ret;
++	if (phy.revoked || !phy.high_z || phy.cookie != o->phy.cookie)
++		return -ESHUTDOWN;
++	/* Route capability is still absent. The actual entry gate continues to
++	 * refuse every production attempt, including this last boundary.
++	 */
++	ret = owner_entry_gate(o);
++	if (ret)
++		return ret;
++	return owner_aborted(o) ? -ECANCELED : 0;
++}
++
++static int owner_transfer(struct samurai_apsd_owner *o)
++{
++	int ret, ack;
++
++	o->attempt = (struct samurai_apsd_attempt) {
++		.context = o, .epoch = o->once.epoch, .expected = o->last_sample,
++		.validate = owner_attempt_validate,
++	};
++	o->attempt_bus = o->bus_ctx;
++	o->attempt_pd = o->pd_lease.owner;
++	o->attempt_generation = o->pd_lease.generation;
++	o->attempt_active = true;
++	memset(&o->transfer, 0, sizeof(o->transfer));
++	ret = o->bus->rerun_once(o->bus_ctx, &o->attempt, &o->transfer);
++	o->attempt_active = false;
++	ack = samurai_apsd_write_done(&o->once, o->once.epoch, owner_now_ms(), ret);
++	if (!ret)
++		ret = ack;
++	/* Feed a real post-write clear immediately, rather than losing it before
++	 * the next poll. Old DONE cannot complete the existing once protocol.
++	 */
++	if (!ret && o->transfer.post_valid) {
++		if (owner_aborted(o))
++			ret = -ECANCELED;
++		else
++			ret = samurai_apsd_sample(&o->once, o->once.epoch, owner_now_ms(),
++				o->transfer.after.serial, o->transfer.after.raw[0],
++				o->transfer.after.raw[1]);
++	}
++	return ret;
++}
++
+ 
+ static void owner_work(struct work_struct *work)
+ {
+@@ -545,9 +634,7 @@
+ 			ret = samurai_apsd_claim(&o->once, o->once.epoch,
+ 					owner_now_ms(), owner_now_ms() + 5000);
+ 		if (!ret) {
+-			ret = o->bus->rerun_once(o->bus_ctx, o->once.epoch);
+-			samurai_apsd_write_done(&o->once, o->once.epoch,
+-					owner_now_ms(), ret);
++			ret = owner_transfer(o);
+ 		}
+ 	}
+ 	if (o->once.phase == SAMURAI_APSD_WAIT_CLEAR ||
+--- a/drivers/power/supply/samurai-apsd-input.inc
++++ b/drivers/power/supply/samurai-apsd-input.inc
+@@ -2,10 +2,9 @@
+ /* Included after the unchanged R7 status reader. Input->lock protects only
+  * this transport; it does not grant a PD, route, HALT or PHY lease.
+  */
+-static int samurai_usb_apsd_read(void *ctx,
++static int samurai_usb_apsd_sample_locked(struct samurai_usb_input *input,
+ 		struct samurai_apsd_bus_sample *sample)
+ {
+-	struct samurai_usb_input *input = ctx;
+ 	struct samurai_usb_status before, after;
+ 	struct samurai_apsd_bus_sample value = { 0 };
+ 	bool plugin, vbus, attached, state_attached;
+@@ -13,7 +12,6 @@
+ 
+ 	if (!sample)
+ 		return -EINVAL;
+-	mutex_lock(&input->lock);
+ 	if (input->paused || input->apsd_joining) {
+ 		ret = -ESHUTDOWN;
+ 		goto out;
+@@ -52,38 +50,87 @@
+ 	value.serial = ++input->apsd_sample_serial;
+ 	*sample = value;
+ out:
++	return ret;
++}
++
++static int samurai_usb_apsd_read(void *ctx, struct samurai_apsd_bus_sample *sample)
++{
++ struct samurai_usb_input *input = ctx;
++ int ret;
++ mutex_lock(&input->lock);
++ ret = samurai_usb_apsd_sample_locked(input, sample);
++ mutex_unlock(&input->lock);
++ return ret;
++}
++
++/* Input lock is held. Source samples are not an authorization capability. */
++static int samurai_usb_apsd_rerun(void *ctx,
++		const struct samurai_apsd_attempt *attempt,
++		struct samurai_apsd_transfer_result *result)
++{
++	struct samurai_usb_input *input = ctx;
++	struct samurai_apsd_transfer_result value = { };
++	struct samurai_usb_status wire;
++	struct samurai_usb_budget budget;
++	int ret;
++
++	if (!attempt || !attempt->context || !attempt->validate ||
++	    !attempt->epoch || !attempt->expected.serial || !result)
++		return -EINVAL;
++	mutex_lock(&input->lock);
++	if (attempt->epoch <= input->apsd_attempt_epoch) {
++		ret = attempt->epoch == input->apsd_attempt_epoch ? -EALREADY : -ESTALE;
++		goto out;
++	}
++	/* Consume before any fallible validation or possible transfer. */
++	input->apsd_attempt_epoch = attempt->epoch;
++	ret = samurai_usb_apsd_sample_locked(input, &value.before);
++	if (ret)
++		goto out;
++	if (!value.before.present || value.before.serial <= attempt->expected.serial ||
++	    !attempt->expected.present ||
++	    memcmp(value.before.raw, attempt->expected.raw, sizeof(value.before.raw))) {
++		ret = -ESTALE;
++		goto out;
++	}
++	memcpy(&wire, value.before.raw, sizeof(wire));
++	ret = samurai_usb_decode(&wire, &budget);
++	if (ret || !budget.online || !(wire.apsd & 1) || (wire.apsd & 2) ||
++	    (wire.result != 1 && wire.result != 4)) {
++		ret = ret ? ret : -ENODATA;
++		goto out;
++	}
++	/* Last potentially blocking check before the single forced transfer.
++	 * A later cancellation is an in-flight operation: original worker join
++	 * must finish before any supplier can release its bound resources.
++	 * Neither this nor regmap makes source detach atomic with the write.
++	 */
++	ret = attempt->validate(attempt, &value.before);
++	if (ret)
++		goto out;
++	value.transfer_attempted = true;
++	value.write_error = regmap_write_bits(input->map, 0x1341, BIT(0), BIT(0));
++	value.post_error = samurai_usb_apsd_sample_locked(input, &value.after);
++	if (!value.post_error) {
++		memcpy(&wire, value.after.raw, sizeof(wire));
++		value.post_error = samurai_usb_decode(&wire, &budget);
++		/* APSD status/result may legitimately change after the command.
++		 * The five role/presence fields must still equal the pre-write read.
++		 */
++		if (!value.post_error && (!value.after.present || !budget.online ||
++		    (wire.apsd & 2) || (wire.result & 0x60) ||
++		    memcmp(value.after.raw + 2, value.before.raw + 2, 5)))
++			value.post_error = -ESTALE;
++	}
++	value.post_valid = !value.post_error;
++	/* Preserve both independent outcomes, including a late bus errno. */
++	ret = value.write_error ? value.write_error : value.post_error;
++out:
++	*result = value;
+ 	mutex_unlock(&input->lock);
+ 	return ret;
+ }
+ 
+-static int samurai_usb_apsd_rerun(void *ctx, u64 epoch)
+-{
+-	struct samurai_usb_input *input = ctx;
+-	int ret;
+-
+-	if (!epoch)
+-		return -EINVAL;
+-	mutex_lock(&input->lock);
+-	if (epoch <= input->apsd_attempt_epoch) {
+-		ret = epoch == input->apsd_attempt_epoch ? -EALREADY : -ESTALE;
+-		goto out;
+-	}
+-	/* A failed/blocked call consumes this epoch too. No resume-time retry. */
+-	input->apsd_attempt_epoch = epoch;
+-	if (input->paused || input->apsd_joining) {
+-		ret = -ESHUTDOWN;
+-		goto out;
+-	}
+-	/* Force the original OEM masked command transfer. Ordinary update_bits
+-	 * can skip an already-set bit and falsely look like a newly sent command.
+-	 * This callback alone grants no authorization to enter it; the owner must
+-	 * hold its independent leases and consume the protocol attempt first.
+-	 */
+-	ret = regmap_write_bits(input->map, 0x1341, BIT(0), BIT(0));
+-out:
+-	mutex_unlock(&input->lock);
+-	return ret;
+-}
+ 
+ static const struct samurai_apsd_bus_ops samurai_usb_apsd_ops = {
+ 	.read_sample = samurai_usb_apsd_read,
+--- a/include/linux/usb/samurai-apsd-backend.h
++++ b/include/linux/usb/samurai-apsd-backend.h
+@@ -20,6 +20,26 @@
+ 	bool present;
+ };
+ 
++/* The attempt is embedded in the joined owner worker. validate must verify
++ * that exact address and its actual supplier leases, not trust these fields.
++ * Called with input->lock held: no owner registry, input lock, join, resume,
++ * lease acquisition/release or restoration. Supplier validation may sleep;
++ * supplier revocation publishes before joining this worker outside its lock.
++ */
++struct samurai_apsd_attempt {
++	void *context;
++	u64 epoch;
++	struct samurai_apsd_bus_sample expected;
++	int (*validate)(const struct samurai_apsd_attempt *attempt,
++			const struct samurai_apsd_bus_sample *fresh);
++};
++
++struct samurai_apsd_transfer_result {
++	struct samurai_apsd_bus_sample before, after;
++	bool transfer_attempted, post_valid;
++	int write_error, post_error;
++};
++
+ struct samurai_apsd_bus_ops {
+ 	int (*read_sample)(void *ctx, struct samurai_apsd_bus_sample *sample);
+ 	/* Exactly ONE physical 1341 bit0 masked transfer, even if already set.
+@@ -27,7 +47,8 @@
+ 	 * Do not retry, synthesize DONE, or change any source/current policy.
+ 	 * Return actual transfer errno. Epoch must be nonzero and nonreused.
+ 	 */
+-	int (*rerun_once)(void *ctx, u64 epoch);
++	int (*rerun_once)(void *ctx, const struct samurai_apsd_attempt *attempt,
++			struct samurai_apsd_transfer_result *result);
+ };
+ 
+ /* Sleepable process context, outside input->lock/PM/IRQ/component locks.

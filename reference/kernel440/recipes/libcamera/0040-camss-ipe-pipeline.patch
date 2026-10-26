@@ -1,0 +1,430 @@
+--- a/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
++++ b/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
+@@ -7,6 +7,7 @@
+ #include <chrono>
+ #include <time.h>
+ #include "hardware_focus.h"
++#include "camss_ipe.h"
+ #include "libcamera/internal/camera_lens.h"
+ #include <cmath>
+ #include <cstring>
+@@ -70,12 +71,13 @@
+ 
+  void imageReady(FrameBuffer *buffer);
+  void rawReady(FrameBuffer *buffer);
++ void imageProcessed(FrameBuffer *input, FrameBuffer *output, bool success);
+  void pixFrameStart(uint32_t sequence, uint64_t timestamp);
+  void rawFrameStart(uint32_t sequence, uint64_t timestamp);
+  void tryComplete(Request *request, bool timeout = false);
+  Request *imageRequest(FrameBuffer *buffer);
+  struct PendingFrame {
+-  FrameBuffer *image = nullptr, *raw = nullptr;
++  FrameBuffer *image = nullptr, *raw = nullptr, *ifeImage = nullptr;
+   bool imageFinished = false, rawReady = false, failed = false;
+  };
+  std::map<Request *, PendingFrame> requests_;
+@@ -85,6 +87,7 @@
+  std::map<uint32_t, uint64_t> pixStarts_, rawStarts_;
+  uint64_t framePeriod_ = 0, previousPixStart_ = 0;
+  bool rawEnabled_ = false, processedEnabled_ = true;
++ std::unique_ptr<CamssIpe> ipe_;
+  Size output_;
+  unsigned int outputStride_ = 0;
+  V4L2DeviceFormat rawFormat_;
+@@ -180,6 +183,7 @@
+ private:
+ 	void releaseDevice(Camera *camera) override;
+ 	CamssVfeData *configured_ = nullptr;
++	std::shared_ptr<MediaDevice> ipeMedia_;
+ 	CamssVfeData *data(Camera *camera) { return static_cast<CamssVfeData *>(camera->_d()); }
+ };
+ 
+@@ -617,13 +621,20 @@
+ 
+  d->requests_.clear();d->internalRequests_.clear();d->pixStarts_.clear();d->rawStarts_.clear();
+  d->framePeriod_=d->previousPixStart_=0;
+- if (d->processedEnabled_) ret=d->image_->importBuffers(d->stream_.configuration().bufferCount);
++ if (d->processedEnabled_ && !d->ipe_) ret=d->image_->importBuffers(d->stream_.configuration().bufferCount);
+  else {
+-  ret=d->image_->allocateBuffers(4,&d->internalImages_);
+-  if (ret >= 4) {for(auto &buffer:d->internalImages_) d->freeImages_.push(buffer.get());ret=0;}
++  const unsigned int count=d->processedEnabled_?d->stream_.configuration().bufferCount:4;
++  ret=d->image_->allocateBuffers(count,&d->internalImages_);
++  if (ret >= int(count)) {for(auto &buffer:d->internalImages_) d->freeImages_.push(buffer.get());ret=0;}
+   else ret=ret<0?ret:-ENOMEM;
+  }
+  if (ret) goto error;
++ if (d->processedEnabled_ && d->ipe_) {
++  V4L2DeviceFormat format;
++  ret=d->image_->getFormat(&format);
++  if (!ret) ret=d->ipe_->start(format,d->stream_.configuration().bufferCount);
++  if (ret) goto error;
++ }
+  if (d->rawEnabled_) {ret=d->raw_->importBuffers(d->rawStream_.configuration().bufferCount);if(ret)goto error;}
+  ret = d->params_->allocateBuffers(1, &d->paramsBuffers_);
+  if (ret < 1) { ret = ret < 0 ? ret : -ENOMEM; goto error; }
+@@ -720,6 +731,7 @@
+ 	/* streamOff callbacks finish every queued application buffer once. */
+ 	if (d->rawEnabled_) d->raw_->streamOff();
+ 	d->image_->streamOff();
++	if (d->ipe_) d->ipe_->stop();
+ 	d->params_->streamOff();
+ 	d->stats_->streamOff();
+ 	d->pix_->setFrameStartEnabled(false);
+@@ -770,7 +782,10 @@
+ 
+  FrameBuffer *raw = request->findBuffer(&d->rawStream_);
+  if ((d->processedEnabled_ && !buffer) || (d->rawEnabled_ && !raw)) return -EINVAL;
+- if (!buffer) {if(d->freeImages_.empty())return -ENOBUFS;buffer=d->freeImages_.front();}
++ const bool internal = !d->processedEnabled_ || bool(d->ipe_);
++ FrameBuffer *ife = buffer;
++ if (internal) {if(d->freeImages_.empty())return -ENOBUFS;ife=d->freeImages_.front();}
++ if (!buffer) buffer=ife;
+  ControlList sensorControls(d->sensor_->controls());
+  if (!request->controls().empty()) {
+   int ret = d->ipa_->convertControls(d->epoch_, request->controls(), &sensorControls);
+@@ -781,12 +796,12 @@
+  if (!sensorControls.empty() && (!d->delayedControls_ || !d->sensorContextHealthy_)) return -ENOTSUP;
+  if ((!sensorControls.empty() && d->sensorUpdates_.size() >= 8) || (isp && d->ispControls_.size() >= 8)) return -ENOSPC;
+ 
+- d->requests_.emplace(request,CamssVfeData::PendingFrame{buffer,raw,false,!raw,false});
+- if (!d->processedEnabled_) {d->freeImages_.pop();d->internalRequests_[buffer]=request;}
+- int ret = d->image_->queueBuffer(buffer);
++ d->requests_.emplace(request,CamssVfeData::PendingFrame{buffer,raw,ife,false,!raw,false});
++ if (internal) {d->freeImages_.pop();d->internalRequests_[ife]=request;}
++ int ret = d->image_->queueBuffer(ife);
+  if (ret) {
+   d->requests_.erase(request);
+-  if(!d->processedEnabled_){d->internalRequests_.erase(buffer);d->freeImages_.push(buffer);}
++  if(internal){d->internalRequests_.erase(ife);d->freeImages_.push(ife);}
+   return ret;
+  }
+  if (raw) {
+@@ -848,7 +863,7 @@
+  PendingFrame &frame=it->second;
+  if(!frame.imageFinished || !frame.rawReady)return;
+  if(rawEnabled_ && !frame.failed && running_) {
+-  const uint32_t imageSof=frame.image->_d()->kernelSequence(),rawSof=frame.raw->_d()->kernelSequence();
++  const uint32_t imageSof=frame.ifeImage->_d()->kernelSequence(),rawSof=frame.raw->_d()->kernelSequence();
+   auto pix=pixStarts_.find(imageSof),raw=rawStarts_.find(rawSof);
+   if(pix==pixStarts_.end() || raw==rawStarts_.end()) {
+    if(!timeout){if(!deadline_.isRunning())deadline_.start(std::chrono::milliseconds(250));return;}
+@@ -864,11 +879,12 @@
+   }
+  }
+  if(timeout || !running_)frame.failed=true;
+- FrameBuffer *image=frame.image,*raw=frame.raw;
++ FrameBuffer *image=frame.image,*raw=frame.raw,*ife=frame.ifeImage;
+  if(frame.failed){image->_d()->metadata().status=FrameMetadata::FrameError;if(raw)raw->_d()->metadata().status=FrameMetadata::FrameError;}
+  requests_.erase(it);
++ /* Release the internal association before any application completion. */
++ if(internalRequests_.erase(ife))freeImages_.push(ife);
+  if(processedEnabled_)handler()->completeBuffer(request,image);
+- else {internalRequests_.erase(image);freeImages_.push(image);}
+  if(raw)handler()->completeBuffer(request,raw);
+  handler()->completeRequest(request);
+  if(images_.empty() && requests_.empty())deadline_.stop();
+@@ -976,8 +992,7 @@
+  if(!request || !requests_.count(request)) return;
+ 	if (!running_ || buffer->metadata().status != FrameMetadata::FrameSuccess) {
+ 
+-  auto &frame=requests_.at(request);frame.imageFinished=true;frame.failed=true;
+-  tryComplete(request);
++  imageProcessed(buffer,requests_.at(request).image,false);
+   return;
+ 	}
+ 	const uint32_t sequence = buffer->_d()->kernelSequence();
+@@ -992,8 +1007,7 @@
+ 		LOG(CamssVfe, Error) << "Duplicate image SOF " << sequence;
+ 		buffer->_d()->metadata().status = FrameMetadata::FrameError;
+ 
+-  auto &frame=requests_.at(request);frame.imageFinished=true;frame.failed=true;
+-  tryComplete(request);
++  imageProcessed(buffer,requests_.at(request).image,false);
+   return;
+ 	}
+ 	images_[sequence] = buffer;
+@@ -1195,10 +1209,27 @@
+ 	sensorContexts_.erase(sequence);
+ 	request->_d()->metadata().set(controls::SensorTimestamp, buffer->metadata().timestamp);
+ 
+- requests_.at(request).imageFinished=true;
+- if(buffer->metadata().status!=FrameMetadata::FrameSuccess)requests_.at(request).failed=true;
++ FrameBuffer *output=requests_.at(request).image;
++ if (ipe_ && processedEnabled_ && running_ && buffer->metadata().status==FrameMetadata::FrameSuccess) {
++  int ret=ipe_->queue(buffer,output);
++  if (ret) imageProcessed(buffer,output,false);
++ } else imageProcessed(buffer,output,buffer->metadata().status==FrameMetadata::FrameSuccess);
++ if(images_.empty() && requests_.empty())deadline_.stop();
++}
++
++void CamssVfeData::imageProcessed(FrameBuffer *input,FrameBuffer *output,bool success)
++{
++ Request *request=imageRequest(input);
++ auto it=requests_.find(request);
++ if(it==requests_.end() || it->second.ifeImage!=input || it->second.image!=output)return;
++ if(input!=output) {
++  output->_d()->metadata()=input->metadata();
++  output->_d()->setKernelSequence(input->_d()->kernelSequence());
++  output->_d()->setTimestampMonotonic(input->_d()->timestampMonotonic());
++ }
++ it->second.imageFinished=true;
++ it->second.failed |= !success;
+  tryComplete(request);
+- if(images_.empty() && requests_.empty())deadline_.stop();
+ }
+ 
+ void CamssVfeData::expired()
+@@ -1221,6 +1252,9 @@
+ 	auto media = acquireMediaDevice(enumerator, dm);
+ 	if (!media)
+ 		return false;
++	DeviceMatch ipeMatch("qcom-ipe-a5");
++	ipeMatch.add("qcom-ipe-a5-source");
++	ipeMedia_ = acquireMediaDevice(enumerator, ipeMatch);
+ 	/* Group by the PIX subdevice's adjacent nodes and metadata FourCCs. */
+ 	std::vector<CamssVfeData::Endpoint> endpoints;
+ 	for (MediaEntity *entity : media->entities()) {
+@@ -1260,6 +1294,11 @@
+ 					<< " through " << endpoint.pix->name() << ": " << ret;
+ 				continue;
+ 			}
++			if (ipeMedia_) {
++				MediaEntity *source=ipeMedia_->getEntityByName("qcom-ipe-a5-source");
++				d->ipe_=std::make_unique<CamssIpe>(source->deviceNode());
++				d->ipe_->processed.connect(d.get(),&CamssVfeData::imageProcessed);
++			}
+ 			std::set<Stream *> streams{ &d->stream_ };
+    if(d->raw_)streams.insert(&d->rawStream_);
+ 			std::string id = d->sensor_->id();
+--- /dev/null
++++ b/src/libcamera/pipeline/camss-vfe/camss_ipe.h
+@@ -0,0 +1,43 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++
++#include <map>
++#include <memory>
++#include <string>
++
++#include <libcamera/base/object.h>
++#include <libcamera/base/signal.h>
++#include <libcamera/base/timer.h>
++#include "libcamera/internal/v4l2_videodevice.h"
++
++namespace libcamera {
++
++/* Own both m2m queues until each side returns, including cancellation. */
++class CamssIpe : public Object
++{
++public:
++	explicit CamssIpe(const std::string &node);
++	~CamssIpe();
++	int start(const V4L2DeviceFormat &format, unsigned int count);
++	void stop();
++	int queue(FrameBuffer *input, FrameBuffer *output);
++	Signal<FrameBuffer *, FrameBuffer *, bool> processed;
++
++private:
++	struct Job {
++		FrameBuffer *original;
++		std::unique_ptr<FrameBuffer> input;
++		bool inputDone = false, outputDone = false, failed = false;
++	};
++	void inputReady(FrameBuffer *buffer);
++	void outputReady(FrameBuffer *buffer);
++	void complete(FrameBuffer *output);
++	void timeout();
++	V4L2M2MDevice device_;
++	Timer watchdog_;
++	bool running_ = false, stopping_ = false, opened_ = false, failed_ = false;
++	std::map<FrameBuffer *, Job> jobs_;
++	std::map<FrameBuffer *, FrameBuffer *> inputs_;
++};
++
++} /* namespace libcamera */
+--- /dev/null
++++ b/src/libcamera/pipeline/camss-vfe/camss_ipe.cpp
+@@ -0,0 +1,176 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#include "camss_ipe.h"
++
++#include <cerrno>
++#include <chrono>
++#include <vector>
++#include <libcamera/base/log.h>
++#include "libcamera/internal/framebuffer.h"
++
++namespace libcamera {
++
++LOG_DECLARE_CATEGORY(CamssVfe)
++
++CamssIpe::CamssIpe(const std::string &node) : device_(node)
++{
++	device_.output()->bufferReady.connect(this, &CamssIpe::inputReady);
++	device_.capture()->bufferReady.connect(this, &CamssIpe::outputReady);
++	/* The string-based V4L2M2MDevice construction in this libcamera version
++	 * does not connect the video-device watchdog. Own the job timer here.
++	 */
++	watchdog_.timeout.connect(this, &CamssIpe::timeout);
++}
++
++CamssIpe::~CamssIpe()
++{
++	stop();
++}
++
++int CamssIpe::start(const V4L2DeviceFormat &format, unsigned int count)
++{
++	if (running_ || stopping_ || !jobs_.empty())
++		return -EBUSY;
++	/* A failed STREAMOFF leaves the library queue bookkeeping unresolved.
++	 * close has joined the kernel work, but this object must not reopen it.
++	 */
++	if (failed_)
++		return -EIO;
++	int ret = device_.open();
++	if (ret)
++		return ret;
++	opened_ = true;
++	for (V4L2VideoDevice *queue : { device_.output(), device_.capture() }) {
++		V4L2DeviceFormat negotiated = format;
++		ret = queue->setFormat(&negotiated);
++		if (!ret && (negotiated.fourcc != format.fourcc ||
++			     negotiated.size != format.size ||
++			     negotiated.planesCount != format.planesCount ||
++			     negotiated.planes[0].bpl != format.planes[0].bpl ||
++			     negotiated.planes[0].size != format.planes[0].size))
++			ret = -EINVAL;
++		if (ret) {
++			stop();
++			return ret;
++		}
++	}
++	/* Geometry is shared by both queues. Finish both S_FMT calls before
++	 * either REQBUFS: this driver rejects format changes once buffers exist.
++	 */
++	for (V4L2VideoDevice *queue : { device_.output(), device_.capture() }) {
++		ret = queue->importBuffers(count);
++		if (ret) {
++			stop();
++			return ret;
++		}
++	}
++	for (V4L2VideoDevice *queue : { device_.output(), device_.capture() }) {
++		ret = queue->streamOn();
++		if (ret) {
++			stop();
++			return ret;
++		}
++	}
++	running_ = true;
++	LOG(CamssVfe, Info) << "IPE enabled " << format.toString();
++	return 0;
++}
++
++int CamssIpe::queue(FrameBuffer *input, FrameBuffer *output)
++{
++	if (!running_ || stopping_)
++		return -EPIPE;
++	if (!input || !output || input == output || jobs_.count(output))
++		return -EINVAL;
++	auto planes = input->planes();
++	Job job{ input, std::make_unique<FrameBuffer>(
++		std::vector<FrameBuffer::Plane>(planes.begin(), planes.end())) };
++	/* OUTPUT DQBUF writes sequence/timestamp. Preserve the IFE SOF by using
++	 * a wrapper with shared plane FDs, not the original camera buffer.
++	 */
++	job.input->_d()->metadata() = input->metadata();
++	FrameBuffer *wrapped = job.input.get();
++	inputs_.emplace(wrapped, output);
++	jobs_.emplace(output, std::move(job));
++	if (jobs_.size() == 1)
++		watchdog_.start(std::chrono::seconds(3));
++	int ret = device_.capture()->queueBuffer(output);
++	if (!ret)
++		ret = device_.output()->queueBuffer(wrapped);
++	if (ret) {
++		LOG(CamssVfe, Error) << "IPE queue failed: " << ret;
++		/* A one-sided QBUF must never shift the FIFO pairing. Once adopted,
++		 * the job always completes via the signal, including this failure.
++		 */
++		stop();
++	}
++	return 0;
++}
++
++void CamssIpe::inputReady(FrameBuffer *buffer)
++{
++	auto it = inputs_.find(buffer);
++	if (it == inputs_.end())
++		return;
++	FrameBuffer *output = it->second;
++	Job &job = jobs_.at(output);
++	job.inputDone = true;
++	job.failed |= buffer->metadata().status != FrameMetadata::FrameSuccess;
++	complete(output);
++}
++
++void CamssIpe::outputReady(FrameBuffer *buffer)
++{
++	auto it = jobs_.find(buffer);
++	if (it == jobs_.end())
++		return;
++	it->second.outputDone = true;
++	it->second.failed |= buffer->metadata().status != FrameMetadata::FrameSuccess;
++	complete(buffer);
++}
++
++void CamssIpe::complete(FrameBuffer *output)
++{
++	auto it = jobs_.find(output);
++	if (it == jobs_.end() || !it->second.inputDone || !it->second.outputDone)
++		return;
++	Job job = std::move(it->second);
++	inputs_.erase(job.input.get());
++	jobs_.erase(it);
++	if (!running_ || jobs_.empty())
++		watchdog_.stop();
++	else
++		watchdog_.start(std::chrono::seconds(3));
++	processed.emit(job.original, output, !job.failed && running_);
++}
++
++void CamssIpe::stop()
++{
++	running_ = false;
++	watchdog_.stop();
++	if (stopping_ || !opened_)
++		return;
++	stopping_ = true;
++	int inputError = device_.output()->streamOff();
++	int outputError = device_.capture()->streamOff();
++	failed_ |= inputError || outputError;
++	/* close() also joins the driver's work when STREAMOFF itself failed.
++	 * Keep all imported FDs and original IFE buffers alive until then.
++	 */
++	device_.close();
++	opened_ = false;
++	while (!jobs_.empty()) {
++		FrameBuffer *output = jobs_.begin()->first;
++		Job &job = jobs_.begin()->second;
++		job.inputDone = job.outputDone = job.failed = true;
++		complete(output);
++	}
++	stopping_ = false;
++}
++
++void CamssIpe::timeout()
++{
++	LOG(CamssVfe, Error) << "IPE dequeue timeout";
++	stop();
++}
++
++} /* namespace libcamera */
+--- a/src/libcamera/pipeline/camss-vfe/meson.build
++++ b/src/libcamera/pipeline/camss-vfe/meson.build
+@@ -1,2 +1,2 @@
+ # SPDX-License-Identifier: CC0-1.0
+-libcamera_internal_sources += files('camss_vfe.cpp')
++libcamera_internal_sources += files('camss_vfe.cpp', 'camss_ipe.cpp')

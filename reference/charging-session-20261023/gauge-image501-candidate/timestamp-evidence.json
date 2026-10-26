@@ -1,0 +1,797 @@
+{
+  "status": "read-only design evidence; no second build",
+  "SOURCE_DATE_EPOCH_references_in_relevant_callers": {
+    "Makefile": [],
+    "init/Makefile": [],
+    "usr/Makefile": [],
+    "usr/gen_initramfs.sh": [],
+    "usr/gen_init_cpio.c": [],
+    "scripts/Makefile.lib": [],
+    "scripts/mkcompile_h": []
+  },
+  "fixed_source": {
+    "init/Makefile": {
+      "sha256": "8ddab3d06fbeeb18595e8a4a80b9304219953dcf8b1e75b49976cf068490fc8d",
+      "lines": [
+        {
+          "line": 27,
+          "text": "smp-flag-$(CONFIG_SMP)\t\t\t:= SMP"
+        },
+        {
+          "line": 28,
+          "text": "preempt-flag-$(CONFIG_PREEMPT_BUILD)\t:= PREEMPT"
+        },
+        {
+          "line": 29,
+          "text": "preempt-flag-$(CONFIG_PREEMPT_DYNAMIC)\t:= PREEMPT_DYNAMIC"
+        },
+        {
+          "line": 30,
+          "text": "preempt-flag-$(CONFIG_PREEMPT_RT)\t:= PREEMPT_RT"
+        },
+        {
+          "line": 31,
+          "text": ""
+        },
+        {
+          "line": 32,
+          "text": "build-version = $(or $(KBUILD_BUILD_VERSION), $(build-version-auto))"
+        },
+        {
+          "line": 33,
+          "text": "build-timestamp = $(or $(KBUILD_BUILD_TIMESTAMP), $(build-timestamp-auto))"
+        },
+        {
+          "line": 34,
+          "text": ""
+        },
+        {
+          "line": 35,
+          "text": "# Maximum length of UTS_VERSION is 64 chars"
+        },
+        {
+          "line": 36,
+          "text": "filechk_uts_version = \\"
+        },
+        {
+          "line": 37,
+          "text": "\tutsver=$$(echo '$(pound)'\"$(build-version)\" $(smp-flag-y) $(preempt-flag-y) \"$(build-timestamp)\" | cut -b -64); \\"
+        },
+        {
+          "line": 38,
+          "text": "\techo '$(pound)'define UTS_VERSION \\\"\"$${utsver}\"\\\""
+        },
+        {
+          "line": 39,
+          "text": ""
+        },
+        {
+          "line": 40,
+          "text": "#"
+        },
+        {
+          "line": 41,
+          "text": "# Build version.c with temporary UTS_VERSION"
+        },
+        {
+          "line": 42,
+          "text": "#"
+        },
+        {
+          "line": 43,
+          "text": ""
+        },
+        {
+          "line": 44,
+          "text": "$(obj)/utsversion-tmp.h: FORCE"
+        },
+        {
+          "line": 45,
+          "text": "\t$(call filechk,uts_version)"
+        },
+        {
+          "line": 46,
+          "text": ""
+        },
+        {
+          "line": 47,
+          "text": "clean-files += utsversion-tmp.h"
+        },
+        {
+          "line": 48,
+          "text": ""
+        },
+        {
+          "line": 49,
+          "text": "$(obj)/version.o: $(obj)/utsversion-tmp.h"
+        },
+        {
+          "line": 50,
+          "text": "CFLAGS_version.o := -include $(obj)/utsversion-tmp.h"
+        },
+        {
+          "line": 51,
+          "text": ""
+        },
+        {
+          "line": 52,
+          "text": "#"
+        },
+        {
+          "line": 53,
+          "text": "# Build version-timestamp.c with final UTS_VERSION"
+        },
+        {
+          "line": 54,
+          "text": "#"
+        },
+        {
+          "line": 55,
+          "text": ""
+        },
+        {
+          "line": 56,
+          "text": "include/generated/utsversion.h: build-version-auto = $(shell $(srctree)/scripts/build-version)"
+        },
+        {
+          "line": 57,
+          "text": "include/generated/utsversion.h: build-timestamp-auto = $(shell LC_ALL=C date)"
+        },
+        {
+          "line": 58,
+          "text": "include/generated/utsversion.h: FORCE"
+        },
+        {
+          "line": 59,
+          "text": "\t$(call filechk,uts_version)"
+        },
+        {
+          "line": 60,
+          "text": ""
+        },
+        {
+          "line": 61,
+          "text": "$(obj)/version-timestamp.o: include/generated/utsversion.h"
+        }
+      ]
+    },
+    "init/version.c": {
+      "sha256": "94f91b9045f23a8824ae55cd117063521b9a0cf270409654c39ba181f4d2bc52",
+      "lines": [
+        {
+          "line": 40,
+          "text": "BUILD_SALT;"
+        },
+        {
+          "line": 41,
+          "text": "BUILD_LTO_INFO;"
+        },
+        {
+          "line": 42,
+          "text": ""
+        },
+        {
+          "line": 43,
+          "text": "/*"
+        },
+        {
+          "line": 44,
+          "text": " * init_uts_ns and linux_banner contain the build version and timestamp,"
+        },
+        {
+          "line": 45,
+          "text": " * which are really fixed at the very last step of build process."
+        },
+        {
+          "line": 46,
+          "text": " * They are compiled with __weak first, and without __weak later."
+        },
+        {
+          "line": 47,
+          "text": " */"
+        },
+        {
+          "line": 48,
+          "text": ""
+        },
+        {
+          "line": 49,
+          "text": "struct uts_namespace init_uts_ns __weak;"
+        },
+        {
+          "line": 50,
+          "text": "const char linux_banner[] __weak;"
+        },
+        {
+          "line": 51,
+          "text": ""
+        },
+        {
+          "line": 52,
+          "text": "#include \"version-timestamp.c\""
+        },
+        {
+          "line": 53,
+          "text": ""
+        },
+        {
+          "line": 54,
+          "text": "EXPORT_SYMBOL_GPL(init_uts_ns);"
+        }
+      ]
+    },
+    "usr/Makefile": {
+      "sha256": "3143534f22d330861b67948e919bbdec0bfb58d3ee25395fe106148765df8a91",
+      "lines": [
+        {
+          "line": 58,
+          "text": ""
+        },
+        {
+          "line": 59,
+          "text": "# do not try to update files included in initramfs"
+        },
+        {
+          "line": 60,
+          "text": "$(deps_initramfs): ;"
+        },
+        {
+          "line": 61,
+          "text": ""
+        },
+        {
+          "line": 62,
+          "text": "quiet_cmd_initfs = GEN     $@"
+        },
+        {
+          "line": 63,
+          "text": "      cmd_initfs = \\"
+        },
+        {
+          "line": 64,
+          "text": "\t$(CONFIG_SHELL) $< -o $@ -l $(obj)/.initramfs_data.cpio.d \\"
+        },
+        {
+          "line": 65,
+          "text": "\t$(addprefix -u , $(CONFIG_INITRAMFS_ROOT_UID)) \\"
+        },
+        {
+          "line": 66,
+          "text": "\t$(addprefix -g , $(CONFIG_INITRAMFS_ROOT_GID)) \\"
+        },
+        {
+          "line": 67,
+          "text": "\t$(if $(KBUILD_BUILD_TIMESTAMP), -d \"$(KBUILD_BUILD_TIMESTAMP)\") \\"
+        },
+        {
+          "line": 68,
+          "text": "\t$(ramfs-input)"
+        },
+        {
+          "line": 69,
+          "text": ""
+        },
+        {
+          "line": 70,
+          "text": "# We rebuild initramfs_data.cpio if:"
+        },
+        {
+          "line": 71,
+          "text": "# 1) Any included file is newer than initramfs_data.cpio"
+        },
+        {
+          "line": 72,
+          "text": "# 2) There are changes in which files are included (added or deleted)"
+        },
+        {
+          "line": 73,
+          "text": "# 3) If gen_init_cpio are newer than initramfs_data.cpio"
+        },
+        {
+          "line": 74,
+          "text": "# 4) Arguments to gen_initramfs.sh changes"
+        },
+        {
+          "line": 75,
+          "text": "$(obj)/initramfs_data.cpio: $(src)/gen_initramfs.sh $(obj)/gen_init_cpio $(deps_initramfs) FORCE"
+        },
+        {
+          "line": 76,
+          "text": "\t$(call if_changed,initfs)"
+        },
+        {
+          "line": 77,
+          "text": ""
+        }
+      ]
+    },
+    "usr/gen_initramfs.sh": {
+      "sha256": "bd79c089b1d2aae2232b3cc37a945702ccb5351d7dbad99f1c7a02b489b45c74",
+      "lines": [
+        {
+          "line": 190,
+          "text": "prog=$0"
+        },
+        {
+          "line": 191,
+          "text": "root_uid=0"
+        },
+        {
+          "line": 192,
+          "text": "root_gid=0"
+        },
+        {
+          "line": 193,
+          "text": "dep_list="
+        },
+        {
+          "line": 194,
+          "text": "timestamp="
+        },
+        {
+          "line": 195,
+          "text": "cpio_list=$(mktemp ${TMPDIR:-/tmp}/cpiolist.XXXXXX)"
+        },
+        {
+          "line": 196,
+          "text": "# gen_init_cpio writes to stdout by default"
+        },
+        {
+          "line": 197,
+          "text": "output=\"\""
+        },
+        {
+          "line": 198,
+          "text": ""
+        },
+        {
+          "line": 199,
+          "text": "trap \"rm -f $cpio_list\" EXIT"
+        },
+        {
+          "line": 200,
+          "text": ""
+        },
+        {
+          "line": 201,
+          "text": "while [ $# -gt 0 ]; do"
+        },
+        {
+          "line": 215,
+          "text": "\t\t\troot_uid=\"$1\""
+        },
+        {
+          "line": 216,
+          "text": "\t\t\t[ \"$root_uid\" = \"-1\" ] && root_uid=$(id -u || echo 0)"
+        },
+        {
+          "line": 217,
+          "text": "\t\t\tshift"
+        },
+        {
+          "line": 218,
+          "text": "\t\t\t;;"
+        },
+        {
+          "line": 219,
+          "text": "\t\t\"-g\")\t# map $1 to gid=0 (root)"
+        },
+        {
+          "line": 220,
+          "text": "\t\t\troot_gid=\"$1\""
+        },
+        {
+          "line": 221,
+          "text": "\t\t\t[ \"$root_gid\" = \"-1\" ] && root_gid=$(id -g || echo 0)"
+        },
+        {
+          "line": 222,
+          "text": "\t\t\tshift"
+        },
+        {
+          "line": 223,
+          "text": "\t\t\t;;"
+        },
+        {
+          "line": 224,
+          "text": "\t\t\"-d\")\t# date for file mtimes"
+        },
+        {
+          "line": 225,
+          "text": "\t\t\ttimestamp=\"$(date -d\"$1\" +%s || :)\""
+        },
+        {
+          "line": 226,
+          "text": "\t\t\tif test -n \"$timestamp\"; then"
+        },
+        {
+          "line": 227,
+          "text": "\t\t\t\ttimestamp=\"-t $timestamp\""
+        },
+        {
+          "line": 228,
+          "text": "\t\t\tfi"
+        },
+        {
+          "line": 229,
+          "text": "\t\t\tshift"
+        },
+        {
+          "line": 230,
+          "text": "\t\t\t;;"
+        },
+        {
+          "line": 231,
+          "text": "\t\t\"-h\")"
+        },
+        {
+          "line": 232,
+          "text": "\t\t\tusage"
+        },
+        {
+          "line": 233,
+          "text": "\t\t\texit 0"
+        },
+        {
+          "line": 234,
+          "text": "\t\t\t;;"
+        },
+        {
+          "line": 235,
+          "text": "\t\t*)"
+        },
+        {
+          "line": 241,
+          "text": "\t\t\t\t\tinput_file \"$arg\""
+        },
+        {
+          "line": 242,
+          "text": "\t\t\t\t\t;;"
+        },
+        {
+          "line": 243,
+          "text": "\t\t\tesac"
+        },
+        {
+          "line": 244,
+          "text": "\t\t\t;;"
+        },
+        {
+          "line": 245,
+          "text": "\tesac"
+        },
+        {
+          "line": 246,
+          "text": "done"
+        },
+        {
+          "line": 247,
+          "text": ""
+        },
+        {
+          "line": 248,
+          "text": "# If output_file is set we will generate cpio archive"
+        },
+        {
+          "line": 249,
+          "text": "# we are careful to delete tmp files"
+        },
+        {
+          "line": 250,
+          "text": "usr/gen_init_cpio $output $timestamp $cpio_list"
+        }
+      ]
+    },
+    "usr/gen_init_cpio.c": {
+      "sha256": "7e45a03ac8d0416a794c3be20cce24d23cc6fadbfc1e9e18ef6edd5f408eaaca",
+      "lines": [
+        {
+          "line": 378,
+          "text": "\t}"
+        },
+        {
+          "line": 379,
+          "text": ""
+        },
+        {
+          "line": 380,
+          "text": "\tretval = fstat(file, &buf);"
+        },
+        {
+          "line": 381,
+          "text": "\tif (retval) {"
+        },
+        {
+          "line": 382,
+          "text": "\t\tfprintf(stderr, \"File %s could not be stat()'ed\\n\", location);"
+        },
+        {
+          "line": 383,
+          "text": "\t\tgoto error;"
+        },
+        {
+          "line": 384,
+          "text": "\t}"
+        },
+        {
+          "line": 385,
+          "text": ""
+        },
+        {
+          "line": 386,
+          "text": "\tif (do_file_mtime) {"
+        },
+        {
+          "line": 387,
+          "text": "\t\tmtime = default_mtime;"
+        },
+        {
+          "line": 388,
+          "text": "\t} else {"
+        },
+        {
+          "line": 389,
+          "text": "\t\tmtime = buf.st_mtime;"
+        },
+        {
+          "line": 390,
+          "text": "\t\tif (mtime > 0xffffffff) {"
+        },
+        {
+          "line": 648,
+          "text": "\tchar line[LINE_SIZE];"
+        },
+        {
+          "line": 649,
+          "text": "\tchar *args, *type;"
+        },
+        {
+          "line": 650,
+          "text": "\tint ec = 0;"
+        },
+        {
+          "line": 651,
+          "text": "\tint line_nr = 0;"
+        },
+        {
+          "line": 652,
+          "text": "\tconst char *filename;"
+        },
+        {
+          "line": 653,
+          "text": ""
+        },
+        {
+          "line": 654,
+          "text": "\tdefault_mtime = time(NULL);"
+        },
+        {
+          "line": 655,
+          "text": "\twhile (1) {"
+        },
+        {
+          "line": 656,
+          "text": "\t\tint opt = getopt(argc, argv, \"t:cho:a:\");"
+        },
+        {
+          "line": 657,
+          "text": "\t\tchar *invalid;"
+        },
+        {
+          "line": 658,
+          "text": ""
+        },
+        {
+          "line": 659,
+          "text": "\t\tif (opt == -1)"
+        },
+        {
+          "line": 660,
+          "text": "\t\t\tbreak;"
+        },
+        {
+          "line": 661,
+          "text": "\t\tswitch (opt) {"
+        },
+        {
+          "line": 662,
+          "text": "\t\tcase 't':"
+        },
+        {
+          "line": 663,
+          "text": "\t\t\tdefault_mtime = strtol(optarg, &invalid, 10);"
+        },
+        {
+          "line": 664,
+          "text": "\t\t\tif (!*optarg || *invalid) {"
+        },
+        {
+          "line": 665,
+          "text": "\t\t\t\tfprintf(stderr, \"Invalid timestamp: %s\\n\","
+        },
+        {
+          "line": 666,
+          "text": "\t\t\t\t\t\toptarg);"
+        },
+        {
+          "line": 667,
+          "text": "\t\t\t\tusage(argv[0]);"
+        },
+        {
+          "line": 668,
+          "text": "\t\t\t\texit(1);"
+        },
+        {
+          "line": 669,
+          "text": "\t\t\t}"
+        },
+        {
+          "line": 670,
+          "text": "\t\t\tdo_file_mtime = true;"
+        },
+        {
+          "line": 671,
+          "text": "\t\t\tbreak;"
+        },
+        {
+          "line": 672,
+          "text": "\t\tcase 'c':"
+        }
+      ]
+    },
+    "Documentation/kbuild/reproducible-builds.rst": {
+      "sha256": "b7aed70fd079216a968b65030626ffb929e75e983f7e3048fa4a24a7b2a930c1",
+      "lines": [
+        {
+          "line": 20,
+          "text": ""
+        },
+        {
+          "line": 21,
+          "text": "* The version string exposed by ``uname()`` and included in"
+        },
+        {
+          "line": 22,
+          "text": "  ``/proc/version``"
+        },
+        {
+          "line": 23,
+          "text": ""
+        },
+        {
+          "line": 24,
+          "text": "* File timestamps in the embedded initramfs"
+        },
+        {
+          "line": 25,
+          "text": ""
+        },
+        {
+          "line": 26,
+          "text": "* If enabled via ``CONFIG_IKHEADERS``, file timestamps of kernel"
+        },
+        {
+          "line": 27,
+          "text": "  headers embedded in the kernel or respective module,"
+        },
+        {
+          "line": 28,
+          "text": "  exposed via ``/sys/kernel/kheaders.tar.xz``"
+        },
+        {
+          "line": 29,
+          "text": ""
+        },
+        {
+          "line": 30,
+          "text": "By default the timestamp is the current time and in the case of"
+        },
+        {
+          "line": 31,
+          "text": "``kheaders`` the various files' modification times. This must"
+        },
+        {
+          "line": 32,
+          "text": "be overridden using the `KBUILD_BUILD_TIMESTAMP`_ variable."
+        },
+        {
+          "line": 33,
+          "text": "If you are building from a git commit, you could use its commit date."
+        },
+        {
+          "line": 34,
+          "text": ""
+        },
+        {
+          "line": 35,
+          "text": "The kernel does *not* use the ``__DATE__`` and ``__TIME__`` macros,"
+        },
+        {
+          "line": 36,
+          "text": "and enables warnings if they are used.  If you incorporate external"
+        },
+        {
+          "line": 37,
+          "text": "code that does use these, you must override the timestamp they"
+        },
+        {
+          "line": 38,
+          "text": "correspond to by setting the `SOURCE_DATE_EPOCH`_ environment"
+        },
+        {
+          "line": 39,
+          "text": "variable."
+        },
+        {
+          "line": 40,
+          "text": ""
+        },
+        {
+          "line": 41,
+          "text": "User, host"
+        },
+        {
+          "line": 42,
+          "text": "----------"
+        },
+        {
+          "line": 43,
+          "text": ""
+        },
+        {
+          "line": 44,
+          "text": "The kernel embeds the building user and host names in"
+        }
+      ]
+    }
+  },
+  "commands": {
+    "usr/.initramfs_data.cpio.cmd": {
+      "original_first_line": "savedcmd_usr/initramfs_data.cpio := sh /mnt/samurai-full282/source354/usr/gen_initramfs.sh -o usr/initramfs_data.cpio -l usr/.initramfs_data.cpio.d -u 0 -g 0  -d \"Tue Oct 20 03:03:47 UTC 2026\" /mnt/samurai-full282/input-initramfs363",
+      "rejected_first_line": "savedcmd_usr/initramfs_data.cpio := sh /mnt/samurai-full282/source354/usr/gen_initramfs.sh -o usr/initramfs_data.cpio -l usr/.initramfs_data.cpio.d -u 0 -g 0  -d \"Fri Oct 23 17:16:28 UTC 2026\" /mnt/samurai-full282/input-initramfs363"
+    },
+    "usr/.initramfs_inc_data.cmd": {
+      "original_first_line": "savedcmd_usr/initramfs_inc_data := cat usr/initramfs_data.cpio | gzip -n -f -9 > usr/initramfs_inc_data",
+      "rejected_first_line": "savedcmd_usr/initramfs_inc_data := cat usr/initramfs_data.cpio | gzip -n -f -9 > usr/initramfs_inc_data"
+    }
+  },
+  "uts_temporary": {
+    "old": "#define UTS_VERSION \"#363 SMP PREEMPT Tue Oct 20 03:03:47 UTC 2026\"\n",
+    "new": "#define UTS_VERSION \"#501 SMP PREEMPT Fri Oct 23 17:16:28 UTC 2026\"\n"
+  },
+  "rejected_outputs": {
+    "arch/arm64/boot/Image": {
+      "sha256": "25fd12e0d26fe894ae9995e061f6fef10c993c824d89245da0f37c47a67b379e",
+      "bytes": 59243008
+    },
+    "vmlinux": {
+      "sha256": "500a4cbf558442912557198a1a2ddf8031a23fbbfa291fe54ba47307f58f0da7",
+      "bytes": 190304432
+    },
+    "init/version.o": {
+      "sha256": "8c5b542fe301e26f7a9006fb0395429e20b6e5707bfc62495ff67d3e0b858a45",
+      "bytes": 31472
+    },
+    "init/version-timestamp.o": {
+      "sha256": "6d936dddc0a7c0dae85f618c8e403221656964aa7ce2990361a08b24d89eb9b5",
+      "bytes": 27040
+    },
+    "usr/initramfs_data.o": {
+      "sha256": "706adef31da46a93813873e077b6d6a08013b26b7401601e7c4fd62a366a1a49",
+      "bytes": 15064776
+    },
+    "usr/initramfs_data.cpio": {
+      "sha256": "3a12ca75a6d2272cd07a3513b5c4ca6e2a096fb6ca41ecbeb6fa79a94b64aa35",
+      "bytes": 29770752
+    },
+    "usr/initramfs_inc_data": {
+      "sha256": "fafc4e02a5b7fe2d4e97885ece6cb19a6fd87bf3d369837fa612a5fd2e7994db",
+      "bytes": 15063792
+    }
+  },
+  "original_initramfs_object_sha256": "2524437833f58ecd8410d6c1d740d0f412faaae85d3ae73c63d3f1f3607484de",
+  "original_initramfs_cpio_sha256": "fc1d27728b2ab7dc8c08b3a372b9f1a025a9db60faaad6b33001398e214c9669",
+  "original_initramfs_gzip_sha256": "319b665d4bdbf9647efb1ae1055438e5a7990c69e7016190c9625de414b81678",
+  "next_step_is_design_only": true,
+  "device_access": false
+}

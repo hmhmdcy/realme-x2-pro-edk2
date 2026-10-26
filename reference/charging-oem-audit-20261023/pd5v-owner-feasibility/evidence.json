@@ -1,0 +1,193 @@
+{
+  "sources": [
+    {
+      "name": "current_qcom_pdphy",
+      "path": "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/apsd-tcpm-owner-candidate/sources/drivers--usb--typec--tcpm--qcom--qcom_pmic_typec_pdphy.c",
+      "bytes": 17260,
+      "sha256": "d8a0e07371fa4dc1a2aa7066e5ad86c40777555c3a8a271b4cc68640b4ce0cf6",
+      "references": [
+        {
+          "function": "qcom_pmic_typec_pdphy_reset_on",
+          "first_line": 106,
+          "last_line": 125,
+          "meaning": "TX=0 then FILTER=0; void error logging"
+        },
+        {
+          "function": "qcom_pmic_typec_pdphy_disable",
+          "first_line": 484,
+          "last_line": 494,
+          "meaning": "EN=0 but void reset_on failure not propagated"
+        },
+        {
+          "function": "pmic_typec_pdphy_reset",
+          "first_line": 496,
+          "last_line": 508,
+          "meaning": "disable then re-enable, prohibited for disabled-only mode"
+        },
+        {
+          "function": "qcom_pmic_typec_pdphy_start",
+          "first_line": 510,
+          "last_line": 536,
+          "meaning": "enable supply/reset/PD IRQs"
+        },
+        {
+          "function": "qcom_pmic_typec_pdphy_stop",
+          "first_line": 538,
+          "last_line": 551,
+          "meaning": "IRQ disable/reset_work join/TX-filter zero/regulator reference drop, no EN/BIST clear"
+        }
+      ]
+    },
+    {
+      "name": "current_qcom_port",
+      "path": "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/apsd-tcpm-owner-candidate/sources/drivers--usb--typec--tcpm--qcom--qcom_pmic_typec_port.c",
+      "bytes": 21759,
+      "sha256": "5d3fa92de9ba2690ba93d52bbf2596f55882973e2dc2a8791ea98ef2ab16af1d",
+      "references": [
+        {
+          "first_line": 47,
+          "last_line": 59,
+          "meaning": "SM_STATUS VSAFE5V bit5, VSAFE0V bit6; MISC source/VBUS/CC facts"
+        },
+        {
+          "function": "qcom_pmic_typec_port_vbus_toggle",
+          "first_line": 293,
+          "last_line": 325,
+          "meaning": "actual SM vSafe status poll; not ACOK inference"
+        },
+        {
+          "function": "qcom_pmic_typec_port_start",
+          "first_line": 636,
+          "last_line": 695,
+          "meaning": "normal port_start writes TRY_SNK and configures/enables interrupts"
+        }
+      ]
+    },
+    {
+      "name": "current_qcom_parent",
+      "path": "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/apsd-tcpm-owner-candidate/sources/drivers--usb--typec--tcpm--qcom--qcom_pmic_typec.c",
+      "bytes": 3842,
+      "sha256": "02d6faab6ce98d69e267ea461df9ac87c604bcdccbd7af1793b361d36b4747cd",
+      "references": [
+        {
+          "function": "qcom_pmic_typec_probe",
+          "first_line": 31,
+          "last_line": 125,
+          "meaning": "normal real platform binding/start order; special branch placed before port_probe"
+        }
+      ]
+    },
+    {
+      "name": "current_tcpm",
+      "path": "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/apsd-tcpm-owner-candidate/sources/drivers--usb--typec--tcpm--tcpm.c",
+      "bytes": 254712,
+      "sha256": "e7e8b9c692e64782e3422ba8e1f79b21072ed89e1dce8751d53f4b197762c0ab",
+      "references": [
+        {
+          "function": "tcpm_reset_port",
+          "first_line": 5146,
+          "last_line": 5190,
+          "meaning": "reset local attached/pd_capable and disable receive on physical detach path"
+        },
+        {
+          "function": "tcpm_detach",
+          "first_line": 5192,
+          "last_line": 5207,
+          "meaning": "clear BIST then reset_port"
+        },
+        {
+          "first_line": 5778,
+          "last_line": 5797,
+          "meaning": "new SNK_STARTUP initializes message IDs and explicit_contract=false; a firmware inherited active connection is not this transition"
+        }
+      ]
+    },
+    {
+      "name": "OEM_AndroidR_pdphy",
+      "path": "/mnt/e/edk2-samurai-out/charging-management-20261023/pd5v-oem-private/androidr--qpnp-pdphy.c",
+      "bytes": 23300,
+      "sha256": "aee34f0586df32e0229bb83890bea399b635c73f8f7c5e9a9ecae67b201e0eeb",
+      "references": [
+        {
+          "function": "pd_phy_open",
+          "first_line": 358,
+          "last_line": 422,
+          "meaning": "GoodCRC roles, EN cycle, filter, opened and IRQ activation"
+        },
+        {
+          "function": "pd_phy_close",
+          "first_line": 575,
+          "last_line": 610,
+          "meaning": "opened false/IRQ off, BIST0, TX0, EN0, power-ref drop; void and incomplete errno/readback"
+        },
+        {
+          "function": "pd_phy_bist_mode",
+          "first_line": 694,
+          "last_line": 706,
+          "meaning": "independent BIST transmit/test producer requires explicit clear"
+        }
+      ]
+    },
+    {
+      "name": "OEM_19781_DTS",
+      "path": "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/apsd-lifecycle/oem/arch--arm64--boot--dts--19781--pm8150b.dtsi",
+      "bytes": 27579,
+      "sha256": "970787a485e8822baa7ef42816a23d4d24707119514e7b8293bcaa17b9a8fafe",
+      "references": [
+        {
+          "first_line": 608,
+          "last_line": 638,
+          "meaning": "PD PHY 1700/L2 supply/IRQ/default sink cap declaration; not actual active contract"
+        }
+      ]
+    },
+    {
+      "name": "OEM_SMB5_registers",
+      "path": "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/apsd-lifecycle/oem/drivers--power--supply--qcom--smb5-reg.h",
+      "bytes": 20095,
+      "sha256": "d8b7ac8b704f8c7be4399249296f0c7acc156e5b44db20c71f406142a179e508",
+      "references": [
+        {
+          "first_line": 307,
+          "last_line": 311,
+          "meaning": "1362 HVDCP AUTH/AUTO/ENABLE and BC source detection bit definitions"
+        },
+        {
+          "first_line": 419,
+          "last_line": 427,
+          "meaning": "1544 role/TRY/sink-only bits"
+        }
+      ]
+    },
+    {
+      "name": "actual_cached_R8_controls",
+      "path": "/mnt/e/RealmeX2Pro edk2/reference/charging-management-20261023/pd-controls-r8-result.json",
+      "bytes": 3127,
+      "sha256": "b31b31b10caa02477fb7be79b9c825e9aefc01b584a9424ec710e612ca13a65d",
+      "references": [
+        {
+          "meaning": "two real historical snapshots: 1544=2,1362=18,PD TX/EN/filter/BIST0; explicitly not PD-inactive proof, no off-vSafe0V capture"
+        }
+      ]
+    }
+  ],
+  "official_androidr": {
+    "url": "https://raw.githubusercontent.com/realme-kernel-opensource/realmeX2pro-X3-AndroidR-kernel-source/23172a1571bd91156032cc9fef16284a82b63d2c/drivers/usb/pd/qpnp-pdphy.c",
+    "commit": "23172a1571bd91156032cc9fef16284a82b63d2c",
+    "path": "drivers/usb/pd/qpnp-pdphy.c",
+    "private_path": "/mnt/e/edk2-samurai-out/charging-management-20261023/pd5v-oem-private/androidr--qpnp-pdphy.c",
+    "cached": false,
+    "bytes": 23300,
+    "sha256": "aee34f0586df32e0229bb83890bea399b635c73f8f7c5e9a9ecae67b201e0eeb"
+  },
+  "same_phy_bytes_in_old_official_source": true,
+  "fixed_Image363_linkage": {
+    "file": "../apsd-integration/current-r7/image-source-linkage.json",
+    "sha256": "bfec91db4e38b92017c30d9e3194425da0705fc6205d219461d216ff29faf242",
+    "scope": "three qcom original ba61 source files; current TCPM snapshot not falsely claimed byte-identical to original ba61"
+  },
+  "board_receipt_sha256": "9e139ae7a76f6ee8c6d56643a464586c55b0118bac4a1fc17124bfdf7a775f1d",
+  "PD_inactive_current_hardware_proven": false,
+  "physical_off_vSafe0V_current_hardware_proven": false,
+  "new_device_or_storage_read": false
+}

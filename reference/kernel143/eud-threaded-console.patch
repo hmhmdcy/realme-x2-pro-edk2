@@ -1,0 +1,168 @@
+--- a/drivers/tty/serial/eud.c
++++ b/drivers/tty/serial/eud.c
+@@ -41,6 +41,7 @@
+ #include <linux/kernel.h>
+ #include <linux/minmax.h>
+ #include <linux/module.h>
++#include <linux/mutex.h>
+ #include <linux/of.h>
+ #include <linux/of_irq.h>
+ #include <linux/platform_device.h>
+@@ -145,6 +146,7 @@
+ struct eud_port {
+         struct uart_port port;
+         struct work_struct tx_work;
++	struct mutex tx_mutex;
+         struct delayed_work rx_work;
+         u64 tx_journal_total;
+         u32 tx_journal_head;
+@@ -284,6 +286,7 @@
+         if (!port->state)
+                 return;
+         tport = &port->state->port;
++	mutex_lock(&up->tx_mutex);
+ 
+         for (;;) {
+                 unsigned long flags;
+@@ -310,6 +313,8 @@
+             uart_port_unlock_irqrestore(port, flags);
+         }
+ 
++	mutex_unlock(&up->tx_mutex);
++
+         if (kfifo_len(&tport->xmit_fifo) < WAKEUP_CHARS)
+                 uart_write_wakeup(port);
+ }
+@@ -359,6 +364,7 @@
+         if (!port->state)
+                 return;
+         tport = &port->state->port;
++	mutex_lock(&up->tx_mutex);
+ 
+         /*
+          * Drain what the tty queued.  The pacing has to run in process
+@@ -385,6 +391,7 @@
+             eud_send_frame(port, buf, n, EUD_TX_SOURCE_TTY);
+             uart_port_unlock_irqrestore(port, flags);
+         }
++	mutex_unlock(&up->tx_mutex);
+ }
+ 
+ static void eud_set_termios(struct uart_port *port, struct ktermios *new,
+@@ -439,7 +446,7 @@
+  * Console.  Registered only when "console=eud" is on the command line (see the
+  * file comment).  .device makes /dev/console bind to ttyEUD once the port is up.
+  */
+-static void eud_console_write(struct console *co, const char *s,
++static void eud_console_write_legacy(struct console *co, const char *s,
+                               unsigned int count)
+ {
+         struct uart_port *port;
+@@ -477,11 +484,97 @@
+                 mod_delayed_work(system_percpu_wq, &eud->rx_work, 0);
+ }
+ 
++/*
++ * Normal printing is serialized with TTY TX by a mutex, while the port lock
++ * protects just one complete FIFO frame and its RX collection. Keep the
++ * measured pacing: speeding up MMIO loses whole frames on this board.
++ *
++ * The UART driver deliberately has no .cons association: the EUD console is
++ * registered manually after probe. Port operations use their existing lock;
++ * normal console/TTY writers also share tx_mutex. No non-printing UART path
++ * tries to acquire a second nbcon NORMAL context while this writer owns it.
++ */
++static void eud_console_device_lock(struct console *co, unsigned long *flags)
++{
++	mutex_lock(&eud->tx_mutex);
++	migrate_disable();
++	*flags = 0;
++}
++
++static void eud_console_device_unlock(struct console *co, unsigned long flags)
++{
++	migrate_enable();
++	mutex_unlock(&eud->tx_mutex);
++}
++
++static void eud_console_write_thread(struct console *co,
++				     struct nbcon_write_context *wctxt)
++{
++	struct eud_port *up = eud;
++	unsigned int offset = 0;
++	bool kick = false, collect = true;
++
++	while (offset < wctxt->len) {
++		unsigned long flags;
++		unsigned int n;
++		bool owned;
++		int ret;
++
++		uart_port_lock_irqsave(&up->port, &flags);
++		if (!nbcon_enter_unsafe(wctxt)) {
++			uart_port_unlock_irqrestore(&up->port, flags);
++			break;
++		}
++
++		if (!offset) {
++			ret = eud_console_rx_locked(up);
++			kick = ret != 0;
++			collect = ret >= 0;
++		}
++
++		n = min_t(unsigned int, wctxt->len - offset, EUD_TX_CHUNK);
++		eud_send_frame(&up->port, (const u8 *)wctxt->outbuf + offset,
++			       n, EUD_TX_SOURCE_CONSOLE);
++		offset += n;
++		if (collect) {
++			ret = eud_console_rx_locked(up);
++			kick |= ret != 0;
++			collect = ret >= 0;
++		}
++
++		owned = nbcon_exit_unsafe(wctxt);
++		uart_port_unlock_irqrestore(&up->port, flags);
++		if (!owned)
++			break;
++		cond_resched();
++	}
++
++	if (kick && !READ_ONCE(up->rx_stopping))
++		mod_delayed_work(system_percpu_wq, &up->rx_work, 0);
++}
++
++/*
++ * The old atomic writer is retained only for final panic flushing. It takes
++ * the port lock and can hold IRQs off for an entire record, so it must never
++ * be advertised as a safe atomic nbcon callback or used for normal printk.
++ */
++static void eud_console_write_atomic(struct console *co,
++				     struct nbcon_write_context *wctxt)
++{
++	if (!nbcon_enter_unsafe(wctxt))
++		return;
++	eud_console_write_legacy(co, wctxt->outbuf, wctxt->len);
++	nbcon_exit_unsafe(wctxt);
++}
++
+ static struct console eud_console = {
+         .name   = "eud",
+-        .write  = eud_console_write,
++	.write_thread = eud_console_write_thread,
++	.write_atomic = eud_console_write_atomic,
++	.device_lock = eud_console_device_lock,
++	.device_unlock = eud_console_device_unlock,
+         .device = uart_console_device,
+-        .flags  = CON_PRINTBUFFER,
++	.flags = CON_PRINTBUFFER | CON_NBCON | CON_NBCON_ATOMIC_UNSAFE,
+         .index  = -1,
+         .data   = &eud_uart_driver,
+ };
+@@ -1222,6 +1315,7 @@
+         port->line     = 0;
+         port->uartclk  = 115200;
+         spin_lock_init(&port->lock);
++	mutex_init(&up->tx_mutex);
+ 
+         /* the EDK2 boot chain leaves EUD enabled; enable it if it did not */
+         writel_relaxed(1, port->membase + EUD_REG_CSR_EUD_EN);

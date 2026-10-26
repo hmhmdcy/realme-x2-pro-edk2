@@ -1,0 +1,72 @@
+0002a8c4 48 89 5c 24 08           mov      qword ptr [rsp + 8], rbx
+0002a8c9 57                       push     rdi
+0002a8ca 48 83 ec 30              sub      rsp, 0x30
+0002a8ce 8a 91 58 03 00 00        mov      dl, byte ptr [rcx + 0x358]
+0002a8d4 48 8b d9                 mov      rbx, rcx
+0002a8d7 80 fa 04                 cmp      dl, 4
+0002a8da 72 56                    jb       0x2a932
+0002a8dc 83 b9 dc 11 00 00 00     cmp      dword ptr [rcx + 0x11dc], 0
+0002a8e3 74 43                    je       0x2a928
+0002a8e5 48 8b 0d 14 f7 00 00     mov      rcx, qword ptr [rip + 0xf714]
+0002a8ec 8b 41 2c                 mov      eax, dword ptr [rcx + 0x2c]
+0002a8ef a8 01                    test     al, 1
+0002a8f1 74 35                    je       0x2a928
+0002a8f3 80 79 29 02              cmp      byte ptr [rcx + 0x29], 2
+0002a8f7 72 2f                    jb       0x2a928
+0002a8f9 48 8d 05 00 f7 00 00     lea      rax, [rip + 0xf700]
+0002a900 48 3b c8                 cmp      rcx, rax
+0002a903 74 23                    je       0x2a928
+0002a905 48 8b 49 18              mov      rcx, qword ptr [rcx + 0x18]
+0002a909 4c 8d 8b dc 03 00 00     lea      r9, [rbx + 0x3dc]
+0002a910 0f b6 c2                 movzx    eax, dl
+0002a913 4c 8d 05 a6 dc 00 00     lea      r8, [rip + 0xdca6]
+0002a91a ba 43 00 00 00           mov      edx, 0x43
+0002a91f 89 44 24 20              mov      dword ptr [rsp + 0x20], eax
+0002a923 e8 ec 25 00 00           call     0x2cf14 ; WPP_SF_sl
+0002a928 b8 01 00 00 c0           mov      eax, 0xc0000001
+0002a92d e9 a6 00 00 00           jmp      0x2a9d8
+0002a932 48 8b 49 10              mov      rcx, qword ptr [rcx + 0x10]
+0002a936 e8 91 cf fd ff           call     0x78cc ; QCINT_InitInterruptPipe
+0002a93b 48 8b cb                 mov      rcx, rbx
+0002a93e e8 89 96 ff ff           call     0x23fcc ; QCRD_StartReadThread
+0002a943 8b f8                    mov      edi, eax
+0002a945 85 c0                    test     eax, eax
+0002a947 78 0a                    js       0x2a953
+0002a949 48 8b cb                 mov      rcx, rbx
+0002a94c e8 83 75 00 00           call     0x31ed4 ; QCWT_StartWriteThread
+0002a951 8b f8                    mov      edi, eax
+0002a953 48 8d 8b 28 0c 00 00     lea      rcx, [rbx + 0xc28]
+0002a95a 45 33 c0                 xor      r8d, r8d
+0002a95d 33 d2                    xor      edx, edx
+0002a95f ff 15 8b d9 00 00        call     qword ptr [rip + 0xd98b]
+0002a965 48 8d 8b f8 0b 00 00     lea      rcx, [rbx + 0xbf8]
+0002a96c 45 33 c0                 xor      r8d, r8d
+0002a96f 33 d2                    xor      edx, edx
+0002a971 ff 15 79 d9 00 00        call     qword ptr [rip + 0xd979]
+0002a977 0f b6 93 d7 02 00 00     movzx    edx, byte ptr [rbx + 0x2d7]
+0002a97e 45 33 c9                 xor      r9d, r9d
+0002a981 48 8b 4b 10              mov      rcx, qword ptr [rbx + 0x10]
+0002a985 45 33 c0                 xor      r8d, r8d
+0002a988 e8 c3 2a 00 00           call     0x2d450 ; QCUSB_CDC_SetInterfaceIdle
+0002a98d 83 bb dc 11 00 00 00     cmp      dword ptr [rbx + 0x11dc], 0
+0002a994 74 40                    je       0x2a9d6
+0002a996 48 8b 0d 63 f6 00 00     mov      rcx, qword ptr [rip + 0xf663]
+0002a99d 8b 41 2c                 mov      eax, dword ptr [rcx + 0x2c]
+0002a9a0 a8 01                    test     al, 1
+0002a9a2 74 32                    je       0x2a9d6
+0002a9a4 80 79 29 04              cmp      byte ptr [rcx + 0x29], 4
+0002a9a8 72 2c                    jb       0x2a9d6
+0002a9aa 48 8d 05 4f f6 00 00     lea      rax, [rip + 0xf64f]
+0002a9b1 48 3b c8                 cmp      rcx, rax
+0002a9b4 74 20                    je       0x2a9d6
+0002a9b6 48 8b 49 18              mov      rcx, qword ptr [rcx + 0x18]
+0002a9ba 4c 8d 8b dc 03 00 00     lea      r9, [rbx + 0x3dc]
+0002a9c1 ba 44 00 00 00           mov      edx, 0x44
+0002a9c6 89 7c 24 20              mov      dword ptr [rsp + 0x20], edi
+0002a9ca 4c 8d 05 ef db 00 00     lea      r8, [rip + 0xdbef]
+0002a9d1 e8 3e 25 00 00           call     0x2cf14 ; WPP_SF_sl
+0002a9d6 8b c7                    mov      eax, edi
+0002a9d8 48 8b 5c 24 40           mov      rbx, qword ptr [rsp + 0x40]
+0002a9dd 48 83 c4 30              add      rsp, 0x30
+0002a9e1 5f                       pop      rdi
+0002a9e2 c3                       ret

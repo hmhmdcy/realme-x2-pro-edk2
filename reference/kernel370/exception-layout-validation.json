@@ -1,0 +1,60 @@
+{
+  "stage": 370,
+  "original_abort_entry_and_common_stores_executed": true,
+  "tests": [
+    {
+      "path": "data",
+      "exception_type": 3,
+      "synthetic_fsr": "0x5",
+      "synthetic_far": "0x741c000",
+      "actual_c_handler_argument": "0x248cc",
+      "passed": true
+    },
+    {
+      "path": "data",
+      "exception_type": 3,
+      "synthetic_fsr": "0x80d",
+      "synthetic_far": "0x10a00000",
+      "actual_c_handler_argument": "0x24a0c",
+      "passed": true
+    },
+    {
+      "path": "prefetch",
+      "exception_type": 1,
+      "synthetic_fsr": "0x5",
+      "synthetic_far": "0x741c000",
+      "actual_c_handler_argument": "0x248cc",
+      "passed": true
+    },
+    {
+      "path": "prefetch",
+      "exception_type": 1,
+      "synthetic_fsr": "0x80d",
+      "synthetic_far": "0x10a00000",
+      "actual_c_handler_argument": "0x24a0c",
+      "passed": true
+    }
+  ],
+  "fields": [
+    {
+      "name": "rex_abort_far",
+      "firmware_offset": "0x1099a0"
+    },
+    {
+      "name": "rex_abort_fsr",
+      "firmware_offset": "0x1099a4"
+    },
+    {
+      "name": "rex_exception_type",
+      "firmware_offset": "0x1099a8"
+    }
+  ],
+  "data_abort_type": 3,
+  "prefetch_abort_type": 1,
+  "abort_argument_is_adjusted_fault_pc": true,
+  "cp15_fault_registers_synthetic_and_rex_core_save_mocked": true,
+  "context_register_layout_not_inferred_from_this_stub": true,
+  "no_target_exception_decoded": true,
+  "phone_operations": false,
+  "passed": true
+}

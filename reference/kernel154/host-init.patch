@@ -1,0 +1,50 @@
+Subject: [PATCH] drm/msm/dsi: stop inherited host before power-on timing setup
+
+The first power-on may inherit an enabled firmware command engine. Writing
+native timings before disabling it and letting soft reset restore its old
+CTRL can resume a command frame without the native DPU being ready.
+Disable the host with clocks available before timing setup and reset.
+Keep the existing recovery reset semantics and normal native enable path.
+Retain bounded power-on snapshots to compare first boot with normal DPMS.
+
+---
+
+diff --git a/drivers/gpu/drm/msm/dsi/dsi_host.c b/drivers/gpu/drm/msm/dsi/dsi_host.c
+--- a/drivers/gpu/drm/msm/dsi/dsi_host.c
++++ b/drivers/gpu/drm/msm/dsi/dsi_host.c
+@@ -2517,6 +2517,19 @@
+ 			SFPB_GPREG_MASTER_PORT_EN(en));
+ }
+ 
++/* Called only with the host link clocks enabled, before enabling its IRQ. */
++static void dsi_log_power_on_state(struct msm_dsi_host *msm_host,
++				   const char *phase)
++{
++	dev_info(&msm_host->pdev->dev,
++		 "DSI power-on %s: CTRL=0x%x MDP2=0x%x DSC=0x%x TRIG=0x%x FIFO=0x%x\n",
++		 phase, dsi_read(msm_host, REG_DSI_CTRL),
++		 dsi_read(msm_host, REG_DSI_CMD_MODE_MDP_CTRL2),
++		 dsi_read(msm_host, REG_DSI_COMMAND_COMPRESSION_MODE_CTRL),
++		 dsi_read(msm_host, REG_DSI_TRIG_CTRL),
++		 dsi_read(msm_host, REG_DSI_FIFO_STATUS));
++}
++
+ int msm_dsi_host_power_on(struct mipi_dsi_host *host,
+ 			struct msm_dsi_phy_shared_timings *phy_shared_timings,
+ 			bool is_bonded_dsi, struct msm_dsi_phy *phy)
+@@ -2560,9 +2573,15 @@
+ 		goto fail_disable_clk;
+ 	}
+ 
++	dsi_log_power_on_state(msm_host, "inherited");
++	/* Do not resume a firmware command frame while replacing its timings. */
++	dsi_ctrl_disable(msm_host);
++	wmb(); /* Stop the inherited engine before changing its stream timing. */
++
+ 	dsi_timing_setup(msm_host, is_bonded_dsi);
+ 	dsi_sw_reset(msm_host);
+ 	dsi_ctrl_enable(msm_host, phy_shared_timings, phy);
++	dsi_log_power_on_state(msm_host, "native");
+ 
+ 	msm_host->power_on = true;
+ 	mutex_unlock(&msm_host->dev_mutex);

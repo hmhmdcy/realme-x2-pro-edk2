@@ -1,0 +1,110 @@
+--- a/reference/charging-management-20261023/mp2650-core.h
++++ b/reference/charging-management-20261023/mp2650-core.h
+@@ -39,15 +39,59 @@
+ 	return latched || fault || (error && !source_inhibit);
+ }
+ 
++enum sm_policy_reason {
++	SM_POLICY_REASON_NONE,
++	SM_POLICY_REASON_TEMPERATURE,
++	SM_POLICY_REASON_BAND_OVP,
++};
++
++static inline int sm_policy_reason_is_thermal(enum sm_policy_reason reason)
++{
++	return reason == SM_POLICY_REASON_TEMPERATURE ||
++		reason == SM_POLICY_REASON_BAND_OVP;
++}
++
++enum sm_thermal_hold { SM_THERMAL_NONE, SM_THERMAL_COLD, SM_THERMAL_HOT };
++struct sm_thermal_state { enum sm_thermal_hold hold; };
++
++/* OEM outer-boundary recovery hysteresis: 2 C (oplus_charger.c 4174-4266).
++ * Only eligible fresh samples may update history. The caller first evaluates
++ * all non-thermal errors; a thermal hold must never conceal an IO/hard fault.
++ * This deliberately preserves the existing strict half-open stop boundaries.
++ */
++static inline int sm_thermal_gate(struct sm_thermal_state *state,
++				  int temp_decic, int eligible)
++{
++	const int cold = sm_oem_bands[0].low;
++	const int hot = sm_oem_bands[sizeof(sm_oem_bands) /
++				       sizeof(sm_oem_bands[0]) - 1].high;
++
++	if (!eligible)
++		return state->hold != SM_THERMAL_NONE;
++	if (temp_decic < cold)
++		state->hold = SM_THERMAL_COLD;
++	else if (temp_decic >= hot)
++		state->hold = SM_THERMAL_HOT;
++	else if ((state->hold == SM_THERMAL_COLD && temp_decic < cold + 20) ||
++		 (state->hold == SM_THERMAL_HOT && temp_decic > hot - 20))
++		return 1;
++	else
++		state->hold = SM_THERMAL_NONE;
++	return state->hold != SM_THERMAL_NONE;
++}
++
+ /* The existing cell target is an upper ceiling, never an inferred safe target. */
+-static inline int sm_policy(const struct sm_sample *s, int cell_ceiling_uv,
++static inline int sm_policy_with_reason(const struct sm_sample *s, int cell_ceiling_uv,
+ 			   int current_cap_ua, int input_cap_ua,
+-			   struct sm_target *out)
++			   struct sm_target *out, enum sm_policy_reason *reason)
+ {
+ 	unsigned int i;
+ 	int cell_max, sum, delta;
+ 	const struct sm_band *b = 0;
+-
++	enum sm_policy_reason unused;
++
++	if (!reason) reason = &unused;
++	*reason = SM_POLICY_REASON_NONE;
+ 	*out = (struct sm_target){ 0 };
+ 	if (!s->valid || !s->protection_ok)
+ 		return -ENODATA;
+@@ -69,17 +113,25 @@
+ 	/* Candidate acquisition consistency bound, not an OEM calibration value. */
+ 	if (delta < -200000 || delta > 200000)
+ 		return -ENODATA;
++	/* A globally invalid target ceiling must not be hidden by a
++	 * simultaneous temperature or band-voltage inhibit. */
++	if (cell_ceiling_uv < 3712500)
++		return -ERANGE;
+ 	for (i = 0; i < sizeof(sm_oem_bands) / sizeof(sm_oem_bands[0]); i++)
+ 		if (s->temp_decic >= sm_oem_bands[i].low &&
+ 		    s->temp_decic < sm_oem_bands[i].high) {
+ 			b = &sm_oem_bands[i];
+ 			break;
+ 		}
+-	if (!b)
+-		return -ERANGE;
++	if (!b) {
++		*reason = SM_POLICY_REASON_TEMPERATURE;
++		return -ERANGE;
++	}
+ 	cell_max = s->cell1_uv > s->cell2_uv ? s->cell1_uv : s->cell2_uv;
+-	if (cell_max > b->cell_ovp_uv)
++	if (cell_max > b->cell_ovp_uv) {
++		*reason = SM_POLICY_REASON_BAND_OVP;
+ 		return -EOVERFLOW;
++	}
+ 	out->cell_uv = sm_min(b->cell_target_uv, cell_ceiling_uv);
+ 	if (out->cell_uv < 3712500 || out->cell_uv > 4500000)
+ 		return -ERANGE;
+@@ -89,6 +141,15 @@
+ 			       SM_OEM_INPUT_MAX_UA) / 50000 * 50000;
+ 	out->enable = 1;
+ 	return 0;
++}
++
++/* Compatibility wrapper: existing callers retain their return codes. */
++static inline int sm_policy(const struct sm_sample *s, int cell_ceiling_uv,
++			   int current_cap_ua, int input_cap_ua,
++			   struct sm_target *out)
++{
++	return sm_policy_with_reason(s, cell_ceiling_uv, current_cap_ua,
++				     input_cap_ua, out, 0);
+ }
+ 
+ static inline int sm_update(const struct sm_io *io, unsigned int reg,

@@ -1,0 +1,30 @@
+{
+  "stage": 372,
+  "tests": [
+    {
+      "case": "no-shared-pointer",
+      "actual_entry_destroy_and_mutex_destroy_instructions_executed": true,
+      "masked_object_pointer_and_fault_pc_match_real_snapshot": true,
+      "failure_occurs_before_response_two": true,
+      "passed": true
+    },
+    {
+      "case": "no-shared-size",
+      "actual_entry_destroy_and_mutex_destroy_instructions_executed": true,
+      "masked_object_pointer_and_fault_pc_match_real_snapshot": true,
+      "failure_occurs_before_response_two": true,
+      "passed": true
+    }
+  ],
+  "original_firmware_functions": [
+    "fwEntryFunction",
+    "ICPHostInterface_destroy",
+    "vSYS_DestroyMutex",
+    "DALSYS_DestroyObject"
+  ],
+  "os_alloc_threads_signal_destruction_logging_and_mmu_providers_mocked": true,
+  "shared_pointer_or_size_absence_reproduces_target_cleanup_load_fault": true,
+  "not_proof_that_target_csr_was_zero_or_hardware_reset_clears_csr": true,
+  "phone_operations": false,
+  "passed": true
+}

@@ -1,0 +1,56 @@
+{
+  "schema": 1,
+  "passed": true,
+  "reviewed_revision": 2,
+  "new_blockers": [],
+  "author_delivery_sha256": "210eff4787aaccafd16692d98f79ce395f032b66f1aa7b76ffc4ad9a341bf12b",
+  "controller_sha256": "98fb6dfd750cd1d273b4d59e4157b64c4481830265f1f95103ffd77c3edffdb8",
+  "R1_not_accepted": true,
+  "R1_finding_sha256": "0d5d5c46bf249074dace3833148f7f6a2b12649408dddf4319893bcebab1cd23",
+  "changed_functions": [
+    "ssh_worker",
+    "terminal_job"
+  ],
+  "unchanged_controller_functions": 27,
+  "outer_controller_source_unchanged": true,
+  "remote_supervisor_pins_and_export_context_unchanged": true,
+  "actual_new_cleanup_methods": 3,
+  "inherited_R1_methods": 12,
+  "old_suites_rerun": false,
+  "source_dependencies": {
+    "device_delivery": "6187ea66cedfb7eaf747f0894ec17d54da2cd278e3ef0460cf002ee7a3579ad2",
+    "device_contract": "13bc81d89bfe34e573b4a23287c7841c67cd82c563cfc3266004b9ab3eba0914",
+    "device_common": "715db6d6219fa69f4ffaacce53084d03ba085aa2c7d24d4cf41ba58f00b2d9c6",
+    "quiesce": "43c5bd1952949504e918c660b208ca6bb45cfa103be9c9be575268b64ef9036e",
+    "restart": "56a58c08bd3f79813d95955279f3ad07f7338d522239d32a7cfec4ea8d3b05be",
+    "stage_proof": "85c9cd2b728a547ba434322d47cc15d4aeb228ae77afebeb7edff1bd0422e093",
+    "stage_proof_frozen": "6f5a5b7e6ad2dcbb8a51115864571b44f1561eaddd4848a03f0687328fc4a3d3",
+    "postboot_host_delivery": "8a4301cb9850dcab65069f6ec0e2ca47b8be72b1fcbb2676357863518f640d2a",
+    "operator_delivery": "ff8051089bc6306f9cfbf29914f8531fa4d627cc0661a5b7e7401ec42f362a41",
+    "key_transport": "7f49a922e0babf167c77ad6e9bd7edf63e437418d5134e3d081fb8a0082a4f4c",
+    "baseline_controller": "7c1a3d9a02f63020ec5bbcd921c2f8e2a488166d2f7ce9cd4f6b7476c5ba64dd",
+    "baseline_remote": "ba0a070fc88777e548a4ae93479f47b621cfb5392b4f9b9f088a840d23001a8a",
+    "baseline_supervisor": "b29ab985159ecc911571514cdc5fa72a1a44886037e35ff024dfa6fe623440cc",
+    "camera_wrapper": "1c4584915dade64a0978a0138c6775bf99e56af9f8036d7d2276c33f132f4705"
+  },
+  "accepted_boundaries": [
+    "owned stdin close attempted before the same child wait, with no kill or retry",
+    "close/wait/log/hash/publication failures retained and finalization cleanliness required for terminal qualification",
+    "unchanged service flock handoff and both supervisor/worker terminal-zero quiesce qualification",
+    "unchanged source-authenticated bind, once mutation and seven-original operator-compatible context export"
+  ],
+  "limitations": [
+    "receipt capture failure can still transmit input; receipt_error blocks promotion but does not prove no action occurred",
+    "a failed pipe close or wait does not prove the original child ended; unknown intent remains consumed",
+    "original request/input intent is durable before Popen; no automatic replay or reconstructed identity",
+    "author fake process/material boundaries and unchanged prior context compatibility are not real activation evidence"
+  ],
+  "author_import_entry_or_test_executed": false,
+  "device_SSH_USB_build_SDK_Git_used": false,
+  "actual_activation_or_physical_acceptance": false,
+  "own_files": {
+    "review.py": "3ba676d499d61e5c984adec97eb1fe03978f8388d576c1eab6fc80b2d8219aaf",
+    "README.md": "bcc01e39a61d98c4bfe460fb11f9993baa6cb5c4882d551607166d56e460693d",
+    "r1-stdin-eof-finding.json": "0d5d5c46bf249074dace3833148f7f6a2b12649408dddf4319893bcebab1cd23"
+  }
+}

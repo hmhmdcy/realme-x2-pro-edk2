@@ -1,0 +1,141 @@
+{
+  "vectors": [
+    {
+      "name": "FC_after_unplug_negative_AI",
+      "source_online": 0,
+      "source_budget_ua": 0,
+      "fc": 1,
+      "ai_ma": -5,
+      "instantaneous_ma": -200,
+      "kernel_status": "Full",
+      "upower_battery_state": "FullyCharged",
+      "phosh_selected_icon": "battery-level-100-charged-symbolic"
+    },
+    {
+      "name": "FC_while_external_negative_AI",
+      "source_online": 1,
+      "source_budget_ua": 100000,
+      "fc": 1,
+      "ai_ma": -5,
+      "instantaneous_ma": -5,
+      "kernel_status": "Full",
+      "upower_battery_state": "FullyCharged",
+      "phosh_selected_icon": "battery-level-100-charged-symbolic"
+    },
+    {
+      "name": "old_positive_AI_after_unplug",
+      "source_online": 0,
+      "source_budget_ua": 0,
+      "fc": 0,
+      "ai_ma": 5,
+      "instantaneous_ma": -200,
+      "kernel_status": "Charging",
+      "upower_battery_state": "Charging",
+      "phosh_selected_icon": "battery-level-80-charging-symbolic"
+    },
+    {
+      "name": "external_SDP100_negative_net_AI",
+      "source_online": 1,
+      "source_budget_ua": 100000,
+      "fc": 0,
+      "ai_ma": -4,
+      "instantaneous_ma": -4,
+      "kernel_status": "Discharging",
+      "upower_battery_state": "Discharging",
+      "phosh_selected_icon": "battery-level-80-symbolic"
+    },
+    {
+      "name": "zero_AI_external",
+      "source_online": 1,
+      "source_budget_ua": 100000,
+      "fc": 0,
+      "ai_ma": 0,
+      "instantaneous_ma": 0,
+      "kernel_status": "Not charging",
+      "upower_battery_state": "PendingCharge",
+      "phosh_selected_icon": "battery-level-80-symbolic"
+    },
+    {
+      "name": "charging_at_100_selects_charged_icon",
+      "source_online": 1,
+      "source_budget_ua": 500000,
+      "fc": 0,
+      "ai_ma": 5,
+      "instantaneous_ma": 5,
+      "kernel_status": "Charging",
+      "upower_battery_state": "Charging",
+      "phosh_selected_icon": "battery-level-100-charged-symbolic"
+    }
+  ],
+  "chain_cases": 6,
+  "override_cases": 2,
+  "passed": true,
+  "source_files": {
+    "E:\\RealmeX2Pro edk2\\reference\\charging-ui-audit-20261023\\kernel-bq27xxx_battery.c": "b2cd415a995cb196559c0e4981988f737c17c98486449659d168314926aec69e",
+    "E:\\RealmeX2Pro edk2\\reference\\charging-ui-audit-20261023\\upower-up-device-supply.c": "20b01293635d0ab7abc9836815ea794efc1551e0996142daf5e7f483257fdbe6",
+    "E:\\RealmeX2Pro edk2\\reference\\charging-ui-audit-20261023\\upower-up-device-supply-battery.c": "93422b2eea6de088b64d91bb6c4e053c339f1a2506b0b8b6e3fc6527e28f143a",
+    "E:\\RealmeX2Pro edk2\\reference\\charging-ui-audit-20261023\\phosh-battery-manager.c": "6a03bf691b9591dda12bb9058f92fb71bbbc102b7b9418b399f7ce18f5122df4"
+  },
+  "fragments": {
+    "kernel-full.inc": {
+      "source": "E:\\RealmeX2Pro edk2\\reference\\charging-ui-audit-20261023\\kernel-bq27xxx_battery.c",
+      "first_line": 1845,
+      "last_line": 1853,
+      "sha256_lf": "00229f343cda48cdee0abd611d98ce1181e75a2c7fb134d80427a7553a7771f2"
+    },
+    "kernel-status.inc": {
+      "source": "E:\\RealmeX2Pro edk2\\reference\\charging-ui-audit-20261023\\kernel-bq27xxx_battery.c",
+      "first_line": 1860,
+      "last_line": 1913,
+      "sha256_lf": "d4b8814d21d01935ddb2c163f1c1ade6ce68109c0447511dab054b7530ebac87"
+    },
+    "upower-state.inc": {
+      "source": "E:\\RealmeX2Pro edk2\\reference\\charging-ui-audit-20261023\\upower-up-device-supply.c",
+      "first_line": 170,
+      "last_line": 199,
+      "sha256_lf": "99afd81e0da264a128bd5db89b77a180f91aaf059d3dca9a977d9781377b49ba"
+    },
+    "upower-override.inc": {
+      "source": "E:\\RealmeX2Pro edk2\\reference\\charging-ui-audit-20261023\\upower-up-device-supply-battery.c",
+      "first_line": 523,
+      "last_line": 528,
+      "sha256_lf": "9366a835a6593e8c003bedf97a547a2f99d0955c4094fac6ddb7e78388595637"
+    },
+    "phosh-icon.inc": {
+      "source": "E:\\RealmeX2Pro edk2\\reference\\charging-ui-audit-20261023\\phosh-battery-manager.c",
+      "first_line": 62,
+      "last_line": 74,
+      "sha256_lf": "bdfbe8715a1a72c8c7d41a5403495c7c889ceea3950d056b013b820dc5377c5f"
+    }
+  },
+  "command": [
+    "wsl",
+    "-d",
+    "Ubuntu",
+    "-u",
+    "root",
+    "--",
+    "gcc",
+    "-std=c11",
+    "-g",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-fsanitize=address,undefined",
+    "-fno-omit-frame-pointer",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/icon-semantics/test-icons.c",
+    "-lm",
+    "-o",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/icon-semantics/test-icons"
+  ],
+  "stderr": "",
+  "sanitizers": [
+    "ASan",
+    "UBSan"
+  ],
+  "phone_accessed": false,
+  "production_modified": false,
+  "actual_display_aggregation_executed": false,
+  "screen_render_latency_measured": false,
+  "scope": "Cached actual kernel functions, UPower source-state/negative-current branch and Phosh icon selection branch; synthetic inputs, not event timing or root-cause proof"
+}

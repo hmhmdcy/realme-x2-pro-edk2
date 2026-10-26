@@ -1,0 +1,39 @@
+--- a/src/libcamera/base/event_dispatcher_poll.cpp
++++ b/src/libcamera/base/event_dispatcher_poll.cpp
+@@ -249,6 +249,11 @@
+ 		{ EventNotifier::Write, POLLOUT },
+ 	};
+ 
++	/* Synchronous IPC can dispatch events recursively from a notifier.
++	 * Keep every map entry alive until the outermost dispatch has finished:
++	 * an outer poll snapshot and callback may still refer to those entries.
++	 */
++	const bool wasProcessingEvents = processingEvents_;
+ 	processingEvents_ = true;
+ 
+ 	for (const pollfd &pfd : pollfds) {
+@@ -280,12 +285,19 @@
+ 				notifier->activated.emit();
+ 		}
+ 
+-		/* Erase the notifiers_ entry if it is now empty. */
++	}
++
++	processingEvents_ = wasProcessingEvents;
++	if (processingEvents_)
++		return;
++
++	for (auto iter = notifiers_.begin(); iter != notifiers_.end();) {
++		const EventNotifierSetPoll &set = iter->second;
+ 		if (!set.notifiers[0] && !set.notifiers[1] && !set.notifiers[2])
+-			notifiers_.erase(iter);
+-	}
+-
+-	processingEvents_ = false;
++			iter = notifiers_.erase(iter);
++		else
++			++iter;
++	}
+ }
+ 
+ void EventDispatcherPoll::processTimers()

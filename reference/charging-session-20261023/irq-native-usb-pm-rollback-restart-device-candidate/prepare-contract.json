@@ -1,0 +1,23 @@
+{
+  "schema": "samurai-irq-native-usb-pm-rollback-restart-contract-v1",
+  "source_only": true,
+  "guard_schema": "samurai-irq-native-usb-pm-rollback-restart-v1",
+  "context_schema": "samurai-irq-native-usb-pm-rollback-fastboot-context-v1",
+  "transaction_regex": "irq-native-usb-pm-rollback-activate-[a-z0-9-]{8,48}",
+  "fixed_guard_fields": {
+    "kernel_release": "7.3.0-rc6-rmx1931-samurai-k363+",
+    "unchanged_boot_sha256": "eddadec33fcd1d114c45af76cb9fc6d6b5f1de2c81c0e9fada099c5b884f6e06",
+    "current_boot_sha256": "eddadec33fcd1d114c45af76cb9fc6d6b5f1de2c81c0e9fada099c5b884f6e06",
+    "rollback_logdump_sha256": "ace2e261bbfbd923fc3e631e857163f172d09bfb3489f7107782394fbf763ed1",
+    "boot_bytes": 100663296,
+    "logdump_bytes": 67108864,
+    "partitions": ["logdump"],
+    "disk_state": "all_original_fsynced",
+    "runtime_validation_accepted": false
+  },
+  "dynamic_profile_fields": ["kernel_version", "profile", "current_logdump_sha256", "resident_notes", "current_cache"],
+  "operator_actions": ["inspect", "rollback-original", "reboot-original"],
+  "runtime_acceptance": "Requires later new boot502/ace2 with original7cb USB and retained97c/7848, actual health/source/camera and recovery verification.",
+  "host_wiring_complete": false,
+  "device_accessed": false
+}

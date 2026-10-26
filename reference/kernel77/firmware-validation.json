@@ -1,0 +1,106 @@
+{
+  "boot_gzip_crc_pass": true,
+  "old_boot_matches_backed_up_fv": true,
+  "embedded_fd_matches": true,
+  "fd_bytes": 7340032,
+  "bootshim_bytes": 144,
+  "bootshim_sha256": "7f64231d4fc8b9611edadc1871338535675a761683d932d35c422b3092789a91",
+  "compact_lzma_matches_main_fv": true,
+  "firmware_dtb_raw_section_matches": true,
+  "ffs_header_checksums_pass": true,
+  "fv_header_checksums_pass": true,
+  "android_header_unchanged_except_size_and_digest": true,
+  "compat_append_unchanged": true,
+  "cmdline_preserved": "earlycon=eud,mmio,0x88e0000 console=tty0 console=eud loglevel=7 ignore_loglevel panic=15 clk_ignore_unused pd_ignore_unused regulator_ignore_unused",
+  "module_count": 101,
+  "semantic_dtb_changes": {
+    "only_i2c15_status_frequency_and_gauge_added": true,
+    "changed_properties": [
+      {
+        "path": "/soc@0/geniqup@cc0000/i2c@c94000",
+        "property": "clock-frequency",
+        "before": null,
+        "after": "000186a0"
+      },
+      {
+        "path": "/soc@0/geniqup@cc0000/i2c@c94000",
+        "property": "status",
+        "before": "64697361626c656400",
+        "after": "6f6b617900"
+      }
+    ],
+    "added_node": "/soc@0/geniqup@cc0000/i2c@c94000/fuel-gauge@55",
+    "added_properties": {
+      "compatible": "74692c627132387a36313000",
+      "reg": "00000055"
+    },
+    "charger_nodes_absent": true
+  },
+  "firmware_version_before": "20a1d60",
+  "firmware_version_after": "136157b",
+  "other_executable_bytes_unchanged": true,
+  "changed_modules": [
+    {
+      "guid": "bad0554e-22e9-4d83-9afd-cc87727a1a45",
+      "name": "PlatformSmbiosDxe",
+      "before_size": 36992,
+      "after_size": 36992,
+      "classification": "firmware_version_string_only",
+      "before_sha256": "a0843ad37fa3fef44c523660ba14eefcf079c16a111ad71d1bb33e17d662d176",
+      "after_sha256": "3a40c6b948dec475979ba883fb20f6bb5ab75f06ff288e4a1e80b97fc3bf47d8",
+      "changed_sections": [
+        "0x10"
+      ]
+    },
+    {
+      "guid": "6d33944a-ec75-4855-a54d-809c75241f6c",
+      "name": "BdsDxe",
+      "before_size": 110714,
+      "after_size": 110714,
+      "classification": "firmware_version_string_only",
+      "before_sha256": "d91eeecb90ecc4e4dec4810b014e395cee2e7553c38e3145ea9fdf2c4779e718",
+      "after_sha256": "b7c7120a677118486d02d43995935462275ff843e4e5c1138fc33fa7e5743696",
+      "changed_sections": [
+        "0x10"
+      ]
+    },
+    {
+      "guid": "462caa21-7614-4503-836e-8ab6f4662331",
+      "name": "UiApp",
+      "before_size": 200800,
+      "after_size": 200800,
+      "classification": "firmware_version_string_only",
+      "before_sha256": "fba8c17db1ba32ee40ace3ece2b9dfbee043547ebc982aa93b5e3b60669a4a6a",
+      "after_sha256": "220c296280743e559975ad72b38215c68b682792749b0fa7dec1de1def342f0f",
+      "changed_sections": [
+        "0x10"
+      ]
+    },
+    {
+      "guid": "25462cda-221f-47df-ac1d-259cfaa4e326",
+      "name": "",
+      "before_size": 96828,
+      "after_size": 96904,
+      "classification": "i2c15_readonly_bq28z610",
+      "before_sha256": "1b8a1bd0b1bfcfaed5096f8f191bb936a99d22ad1a34c399fd7530a9ae82e8fe",
+      "after_sha256": "939073fd4a082af94fa0afee2bd09191c09f921b7baee9ec59ce47d2fb90ade6",
+      "changed_sections": [
+        "0x19"
+      ]
+    }
+  ],
+  "changed_compact_modules": [
+    {
+      "guid": "8af09f13-44c5-96ec-1437-dd899cb5ee5d",
+      "name": "",
+      "type": "0x3"
+    },
+    {
+      "guid": "9e21fd93-9c72-4c15-8c4b-e77f1db2d792",
+      "name": "",
+      "type": "0xb"
+    }
+  ],
+  "boot_after_bytes": 6680576,
+  "boot_after_sha256": "3fbbd0eecf7e793f97920d55bd9ec2a30329d6e53edb307200160a23e1de923e"
+}

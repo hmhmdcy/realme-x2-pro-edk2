@@ -1,0 +1,140 @@
+--- frozen-first-attempt/run-B.py
++++ repro-candidate/run-B.py
+@@ -1,4 +1,4 @@
+-"""Private B501 from byte-exact Image363 baseline. No device or boot packaging."""
++"""Private B501 with original reproducible timestamp. No device or boot packaging."""
+ from pathlib import Path
+ from datetime import datetime, timezone
+ import hashlib, importlib.util, json, os, shutil, subprocess, sys, time
+@@ -7,10 +7,15 @@
+ REF=HERE.parents[1]
+ BASELEAF=HERE.parent/'gauge-image363-baseline'
+ BASE=Path('/home/cy122/charging-management-20261023/gauge-image363-baseline-01')
+-OUT=Path('/home/cy122/charging-management-20261023/gauge-image501-B-01')
++OUT=Path('/home/cy122/charging-management-20261023/gauge-image501-B-repro-01')
++FAILED=Path('/home/cy122/charging-management-20261023/gauge-image501-B-01')
+ FROZEN=REF/'charging-oem-audit-20261023/gauge-current-samurai-candidate/bq27xxx_battery.c'
+ REL='drivers/power/supply/bq27xxx_battery.c'
+ B_SHA='0aa3c533bab0ec9219364af5328d353334cbf5112f97c8529aa162f95fd88ffe'
++RAMFS_EXPECTED={
++ 'usr/initramfs_data.cpio':'fc1d27728b2ab7dc8c08b3a372b9f1a025a9db60faaad6b33001398e214c9669',
++ 'usr/initramfs_inc_data':'319b665d4bdbf9647efb1ae1055438e5a7990c69e7016190c9625de414b81678',
++ 'usr/initramfs_data.o':'2524437833f58ecd8410d6c1d740d0f412faaae85d3ae73c63d3f1f3607484de'}
+ spec=importlib.util.spec_from_file_location('frozen_363_baseline',BASELEAF/'run-baseline.py')
+ base=importlib.util.module_from_spec(spec);spec.loader.exec_module(base)
+ assert base.sha(BASELEAF/'run-baseline.py')=='136a60e4815014b4fc1afc221f2abfcd39935440def62af081059ee1e2b58650'
+@@ -75,9 +80,16 @@
+         stub_delta=[r for r in delta if r['path'] in stub]
+         save(OUT/'actual-link-input-delta.json',delta);save(OUT/'actual-leaf-delta.json',leaf_delta)
+         save(OUT/'closure-final.json',after)
+-        assert [r['path'] for r in leaf_delta]==['drivers/power/supply/bq27xxx_battery.o']
++        assert [r['path'] for r in leaf_delta]==['drivers/power/supply/bq27xxx_battery.o','init/version.o']
+         assert not stub_delta
+         assert after['init/version-timestamp.o']!=original['init/version-timestamp.o']
++        # These remain real original bytes; no archive/header or object patching.
++        ramfs={n:sha(BUILD/n) for n in ['usr/initramfs_data.cpio','usr/initramfs_inc_data','usr/initramfs_data.o']}
++        assert ramfs==RAMFS_EXPECTED
++        proof_spec=importlib.util.spec_from_file_location('metadata_proof',HERE/'metadata-proof.py')
++        proof_module=importlib.util.module_from_spec(proof_spec);proof_spec.loader.exec_module(proof_module)
++        metadata=proof_module.prove(BASE/'build',BUILD)
++        save(OUT/'metadata-section-proof.json',metadata)
+         old_exports=symvers(BASE/'build/Module.symvers')
+         new_exports=symvers(BUILD/'vmlinux.symvers')
+         save(OUT/'builtin-exports-original.json',old_exports);save(OUT/'builtin-exports-candidate.json',new_exports)
+@@ -92,14 +104,15 @@
+             'arch/arm64/boot/Image','vmlinux','System.map','vmlinux.symvers','drivers/power/supply/bq27xxx_battery.o','init/version-timestamp.o']}
+         assert outputs['arch/arm64/boot/Image']['sha256']!=base.EXPECTED['Image']
+         result={'passed':True,'identity':identity,'outputs':outputs,'source_sha256':B_SHA,
+-                'leaf_delta':leaf_delta,'unchanged_other_leaf_count':len(leaves)-1,'unchanged_libstub_count':len(stub),
++                'leaf_delta':leaf_delta,'unchanged_other_leaf_count':len(leaves)-2,'unchanged_libstub_count':len(stub),
++                'metadata_proof':metadata,'initramfs_exact_original_hashes':ramfs,
+                 'builtin_export_count':len(new_exports),'builtin_exports_exact_original_rows':True,
+                 'config_exact_original':True,'release_unchanged':True,'initramfs_unchanged':True,
+                 'module_files_written':False,'B_default_false_unchanged':True,'bootargs_changed':False,
+                 'DTB_modules_install_packaging':False,'device_access':False,'physical_validation':False}
+         save(OUT/'build-result.json',result)
+         state.update(terminal=True,phase='passed',returncode=0);save(OUT/'child-state.json',state)
+-        event('B-build-passed',outputs=outputs,remaining_leaf_count=len(leaves)-1)
++        event('B-build-passed',outputs=outputs,remaining_leaf_count=len(leaves)-2)
+         return 0
+     except BaseException as e:
+         state.update(terminal=True,phase='failed',returncode=1,error=repr(e));save(OUT/'child-state.json',state)
+@@ -113,6 +126,7 @@
+     for n,d in frozen['files'].items():assert sha(BASELEAF/n)==d,n
+     baseline=json.loads((BASELEAF/'result.json').read_bytes());assert baseline['passed']
+     assert sha(FROZEN)==B_SHA
++    assert {n:sha(BASE/'build'/n) for n in RAMFS_EXPECTED}==RAMFS_EXPECTED
+     spec=importlib.util.spec_from_file_location('original_storage284',REF/'kernel284/storage.py')
+     storage=importlib.util.module_from_spec(spec);spec.loader.exec_module(storage)
+     assert storage.mounted_build()==BUILD
+@@ -120,11 +134,16 @@
+     mount_sha=hashlib.sha256(('\n'.join(mount_before)+'\n').encode()).hexdigest()
+     shared_names=['.config','Module.symvers','arch/arm64/boot/Image','vmlinux','drivers/power/supply/bq27xxx_battery.o']
+     shared_before={n:sha(BUILD/n) for n in shared_names}
++    failed_paths=[FAILED/'result.json',FAILED/'build/arch/arm64/boot/Image',FAILED/'build/vmlinux',
++                  FAILED/'build/usr/initramfs_data.cpio',FAILED/'build/usr/initramfs_inc_data',
++                  FAILED/'build/usr/initramfs_data.o',FAILED/'source354'/REL]
++    failed_before={str(p):sha(p) for p in failed_paths}
+     OUT.mkdir(parents=True)
+     stamp=datetime.now(timezone.utc)
+     identity={'KBUILD_BUILD_USER':'builder','KBUILD_BUILD_HOST':'samurai','KBUILD_BUILD_VERSION':'501',
+-              'KBUILD_BUILD_TIMESTAMP':stamp.strftime('%a %b %d %H:%M:%S UTC %Y'),
+-              'utc':stamp.isoformat(),'UTS_RELEASE':'7.3.0-rc6-rmx1931-samurai-k363+',
++              'KBUILD_BUILD_TIMESTAMP':'Tue Oct 20 03:03:47 UTC 2026',
++              'timestamp_semantics':'Explicit original Image363 reproducible timestamp; not actual compile UTC',
++              'actual_build_utc':stamp.isoformat(),'UTS_RELEASE':'7.3.0-rc6-rmx1931-samurai-k363+',
+               'source_commit_base':base.COMMIT,'frozen_B_source_sha256':B_SHA,'default_parameter':False}
+     save(OUT/'identity.json',identity)
+     save(OUT/'execution.json',{'pid':os.getpid(),'runner_sha256':sha(__file__),'baseline_delivery_sha256':sha(BASELEAF/'delivery.json')})
+@@ -162,10 +181,12 @@
+             preserved[name]=after==snapshots[name]
+         parent_mounts_unchanged=base.mounts()==mount_before
+         shared_after={n:sha(BUILD/n) for n in shared_names}
+-        result={'passed':ret==0 and all(preserved.values()) and parent_mounts_unchanged and shared_before==shared_after,
++        failed_after={str(p):sha(p) for p in failed_paths}
++        result={'passed':ret==0 and all(preserved.values()) and parent_mounts_unchanged and shared_before==shared_after and failed_before==failed_after,
+                 'private_output':str(OUT),'child_returncode':ret,'baseline_trees_preserved':preserved,
+                 'parent_mounts_unchanged':parent_mounts_unchanged,'parent_namespace_unchanged':base.namespace()==parent_ns,
+                 'shared_before':shared_before,'shared_after':shared_after,'shared_critical_inputs_unchanged':shared_before==shared_after,
++                'failed_originals_before':failed_before,'failed_originals_after':failed_after,'failed_originals_preserved':failed_before==failed_after,
+                 'B_source_sha256':B_SHA,'identity':identity,'device_access':False,'SDK_access':False,
+                 'new_boot_or_modules_or_DTB':False}
+         if (OUT/'build-result.json').is_file(): result['build']=json.loads((OUT/'build-result.json').read_bytes())
+--- frozen-first-attempt/audit-abi.py
++++ repro-candidate/audit-abi.py
+@@ -1,10 +1,10 @@
+-"""Read the terminal private B501 outputs and cached modules; never build/mount."""
++"""Read terminal B501/cache outputs; original284 guard only, no build/SDK bind."""
+ from pathlib import Path
+ import hashlib, importlib.util, json, os, re, subprocess, sys
+ sys.dont_write_bytecode=True
+ HERE=Path(__file__).resolve().parent
+ REF=HERE.parents[1]
+-OUT=Path('/home/cy122/charging-management-20261023/gauge-image501-B-01')
++OUT=Path('/home/cy122/charging-management-20261023/gauge-image501-B-repro-01')
+ BASE=Path('/home/cy122/charging-management-20261023/gauge-image363-baseline-01')
+ PRIVATE=Path('/mnt/e/edk2-samurai-out')
+ spec=importlib.util.spec_from_file_location('frozen_baseline',HERE.parent/'gauge-image363-baseline/run-baseline.py')
+@@ -12,6 +12,9 @@
+ sha=base.sha;save=base.save
+ result=json.loads((HERE/'build-result.json').read_bytes())
+ assert result['passed'] and json.loads((OUT/'namespace-process.json').read_bytes())['terminal']
++storage_spec=importlib.util.spec_from_file_location('original_storage284',REF/'kernel284/storage.py')
++storage=importlib.util.module_from_spec(storage_spec);storage_spec.loader.exec_module(storage)
++assert storage.mounted_build()==base.BUILD
+ BUILD=OUT/'build'
+ def output(argv):return subprocess.check_output(argv,text=True)
+ def symbols(path):
+@@ -126,9 +129,12 @@
+  'public_headers_unchanged':True,'source_changes':source_delta,
+  'vmlinux_archive_member_order_exact':True,'libstub_member_order_exact':True,
+  'B_param_zero_initialized_BSS':True,'B_param_permission_octal':'0444',
++ 'metadata_section_proof_sha256':sha(OUT/'metadata-section-proof.json'),
++ 'initramfs_cpio_gzip_object_exact_original':result['build']['initramfs_exact_original_hashes'],
+  'all_object_delta':object_delta,'compiler_diagnostics':diagnostics,
+  'compatibility_scope':'Unchanged CONFIG/release/headers and non-gauge builtins; exact export names/classes/namespaces and cached module import/provider names. Zero CRC with MODVERSIONS off is not separate type ABI proof. No new runtime/module-load attestation.',
+  'old_function_or_object_test_suites_rerun':False,'device_access':False,
++ 'original_storage284_guard_used':True,'SDK_access':False,'new_kernel_build':False,
+  'private_receipts':{n:sha(OUT/n) for n in ['all-object-delta.json','original-module-imports.json','camera481-cached-module-imports.json',
+  'namespace-proof.json','source-delta.json','commands.json','phases.json','identity.json','result.json','build-result.json']},
+  'logs':{p.name:{'bytes':p.stat().st_size,'sha256':sha(p)} for p in OUT.glob('*.log')}}

@@ -1,0 +1,337 @@
+Subject: [PATCH] software_isp: gather spatial RAW focus statistics
+
+Add bounded green-channel contrast statistics before software colour processing.
+Return the combined measurement through standard FocusFoM metadata, only when
+the statistics snapshot belongs to this frame. Sample all supported packed and
+unpacked Bayer formats, using the correct native quad green phase where needed.
+
+This supplies measurement infrastructure for contrast AF. It implements neither
+AF search nor a DAC-to-dioptre calibration, and contains no board/lens policy.
+---
+--- a/include/libcamera/internal/software_isp/meson.build
++++ b/include/libcamera/internal/software_isp/meson.build
+@@ -3,6 +3,7 @@
+ libcamera_internal_headers += files([
+     'benchmark.h',
+     'debayer_params.h',
++    'focus_stats.h',
+     'quad_bayer.h',
+     'software_isp.h',
+     'swisp_stats.h',
+--- a/include/libcamera/internal/software_isp/swisp_stats.h
++++ b/include/libcamera/internal/software_isp/swisp_stats.h
+@@ -11,6 +11,7 @@
+ #include <stdint.h>
+ 
+ #include "libcamera/internal/vector.h"
++#include "libcamera/internal/software_isp/focus_stats.h"
+ 
+ namespace libcamera {
+ 
+@@ -27,6 +28,10 @@
+ 	 *        no statistics were generated for this frame
+ 	 */
+ 	bool valid;
++	/** \brief Frame identity of this shared statistics snapshot. */
++	uint32_t frame;
++	/** \brief RAW spatial contrast, before colour/gamma/sharpening. */
++	FocusStatistics focus;
+ 	/**
+ 	 * \brief Sums of colour channels of all the sampled pixels
+ 	 */
+--- a/include/libcamera/internal/software_isp/swstats_cpu.h
++++ b/include/libcamera/internal/software_isp/swstats_cpu.h
+@@ -56,6 +56,7 @@
+ 	int configure(const StreamConfiguration &inputCfg, unsigned int statsBufferCount = 1);
+ 	void setWindow(const Rectangle &window);
+ 	void startFrame(uint32_t frame);
++	void processFocusStats(uint32_t frame, MappedFrameBuffer &input, const Rectangle &window);
+ 	void finishFrame(uint32_t frame, uint32_t bufferId);
+ 	void processFrame(uint32_t frame, uint32_t bufferId, MappedFrameBuffer &input);
+ 
+@@ -122,6 +123,8 @@
+ 
+ 	unsigned int xShift_;
+ 	unsigned int stride_;
++	Size inputSize_;
++	BayerFormat focusFormat_;
+ 	unsigned int sumShift_;
+ 	bool quadBayer_;
+ 	BayerFormat::Order quadBayerOrder_ = BayerFormat::RGGB;
+--- a/src/libcamera/software_isp/swstats_cpu.cpp
++++ b/src/libcamera/software_isp/swstats_cpu.cpp
+@@ -447,6 +447,7 @@
+ 		sharedStats_->sum_ >>= sumShift_;
+ 	}
+ 
++	sharedStats_->frame = frame;
+ 	sharedStats_->valid = valid;
+ 	statsReady.emit(frame, bufferId);
+ }
+@@ -497,6 +498,8 @@
+ int SwStatsCpu::configure(const StreamConfiguration &inputCfg, unsigned int statsBufferCount)
+ {
+ 	stride_ = inputCfg.stride;
++	inputSize_ = inputCfg.size;
++	focusFormat_ = BayerFormat::fromPixelFormat(inputCfg.pixelFormat);
+ 	stats_.resize(statsBufferCount);
+ 
+ 	BayerFormat bayerFormat =
+@@ -649,6 +652,39 @@
+ }
+ 
+ /**
++ * \brief Gather spatial green contrast before returning the input buffer
++ * \param[in] frame Frame identity, with the same cadence as colour statistics
++ * \param[in] input Mapped and DMA-synchronized RAW input
++ * \param[in] window Input-relative crop corresponding to the processed image
++ */
++void SwStatsCpu::processFocusStats(uint32_t frame, MappedFrameBuffer &input,
++				 const Rectangle &window)
++{
++	if (frame % kStatPerNumFrames)
++		return;
++
++	sharedStats_->focus = {};
++	if (input.planes().empty() || window.x < 0 || window.y < 0)
++		return;
++	if (focusFormat_.packing != BayerFormat::Packing::None &&
++	    focusFormat_.packing != BayerFormat::Packing::CSI2)
++		return;
++
++	FocusBayerFormat format{
++		focusFormat_.bitDepth,
++		focusFormat_.packing == BayerFormat::Packing::CSI2,
++		focusFormat_.order == BayerFormat::GBRG ||
++			focusFormat_.order == BayerFormat::GRBG,
++		quadBayer_,
++	};
++	sharedStats_->focus = measureBayerFocus(input.planes()[0].data(),
++					      input.planes()[0].size(),
++					      inputSize_.width, inputSize_.height, stride_,
++					      window.x, window.y, window.width, window.height,
++					      format);
++}
++
++/**
+  * \brief Calculate statistics for a frame in one go
+  * \param[in] frame The frame number
+  * \param[in] bufferId ID of the statistics buffer
+@@ -666,6 +702,7 @@
+ 	bench_.startFrame();
+ 	startFrame(frame);
+ 	(this->*processFrame_)(input);
++	processFocusStats(frame, input, window_);
+ 	finishFrame(frame, bufferId);
+ 	bench_.finishFrame();
+ }
+--- a/src/libcamera/software_isp/debayer_cpu.cpp
++++ b/src/libcamera/software_isp/debayer_cpu.cpp
+@@ -1212,6 +1212,8 @@
+ 
+ 	if (nativeQuad_)
+ 		stats_->processFrame(frame, 0, in);
++	else
++		stats_->processFocusStats(frame, in, window_);
+ 
+ 	metadata.planes()[0].bytesused = nativeQuad_ ? outputConfig_.frameSize : out.planes()[0].size();
+ 
+--- a/src/ipa/simple/soft_simple.cpp
++++ b/src/ipa/simple/soft_simple.cpp
+@@ -301,6 +301,7 @@
+ 		ControlInfo(static_cast<float>(camHelper_ ? camHelper_->gain(gain.min().get<int32_t>()) : gain.min().get<int32_t>()),
+ 			    static_cast<float>(camHelper_ ? camHelper_->gain(gain.max().get<int32_t>()) : gain.max().get<int32_t>()),
+ 			    static_cast<float>(camHelper_ ? camHelper_->gain(gain.def().get<int32_t>()) : gain.def().get<int32_t>()));
++	context_.ctrlMap[&controls::FocusFoM] = ControlInfo(0, INT32_MAX);
+ 	ControlInfoMap::Map map = context_.ctrlMap;
+ 	*ipaControls = ControlInfoMap(std::move(map), controls::controls);
+ }
+@@ -382,6 +383,11 @@
+ 	frameContext.sensor.gain = camHelper_ ? camHelper_->gain(again) : again;
+ 
+ 	ControlList metadata(controls::controls);
++	/* Never report a cached focus score as belonging to another frame. */
++	if (stats_->valid && stats_->frame == frame) {
++		if (auto focus = stats_->focus.figureOfMerit())
++			metadata.set(controls::FocusFoM, *focus);
++	}
+ 	for (const auto &algo : algorithms())
+ 		algo->process(context_, frame, frameContext, stats_, metadata);
+ 	metadataReady.emit(frame, metadata);
+--- /dev/null
++++ b/include/libcamera/internal/software_isp/focus_stats.h
+@@ -0,0 +1,174 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++/* RAW green-channel focus statistics shared by the software ISP and its IPA. */
++#pragma once
++
++#include <algorithm>
++#include <array>
++#include <cmath>
++#include <cstddef>
++#include <cstdint>
++#include <functional>
++#include <limits>
++#include <optional>
++#include <vector>
++
++namespace libcamera {
++
++struct FocusRegion {
++	uint64_t energy = 0;
++	uint64_t sum = 0;
++	uint32_t samples = 0;
++};
++
++struct FocusStatistics {
++	static constexpr unsigned int kColumns = 4;
++	static constexpr unsigned int kRows = 3;
++	bool valid = false;
++	std::array<FocusRegion, kColumns * kRows> regions{};
++
++	std::optional<int32_t> figureOfMerit() const
++	{
++		if (!valid)
++			return std::nullopt;
++
++		std::vector<double> scores;
++		for (const FocusRegion &region : regions) {
++			if (!region.samples || !region.sum)
++				continue;
++			/* Brightness normalization is not a substitute for locking AE. */
++			double mean = double(region.sum) / region.samples;
++			scores.push_back(double(region.energy) / region.samples / (mean * mean));
++		}
++		if (scores.empty())
++			return std::nullopt;
++
++		/* Flat regions should not dominate a scene with useful edges. */
++		std::sort(scores.begin(), scores.end(), std::greater<double>());
++		unsigned int count = std::min<size_t>(4, scores.size());
++		double score = 0;
++		for (unsigned int i = 0; i < count; ++i)
++			score += scores[i];
++		score *= 1000000.0 / count;
++		return static_cast<int32_t>(std::min(std::round(score),
++						   double(std::numeric_limits<int32_t>::max())));
++	}
++};
++
++struct FocusBayerFormat {
++	unsigned int bits;
++	bool packed;
++	/* True for GBRG/GRBG; false for BGGR/RGGB. */
++	bool greenFirst;
++	bool quad;
++};
++
++/*
++ * Read packed CSI-2 RAW10/12 or little-endian unpacked RAW8/10/12. Check the
++ * complete input layout and ROI before reading. Sampling and storage are
++ * bounded independently of resolution; every sample averages a 4x4 RAW area.
++ * The two green phases are combined before spatial filtering, avoiding red /
++ * blue pattern edges. This also handles native 4x4 quad-cell patterns.
++ */
++inline FocusStatistics measureBayerFocus(const uint8_t *data, size_t bytes,
++					unsigned int width, unsigned int height,
++					unsigned int stride, unsigned int left,
++					unsigned int top, unsigned int roiWidth,
++					unsigned int roiHeight, const FocusBayerFormat &format)
++{
++	FocusStatistics result;
++	if (!data || !width || !height || !stride ||
++	    (format.bits != 8 && format.bits != 10 && format.bits != 12) ||
++	    (format.packed && format.bits == 8) ||
++	    left > width || top > height || roiWidth > width - left ||
++	    roiHeight > height - top)
++		return result;
++
++	unsigned int groupPixels = format.bits == 10 ? 4 : 2;
++	if (format.packed && width % groupPixels)
++		return result;
++	uint64_t rowBytes = format.packed ? uint64_t(width) * format.bits / 8
++					 : uint64_t(width) * (format.bits == 8 ? 1 : 2);
++	if (stride < rowBytes || uint64_t(height - 1) * stride + rowBytes > bytes)
++		return result;
++
++	unsigned int columns = std::min(320U, roiWidth / 4);
++	unsigned int rows = std::min(240U, roiHeight / 4);
++	if (columns < 5 || rows < 5)
++		return result;
++
++	auto pixel = [&](unsigned int x, unsigned int y) -> uint16_t {
++		const uint8_t *line = data + size_t(y) * stride;
++		unsigned int value;
++		if (!format.packed) {
++			value = format.bits == 8 ? line[x] : line[2 * size_t(x)] |
++								 (unsigned(line[2 * size_t(x) + 1]) << 8);
++		} else if (format.bits == 10) {
++			size_t group = size_t(x / 4) * 5;
++			unsigned int lane = x % 4;
++			value = (unsigned(line[group + lane]) << 2) |
++				((line[group + 4] >> (2 * lane)) & 3);
++		} else {
++			size_t group = size_t(x / 2) * 3;
++			unsigned int lane = x % 2;
++			value = (unsigned(line[group + lane]) << 4) |
++				((line[group + 2] >> (4 * lane)) & 15);
++		}
++		value = std::min(value, (1U << format.bits) - 1);
++		return value << (16 - format.bits);
++	};
++
++	std::vector<uint16_t> grid(size_t(columns) * rows);
++	for (unsigned int y = 0; y < rows; ++y) {
++		unsigned int py = top + uint64_t(y) * (roiHeight - 4) / (rows - 1);
++		for (unsigned int x = 0; x < columns; ++x) {
++			unsigned int px = left + uint64_t(x) * (roiWidth - 4) / (columns - 1);
++			uint32_t sum = 0;
++			unsigned int count = 0;
++			for (unsigned int j = 0; j < 4; ++j) {
++				for (unsigned int i = 0; i < 4; ++i) {
++					unsigned int cx = format.quad ? (px + i) / 2 : px + i;
++					unsigned int cy = format.quad ? (py + j) / 2 : py + j;
++					if (bool((cx ^ cy) & 1) != format.greenFirst) {
++						sum += pixel(px + i, py + j);
++						++count;
++					}
++				}
++			}
++			grid[size_t(y) * columns + x] = sum / count;
++		}
++	}
++
++	std::vector<uint16_t> smooth(grid.size());
++	for (unsigned int y = 1; y + 1 < rows; ++y) {
++		for (unsigned int x = 1; x + 1 < columns; ++x) {
++			uint32_t sum = 0;
++			for (unsigned int j = y - 1; j <= y + 1; ++j)
++				for (unsigned int i = x - 1; i <= x + 1; ++i)
++					sum += grid[size_t(j) * columns + i];
++			smooth[size_t(y) * columns + x] = sum / 9;
++		}
++	}
++
++	for (unsigned int y = 2; y + 2 < rows; ++y) {
++		for (unsigned int x = 2; x + 2 < columns; ++x) {
++			uint16_t mean = smooth[size_t(y) * columns + x];
++			/* No useful contrast information in black or clipped samples. */
++			if (mean < 1024 || mean > 64512)
++				continue;
++			int64_t dx = int64_t(smooth[size_t(y) * columns + x + 1]) -
++				     smooth[size_t(y) * columns + x - 1];
++			int64_t dy = int64_t(smooth[size_t(y + 1) * columns + x]) -
++				     smooth[size_t(y - 1) * columns + x];
++			unsigned int column = x * FocusStatistics::kColumns / columns;
++			unsigned int row = y * FocusStatistics::kRows / rows;
++			FocusRegion &region = result.regions[row * FocusStatistics::kColumns + column];
++			region.energy += dx * dx + dy * dy;
++			region.sum += mean;
++			++region.samples;
++		}
++	}
++	result.valid = true;
++	return result;
++}
++
++} /* namespace libcamera */

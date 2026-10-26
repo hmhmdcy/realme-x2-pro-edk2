@@ -1,0 +1,11 @@
+--- R1/host.py
++++ R2/host.py
+@@ -143,6 +143,8 @@
+     need(terminal['pid'] == child['pid'] and terminal['start_ticks'] == child['start_ticks']
+          and terminal['argv'] == argv and terminal['terminal'] is True
+          and type(terminal['returncode']) is int, 'same original child terminal is required')
++    need(child.get('stdin_sha256') == terminal.get('stdin_sha256') == sha(expected_payload),
++         'exact input payload must be bound to both original child receipts')
+     stdout = (directory / 'stdout-private.json').read_bytes()
+     stderr = (directory / 'stderr-private.txt').read_bytes()
+     need(terminal['stdout_sha256'] == sha(stdout) and terminal['stderr_sha256'] == sha(stderr),

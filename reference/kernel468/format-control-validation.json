@@ -1,0 +1,65 @@
+{
+  "stage": 468,
+  "candidate_sha256": "88251268b2c10e15116e717511da206e71da35ab359abb8ca80f747c44f2070b",
+  "harness_inputs": [
+    {
+      "path": "review-control.py",
+      "sha256": "3d2131e086127ca874123de556f56b9e9eb0975759c8baa619de6786dd370bb3"
+    },
+    {
+      "path": "control-harness-prefix.c",
+      "sha256": "182c272aa0e9a225345d04c4b19c9cdd4fa522d1b617f19ffafd820304cfa094"
+    },
+    {
+      "path": "control-harness-tests.c",
+      "sha256": "a932365ba75d1e4fea300799f5f27ce170fc1028328584a0d89742d97a357526"
+    }
+  ],
+  "compiler": "gcc (Ubuntu 15.2.0-16ubuntu1) 15.2.0",
+  "results": [
+    {
+      "label": "baseline",
+      "input_sha256": "f0f715826d96521266315f42e6fd9f4a08d1de2695226deecb06fa7c529e1745",
+      "extracted_functions_sha256": "801589d2346c7f026197222d5b93a1f691b326952700e9ecce9b03377e4ea927",
+      "host_source_sha256": "9c7db9b1dfafde8401aa6f8ebb7783de61f0847f873fe2a0aae6403234f24dc8",
+      "host_binary_sha256": "4b6743deaa18a88d8a933a476a346398bbd48cb95d28ac82b01d733049ab08ff",
+      "compile_returncode": 0,
+      "returncode": 0,
+      "result": {
+        "baseline_hblank_einval_ignored": true,
+        "baseline_old_height_fll": 2504,
+        "expected_fll": 3312
+      }
+    },
+    {
+      "label": "candidate",
+      "input_sha256": "88251268b2c10e15116e717511da206e71da35ab359abb8ca80f747c44f2070b",
+      "extracted_functions_sha256": "d6ceaa5c6b368eeb498d3fb9459e3dc2b669bab69991fa7eeb52e85efa7150d3",
+      "host_source_sha256": "4d2f04bed19749e9ee17d333ee47e255b5e005ef3dfc5160d2fc2d0cc0965026",
+      "host_binary_sha256": "66a9e2a7c4951b80051ab9ebef400e338a8343aa09c59d8490050a0f2076d478",
+      "compile_returncode": 0,
+      "returncode": 0,
+      "result": {
+        "candidate_cases": 28,
+        "passed": true,
+        "finite_provider_model": true,
+        "kernel_concurrency_test": false
+      }
+    }
+  ],
+  "sanitizers": [
+    "address",
+    "undefined"
+  ],
+  "providers": "Finite numeric-control range/cache model, held-lock assertion, PM and CCI stubs",
+  "baseline_mode_descriptors": "Candidate descriptors supplied to baseline callbacks; baseline did not expose mode2",
+  "copied_kernel_core": false,
+  "actual_sensor_entry_points_extracted": true,
+  "actual_kernel_concurrency_test": false,
+  "actual_stream_on_executed": false,
+  "sensor_mode_table_programming_verified": false,
+  "sdk_bound": false,
+  "phone_accessed": false,
+  "candidate_modified": false,
+  "passed": true
+}

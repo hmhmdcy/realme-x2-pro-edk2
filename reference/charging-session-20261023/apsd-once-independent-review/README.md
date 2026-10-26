@@ -1,0 +1,7 @@
+# APSD one-attempt core: retained diagnostic counterexample
+
+The saved R1 header (`samurai-apsd-once-r1.h`, SHA `7411cbf89f28cd7f97e681023212d52c22c1bb4930a7fe14fd0ac1453952265d`) and `test-r1-ack.c` preserve three targeted actual-header sequences. They reproduce lost bus-error diagnostics after timeout or cancellation, and confirm a stale epoch cannot mutate a new session. ASan/UBSan/Werror passed, with the original outputs in `result.json`. The limitation did not permit a retry or false success. Root's original thirteen groups were not rerun or modified.
+
+Root fixed the issue independently. `final-static-review.json` pins final header SHA `78e51238b9155ac7dcd638c32ffd25b487b8983bcad0e6f25cbcaa0f535a4e35` and checks the actual acknowledgment ordering: exact epoch first, duplicate and unclaimed acknowledgments rejected, one actual bus receipt stored in `write_ack/write_ack_ms/write_error`, then the existing timeout/cancellation clock check. Thus a late bus errno remains available while the primary timeout/cancellation and consumed-attempt semantics remain intact. Root's fourteen-group receipt is referenced, not rerun by this review.
+
+This is a protocol core review only. The future serialized owner still owns bus cancellation/join, physical source/PD/route validation, lifetime and EUD/DWC/PHY tokens; the core cannot prove any of those resources or authorize 500mA. No root source, phone, SSH, USB or SDK was touched.

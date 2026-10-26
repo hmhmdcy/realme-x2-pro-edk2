@@ -1,0 +1,5 @@
+# GeoClue modem GPS lifecycle
+
+2.8.2-r1 retains the upstream feature options and subpackages. The functional patch scopes refresh/signalling changes to real GPS consumers, preserves pre-existing source bits, and reconciles late or cancelled MM replies before restoring the saved preferences. It does not change modem power, RF, NV or clock configuration.
+
+The regression target includes the production backend with fake MM I/O. Ten scenarios passed in native and ARM64/qemu builds; four real UID10000 start/stop cycles restored the original values without manual normalization. The signed package is installed on the existing phone image. The259 outdoor run obtained no coordinates while the modem remained OFFLINE. With the260 no-SIM power policy, a subsequent ordinary desktop GNSS-only run received 280 updates, including 262 conservatively validated fresh coordinates, and restored the original preferences. Its old diagnostic predicate rejected zero reported accuracy, so 18 other updates remain unclassified. See [current hardware evidence](../../../reference/kernel260/README.md).

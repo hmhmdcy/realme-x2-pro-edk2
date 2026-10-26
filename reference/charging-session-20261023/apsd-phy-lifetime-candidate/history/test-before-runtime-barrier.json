@@ -1,0 +1,51 @@
+{
+  "passed": true,
+  "groups": [
+    "registration actual client refs, failed get, duplicate and stale registration refused",
+    "restore failure keeps errno; final revoke drains PM; freed/rebound old identity zero MMIO",
+    "real PM wrappers refuse failed join; shutdown cannot republish through complete/resume/generic ops",
+    "inflight begin drains before forced resource release; late token is revoked, never restored claim",
+    "already dispatched complete callback finishes before cancel_join, no late producer after join",
+    "actual DWC callbacks choose retirement; unregister racing callback retains real kref without reverse join",
+    "actual probe: LAST devres revoke precedes all seven resources; action allocation failure withdraws synchronously",
+    "final actual owner gate remains EOPNOTSUPP with backend; no route or 1341 permission"
+  ],
+  "affected_groups": 8,
+  "flags": [
+    "-std=gnu11",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-Wno-unused-parameter",
+    "-Wno-unused-function",
+    "-Wno-sign-compare",
+    "-pthread",
+    "-fsanitize=address,undefined",
+    "-fno-omit-frame-pointer",
+    "-g"
+  ],
+  "tested_files": {
+    "phy-qcom-snps-femto-v2.c": "8f4a29aee6a88c3985cc852f45147890108bbf5897ce7107a4d16c85bb921a48",
+    "phy-qcom-snps-femto-v2-window.h": "015e84bd98e52e56fd8475f33661c715b3282736b6ed8ee6799c558c38037495",
+    "phy-lifetime.inc": "6b3e72fc5be1bd72cc5816888349cd1cc71568afb3d26fe69876ea518487314b",
+    "samurai-apsd-owner.c": "f4613f231e92e6e60579cfec7850e2f2f20727ad54e37273a95366fe10e5fa2c",
+    "samurai-apsd-owner.h": "d740bc067c020819106af4c66d641a3cb700c2487300545e8f24d57d07b14076",
+    "prepare-tests.py": "9cb5f3b4cf4e73a17a89e5b32f0cc92d0466ba9434a42073c99edc37c59b06f2",
+    "test-lifecycle.c": "9b0e88f788af9d2b322ceddce75fcb1e32ab284c33e0aeef8d3d5252ffd9d66b",
+    "run-tests.py": "0785f6252db81f611d7ba1f0dcd99af14c8149b6e1d554e90c0ed3bc4f1ed380",
+    "tested-functions.inc": "4216d2bbbf57418b692501b1cfd491d211c8450e80f35048147efe0c4ce4212d",
+    "tested-types.inc": "a982ccddae6a9f16958a2f9223acad9fbe5a4670a15105fd8ee761041fb08cad",
+    "tested-owner.inc": "85e43b69950ddf18a65c55ccba948491f8cf7ff5103766e5a23d78abe67a7a06",
+    "function-manifest.json": "fadd28cb423cee01bdb5d10e368a8716d615b697bfa3da319100a0b51dfde834"
+  },
+  "actual_extracted_functions": 27,
+  "lifecycle_include_actual": true,
+  "old_owner_join_is_fake_boundary": true,
+  "scope": "new provider/DWC lifecycle and races; pthread/fake OS+PM+MMIO+devres, not kernel lockdep or hardware",
+  "old_phy_8_reused_not_rerun": true,
+  "old_pd_bridge_14_reused_not_rerun": true,
+  "device_accessed": false,
+  "SDK_invoked": false,
+  "stdout": "ok: registration actual client refs, failed get, duplicate and stale registration refused\nok: restore failure keeps errno; final revoke drains PM; freed/rebound old identity zero MMIO\nok: real PM wrappers refuse failed join; shutdown cannot republish through complete/resume/generic ops\nok: inflight begin drains before forced resource release; late token is revoked, never restored claim\nok: already dispatched complete callback finishes before cancel_join, no late producer after join\nok: actual DWC callbacks choose retirement; unregister racing callback retains real kref without reverse join\nok: actual probe: LAST devres revoke precedes all seven resources; action allocation failure withdraws synchronously\nok: final actual owner gate remains EOPNOTSUPP with backend; no route or 1341 permission\n",
+  "stderr": ""
+}

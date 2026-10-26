@@ -1,0 +1,124 @@
+--- frozen/run-503.py
++++ run-504.py
+@@ -1,4 +1,4 @@
+-"""Private consistent DWC Image503 from passed 502; no boot packaging/device."""
++"""Private Image504 software budget fence from original 502; no boot packaging/device."""
+ from pathlib import Path
+ from datetime import datetime, timezone
+ import hashlib, importlib.util, json, os, re, shutil, subprocess, sys, time
+@@ -9,12 +9,12 @@
+ BASELEAF=REF/'charging-session-20261023/gauge-image363-baseline'
+ PREVIOUS=REF/'charging-ui-audit-20261023/gauge-image502-notify-candidate'
+ BASE=Path('/home/cy122/charging-management-20261023/gauge-image502-notify-01')
+-OUT=Path('/home/cy122/charging-management-20261023/dwc-image503-start-recovery-01')
++OUT=Path('/home/cy122/charging-management-20261023/dwc-image504-budget-fence-01')
+ ORIGINAL363=Path('/home/cy122/charging-management-20261023/gauge-image363-baseline-01')
+-FROZEN=HERE.parent/'dwc-device-start-recovery-candidate'
+-DWC_SOURCES={'drivers/usb/dwc3/gadget.c':'ca4bf1c5a1afa42267d2f7f8b636dfe7ca5a1b9581307093f93a892e2f004314',
+-             'drivers/usb/dwc3/core.h':'9a8dc48a1283db17b6a0cad01f0bc43ff916cfa7dc3a11b680c2145984f97a67'}
+-METADATA_SHA='0b029754c347f93e18f285bc508c5f2625684498e5b78de453bb71dbe96ac7c9'
++FROZEN=HERE.parent/'dwc-vbus-budget-fence-candidate'
++DWC_SOURCES={'drivers/usb/dwc3/core.c': '6c8e5e33cc890afcfafbcbe2d339164a590edc0024fe41d3178f90f410790e20', 'drivers/usb/dwc3/core.h': 'e2a21d2edaf0b48b91e77dc257287516e009859981c0370f747afd9898fbdb79', 'drivers/usb/dwc3/gadget.c': '228caf6f2dd3bfcec12fb1ec22b1f72eb1d5b02520d7917393a094a4ffab6fbf'}
++BASE_DWC_SOURCES={'core.c': 'bd8a8aabf199952717926b8ee79562e283ed9cd6a1ee485d22cd52167ad7ffcf', 'core.h': '525c1d5d8d0e501f4a92ddd6232961542b5c04521f29a50b8acf9ee86c41373c', 'gadget.c': '9eec86e42945a786447e6a6548a25b495e29a01bed8e8fbfc13e02903e1ff0c5'}
++METADATA_SHA='8e75ab476ba51057cd1b216e22031210c2ef08af3511f39b3a8737ff25455b3f'
+ DWC_TARGETS=['drivers/usb/dwc3/'+n+'.o' for n in ['core','trace','gadget','ep0','debugfs',
+              'dwc3-qcom','dwc3-qcom-legacy','dwc3-generic-plat']]
+ REL='drivers/power/supply/bq27xxx_battery.c'
+@@ -32,12 +32,17 @@
+ 
+ def check_local():
+     assert not sys.flags.optimize, 'Non-optimized interpreter required'
+-    pins = {'charging-ui-audit-20261023/gauge-image502-notify-candidate/delivery.json': '4e27a8da005b3e5b41799f63a9a3b3e4de1b22f6d60f8a1172c2c28cd8163e21', 'charging-ui-audit-20261023/gauge-image502-notify-candidate/build-result.json': 'feb6fd2e8ef8ca380f48a6f8f88b131646a874fa1d8660c3bde83a38ec8940e6', 'charging-ui-audit-20261023/gauge-image502-notify-candidate/abi-reuse-result.json': 'b097ee9314bd7b913fd2ec08a462b6e04d8ed68c635a168080f4e035b149b230', 'charging-session-20261023/dwc-device-start-recovery-candidate/delivery.json': '1f3aa44fa29c8f901c39a378ff4a7d546c447c40072e3e5283226857cfcb1349', 'charging-oem-audit-20261023/dwc-device-start-recovery-independent-review/review-result.json': 'a6ce6a39e074b266e3e66c691686dbaeeda75baef480a4662848d9ef7ae70b8b', 'charging-session-20261023/dwc-start-recovery-image-integration-plan/delivery.json': '2767b2679738283b62d326b9192d59ed777a7b7741c5633fc37abfe6d8904174'}
++    pins = {'charging-ui-audit-20261023/gauge-image502-notify-candidate/delivery.json': '4e27a8da005b3e5b41799f63a9a3b3e4de1b22f6d60f8a1172c2c28cd8163e21', 'charging-ui-audit-20261023/gauge-image502-notify-candidate/build-result.json': 'feb6fd2e8ef8ca380f48a6f8f88b131646a874fa1d8660c3bde83a38ec8940e6', 'charging-ui-audit-20261023/gauge-image502-notify-candidate/abi-reuse-result.json': 'b097ee9314bd7b913fd2ec08a462b6e04d8ed68c635a168080f4e035b149b230', 'charging-oem-audit-20261023/dwc-vbus-budget-fence-candidate/delivery.json': '8d7a963a3aef17a16ef5e8ec19d96b31de4f066b261e315d28727c6d0b1e16aa', 'charging-oem-audit-20261023/dwc-vbus-budget-fence-candidate/object-build/delivery.json': '8b25d5b27fc9d099379ab6efeb58e2a5e915c3283f650967dad3e21528151a82', 'charging-session-20261023/dwc-start-recovery-image-integration-plan/dependency-result.json': 'bec66bdf580ce4541f19b60fb5f4865649f48376ba5bbfcc159424455fef8b46', 'charging-session-20261023/dwc-image503-start-recovery-candidate/delivery.json': 'e4e059334aab56acd8dde25348ba19aec2af9790b93fb632295e5b63a4ef9374', 'charging-session-20261023/dwc-image503-start-recovery-candidate/run-503.py': '760223a1092bb41f4f7b000143a1510fb9ea4fdb85efb73e35bba2304a64e340'}
+     for name,digest in pins.items(): assert sha(REF/name)==digest,name
+     for leaf in [PREVIOUS,FROZEN]:
+         delivery=json.loads((leaf/'delivery.json').read_bytes())
+         assert delivery['passed']
+-        for name,digest in delivery['files'].items(): assert sha(leaf/name)==digest,name
++        for name,row in delivery['files'].items():
++            digest=row['sha256'] if isinstance(row,dict) else row
++            assert sha(leaf/name)==digest,name
++    build_delivery=json.loads((FROZEN/'object-build/delivery.json').read_bytes())
++    assert build_delivery['passed'] and build_delivery['all_eight_core_h_consumers_compiled_W1_Werror']
++    for name,row in build_delivery['files'].items(): assert sha(FROZEN/'object-build'/name)==row['sha256'],name
+     for name,digest in DWC_SOURCES.items(): assert sha(FROZEN/Path(name).name)==digest,name
+     assert sha(HERE/'metadata-proof.py')==METADATA_SHA
+ 
+@@ -120,7 +125,7 @@
+          'recursive_private_verified':True,'bindings':bindings,'parent_mountinfo_unchanged_while_bound':True,'mountinfo':base.mounts()})
+     identity=json.loads((OUT/'identity.json').read_bytes())
+     env=base.build_environment()
+-    env.update(KBUILD_BUILD_VERSION='503',KBUILD_BUILD_TIMESTAMP=identity['KBUILD_BUILD_TIMESTAMP'])
++    env.update(KBUILD_BUILD_VERSION='504',KBUILD_BUILD_TIMESTAMP=identity['KBUILD_BUILD_TIMESTAMP'])
+     assert sha(SOURCE/REL)==B_SHA
+     assert sha(BUILD/'.config')==base.EXPECTED['config']
+     original=json.loads((BASE/'closure-final.json').read_bytes())
+@@ -178,7 +183,7 @@
+         assert (BUILD/'.config').read_bytes()==(BASE/'build/.config').read_bytes()
+         assert (BUILD/'include/config/kernel.release').read_text().strip()=='7.3.0-rc6-rmx1931-samurai-k363+'
+         uts=(BUILD/'include/generated/utsversion.h').read_text()
+-        assert '#503 SMP PREEMPT '+identity['KBUILD_BUILD_TIMESTAMP'] in uts
++        assert '#504 SMP PREEMPT '+identity['KBUILD_BUILD_TIMESTAMP'] in uts
+         assert sha(SOURCE/REL)==B_SHA
+         assert base.inventory(PAYLOAD)==json.loads((OUT/'input-initramfs363-baseline-before.json').read_bytes())
+         outputs={n:{'sha256':sha(BUILD/n),'bytes':(BUILD/n).stat().st_size} for n in [
+@@ -186,7 +191,7 @@
+             'init/version.o','init/version-timestamp.o',*DWC_TARGETS]}
+         assert outputs['arch/arm64/boot/Image']['sha256']!='085d03066983a82d1d1c74b74f69c85560698d6fc49f62d6db511a8799b25955'
+         result={'passed':True,'identity':identity,'outputs':outputs,'source_sha256':B_SHA,
+-                'leaf_delta':leaf_delta,'unchanged_other_leaf_count':len(leaves)-9,'unchanged_libstub_count':len(stub),
++                'leaf_delta':leaf_delta,'unchanged_other_leaf_count':sum(after[n]==original[n] for n in leaves),'unchanged_libstub_count':len(stub),
+                 'metadata_proof':metadata,'compatibility':additional,'initramfs_exact_original_hashes':ramfs,
+                 'builtin_export_count':len(new_exports),'builtin_exports_exact_original_rows':True,
+                 'config_exact_original':True,'release_unchanged':True,'initramfs_unchanged':True,
+@@ -195,7 +200,7 @@
+                 'DTB_modules_install_packaging':False,'device_access':False,'physical_validation':False}
+         save(OUT/'build-result.json',result)
+         state.update(terminal=True,phase='passed',returncode=0);save(OUT/'child-state.json',state)
+-        event('B-build-passed',outputs=outputs,remaining_leaf_count=len(leaves)-9)
++        event('B-build-passed',outputs=outputs,remaining_leaf_count=sum(after[n]==original[n] for n in leaves))
+         return 0
+     except BaseException as e:
+         state.update(terminal=True,phase='failed',returncode=1,error=repr(e));save(OUT/'child-state.json',state)
+@@ -222,13 +227,14 @@
+     assert json.loads((BASE/'namespace-process.json').read_bytes())['terminal']
+     assert json.loads((BASE/'namespace-process.json').read_bytes())['returncode']==0
+     assert sha(BASE/'source354'/REL)==B_SHA
+-    scope=json.loads((HERE.parent/'dwc-start-recovery-image-integration-plan/dependency-result.json').read_bytes())
++    scope=json.loads((REF/'charging-session-20261023/dwc-start-recovery-image-integration-plan/dependency-result.json').read_bytes())
+     assert set(scope['required_object_targets'])==set(DWC_TARGETS)
+     for row in scope['core_h_dependencies']:
+         assert sha(BASE/'build'/row['cmd_path'])==row['cmd_sha256']
+         assert sha(BASE/'build'/row['target'])==row['object_sha256']
+         assert sha(BASE/'source354'/row['source_path'])==row['source_sha256']
+-    assert sha(BASE/'source354/drivers/usb/dwc3/core.h')=='525c1d5d8d0e501f4a92ddd6232961542b5c04521f29a50b8acf9ee86c41373c'
++    for name,digest in BASE_DWC_SOURCES.items():
++        assert sha(BASE/'source354/drivers/usb/dwc3'/name)==digest,name
+     assert all(sha(BASE/'build'/n)==row['sha256'] for n,row in previous['build']['outputs'].items())
+     assert previous['build']['builtin_exports_exact_original_rows']
+     link=json.loads((base.PLAN/'link-inputs.json').read_bytes())
+@@ -247,7 +253,7 @@
+     original363_before={str(p):sha(p) for p in original363_paths}
+     OUT.mkdir(parents=True)
+     stamp=datetime.now(timezone.utc)
+-    identity={'KBUILD_BUILD_USER':'builder','KBUILD_BUILD_HOST':'samurai','KBUILD_BUILD_VERSION':'503',
++    identity={'KBUILD_BUILD_USER':'builder','KBUILD_BUILD_HOST':'samurai','KBUILD_BUILD_VERSION':'504',
+               'KBUILD_BUILD_TIMESTAMP':'Tue Oct 20 03:03:47 UTC 2026',
+               'timestamp_semantics':'Explicit original Image363 reproducible timestamp; not actual compile UTC',
+               'actual_build_utc':stamp.isoformat(),'UTS_RELEASE':'7.3.0-rc6-rmx1931-samurai-k363+',
+@@ -273,7 +279,7 @@
+         source_changes=[n for n in snapshots['source354'].keys()|source_now.keys() if snapshots['source354'].get(n)!=source_now.get(n)]
+         assert sorted(source_changes)==sorted(DWC_SOURCES),source_changes
+         save(OUT/'source-delta.json',{n:{'before':snapshots['source354'][n],'after':source_now[n]} for n in DWC_SOURCES})
+-        argv=['unshare','--mount','--propagation','private',sys.executable,'-B',str(HERE/'run-503.py'),
++        argv=['unshare','--mount','--propagation','private',sys.executable,'-B',str(HERE/'run-504.py'),
+               '--child',str(os.getpid()),parent_ns,mount_sha]
+         save(OUT/'namespace-command.json',argv)
+         process=subprocess.Popen(argv,cwd=OUT)
+@@ -316,5 +322,5 @@
+     if len(sys.argv)>1 and sys.argv[1]=='--child':raise SystemExit(child(*sys.argv[2:]))
+     if not sys.argv[1:] or sys.argv[1:]==['--check-local']:
+         check_local(); print(json.dumps({'passed':True,'mode':'check-local','storage_or_build_invoked':False})); raise SystemExit(0)
+-    assert sys.argv[1:]==['--execute-503'],'Explicit --execute-503 required'
++    assert sys.argv[1:]==['--execute-504'],'Explicit --execute-504 required'
+     raise SystemExit(parent())

@@ -1,0 +1,200 @@
+--- a/worker.py
++++ b/worker.py
+@@ -52,15 +52,46 @@
+ 
+ 
+ def healthy(s):
+-    return (all(s.get(k) == 1 for k in ['valid', 'online', 'protection_ok', 'desired_enable'])
+-            and s.get('shadow') == 0 and 0 <= s.get('age_ms', -1) < 2000
+-            and s.get('budget_ua', 0) >= 50000
+-            and all(s.get(k) == 0 for k in ['error', 'stop_error', 'latched', 'source_inhibit', 'fault']))
++    # This classifies a fresh sample only; every other PM acceptance gate stays
++    # independent. A normal Full is charge-only hold, never operator INHIBIT.
++    common = (all(s.get(k) == 1 for k in ['valid', 'online', 'protection_ok'])
++              and s.get('shadow') == 0 and 0 <= s.get('age_ms', -1) < 2000
++              and s.get('budget_ua', 0) >= 50000
++              and all(s.get(k) == 0 for k in ['error', 'stop_error', 'latched', 'source_inhibit', 'fault']))
++    if not common:
++        return False
++    if s.get('desired_enable') == 1:
++        return True  # Existing managed sample contract.
++    return (s.get('desired_enable') == 0
++            and all(s.get(k) == 1 for k in ['logical_full', 'hold_requested', 'full_holding'])
++            and type(s.get('full_cause')) is int and s['full_cause'] in [1, 2, 3]
++            and s.get('session_seconds') == 0
++            and s.get('gauge_charge_stop') == 0 and s.get('cycle_timeout') == 0
++            and type(s.get('flags')) is int and 0 <= s['flags'] <= 0xffff
++            and not s['flags'] & 0xc000)
+ 
+ 
+ def services(state):
+     return {name: sorted((p['pid'], p['uid']) for p in state['services'] if p['comm'] == name)
+             for name in SERVICES}
++
++
++def configuration_preserved(before, after):
++    old = {k: v for k, v in before['state']['registers'].items() if k != '13'}
++    new = {k: v for k, v in after['state']['registers'].items() if k != '13'}
++    if old == new:
++        return True
++    # A newly established safe Full may clear only CHG_EN. Input converter,
++    # all limits and every other register bit must match the managed baseline.
++    first, last = before['sample'], after['sample']
++    if not (healthy(first) and first.get('desired_enable') == 1
++            and healthy(last) and last.get('desired_enable') == 0):
++        return False
++    a, b = old.get('08'), new.get('08')
++    if not (type(a) is int and type(b) is int and a & 0x18 == 0x10 and b & 0x18 == 0):
++        return False
++    old['08'] = a & ~0x10
++    return old == new
+ 
+ 
+ def preflight(c, before):
+@@ -151,7 +182,7 @@
+                       same_camera=after['state'].get('camera_pm') == before['state'].get('camera_pm') and after['state'].get('m2m') == before['state'].get('m2m'),
+                       same_four_services=services(after['state']) == services(before['state']),
+                       taint_zero=after['state'].get('taint') == '0',
+-                      charger_config_preserved={k: v for k, v in after['state']['registers'].items() if k != '13'} == {k: v for k, v in before['state']['registers'].items() if k != '13'},
++                      charger_config_preserved=configuration_preserved(before, after),
+                       native_allowance_preserved=after.get('allowance') == before.get('allowance') and type(after.get('allowance')) is int and after['allowance'] >= 50000,
+                       no_new_faults=after['dmesg'].startswith(before['dmesg']) and all(x not in after['dmesg'][len(before['dmesg']):] for x in FAULTS))
+         stats_a, stats_b = before.get('stats', {}), after.get('stats', {})
+--- a/test-worker.py
++++ b/test-worker.py
+@@ -27,7 +27,8 @@
+             'state': {'taint': '0', 'driver': 'samurai-mp2650', 'camera_pm': {n: 'suspended' for n in worker.CAMERA},
+                       'm2m': json.dumps({'users': 0, 'running': False, 'fatal': False, 'pinned': False, 'orphans': 0, 'first_error': 0}),
+                       'services': [{'comm': n, 'pid': i + 100, 'uid': 10000} for i, n in enumerate(worker.SERVICES)],
+-                      'registers': {'00': 2, '02': 5, '13': 27}},
++                      'registers': {'00': 2, '01': 45, '02': 5, '03': 49, '04': 104,
++                                    '07': 20, '08': 0x16, '09': 76, '0f': 2, '13': 27}},
+             'sample': {'valid': 1, 'online': 1, 'protection_ok': 1, 'desired_enable': 1, 'shadow': 0,
+                        'age_ms': 20, 'budget_ua': 100000, 'error': 0, 'stop_error': 0, 'latched': 0, 'source_inhibit': 0, 'fault': 0},
+             'stats': {'success': 3, 'fail': 0, 'failed_suspend': 0}, 'rtc_irq': 10, 'rtc_irq_number': 88,
+@@ -45,6 +46,12 @@
+             rows += [f' x [000] ... {when:.3f}: device_pm_callback_start: {driver} {device}, parent: bus, driver [{phase}]',
+                      f' x [000] ... {when + .01:.3f}: device_pm_callback_end: {driver} {device}, err=0']
+     return '\n'.join(rows)
++
++
++def full_sample(sample, cause=1):
++    return {**sample, 'desired_enable': 0, 'logical_full': 1, 'hold_requested': 1,
++            'full_holding': 1, 'full_cause': cause, 'session_seconds': 0,
++            'gauge_charge_stop': 0, 'cycle_timeout': 0, 'flags': 0xc0}
+ 
+ 
+ class FakeBoard:
+@@ -175,6 +182,85 @@
+         result = worker.dispatch(c, board)
+         self.assertFalse(result['passed']); self.assertIn('primitive-result.json', board.saved)
+         self.assertIn('trace-cleanup-result.json', board.saved)
++
++    def test_normal_full_before_and_after_is_healthy(self):
++        for cause in [1, 2, 3]:
++            with self.subTest(cause=cause):
++                c = config(); board = FakeBoard(c)
++                board.before['sample'] = full_sample(board.before['sample'], cause)
++                board.after['sample'] = full_sample(board.after['sample'], cause)
++                board.before['state']['registers']['08'] = 0x06
++                board.after['state']['registers']['08'] = 0x06
++                self.assertTrue(worker.dispatch(c, board)['passed'])
++
++    def test_managed_to_full_sample_classification_is_healthy(self):
++        sample = snapshot(config())['sample']
++        self.assertTrue(worker.healthy(sample))
++        self.assertTrue(worker.healthy(full_sample(sample)))
++
++    def test_actual_managed_to_full_allows_only_charge_enable_clear(self):
++        c = config(); board = FakeBoard(c)
++        board.after['sample'] = full_sample(board.after['sample'])
++        board.after['state']['registers']['08'] = 0x06
++        result = worker.dispatch(c, board)
++        self.assertTrue(result['passed'])
++        self.assertTrue(result['checks']['charger_config_preserved'])
++        self.assertEqual(board.before['state']['registers']['08'], 0x16)
++
++    def test_full_transition_rejects_every_other_register_or_control_bit(self):
++        for register in ['00', '01', '02', '03', '04', '07', '09', '0f']:
++            with self.subTest(register=register):
++                c = config(); board = FakeBoard(c)
++                board.after['sample'] = full_sample(board.after['sample'])
++                board.after['state']['registers']['08'] = 0x06
++                board.after['state']['registers'][register] ^= 1
++                result = worker.dispatch(c, board)
++                self.assertFalse(result['passed']); self.assertFalse(result['checks']['charger_config_preserved'])
++        for before08, after08 in [(0x16, 0x07), (0x16, 0x0e), (0x1e, 0x06), (0x16, 0x00)]:
++            with self.subTest(before08=before08, after08=after08):
++                c = config(); board = FakeBoard(c)
++                board.after['sample'] = full_sample(board.after['sample'])
++                board.before['state']['registers']['08'] = before08
++                board.after['state']['registers']['08'] = after08
++                self.assertFalse(worker.dispatch(c, board)['checks']['charger_config_preserved'])
++
++    def test_charge_enable_delta_requires_complete_safe_full_not_manual_stop(self):
++        c = config(); board = FakeBoard(c)
++        board.after['sample'].update(desired_enable=0, logical_full=1)
++        board.after['state']['registers']['08'] = 0x06
++        result = worker.dispatch(c, board)
++        self.assertFalse(result['passed']); self.assertFalse(result['checks']['charger_config_preserved'])
++
++    def test_single_label_or_manual_inhibit_is_not_full_health(self):
++        sample = {**snapshot(config())['sample'], 'desired_enable': 0}
++        for key in ['logical_full', 'full_holding', 'hold_requested']:
++            with self.subTest(key=key):
++                self.assertFalse(worker.healthy({**sample, key: 1}))
++        inhibited = {**full_sample(sample), 'full_holding': 0, 'hold_requested': 0}
++        self.assertFalse(worker.healthy(inhibited))
++
++    def test_full_old_timeout_tca_oca_stop_fail_and_stale_are_rejected(self):
++        invalid = [('cycle_timeout', 1), ('gauge_charge_stop', 1), ('flags', 0x4000), ('flags', 0x8000),
++                   ('stop_error', -5), ('session_seconds', 1), ('age_ms', 2000), ('latched', 1),
++                   ('full_cause', 0), ('full_cause', 4), ('flags', None)]
++        for key, value in invalid:
++            with self.subTest(key=key, value=value):
++                c = config(); board = FakeBoard(c)
++                board.after['sample'] = {**full_sample(board.after['sample']), key: value}
++                result = worker.dispatch(c, board)
++                self.assertFalse(result['passed'])
++                self.assertFalse(result['checks']['charging_resumed_healthy'])
++
++    def test_invalid_full_baseline_refuses_pm_before_trace(self):
++        for key, value in [('cycle_timeout', 1), ('flags', 0x4000), ('flags', 0x8000), ('stop_error', -5)]:
++            with self.subTest(key=key, value=value):
++                c = config(); board = FakeBoard(c)
++                board.before['sample'] = {**full_sample(board.before['sample']), key: value}
++                board.before['state']['registers']['08'] = 0x06
++                result = worker.dispatch(c, board)
++                self.assertEqual(result['classification'], 'preflight_rejected')
++                self.assertFalse(result['passed']); self.assertNotIn('start_trace', board.calls)
++                self.assertNotIn('primitive', board.calls)
+ 
+ 
+ class TraceAndGuardTests(unittest.TestCase):
+--- a/REVIEW.md
++++ b/REVIEW.md
+@@ -1,6 +1,8 @@
+ # 未来新 PM 事务 worker：待根会话审核的离线候选
+ 
+ 本目录只准备候选，**没有部署、没有启动、没有访问手机／SDK**。旧 r5 脚本和输出未改。`worker.py` 导入时不建目录、不改 umask、不加载 live helper、不启动进程／PM；只有明确的执行参数才能进入实际调度。审核后的启动与手机、摄像头、蓝牙窗口协调继续由根会话决定，worker 不查询聊天、不自行借还窗口。
++
++当前为 revision 2。原 21 测试方法版本已逐字节保存在 [revision-1](revision-1/REVIEW.md)，保存哈希见 [revision-1-preservation.json](revision-1-preservation.json)。revision 2 仅扩展下述健康样本分类和经根会话批准的单个 CHG_EN 位转换，未改 main、旧 r5、primitive 或其它验收门槛。
+ 
+ primitive 按已审核原件逐字节复制，SHA256 固定为 `fd3fd4bef1e04dc8a29b5240cad8989d700021e353e081c0fcf0b297e4bda0a1`，没有更改它。worker 是本机 RMX1931 的小范围固定事务，没有另建通用调度框架。
+ 
+@@ -44,10 +46,14 @@
+ - trace 有完整且无溢出的 entries header；charger、USB source、protection、gauge 的 suspend/resume 实际 callback 各唯一且 error0，charger 先挂起、供应者先恢复。prepare/complete 的空 ops 包装不冒充 driver callback。
+ - boot/release/manifest／模块身份保持，样本真实有效／在线／保护正常／控制请求有效／错误0；charger 配置、原生输入额度、相机状态与四用户服务身份保持，taint0，dmesg未截断且没有新增目标故障。
+ 
++健康样本继续接受原 managed 判据；也接受明确的新鲜安全 Full 保持：`desired_enable=0`、`logical_full=hold_requested=full_holding=1`、`full_cause` 为已知 1/2/3、`session_seconds=0`、`gauge_charge_stop=cycle_timeout=0`、原始 `flags` 为有效16位整数且无 TCA/OCA（`flags & 0xc000 == 0`），并满足相同 freshness、保护、源预算、error/stop_error/latch/fault 零值要求。cause 1/2/3 对应已审核 Full 内核候选的 SOFTWARE／VOLTAGE／HARDWARE 枚举。仅 logical_full、手动 INHIBIT、旧超时、TCA/OCA 或停充失败不能冒充 Full。
++
++若前样本为健康 managed，后样本成为完整健康 Full，允许实际 REG08 的 **CHG_EN `0x10` 仅由 1→0**：必须 before08&0x18==0x10、after08&0x18==0，REG08其余bit、所有限值与其它寄存器仍逐字节相等。正常 Full 前后不变仍按原配置相等检查；其它变位和只贴 Full 标签的转换拒绝。这只是前后健康／配置变化分类的精确兼容，不是整机 PM 验收，也不替代 trace/stats/身份/预算/相机等门槛。
++
+ 返回但未睡、非 RTC／未知唤醒、缺 trace／stats／结束健康状态、alarm 或 trace 清理错误，都只能是拒绝／失败／证据不足，不能 passed。
+ 
+ ## 离线验证
+ 
+-`python .../pm-worker-candidate/test-worker.py` 当前 **21 个测试方法通过**，测试实际 dispatch/classify/trace/old-worker gate 函数，使用 fake board，部分方法包含多个拒绝分支子例。还直接复用了旧成功 PM 的缓存 trace 验证解析兼容；这仅证明解析器兼容旧格式，不把旧 PM 通过转移给新 worker。
++`python .../pm-worker-candidate/test-worker.py` 当前 **29 个测试方法通过**，测试实际 dispatch/classify/trace/old-worker gate 函数，使用 fake board，部分方法包含多个拒绝分支子例。还直接复用了旧成功 PM 的缓存 trace 验证解析兼容；这仅证明解析器兼容旧格式，不把旧 PM 通过转移给新 worker。
+ 
+ 覆盖显式 execute／窗口参数、旧 r5 名称与已有目录拒绝、boot/manifest/模块/旧事务活着或未知拒绝、旧事务 gate 先于任何 I²C／manager 访问、primitive aborted／异常、trace部分建立失败、返回但零驻留、非 RTC或未知 IRQ、缺 stats／trace／健康／清理、dmesg截断或新增故障、结束采集失败仍保留 primitive／trace证据、导入无副作用和 primitive hash保持。见 [test-result.json](test-result.json)。

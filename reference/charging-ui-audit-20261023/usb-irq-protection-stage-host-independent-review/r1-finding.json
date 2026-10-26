@@ -1,0 +1,19 @@
+{
+  "schema": "samurai-stage-host-independent-review-r1-finding-v1",
+  "review_state": "blocked_pending_narrow_revision",
+  "reviewed_author_delivery_sha256": "f126a56b680298f54313fb2a232f84462f8a218e8647fc3e706934f097221b17",
+  "reviewed_host_sha256": "42d72a87b98d70a0638ce3e28ff503e38b3ffa5fbe964f2ac6915102383ccc10",
+  "finding": {
+    "function": "host.transfer",
+    "location": "Popen followed by save(transport-child-private.json) before the communicate/wait try-finally",
+    "trigger": "post-Popen local process-receipt write or fsync fails",
+    "actual_source_effect": "the exact SSH child has started but the exception bypasses child.wait(); the remote one-shot dispatch may still be progressing",
+    "preserved_limit": "the permanent launch intent still prevents replay; this finding does not claim duplicate stage execution",
+    "required_narrow_fix": "cover receipt publication and communicate with the same Popen's finally wait; preserve actual terminal/log evidence after receipt failure"
+  },
+  "old_test_scope": "R1's receipt-failure finally-wait case exercises supervisor-to-worker only; it does not exercise the host-to-SSH post-Popen receipt boundary",
+  "author_separate_confirmed_r2_scope": "malformed parent launch-receipt JSON after supervisor dispatch must remain unknown and still permit raw fetch; no replay or success inference",
+  "review_method": "static code and existing targeted receipts only",
+  "author_entrypoints_tests_or_device_executed": false,
+  "author_files_changed": false
+}

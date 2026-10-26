@@ -1,0 +1,30 @@
+{
+  "sequences": 16,
+  "assertions": 251,
+  "passed": true,
+  "tested_files": {
+    "oem-full-cycle.h": "6a0e04d0359a53db335e22ff938839b46e7d01a0337c40c9de153eadb7546ce8",
+    "test-oem-full.c": "91f42994fd716fc380fb90075eeba0e15c87813d48644eed27a7480a4be30e34"
+  },
+  "sanitizers": [
+    "ASan",
+    "UBSan"
+  ],
+  "command": [
+    "gcc",
+    "-std=c11",
+    "-g",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-fsanitize=address,undefined",
+    "-fno-omit-frame-pointer",
+    "-I/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/test-oem-full.c",
+    "-o",
+    "/home/cy122/charging-session-20261023/test-oem-full"
+  ],
+  "scope": "Portable OEM ordinary Full/recharge candidate; not integrated, built as a module or tested on the phone",
+  "phone_accessed": false,
+  "shared_kernel_or_sdk_modified": false
+}

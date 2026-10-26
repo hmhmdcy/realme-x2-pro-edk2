@@ -1,0 +1,13 @@
+--- a/Platform/RenegadePkg/Library/PlatformBootManagerLib/PlatformBm.c
++++ b/Platform/RenegadePkg/Library/PlatformBootManagerLib/PlatformBm.c
+@@ -171,8 +171,8 @@
+   IN UINT32  Value
+   )
+ {
+-  // Do not mask away unknown bits or accept an unproven replicated word.
+-  return (Value == 0U) || (Value == 1U);
++  // Match full words only; 0x01010101 was read twice on this board.
++  return (Value == 0U) || (Value == 1U) || (Value == 0x01010101U);
+ }
+ 
+ STATIC

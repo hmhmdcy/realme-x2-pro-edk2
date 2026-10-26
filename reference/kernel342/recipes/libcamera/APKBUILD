@@ -1,0 +1,264 @@
+# Realme X2 Pro: full framework with CAMSS hardware processing and RAW support.
+# Forked from Alpine for temporary downstream patches
+maintainer="Robert Mader <robert.mader@collabora.com>"
+pkgname=libcamera
+_pkgver=0.7.2
+pkgver=9999$_pkgver
+pkgrel=27
+pkgdesc="Linux camera framework"
+url="https://libcamera.org/"
+arch="all"
+license="LGPL-2.1-or-later AND GPL-2.0-or-later"
+# upstream calls 'date' with a non-POSIX option so we pull in coreutils
+makedepends="
+	coreutils
+	doxygen
+	eudev-dev
+	glib-dev
+	gnutls-dev
+	graphviz
+	gst-plugins-base-dev
+	gtest-dev
+	libevent-dev
+	libpisp-dev
+	libunwind-dev
+	libyuv
+	libyuv-dev
+	linux-headers
+	meson
+	py3-jinja2
+	py3-ply
+	py3-pybind11-dev
+	py3-sphinx
+	py3-sphinxcontrib-doxylink
+	py3-yaml
+	python3-dev
+	qt6-qtbase-dev
+	qt6-qttools-dev
+	yaml-dev
+	"
+subpackages="
+	$pkgname-dbg
+	$pkgname-dev
+	qcam
+	$pkgname-gstreamer
+	$pkgname-v4l2
+	$pkgname-tools
+	py3-$pkgname-pyc:pyc
+	py3-$pkgname:py3
+	"
+_tuning_files="
+	hi846.yaml
+	imx355.yaml
+	imx363.yaml
+	imx371.yaml
+	imx376.yaml
+	imx519.yaml
+	imx800.yaml
+	imx858.yaml
+	s5k3l6xx.yaml
+	s5kjn1.yaml
+	"
+source="https://gitlab.freedesktop.org/camera/libcamera/-/archive/v$_pkgver/libcamera-v$_pkgver.tar.gz
+	0001-software_isp-debayer_egl-Re-add-log-for-failing-DMAB.patch
+	0002-libcamera-camera_sensor-Add-Sony-IMX355-sensor-prope.patch
+	0003-libcamera-software_isp-debayer_egl-Use-untransposed-.patch
+	0004-debayer-Further-demote-Unsupported-input-format-log.patch
+	0005-ipa-simple-Derive-AGC-minimum-gain-step-from-sensor-.patch
+	0006-libcamera-Add-quad-Bayer-CFA-layout-support.patch
+	0007-imx471-helper.patch
+	0008-imx471-properties-1um.patch
+	0009-softisp-cpu-initialize-luts.patch
+	0010-build-allow-external-ipa-signing-key.patch
+	0011-imx471-native-quad-cpu.patch
+	0012-software-isp-dma-heap-selection.patch
+	0013-simple-refresh-sensor-timing.patch
+	0014-simple-capture-control-snapshot.patch
+	0015-simple-raw-only-statistics.patch
+	0016-simple-stop-live-requests.patch
+	0017-simple-capture-cancel-status.patch
+	0018-simple-manual-exposure-controls.patch
+	0019-ipc-threaded-start-outputs.patch
+	0020-soft-invalid-statistics-hold.patch
+	0021-imx319-gain-helper.patch
+	0022-soft-initial-parameters.patch
+	0023-simple-link-state-after-external-client.patch
+	0024-s5k3m5-native-gain-helper.patch
+	0025-s5kgw1-native-gain-helper.patch
+	0026-simple-lens-stream-lifetime.patch
+	0027-softisp-raw-focus-statistics.patch
+	0028-simple-contrast-autofocus.patch
+	0029-camss-hardware-pipeline.patch
+	0030-camss-lens-shading.patch
+	0031-camss-calibrated-white-balance.patch
+	0032-camss-calibrated-cct-estimation.patch
+	0033-camss-colour-correction-coupling.patch
+	0034-camss-runtime-reference-lux.patch
+	0035-camss-runtime-aec-colour-correction.patch
+	0036-camss-dynamic-lens-shading.patch
+	qcam.desktop
+	$_tuning_files
+	"
+builddir="$srcdir/$pkgname-v$_pkgver"
+# gstreamer tests fail
+# manual strip because ipa .sign files depend on the file contents- have to re-sign after strip
+options="!strip !check"
+
+case "$CARCH" in
+arm*|aarch64)
+	subpackages="$subpackages $pkgname-raspberrypi"
+	;;
+esac
+
+case "$CARCH" in
+ppc64le|s390x|riscv64|loongarch64)
+	# doesn't install any ipa
+	;;
+*)
+	depends="$pkgname-ipa=$pkgver-r$pkgrel"
+	subpackages="$subpackages $pkgname-ipa"
+	;;
+esac
+
+build() {
+	[ -n "${LIBCAMERA_IPA_PRIVATE_KEY:-}" ] && [ -r "$LIBCAMERA_IPA_PRIVATE_KEY" ] || die "Set LIBCAMERA_IPA_PRIVATE_KEY to a retained private build input"
+	case "$LIBCAMERA_IPA_PRIVATE_KEY" in /*) ;; *) die "IPA key path must be absolute" ;; esac
+	abuild-meson \
+		-Dpipelines=auto,virtual \
+		-Dipas=camss-vfe,ipu3,mali-c55,rkisp1,rpi/pisp,rpi/vc4,simple,vimc \
+		-Dv4l2=true \
+		-Dwerror=false \
+		-Ddocumentation=disabled \
+		-Dipa-priv-key="$LIBCAMERA_IPA_PRIVATE_KEY" \
+		. output
+	meson compile -C output -j "${JOBS:-4}"
+}
+
+check() {
+	meson test -C output --print-errorlogs
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C output
+	install -Dm644 -t "$pkgdir"/usr/share/applications "$srcdir"/qcam.desktop
+
+	# manual strip first..
+	scanelf --recursive \
+		--nobanner \
+		--etype "ET_DYN,ET_EXEC" \
+		--format "%F" \
+		"$pkgdir" \
+		| while read -r file; do
+			strip "$file"
+	done
+}
+
+ipa() {
+	depends=""
+	amove usr/lib/libcamera
+	amove usr/share/libcamera/ipa
+
+	for _tuning_file in $_tuning_files; do
+		install -Dm644 -t "$subpkgdir"/usr/share/libcamera/ipa/simple \
+			"$srcdir"/"$_tuning_file"
+	done
+
+	# then sign ipa's
+	local ipa
+	for ipa in "$subpkgdir"/usr/lib/libcamera/ipa/ipa*.so; do
+		msg "signing $ipa"
+		"$builddir"/src/ipa/ipa-sign.sh \
+			"$LIBCAMERA_IPA_PRIVATE_KEY" \
+			"$ipa" \
+			"$ipa".sign
+	done
+}
+
+qcam() {
+	depends=""
+	amove usr/bin/qcam
+
+	amove usr/share/applications/qcam.desktop
+}
+
+gstreamer() {
+	depends=""
+	amove usr/lib/gstreamer-1.0
+}
+
+v4l2() {
+	depends=""
+	amove usr/libexec/libcamera/v4l2-compat.so
+}
+
+raspberrypi() {
+	depends=""
+	amove usr/share/libcamera/ipa/rpi
+	amove usr/libexec/libcamera/raspberrypi_ipa_proxy
+	amove usr/share/libcamera/pipeline/rpi/vc4
+}
+
+tools() {
+	depends=""
+	amove usr/bin/cam
+	amove usr/bin/lc-compliance
+}
+
+py3() {
+	pkgdesc="$pkgname (python bindings)"
+	depends="python3"
+
+	amove usr/lib/python*
+}
+
+
+sha512sums="
+b317cdc96f61682ee0bf26dfb7c4d6441db9a9c5b93ab53528121a8cd44862b3d59cbaa3881bb0837e3e381564c184c7b742124aef4267eea754c6083de353c1  libcamera-v0.7.2.tar.gz
+53e6627a4d1bdb9af7c76add1bcad784e7f620e0b0667ccce202a9ee1417bb3701df5e2ace43086eb69ae3b816be0e0833ed5d5a6d1bf0ff1d801a052ac8bcc8  0001-software_isp-debayer_egl-Re-add-log-for-failing-DMAB.patch
+512565fcf40617b3c199e0bdea66de8377e77dbd5873c52338c4ca2978a87ba22ec2b675b1f943f77ce2dcbd373f1b3c68f8668ce20d7d54bc2b8c6b0c2a8824  0002-libcamera-camera_sensor-Add-Sony-IMX355-sensor-prope.patch
+80189ce5f542647e163b499f040e4b92fa1cce5717d72bed3034490214220ac92a9ce14af496f478aa765bcfc227a90600a87f177c9ca9bb64ed1ae91eb52443  0003-libcamera-software_isp-debayer_egl-Use-untransposed-.patch
+915dcc65861cb27485636647586155f3dc9ace914b4df51e1889c05e15a82a87a35ef06c44a3f09153d29fc834bc10aa60394c594233fe72a52b6fa0a8605c9a  0004-debayer-Further-demote-Unsupported-input-format-log.patch
+50fd6a28353534e143418207ee07d462f017078091c2909ca2d495840facf7849dfebb061a7ed29a62f57dbf4e506aa9ec085b0c05ccd054d19c31a987b7e37d  0005-ipa-simple-Derive-AGC-minimum-gain-step-from-sensor-.patch
+47277fedc943ad45391ba150f1c4ae70b7bd041fb162239996fe5430429c50fe27a1c5915c9de90cb714ec578c68c4ba5e4c25a3431e35e721fdd232368b703f  0006-libcamera-Add-quad-Bayer-CFA-layout-support.patch
+46ab0ada500ec923962c2ddd2295c82c0a8f69d6861ebe45d3639c06f17ae3586c3548e185aef2fe57c8dc9e3df538fdac91ac39f78475fddf6d1fb29a63dd2d  0007-imx471-helper.patch
+18172e5d0979caef02ac88961a5c2e29805798058673e04e97377cef1d22ded9aedc9a572e812b646833e9dd5b82174ccec0493f3442e28df6a276c514fff40f  0008-imx471-properties-1um.patch
+721c2ed3594f9dacc63f5ac514355fab5b89658b63cb1d3801c567b78353375cf42758401557218190c4fe9ec06f9583583633ec8ce14fe01012d34f1f401ee6  0009-softisp-cpu-initialize-luts.patch
+7530f2d402f9d015837cfbb34ff23b4e0575afff87ec3a6b9205a978f9bad1f6681dfe16a2647f1145dd55b8b4008aba21ef3bce2bdc64ab1aa0ec0b9f08cd3b  0010-build-allow-external-ipa-signing-key.patch
+d74f9d4347b65e28736ae479f353ae775d3fc181ed2e8432b8c0ad0a7afeb8f7973a20fc671495378a3fe9fa849dede115918ba5aca6b4889a6c77d463d9b3a8  0011-imx471-native-quad-cpu.patch
+d29d0c3f48bc1d0e1a208d76dd5f7619c978eba3305a51f2c404f778abb0449cf26de2721c7256af96093b8d470087790576e8b5670c4ce9bd9452cfa3c18fbd  0012-software-isp-dma-heap-selection.patch
+014859c84495a054441c921b48a1b6f7df5b788872f130e21638d3988e6bfc85a2e676151fb845f091ee4b2ecfc11e91a4e0ed22cbe4c02e7793b722196e347f  0013-simple-refresh-sensor-timing.patch
+2a233041f63713f3df8eaf6e9027665c1047598b5c09cd77b112f65d2fd958aae5c9cd73feb0757b1dd88b81c9a0c3891bd339ccb23ed4a584d0cd17eee2484b  0014-simple-capture-control-snapshot.patch
+2df729ddda6ef91e8566fce8c4afce2f96d2f243e44ba01837cf5f391d7e382ae394b8e8e1370d1ae95f0e313b07d1db1b82085bd2c41c709c21acd39047a79d  0015-simple-raw-only-statistics.patch
+f2eaf334b6ae7bbb797d170d28dd7b6f4caf27a28d70c741da889ad5622f3a2a159c7a2cbaeb7a2111527e25f3cb9e0e35917a7677c8b4fa1ba84584562c6e20  0016-simple-stop-live-requests.patch
+ccf9645c350d3ecc6a8af23ae76ce666d0af26e231d86453044199d3de86d5658d6b54abada7f68d76d1ecc98ef8b7812d21d29f8989528997c2ed6eab95fc51  0017-simple-capture-cancel-status.patch
+11fe606d2a798975d2e44f6b6f3b5f379d3ae93c8f9b5eb29ed0f01217f8669111e3934f63d4d48c30eabf772883ffc5d74541cb92c480a7755c5fb4bb43fdc8  0018-simple-manual-exposure-controls.patch
+b2a3019c66fbb0bbfabab5d5dca7af6fbc3a29b0e8ccc06c179d5e9eb740588243524b60a4fc0a458f6955b21a3e5a3ebcdf52f9a6c049f2b5bc04fd19273540  0019-ipc-threaded-start-outputs.patch
+1df876dce71ba84e2c2b7bd61b67880e7ee54a03854f747fb9d69a444263f9bd61210deec3445533668895db85af0dd9d658e9093af978f7be5c0ce0932982ce  0020-soft-invalid-statistics-hold.patch
+22167a4eceb6d1b40b0b7c45fdf116c71684f5340de7f767535cb8e160ad9d2ae0f00cb3d461f73a344520a48a4641cf46226841d78bee06bfbfd2a91337f754  qcam.desktop
+2ee566653b17d565d2c0de67cbe6ebad25df5aac6051cad78e6bae52016fa2ca0247e964d735ac776b3e0bd447ead9c4fcb26cd7629228cdba3ceb91b46f378f  hi846.yaml
+4942edd551dcf51630246f71e600c17760d3574d5d45e5530d6cfeefe2c9ab1a812fbe220f8e89d92e19a499c592b2507c801ca4eb74cd15fcecb60bff5c650b  imx355.yaml
+285c6d0d712df341c0117c3762ddc139f53f44e6be36c3388d1a62696429175e2916f392163131e21f410c3676f02f5d125f375171f45f8d82ad278aa5076c62  imx363.yaml
+1b1f6d36311bee38006eaa1e380571fc9fbd5625fd72f63309426d3651483cef52a176d56cdebd2ce46cbb264684ede186740df169027d2bf27d0f3057da2f86  imx371.yaml
+1b1f6d36311bee38006eaa1e380571fc9fbd5625fd72f63309426d3651483cef52a176d56cdebd2ce46cbb264684ede186740df169027d2bf27d0f3057da2f86  imx376.yaml
+1b1f6d36311bee38006eaa1e380571fc9fbd5625fd72f63309426d3651483cef52a176d56cdebd2ce46cbb264684ede186740df169027d2bf27d0f3057da2f86  imx519.yaml
+55dab9dcb9b1982143b9d63e4e51138c5bffd7c8f4a8e4e122750b3ad9d475446956bc297d9f564819ade4be75a575d06633a064e14f8ba3ef77986783c5f067  imx800.yaml
+55dab9dcb9b1982143b9d63e4e51138c5bffd7c8f4a8e4e122750b3ad9d475446956bc297d9f564819ade4be75a575d06633a064e14f8ba3ef77986783c5f067  imx858.yaml
+2ee566653b17d565d2c0de67cbe6ebad25df5aac6051cad78e6bae52016fa2ca0247e964d735ac776b3e0bd447ead9c4fcb26cd7629228cdba3ceb91b46f378f  s5k3l6xx.yaml
+d59020e62520ee622282c85ce7bcdfe453c99becf48cc1005c5f8a4bb8b2511b19c89f38fb3c994e7c6a79d1f84e2ed5f5a09b4c5bdc1dc4a44b071dbccf0d44  s5kjn1.yaml
+e1c8fa27b388532bcff887ec6ea4bce629f04470dcd1f74ede2a027e6f3f0cb6bde0bf096d63d1117da23d33b0ff79e61d2a8d61f050ca523117701dd5f74d69  0021-imx319-gain-helper.patch
+40b5a591a26fcbfba6e913ade1f29db3e341cc320e9fcb88a9f8d5b91bb09450d7bd9c6413a1f0a0902d723db4073afb97d20946e5c9ef9ec34019712e4a380e  0022-soft-initial-parameters.patch
+60d773973b751e64d44fda04c4eb6b59394f77af0166fbea2efc52811a05aa2cb88de8338a84b7e3da8b1ab5570205c764e518db2c177cf7c7f018b871a4cabe  0023-simple-link-state-after-external-client.patch
+3d023b4c2cb7048c88490c68c529f71c128885e7779a7e2614f02926544c90f77dd996c9b809e9029a46003e3366c0b93df6b34d8fe96ca8e39e52125eecd8d8  0024-s5k3m5-native-gain-helper.patch
+6e7021e3626fa4b336038d1171f6d503b25ff097f9b363c9e237df95aeff7e35ba40d717828ca0b4e7d10497db36b982a853fa5ed6fc8804cb6f4472a1361bf5  0025-s5kgw1-native-gain-helper.patch
+94f488b0fddfe8f5ead3a16fff237102fc8dd6cb524853b3daa5218d0a8c70b8934a79088b8466f23a4713c401b516d43dbe7b72f637d32f509b6479ebb94117  0026-simple-lens-stream-lifetime.patch
+90a3c186e6f0be8cd1dce0c605c8b75c49e523b9b9a25f02e907893b4c147cd922d95103c24c4afcd5c4220e426a4178c6982a01c95335f2491a32fded78190f  0027-softisp-raw-focus-statistics.patch
+015c232438b30bbc8dbd74acc4b2aac9896f8b9c301f09bcf99e1749a65224b9a7c19c5fc546b6bd46d4b4e100bb6e80d6e3d608f5b73c69c4da2a70c73a3f57  0028-simple-contrast-autofocus.patch
+5a4f5d811baf6120debcd9699ce4fb1bb59c36219472aff4b3cff6a86e201867d63325d1a2d2a5569eb4668e4cef0edd0209f9476f381976439171a63bc8652a  0029-camss-hardware-pipeline.patch
+6ca69f72f28d282f6056017d5e661bf61aa2fec4514c16d305af4a67696ef765252cf9a209a7f10a9b85575954121038dadd594c560fbd7d323e423797c90844  0030-camss-lens-shading.patch
+20bdd1167cecd92375de1f5d21b19d2ef4073066d405f01d4e9a60e0c340065a136beab2ebbd3ead25a54cfbc4eb1c3710f29d14fe87fe3b87d74b2e6e5c3129  0031-camss-calibrated-white-balance.patch
+028e92d1458cae0fc5da0eb4af788e3b2f2b40a8c5f493e441d30a4ffd61760ea2de5eedc9a9e2272f81b7ba8d743d52804e016095e6787410572d6e227bbc85  0032-camss-calibrated-cct-estimation.patch
+896ed66279c81e05c908780a0566a65b0dbc04e7d1c80e7a833b739faa2fea78fbda0c532f37877050958389d3c6355906d8308e664f163502e66e9ed5eedeab  0033-camss-colour-correction-coupling.patch
+56140973abbdc4c536d08db02eed624143ceaf2fbe852b4e1e593d57862fe8054b121d7532ad267d2116ae6127e6bec6d99069343f4743414cdf2bb2bd48add2  0034-camss-runtime-reference-lux.patch
+9eba783588792c940d9e28902fa377c061fa23b1c62e99b2c892a150ff20817d168cc7395048b8aadc5329d954ef62660d8a269bbcad07761e2593ed043c4a8b  0035-camss-runtime-aec-colour-correction.patch
+7efa753e88e7a40d7c4e9f731b158bec84fd94977fe02d4ae5fd27842914d0143239472f757a03ced30fdf06e62f8fab65b3a796066436cf1eac708e1f6f2402  0036-camss-dynamic-lens-shading.patch
+"

@@ -1,0 +1,109 @@
+{
+  "stage": 227,
+  "harness_revision": "r3",
+  "baseline_negative_control_exit": 86,
+  "baseline_detected_uninitialized_kref": true,
+  "candidate_cases": {
+    "single-node": {
+      "exit_code": 0,
+      "asan_ubsan_findings": 0,
+      "output": "case=0 PASS early_opens=1 owner_releases=1"
+    },
+    "dual-node": {
+      "exit_code": 0,
+      "asan_ubsan_findings": 0,
+      "output": "case=1 PASS early_opens=2 owner_releases=1"
+    },
+    "first-misc-failure": {
+      "exit_code": 0,
+      "asan_ubsan_findings": 0,
+      "output": "case=2 PASS early_opens=0 owner_releases=1"
+    },
+    "second-misc-failure": {
+      "exit_code": 0,
+      "asan_ubsan_findings": 0,
+      "output": "case=3 PASS early_opens=1 owner_releases=1"
+    },
+    "partial-child-failure": {
+      "exit_code": 0,
+      "asan_ubsan_findings": 0,
+      "output": "case=4 PASS early_opens=0 owner_releases=1"
+    },
+    "no-session": {
+      "exit_code": 0,
+      "asan_ubsan_findings": 0,
+      "output": "case=5 PASS early_opens=1 owner_releases=1"
+    },
+    "owner-action-failure": {
+      "exit_code": 0,
+      "asan_ubsan_findings": 0,
+      "output": "case=6 PASS early_opens=0 owner_releases=1"
+    },
+    "dma-setup-failure": {
+      "exit_code": 0,
+      "asan_ubsan_findings": 0,
+      "output": "case=7 PASS early_opens=0 owner_releases=1"
+    },
+    "scm-setup-failure": {
+      "exit_code": 0,
+      "asan_ubsan_findings": 0,
+      "output": "case=8 PASS early_opens=0 owner_releases=1"
+    },
+    "callback-held-across-probe-failure": {
+      "exit_code": 0,
+      "asan_ubsan_findings": 0,
+      "output": "case=9 PASS early_opens=0 owner_releases=1"
+    },
+    "allocation-failure": {
+      "exit_code": 0,
+      "asan_ubsan_findings": 0,
+      "output": "case=10 PASS early_opens=0 owner_releases=0"
+    }
+  },
+  "actual_functions_extracted_unchanged": {
+    "baseline": {
+      "source_sha256": "41c8db5c323404dbd6230a43206ff573e0f5ad327574d3ffe94cc741ca6da347",
+      "functions": {
+        "fastrpc_channel_ctx_free": "e176497f04f7fce3f5684fa2c8e5186d353103083dac45f9b38f4deee05dd7d3",
+        "fastrpc_channel_ctx_get": "5446e1903980412486e24fcb73529cfb37494718a6e1693610af5599ddee32f6",
+        "fastrpc_channel_ctx_put": "6b597d03fc50b3c1c5216bf043f5625fcff475a0c319cb7e6459d70c2babacc1",
+        "fastrpc_session_alloc": "5d8ba32c85ef6ae3cb7c7face971158db056e060784a97ba20a3ff9314d65686",
+        "fastrpc_session_free": "45506488a29111377899eaddd4a902efb31efbf4fb7b2328a38571ec445220d9",
+        "fastrpc_device_open": "d1b7519f7d912c43354b0e9d4b20557f9164b38af919f00f3600ca43c49e251a",
+        "fastrpc_device_register": "60ee15146320aec8d258bb0b09bb2449b77dc8cbb095ed2a010a1d21dd6dcf87",
+        "fastrpc_get_domain_id": "bae19a682df785e6a64672b081427e16ba5747f359f5bd59855a6e3736d6d321",
+        "fastrpc_rpmsg_probe": "8a98608841e25fbf0930b3b2c40cea38290435741cf7b5370848970044ab7cc7",
+        "fastrpc_rpmsg_callback": "e2dd73aab7f9c942e64ae5ce4e9d7f875908c4308502fef34e341c1f0f0c1b73"
+      },
+      "generated_harness_sha256": "c1fe6689b41900877e67e524b7d7da6f865370064efc5d0fe93b0cdffb89c8f6"
+    },
+    "candidate": {
+      "source_sha256": "f378afedc84d4d0cc29166686210fbf706ea16be59dd4270cab2f3c3ac5faec8",
+      "functions": {
+        "fastrpc_channel_ctx_free": "e176497f04f7fce3f5684fa2c8e5186d353103083dac45f9b38f4deee05dd7d3",
+        "fastrpc_channel_ctx_get": "5446e1903980412486e24fcb73529cfb37494718a6e1693610af5599ddee32f6",
+        "fastrpc_channel_ctx_put": "6b597d03fc50b3c1c5216bf043f5625fcff475a0c319cb7e6459d70c2babacc1",
+        "fastrpc_session_alloc_locked": "0641e040eeb5f00586ba8b8194a6f1ce7cedde949dd81faf93caad7ceb198972",
+        "fastrpc_session_free": "45506488a29111377899eaddd4a902efb31efbf4fb7b2328a38571ec445220d9",
+        "fastrpc_device_open": "148e6217e5424e6e7c0bd45c586744b486bb9360b3e8db2dd7b7d647489d2a4e",
+        "fastrpc_device_register": "60ee15146320aec8d258bb0b09bb2449b77dc8cbb095ed2a010a1d21dd6dcf87",
+        "fastrpc_get_domain_id": "bae19a682df785e6a64672b081427e16ba5747f359f5bd59855a6e3736d6d321",
+        "fastrpc_channel_ctx_release": "8c50c4b2249a054e1eb14a7af8cf49f595569bb66a9b9b9cde953fc0b0691a5a",
+        "fastrpc_rpmsg_probe": "021e3086409ceb2a13f66fdbee206f30dfcb613d22217c6dbda8b579167b496a",
+        "fastrpc_rpmsg_callback": "4bf11f503daa0a96c4f0d8bd6b15da77c96e8e1d65b4cb91b3ff84c4402e512c"
+      },
+      "generated_harness_sha256": "64adcf0277a344d5d96f31093e8711bd3d20eeb4bef8da158d8e3ca0ae0610e0"
+    }
+  },
+  "asan_ubsan": true,
+  "harness_scope": "probe publication/open admission/failure unwind/owner lifetime, mocked kernel APIs",
+  "does_not_validate": [
+    "real DMA",
+    "DSP restart",
+    "active-client removal",
+    "physical sensors"
+  ],
+  "canonical_unchanged": true,
+  "runtime_deployed": false,
+  "phone_changes": false
+}

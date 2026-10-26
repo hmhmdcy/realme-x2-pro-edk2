@@ -1,0 +1,68 @@
+$ErrorActionPreference='Stop'
+$k84fb='C:\Users\cy122\Downloads\platform-tools\platform-tools\fastboot.exe'
+$k84out='E:\edk2-samurai-out\kernel84'
+function Invoke-K72Fastboot([string]$Name,[string[]]$Arguments,[int]$TimeoutSeconds) {
+    $proc=$null
+    try {
+        if (Test-Path -LiteralPath "$k84out\$Name.out") { throw 'Use a new output prefix' }
+        $proc=Start-Process -FilePath $k84fb -ArgumentList $Arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput "$k84out\$Name.out" -RedirectStandardError "$k84out\$Name.err"
+        if (!$proc.WaitForExit($TimeoutSeconds*1000)) { throw "$Name timed out" }
+        $proc.WaitForExit()
+        if ($proc.ExitCode -ne 0) { throw "$Name exit $($proc.ExitCode)" }
+        return ((Get-Content "$k84out\$Name.out" -Raw)+(Get-Content "$k84out\$Name.err" -Raw))
+    } finally {
+        if ($proc) {
+            if (!$proc.HasExited) { $proc.Kill(); $proc.WaitForExit() }
+            $proc.Dispose()
+        }
+    }
+}
+$audit=Get-Content "$k84out\candidate-ready-validation.json" -Raw | ConvertFrom-Json
+if (!$audit.candidate_audit_pass -or !$audit.only_logdump_write_required -or !$audit.initramfs_cpio_byte_identical -or !$audit.hardware_driver_configuration_preserved) {throw 'Candidate audit failed'}
+$guard=Get-Content "$k84out\guard-before-ready.txt" -Raw
+if (!$guard.StartsWith("26edf78d-fba8-4dd4-9547-7bc65314bbe7") -or $guard -notmatch '08edf9bcc1c55977169b0a8fd9f963805ba98d0423929e09e17bb9f811ca7405' -or $guard -notmatch '8bb97ccb828dc8ccfaeb856be00b9a83f3b9fc57340208a24a7f9a51d88d8abe') {throw 'Live partition guard absent'}
+if ((Get-FileHash "$k84out\boot-before.img").Hash.ToLowerInvariant() -ne '08edf9bcc1c55977169b0a8fd9f963805ba98d0423929e09e17bb9f811ca7405') {throw 'Boot preservation mismatch'}
+$rollback='E:\edk2-samurai-out\kernel84\logdump-before.img'
+if ((Get-FileHash $rollback).Hash.ToLowerInvariant() -ne '607fc6b4b0caba8ca5c7ea6677fd8259c81a216f91b2d6de7603e3f56d9881d0') {throw 'Rollback hash mismatch'}
+$events=Get-Content "$k84out\ready-f1-wsl.events.jsonl" | ForEach-Object {$_ | ConvertFrom-Json}
+if (!@($events | Where-Object {$_.event -eq 'receipt' -and $_.text -eq 'F1'}).Count) {throw 'No current F1 receipt'}
+$usb=(& 'C:\Program Files\usbipd-win\usbipd.exe' list | Out-String)
+if ($usb -match '(?m)^6-5\s+05c6:9505\s+[^\r\n]*Attached') {throw 'EUD still attached'}
+$devices=''
+for ($attempt=1; $attempt -le 10; $attempt++) {
+    $devices=Invoke-K72Fastboot "ready-confirm-devices-$attempt" @('devices') 15
+    if ($devices -match '(?im)^62bc28a1\s+fastboot\s*$') {break}
+    Start-Sleep -Milliseconds 1000
+}
+if ($devices -notmatch '(?im)^62bc28a1\s+fastboot\s*$') {throw 'Phone not independently enumerated in fastboot'}
+$product=Invoke-K72Fastboot 'ready-confirm-product' @('-s','62bc28a1','getvar','product') 15
+if ($product -notmatch 'product:\s*msmnile') {throw 'Unexpected product'}
+$size=Invoke-K72Fastboot 'ready-confirm-size-logdump' @('-s','62bc28a1','getvar','partition-size:logdump') 15
+if ($size -notmatch 'partition-size:logdump:\s*(0x[0-9a-fA-F]+)') {throw 'Partition size missing'}
+$partitionBytes=[Convert]::ToInt64($Matches[1].Substring(2),16)
+$image="$k84out\logdump-k84-ready.img"
+$hash=(Get-FileHash $image).Hash.ToLowerInvariant()
+if ($partitionBytes -ne 67108864 -or (Get-Item $image).Length -ne 67108864 -or $hash -ne '60e183a6780945885a738ac1bd0c7e23ed41515bca662cb50a831ede3b57302b') {throw 'Image/partition/hash mismatch'}
+$flash=Invoke-K72Fastboot 'ready-flash-logdump' @('-s','62bc28a1','flash','logdump',$image) 60
+if ($flash -notmatch "Writing 'logdump'\s+OKAY") {throw 'Successful write not observed'}
+$flash
+$reboot=Invoke-K72Fastboot 'ready-reboot' @('-s','62bc28a1','reboot') 15
+[ordered]@{utc=[DateTime]::UtcNow.ToString('o');serial='62bc28a1';product='msmnile';flashed_partitions=@('logdump');partition_bytes=$partitionBytes;image_sha256=$hash;flash_success=$true;reboot_success=$true;processes_disposed=$true;boot_written=$false;userdata_written=$false;gpt_written=$false} | ConvertTo-Json -Depth 4 | Set-Content "$k84out\ready-flash-validation.json"
+$reboot
+# Restore the established COM/NCM attach path after reboot. This writes only
+# COM_EN, VBUS_ATTACH and VBUS_INT; it does not write CHGR_EN or CHGR_INT.
+$eudtool='E:\eud-host\eudtool.exe'
+if ((Get-FileHash $eudtool).Hash.ToLowerInvariant() -ne '6fc91093235762ab82b08c33de2563dc214f98e52ea9025a80a58f278137a6bb') {throw 'EUD helper hash mismatch'}
+$probe=''
+for ($attempt=1; $attempt -le 15; $attempt++) {
+    $probe=(& $eudtool probe | Out-String)
+    $probe | Set-Content "$k84out\ready-eud-probe-$attempt.txt"
+    if ($LASTEXITCODE -eq 0 -and $probe -match 'resp \(4\): A1 28 BC 62') {break}
+    Start-Sleep -Milliseconds 500
+}
+if ($probe -notmatch 'resp \(4\): A1 28 BC 62') {throw 'Expected EUD control identity absent'}
+$attach=(& $eudtool com-up | Out-String)
+$code=$LASTEXITCODE
+$attach | Set-Content "$k84out\com-up-ready.txt"
+if ($code -ne 0 -or $attach -notmatch 'com-up done' -or $attach -notmatch 'CTL 0x07 payload=0x00000020' -or $attach -notmatch 'CTL 0x07 payload=0x00001000' -or $attach -notmatch 'CTL 0x07 payload=0x00002000' -or $attach -match 'payload=0x0000[4-8]000') {throw 'Established EUD attach did not complete'}
+$attach

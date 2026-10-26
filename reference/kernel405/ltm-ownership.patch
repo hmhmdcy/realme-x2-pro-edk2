@@ -1,0 +1,458 @@
+--- a/drivers/media/platform/qcom/camss/camss-icp-a5-colour.h
++++ b/drivers/media/platform/qcom/camss/camss-icp-a5-colour.h
+@@ -96,4 +96,57 @@
+ 			       const struct camss_a5_ipe_colour *colour,
+ 			       const struct camss_a5_ipe_gamma *gamma);
+ 
++/* Quantized LTM13 segment fields. Unsigned LUT bases use 12 bits, except
++ * reverse-Gamma bases (14). Deltas are signed at the corresponding width.
++ * Signed scale/LCE bases and deltas use 12 bits. No CDM words or addresses.
++ */
++struct camss_a5_ipe_ltm_unsigned {
++	u16 base;
++	s16 delta;
++};
++
++struct camss_a5_ipe_ltm_signed {
++	s16 base, delta;
++};
++
++struct camss_a5_ipe_ltm_iq {
++	u32 reverse_gamma, local_adaptation, mask_filter;
++	u32 bin_init_count;
++	u32 rgb2y[4];
++	u32 lce_threshold, y_ratio_max;
++	u32 mask_kernel[6];
++	u32 mask_shift, mask_scale;
++	u32 horizontal_termination, vertical_termination;
++	u32 data_collection, image_processing;
++};
++
++struct camss_a5_ipe_ltm {
++	struct camss_a5_ipe_ltm_iq iq;
++	u16 weight[12];
++	struct camss_a5_ipe_ltm_unsigned la[2][64];
++	struct camss_a5_ipe_ltm_unsigned curve[64];
++	struct camss_a5_ipe_ltm_signed scale[64];
++	struct camss_a5_ipe_ltm_unsigned mask[64];
++	struct camss_a5_ipe_ltm_signed lce[2][16];
++	struct camss_a5_ipe_ltm_unsigned reverse_gamma[5][64];
++};
++
++#define CAMSS_A5_IPE_PROGRAM_LTM 11U
++#define CAMSS_A5_IPE_LTM_PRE_OFFSET 32U
++#define CAMSS_A5_IPE_LTM_POST_OFFSET 96U
++#define CAMSS_A5_IPE_LTM_CST_OFFSET 2784U
++#define CAMSS_A5_IPE_LTM_CC_OFFSET 2840U
++#define CAMSS_A5_IPE_LTM_CV_OFFSET 2884U
++#define CAMSS_A5_IPE_LTM_GAMMA_DMI_OFFSET 2928U
++#define CAMSS_A5_IPE_LTM_GAMMA_LUT_OFFSET 2976U
++#define CAMSS_A5_IPE_LTM_DMI_OFFSET 6048U
++#define CAMSS_A5_IPE_LTM_LUT_OFFSET 6208U
++#define CAMSS_A5_IPE_LTM_IQ_BYTES 8944U
++
++int camss_a5_ipe_ltm_check(const struct camss_a5_ipe_ltm *ltm);
++int camss_a5_ipe_encode_ltm_iq(void *destination, u32 bytes, u32 iq_iova,
++			     const struct camss_a5_ipe_colour *colour,
++			     const struct camss_a5_ipe_gamma *gamma,
++			     const struct camss_a5_ipe_ltm *ltm);
++
+ #endif
+--- a/drivers/media/platform/qcom/camss/camss-icp-a5-colour.c
++++ b/drivers/media/platform/qcom/camss/camss-icp-a5-colour.c
+@@ -1,5 +1,6 @@
+ // SPDX-License-Identifier: GPL-2.0-only
+ #include <linux/errno.h>
++#include <linux/kernel.h>
+ #include <linux/string.h>
+ #include <linux/unaligned.h>
+ 
+@@ -284,3 +285,208 @@
+ 	}
+ 	return 0;
+ }
++
++static int ltm_unsigned_check(const struct camss_a5_ipe_ltm_unsigned *table,
++			      u32 count, u32 bits)
++{
++	u32 i;
++	s32 limit = 1U << (bits - 1);
++
++	for (i = 0; i < count; i++)
++		if (table[i].base >= (1U << bits) ||
++		    table[i].delta < -limit || table[i].delta >= limit)
++			return -ERANGE;
++	return 0;
++}
++
++static int ltm_signed_check(const struct camss_a5_ipe_ltm_signed *table, u32 count)
++{
++	u32 i;
++
++	for (i = 0; i < count; i++)
++		if (table[i].base < -2048 || table[i].base > 2047 ||
++		    table[i].delta < -2048 || table[i].delta > 2047)
++			return -ERANGE;
++	return 0;
++}
++
++int camss_a5_ipe_ltm_check(const struct camss_a5_ipe_ltm *ltm)
++{
++	const struct camss_a5_ipe_ltm_iq *iq;
++	u32 i;
++	int ret;
++
++	if (!ltm)
++		return -EINVAL;
++	iq = &ltm->iq;
++	if (iq->reverse_gamma > 1 || iq->local_adaptation > 1 ||
++	    iq->mask_filter > 1 || iq->data_collection > 1 ||
++	    iq->image_processing > 1 || iq->horizontal_termination > 1 ||
++	    iq->vertical_termination > 1 || iq->bin_init_count > 15 ||
++	    iq->rgb2y[0] > 63 || iq->rgb2y[1] > 63 ||
++	    iq->rgb2y[2] > 63 || iq->rgb2y[3] > 127 ||
++	    iq->lce_threshold > 1023 || iq->y_ratio_max > 1023 ||
++	    iq->mask_shift > 31 || iq->mask_scale > 4095)
++		return -ERANGE;
++	for (i = 0; i < 6; i++)
++		if (iq->mask_kernel[i] > (i < 3 ? 7 : 3))
++			return -ERANGE;
++	for (i = 0; i < 2; i++) {
++		ret = ltm_unsigned_check(ltm->la[i], 64, 12);
++		if (ret)
++			return ret;
++		ret = ltm_signed_check(ltm->lce[i], 16);
++		if (ret)
++			return ret;
++	}
++	for (i = 0; i < 5; i++) {
++		ret = ltm_unsigned_check(ltm->reverse_gamma[i], 64, 14);
++		if (ret)
++			return ret;
++	}
++	ret = ltm_unsigned_check(ltm->curve, 64, 12);
++	if (ret)
++		return ret;
++	ret = ltm_unsigned_check(ltm->mask, 64, 12);
++	if (ret)
++		return ret;
++	return ltm_signed_check(ltm->scale, 64);
++}
++
++static void ltm_unsigned_encode(u8 *output,
++			       const struct camss_a5_ipe_ltm_unsigned *table,
++			       u32 count, u32 bits)
++{
++	u32 i, mask = (1U << bits) - 1;
++
++	for (i = 0; i < count; i++)
++		put_unaligned_le32(table[i].base |
++				   (((u32)table[i].delta & mask) << bits), output + 4 * i);
++}
++
++static void ltm_signed_encode(u8 *output,
++			     const struct camss_a5_ipe_ltm_signed *table, u32 count)
++{
++	u32 i;
++
++	for (i = 0; i < count; i++)
++		put_unaligned_le32(((u32)table[i].base & 0xfff) |
++				   (((u32)table[i].delta & 0xfff) << 12), output + 4 * i);
++}
++
++int camss_a5_ipe_encode_ltm_iq(void *destination, u32 bytes, u32 iq_iova,
++			     const struct camss_a5_ipe_colour *colour,
++			     const struct camss_a5_ipe_gamma *gamma,
++			     const struct camss_a5_ipe_ltm *ltm)
++{
++	static const u16 offsets[] = {
++		0, 48, 304, 560, 816, 1072, 1328, 1392, 1456, 1712, 1968, 2224, 2480
++	};
++	static const u16 lengths[] = {
++		48, 256, 256, 256, 256, 256, 64, 64, 256, 256, 256, 256, 256
++	};
++	struct camss_a5_ipe_colour empty = {};
++	const struct camss_a5_ipe_ltm_iq *iq;
++	u8 *output = destination, *pre, *post, *table;
++	u32 i, bank, count;
++	int ret;
++
++	if (!output || bytes < CAMSS_A5_IPE_LTM_IQ_BYTES || !iq_iova ||
++	    (iq_iova & 31) ||
++	    (u64)iq_iova + CAMSS_A5_IPE_LTM_IQ_BYTES > (1ULL << 32))
++		return -EINVAL;
++	ret = camss_a5_ipe_ltm_check(ltm);
++	if (ret)
++		return ret;
++	if (gamma) {
++		ret = camss_a5_ipe_gamma_check(gamma);
++		if (ret)
++			return ret;
++	}
++	if (!colour)
++		colour = &empty;
++	ret = camss_a5_ipe_colour_check(colour);
++	if (ret)
++		return ret;
++	/* Reuse the checked conversion encoder; move only fixed command storage. */
++	ret = camss_a5_ipe_encode_colour_iq(output, bytes, iq_iova, colour);
++	if (ret)
++		return ret;
++	memmove(output + CAMSS_A5_IPE_LTM_CST_OFFSET,
++		output + CAMSS_A5_IPE_CST_PACKET_OFFSET, 140);
++	memset(output + CAMSS_A5_IPE_COLOUR_ARRAY_OFFSET, 0,
++	       CAMSS_A5_IPE_LTM_CST_OFFSET - CAMSS_A5_IPE_COLOUR_ARRAY_OFFSET);
++	memset(output + CAMSS_A5_IPE_LTM_CST_OFFSET + 140, 0,
++	       CAMSS_A5_IPE_LTM_IQ_BYTES - CAMSS_A5_IPE_LTM_CST_OFFSET - 140);
++	pre = output + CAMSS_A5_IPE_COLOUR_ARRAY_OFFSET + CAMSS_A5_IPE_LTM_PRE_OFFSET;
++	post = output + CAMSS_A5_IPE_COLOUR_ARRAY_OFFSET + CAMSS_A5_IPE_LTM_POST_OFFSET;
++	count = !!(colour->modules & CAMSS_A5_IPE_COLOUR_CST);
++	if (count)
++		encode_program(pre + 8, iq_iova + CAMSS_A5_IPE_LTM_CST_OFFSET, 56);
++	encode_program(pre + 8 + 24 * count, iq_iova + CAMSS_A5_IPE_LTM_DMI_OFFSET, 156);
++	put_unaligned_le32(CAMSS_A5_IPE_PROGRAM_LTM, pre + 16 + 24 * count);
++	put_unaligned_le32(count + 1, pre + 4);
++	count = 0;
++	if (colour->modules & CAMSS_A5_IPE_COLOUR_CC)
++		encode_program(post + 8 + 24 * count++, iq_iova + CAMSS_A5_IPE_LTM_CC_OFFSET, 44);
++	if (colour->modules & CAMSS_A5_IPE_COLOUR_CV)
++		encode_program(post + 8 + 24 * count++, iq_iova + CAMSS_A5_IPE_LTM_CV_OFFSET, 40);
++	if (gamma) {
++		encode_program(post + 8 + 24 * count, iq_iova + CAMSS_A5_IPE_LTM_GAMMA_DMI_OFFSET, 36);
++		put_unaligned_le32(CAMSS_A5_IPE_PROGRAM_GAMMA, post + 16 + 24 * count++);
++		put_unaligned_le32(1, output + 2192);
++		for (bank = 0; bank < 3; bank++) {
++			u8 *command = output + CAMSS_A5_IPE_LTM_GAMMA_DMI_OFFSET + bank * 12;
++			u32 address = iq_iova + CAMSS_A5_IPE_LTM_GAMMA_LUT_OFFSET + bank * 1024;
++
++			put_unaligned_le32(0x010003ff, command);
++			put_unaligned_le32(address, command + 4);
++			put_unaligned_le32(0x6008 | ((bank + 1) << 24), command + 8);
++			for (i = 0; i < 256; i++)
++				put_unaligned_le32(gamma->base[bank][i] |
++						   (((u32)gamma->delta[bank][i] & 0x3ff) << 10),
++						   output + CAMSS_A5_IPE_LTM_GAMMA_LUT_OFFSET +
++						   bank * 1024 + 4 * i);
++		}
++	}
++	put_unaligned_le32(count, post + 4);
++	iq = &ltm->iq;
++	put_unaligned_le32(1, output + 2096);
++	put_unaligned_le32(iq->reverse_gamma, output + 2100);
++	put_unaligned_le32(iq->local_adaptation, output + 2104);
++	put_unaligned_le32(iq->mask_filter, output + 2108);
++	put_unaligned_le32(iq->bin_init_count, output + 2112);
++	for (i = 0; i < 4; i++)
++		put_unaligned_le32(iq->rgb2y[i], output + 2116 + 4 * i);
++	put_unaligned_le32(iq->lce_threshold, output + 2132);
++	put_unaligned_le32(iq->y_ratio_max, output + 2136);
++	for (i = 0; i < 6; i++)
++		put_unaligned_le32(iq->mask_kernel[i], output + 2140 + 4 * i);
++	put_unaligned_le32(iq->mask_shift, output + 2164);
++	put_unaligned_le32(iq->mask_scale, output + 2168);
++	put_unaligned_le32(iq->horizontal_termination, output + 2172);
++	put_unaligned_le32(iq->vertical_termination, output + 2176);
++	put_unaligned_le32(iq->data_collection, output + 2180);
++	put_unaligned_le32(iq->image_processing, output + 2184);
++	for (bank = 0; bank < ARRAY_SIZE(offsets); bank++) {
++		u8 *command = output + CAMSS_A5_IPE_LTM_DMI_OFFSET + bank * 12;
++
++		put_unaligned_le32(0x01000000 | (lengths[bank] - 1), command);
++		put_unaligned_le32(iq_iova + CAMSS_A5_IPE_LTM_LUT_OFFSET + offsets[bank],
++				   command + 4);
++		put_unaligned_le32(0x5c08 | ((bank + 1) << 24), command + 8);
++	}
++	table = output + CAMSS_A5_IPE_LTM_LUT_OFFSET;
++	for (i = 0; i < 12; i++)
++		put_unaligned_le32(ltm->weight[i], table + 4 * i);
++	for (i = 0; i < 2; i++) {
++		ltm_unsigned_encode(table + offsets[1 + i], ltm->la[i], 64, 12);
++		ltm_signed_encode(table + offsets[6 + i], ltm->lce[i], 16);
++	}
++	ltm_unsigned_encode(table + offsets[3], ltm->curve, 64, 12);
++	ltm_signed_encode(table + offsets[4], ltm->scale, 64);
++	ltm_unsigned_encode(table + offsets[5], ltm->mask, 64, 12);
++	for (i = 0; i < 5; i++)
++		ltm_unsigned_encode(table + offsets[8 + i], ltm->reverse_gamma[i], 64, 14);
++	return 0;
++}
+--- a/drivers/media/platform/qcom/camss/camss-icp-a5-ipe.h
++++ b/drivers/media/platform/qcom/camss/camss-icp-a5-ipe.h
+@@ -87,6 +87,19 @@
+ 				const struct camss_a5_ipe_colour *colour,
+ 				const struct camss_a5_ipe_gamma *gamma,
+ 				enum camss_a5_ipe_result *result);
++/* Optional quantized LTM with independent colour and Gamma. Large LUTs are
++ * copied to temporary CPU memory under the engine lock, checked before DMA
++ * allocation/MAP, then encoded into the same retained request as geometry.
++ * Caller owns input-domain/tuning selection; this is not automatic tuning.
++ * NULL LTM preserves the existing Gamma/colour path.
++ */
++int camss_a5_ipe_run_ltm_status(struct camss_a5 *a5,
++			      struct camss_a5_session *session,
++			      const struct camss_a5_ipe_job *job,
++			      const struct camss_a5_ipe_colour *colour,
++			      const struct camss_a5_ipe_gamma *gamma,
++			      const struct camss_a5_ipe_ltm *ltm,
++			      enum camss_a5_ipe_result *result);
+ int camss_a5_ipe_run(struct camss_a5 *a5, struct camss_a5_session *session,
+ 		     const struct camss_a5_ipe_job *job);
+ 
+--- a/drivers/media/platform/qcom/camss/camss-icp-a5-boot.c
++++ b/drivers/media/platform/qcom/camss/camss-icp-a5-boot.c
+@@ -1346,14 +1346,17 @@
+ 			     const struct camss_a5_ipe_cc *cc,
+ 			     const struct camss_a5_ipe_colour *chain,
+ 			     const struct camss_a5_ipe_gamma *gamma,
++			     const struct camss_a5_ipe_ltm *ltm,
+ 			     enum camss_a5_ipe_result *result)
+ {
+ 	struct camss_a5_ipe_frame frame = {};
+ 	struct camss_a5_ipe_cc colour;
+ 	struct camss_a5_ipe_colour configuration;
+ 	struct camss_a5_ipe_gamma *gamma_copy = NULL;
++	struct camss_a5_ipe_ltm *ltm_copy = NULL;
++	struct camss_a5_ipe_ltm_geometry geometry = {};
+ 	u8 colour_command[CAMSS_A5_IPE_CC_COMMAND_BYTES];
+-	u32 iq_bytes = gamma ? CAMSS_A5_IPE_GAMMA_IQ_BYTES :
++	u32 iq_bytes = ltm ? CAMSS_A5_IPE_LTM_IQ_BYTES : gamma ? CAMSS_A5_IPE_GAMMA_IQ_BYTES :
+ 		chain ? CAMSS_A5_IPE_COLOUR_IQ_BYTES :
+ 		cc ? CAMSS_A5_IPE_CC_IQ_BYTES : CAMSS_A5_IPE_IQ_BYTES;
+ 	u8 packet[40] = {};
+@@ -1381,7 +1384,7 @@
+ 	}
+ 	/* Only a configured, coherent engine may reject a job locally. */
+ 	local_ready = true;
+-	if (cc && (chain || gamma)) {
++	if (cc && (chain || gamma || ltm)) {
+ 		ret = -EINVAL;
+ 		goto done;
+ 	}
+@@ -1401,6 +1404,19 @@
+ 		if (ret)
+ 			goto done;
+ 	}
++	if (ltm) {
++		ltm_copy = kmemdup(ltm, sizeof(*ltm), GFP_KERNEL);
++		if (!ltm_copy) {
++			ret = -ENOMEM;
++			goto done;
++		}
++		ret = camss_a5_ipe_ltm_check(ltm_copy);
++		if (ret)
++			goto done;
++		geometry.data_collection = ltm_copy->iq.data_collection;
++		geometry.image_processing = ltm_copy->iq.image_processing;
++		geometry.mask_filter = ltm_copy->iq.mask_filter;
++	}
+ 	if (cc) {
+ 		colour = *cc;
+ 		ret = camss_a5_ipe_cc_encode(colour_command, sizeof(colour_command), &colour);
+@@ -1419,7 +1435,9 @@
+ 		ret = -EINVAL;
+ 		goto done;
+ 	}
+-	ret = camss_a5_ipe_bypass_size(&session->io, job->max_cores, &stripe_bytes);
++	ret = ltm_copy ?
++		camss_a5_ipe_ltm_size(&session->io, job->max_cores, &geometry, &stripe_bytes) :
++		camss_a5_ipe_bypass_size(&session->io, job->max_cores, &stripe_bytes);
+ 	if (ret)
+ 		goto done;
+ 	input_bytes = (u64)session->io.input.stride * session->io.input.slice_height;
+@@ -1460,12 +1478,22 @@
+ 	}
+ 	if (ret)
+ 		goto release;
+-	ret = camss_a5_ipe_encode_bypass_striping(a5->request.cpu + PAGE_SIZE,
++	if (ltm_copy)
++		ret = camss_a5_ipe_encode_ltm_striping(a5->request.cpu + PAGE_SIZE,
++						      stripe_bytes, &session->io,
++						      job->max_cores, &geometry, &stripe_bytes);
++	else
++		ret = camss_a5_ipe_encode_bypass_striping(a5->request.cpu + PAGE_SIZE,
+ 						 stripe_bytes, &session->io,
+ 						 job->max_cores, &stripe_bytes);
+ 	if (ret)
+ 		goto release;
+-	if (gamma)
++	if (ltm_copy)
++		ret = camss_a5_ipe_encode_ltm_iq(a5->request.cpu + iq_offset, iq_bytes,
++					      REQUEST_IOVA + iq_offset,
++					      chain ? &configuration : NULL,
++					      gamma_copy, ltm_copy);
++	else if (gamma)
+ 		ret = camss_a5_ipe_encode_gamma_iq(a5->request.cpu + iq_offset, iq_bytes,
+ 						 REQUEST_IOVA + iq_offset,
+ 						 chain ? &configuration : NULL, gamma_copy);
+@@ -1499,7 +1527,12 @@
+ 					 &session->io, &frame);
+ 	if (ret)
+ 		goto release;
+-	if (gamma || chain) {
++	if (ltm_copy) {
++		put_unaligned_le32(REQUEST_IOVA + iq_offset + CAMSS_A5_IPE_COLOUR_ARRAY_OFFSET,
++				   a5->request.cpu + 40);
++		put_unaligned_le32(CAMSS_A5_IPE_LTM_PRE_OFFSET, a5->request.cpu + 44);
++		put_unaligned_le32(CAMSS_A5_IPE_LTM_POST_OFFSET, a5->request.cpu + 48);
++	} else if (gamma || chain) {
+ 		put_unaligned_le32(REQUEST_IOVA + iq_offset + CAMSS_A5_IPE_COLOUR_ARRAY_OFFSET,
+ 				   a5->request.cpu + 40);
+ 		put_unaligned_le32(CAMSS_A5_IPE_COLOUR_PRE_OFFSET, a5->request.cpu + 44);
+@@ -1571,6 +1604,7 @@
+ 			 transfer_released(a5))
+ 			*result = CAMSS_A5_IPE_REJECTED;
+ 	}
++	kfree(ltm_copy);
+ 	kfree(gamma_copy);
+ 	mutex_unlock(&a5->lock);
+ 	return ret;
+@@ -1579,7 +1613,7 @@
+ 			  const struct camss_a5_ipe_job *job,
+ 			  enum camss_a5_ipe_result *result)
+ {
+-	return run_colour_status(a5, session, job, NULL, NULL, NULL, result);
++	return run_colour_status(a5, session, job, NULL, NULL, NULL, NULL, result);
+ }
+ EXPORT_SYMBOL_GPL(camss_a5_ipe_run_status);
+ 
+@@ -1589,7 +1623,7 @@
+ 				 const struct camss_a5_ipe_cc *cc,
+ 				 enum camss_a5_ipe_result *result)
+ {
+-	return run_colour_status(a5, session, job, cc, NULL, NULL, result);
++	return run_colour_status(a5, session, job, cc, NULL, NULL, NULL, result);
+ }
+ EXPORT_SYMBOL_GPL(camss_a5_ipe_run_colour_status);
+ 
+@@ -1599,7 +1633,7 @@
+ 				       const struct camss_a5_ipe_colour *colour,
+ 				       enum camss_a5_ipe_result *result)
+ {
+-	return run_colour_status(a5, session, job, NULL, colour, NULL, result);
++	return run_colour_status(a5, session, job, NULL, colour, NULL, NULL, result);
+ }
+ EXPORT_SYMBOL_GPL(camss_a5_ipe_run_colour_chain_status);
+ 
+@@ -1610,9 +1644,21 @@
+ 				const struct camss_a5_ipe_gamma *gamma,
+ 				enum camss_a5_ipe_result *result)
+ {
+-	return run_colour_status(a5, session, job, NULL, colour, gamma, result);
++	return run_colour_status(a5, session, job, NULL, colour, gamma, NULL, result);
+ }
+ EXPORT_SYMBOL_GPL(camss_a5_ipe_run_gamma_status);
++
++int camss_a5_ipe_run_ltm_status(struct camss_a5 *a5,
++			      struct camss_a5_session *session,
++			      const struct camss_a5_ipe_job *job,
++			      const struct camss_a5_ipe_colour *colour,
++			      const struct camss_a5_ipe_gamma *gamma,
++			      const struct camss_a5_ipe_ltm *ltm,
++			      enum camss_a5_ipe_result *result)
++{
++	return run_colour_status(a5, session, job, NULL, colour, gamma, ltm, result);
++}
++EXPORT_SYMBOL_GPL(camss_a5_ipe_run_ltm_status);
+ 
+ /* Preserve existing in-kernel callers and their conservative errno contract. */
+ int camss_a5_ipe_run(struct camss_a5 *a5, struct camss_a5_session *session,

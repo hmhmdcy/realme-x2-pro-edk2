@@ -1,0 +1,9 @@
+{
+  "phase": "source-preflight",
+  "returncode": 1,
+  "compile_or_test_binary_executed": false,
+  "reason": "Windows write_text produced CRLF for the extracted test-functions include while its planned digest used LF bytes; source hash guard correctly rejected it before compilation.",
+  "original_candidate_kernel_source_changed_by_fix": false,
+  "fix": "Generate the patch and extracted functions with explicit encoded LF bytes, then use a new private test directory. The original failed private directory remains unchanged.",
+  "device_accessed": false
+}

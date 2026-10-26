@@ -1,0 +1,97 @@
+{
+  "stage": 370,
+  "firmware_sha256": "a22bc8adbb4ae97e4f8d728eecb1fd19c1bf866250b0bb7e668951c41c159e63",
+  "static_map_actual_functions": [
+    "vmm_preinit",
+    "program_section_entries"
+  ],
+  "static_table_record_slots": 4,
+  "page_table_sha256": "34786ddc6f4280664481ff6627b0fd2a7144e18a545f83b16a0da724b1c1c2ff",
+  "walk": [
+    {
+      "firmware_va": "0x0",
+      "l1_pte": "0x840e",
+      "section": true,
+      "output_iova": "0x0"
+    },
+    {
+      "firmware_va": "0x1099a0",
+      "l1_pte": "0x10041e",
+      "section": true,
+      "output_iova": "0x1099a0"
+    },
+    {
+      "firmware_va": "0x340000",
+      "l1_pte": "0x30041e",
+      "section": true,
+      "output_iova": "0x340000"
+    },
+    {
+      "firmware_va": "0x7400000",
+      "l1_pte": "0x0",
+      "section": false,
+      "output_iova": null
+    },
+    {
+      "firmware_va": "0x741c000",
+      "l1_pte": "0x0",
+      "section": false,
+      "output_iova": null
+    },
+    {
+      "firmware_va": "0x10a00000",
+      "l1_pte": "0x0",
+      "section": false,
+      "output_iova": null
+    },
+    {
+      "firmware_va": "0xe001004c",
+      "l1_pte": "0xe0000416",
+      "section": true,
+      "output_iova": "0xe001004c"
+    },
+    {
+      "firmware_va": "0xe0044080",
+      "l1_pte": "0xe0000416",
+      "section": true,
+      "output_iova": "0xe0044080"
+    }
+  ],
+  "wait_tests": [
+    {
+      "initial_request": 1,
+      "release_on_read": null,
+      "request_reads": 1,
+      "version_written": true,
+      "passed": true
+    },
+    {
+      "initial_request": 0,
+      "release_on_read": 5,
+      "request_reads": 5,
+      "version_written": true,
+      "passed": true
+    },
+    {
+      "initial_request": 2,
+      "release_on_read": 7,
+      "request_reads": 7,
+      "version_written": true,
+      "passed": true
+    },
+    {
+      "initial_request": 0,
+      "release_on_read": null,
+      "request_reads": 60,
+      "version_written": false,
+      "passed": true
+    }
+  ],
+  "actual_version_write_follows_request_one": true,
+  "shared_heap_and_sfr_need_later_dynamic_mapping": true,
+  "only_L1_memset_mocked_in_static_map_test": true,
+  "cp15_cache_scheduler_dynamic_vmm_not_executed": true,
+  "physical_smmu_mapping_and_target_exception_not_proven": true,
+  "phone_operations": false,
+  "passed": true
+}

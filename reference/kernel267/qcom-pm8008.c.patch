@@ -1,0 +1,359 @@
+Subject: [PATCH] drivers/mfd/qcom-pm8008.c: use common camera resources
+
+---
+--- a/drivers/mfd/qcom-pm8008.c
++++ b/drivers/mfd/qcom-pm8008.c
+@@ -11,7 +11,6 @@
+ #include <linux/irq.h>
+ #include <linux/irqdomain.h>
+ #include <linux/mfd/core.h>
+-#include <linux/mfd/qcom-pm8008-imx319-lab.h>
+ #include <linux/module.h>
+ #include <linux/mutex.h>
+ #include <linux/property.h>
+@@ -19,7 +18,6 @@
+ #include <linux/of_platform.h>
+ #include <linux/pinctrl/consumer.h>
+ #include <linux/regmap.h>
+-#include <linux/reset.h>
+ #include <linux/slab.h>
+ 
+ #define I2C_INTR_STATUS_BASE		0x0550
+@@ -207,31 +205,19 @@
+ 
+ static struct i2c_driver pm8008_mfd_driver;
+ 
+-/* Laboratory bring-up only: do not instantiate rear regulator children. */
+-static bool experimental_p_address_only;
+-module_param(experimental_p_address_only, bool, 0444);
+-MODULE_PARM_DESC(experimental_p_address_only, "Validate dependent rear PMIC identity without creating children");
+-
+-static bool experimental_p_imx319_power;
+-module_param(experimental_p_imx319_power, bool, 0444);
+-MODULE_PARM_DESC(experimental_p_imx319_power, "Enable strictly isolated P L1/L4 IMX319 laboratory regulators");
+-
+ struct pm8008_reset {
+ 	struct device *dev;
+ 	struct gpio_desc *gpio;
+-	struct reset_control *control;
++	struct gpio_desc *blocker;
+ };
+ 
+ static bool pm8008_has_reset(struct pm8008_reset *reset)
+ {
+-	return reset->gpio || reset->control;
++	return reset->gpio;
+ }
+ 
+ static int pm8008_set_reset(struct pm8008_reset *reset, bool asserted)
+ {
+-	if (reset->control)
+-		return asserted ? reset_control_assert(reset->control) :
+-				  reset_control_deassert(reset->control);
+ 	if (reset->gpio)
+ 		return gpiod_direction_output(reset->gpio, asserted);
+ 	return 0;
+@@ -261,54 +247,41 @@
+ 	return ret;
+ }
+ 
+-static int pm8008_link_reset_supplier(struct device *dev)
+-{
+-	struct of_phandle_args spec;
+-	struct device *supplier;
+-	int ret;
+-
+-	if (!dev->of_node ||
+-	    of_count_phandle_with_args(dev->of_node, "resets", "#reset-cells") != 1)
+-		return -EINVAL;
+-	ret = of_parse_phandle_with_args(dev->of_node, "resets", "#reset-cells", 0, &spec);
+-	if (ret)
+-		return ret;
+-	if (!of_device_is_available(spec.np)) {
+-		ret = -EINVAL;
+-		goto put_node;
+-	}
+-	supplier = get_dev_from_fwnode(of_fwnode_handle(spec.np));
+-	if (!supplier) {
+-		ret = -EPROBE_DEFER;
+-		goto put_node;
+-	}
+-	ret = pm8008_link_bound_supplier(dev, supplier, NULL);
+-	put_device(supplier);
+-put_node:
+-	of_node_put(spec.np);
+-	return ret;
+-}
+-
+ static int pm8008_get_reset(struct i2c_client *client, struct pm8008_reset *reset)
+ {
+-	struct device *dev = &client->dev;
+-	int ret;
+-
+-	reset->dev = dev;
+-	if (device_property_present(dev, "resets")) {
+-		if (device_property_present(dev, "reset-gpios"))
++	reset->dev = &client->dev;
++	reset->gpio = devm_gpiod_get_optional(&client->dev, "reset", GPIOD_ASIS);
++	return PTR_ERR_OR_ZERO(reset->gpio);
++}
++
++/* Hold a dependent device in reset until address assignment is complete. */
++static int pm8008_hold_address_conflict(struct i2c_client *client,
++				      struct pm8008_reset *reset)
++{
++	struct device_node *node, *supplier;
++	u32 address, initial;
++
++	if (device_property_read_u32(&client->dev, "qcom,initial-address", &initial))
++		return 0;
++	for_each_available_child_of_node(client->dev.of_node->parent, node) {
++		if (node == client->dev.of_node ||
++		    !of_device_is_compatible(node, "qcom,pm8008") ||
++		    of_property_read_u32(node, "reg", &address) || address != initial)
++			continue;
++		supplier = of_parse_phandle(node, "qcom,address-setup-supplier", 0);
++		if (supplier != client->dev.of_node) {
++			of_node_put(supplier);
++			of_node_put(node);
+ 			return -EINVAL;
+-		ret = pm8008_link_reset_supplier(dev);
+-		if (ret)
+-			return ret;
+-		/* Ordinary exclusive get: do not assert/deassert before address checks. */
+-		reset->control = devm_reset_control_get_exclusive(dev, NULL);
+-		return PTR_ERR_OR_ZERO(reset->control);
+-	}
+-
+-	/* Preserve the original warm-Q GPIO behaviour, including optional reset. */
+-	reset->gpio = devm_gpiod_get_optional(dev, "reset", GPIOD_ASIS);
+-	return PTR_ERR_OR_ZERO(reset->gpio);
++		}
++		of_node_put(supplier);
++		reset->blocker = devm_fwnode_gpiod_get_index(&client->dev,
++				of_fwnode_handle(node), "reset", 0,
++				GPIOD_OUT_HIGH, "pm8008-address-conflict");
++		of_node_put(node);
++		return PTR_ERR_OR_ZERO(reset->blocker);
++	}
++	return 0;
+ }
+ 
+ static struct device_node *pm8008_address_supplier_node(struct i2c_client *client)
+@@ -323,8 +296,7 @@
+ 	if (!dev->of_node || client->addr != PM8008_FACTORY_ADDRESS ||
+ 	    (client->flags & I2C_CLIENT_TEN) ||
+ 	    device_property_present(dev, "qcom,initial-address") ||
+-	    !device_property_present(dev, "resets") ||
+-	    device_property_present(dev, "reset-gpios") ||
++	    !device_property_present(dev, "reset-gpios") ||
+ 	    of_property_count_u32_elems(dev->of_node, "qcom,address-setup-supplier") != 1)
+ 		return ERR_PTR(-EINVAL);
+ 	node = of_parse_phandle(dev->of_node, "qcom,address-setup-supplier", 0);
+@@ -375,20 +347,6 @@
+ 		dev_err(reset->dev, "failed to hold consumer reset: %d\n", ret);
+ }
+ 
+-static int pm8008_lab_assert_p_reset(void *data)
+-{
+-	struct pm8008_reset *reset = data;
+-	int ret;
+-
+-	if (!reset || !reset->control || reset->gpio)
+-		return -EINVAL;
+-	ret = pm8008_set_reset(reset, true);
+-	if (ret)
+-		return ret;
+-	ret = reset_control_status(reset->control);
+-	return ret < 0 ? ret : ret == 1 ? 0 : -EIO;
+-}
+-
+ static int pm8008_read_identity(struct i2c_client *client, u16 address)
+ {
+ 	u8 reg[] = { 0x01, 0x00 }, data[6];
+@@ -491,7 +449,8 @@
+ 	return ret;
+ }
+ 
+-static int pm8008_reset_and_address(struct i2c_client *client)
++static int pm8008_reset_and_address(struct i2c_client *client,
++				    struct pm8008_reset **result)
+ {
+ 	struct device *dev = &client->dev;
+ 	struct device_node *supplier;
+@@ -501,59 +460,54 @@
+ 	supplier = pm8008_address_supplier_node(client);
+ 	if (IS_ERR(supplier))
+ 		return PTR_ERR(supplier);
+-	/* On this board factory-address P must never fall back to seven rails. */
+-	if (of_machine_is_compatible("realme,samurai") &&
+-	    client->addr == PM8008_FACTORY_ADDRESS && !supplier) {
+-		ret = -EINVAL;
+-		goto put_node;
+-	}
+-	/* Default-off, mutually exclusive lab profiles. Never reinterpret Q. */
+ 	if (supplier) {
+-		if (experimental_p_address_only == experimental_p_imx319_power) {
+-			ret = -EOPNOTSUPP;
++		ret = pm8008_link_address_supplier(client, supplier);
++		if (ret)
+ 			goto put_node;
+-		}
+-		if (experimental_p_imx319_power !=
+-		    device_property_present(dev, "realme,imx319-power-lab") ||
+-		    (experimental_p_imx319_power && client->irq > 0)) {
+-			ret = -EINVAL;
+-			goto put_node;
+-		}
+-	} else if (device_property_present(dev, "realme,imx319-power-lab")) {
+-		ret = -EINVAL;
+-		goto put_node;
+ 	}
+ 	reset = devm_kzalloc(dev, sizeof(*reset), GFP_KERNEL);
+ 	if (!reset) {
+ 		ret = -ENOMEM;
+ 		goto put_node;
+ 	}
++	ret = pm8008_hold_address_conflict(client, reset);
++	if (ret)
++		goto put_node;
+ 	ret = pm8008_get_reset(client, reset);
+ 	if (ret)
+ 		goto put_node;
+-	if (supplier) {
+-		/* Registered before MFD children: remove children, hold P, put reset. */
++	/* Children disappear before reset is asserted and its GPIO released. */
++	if (pm8008_has_reset(reset)) {
+ 		ret = devm_add_action_or_reset(dev, pm8008_hold_reset, reset);
+ 		if (ret)
+ 			goto put_node;
+-		ret = pm8008_set_reset(reset, true);
+-		if (ret)
+-			goto put_node;
+-		ret = pm8008_link_address_supplier(client, supplier);
+-		if (ret)
+-			goto put_node;
+-	}
+-
++	}
+ 	mutex_lock(&pm8008_address_lock);
+ 	ret = pm8008_initialize_address(client, reset);
+-	if (!ret && supplier)
++	if (!ret)
+ 		ret = pm8008_read_identity(client, client->addr);
+ 	mutex_unlock(&pm8008_address_lock);
+-	if (!ret && supplier)
+-		dev_set_drvdata(dev, reset);
++	if (!ret)
++		*result = reset;
+ put_node:
+ 	of_node_put(supplier);
+ 	return ret;
++}
++
++struct pm8008_global_enable {
++	struct regmap *regmap;
++	unsigned int original;
++};
++
++static void pm8008_restore_global(void *data)
++{
++	struct pm8008_global_enable *enable = data;
++	int ret;
++
++	ret = regmap_update_bits(enable->regmap, 0x0950, BIT(0), enable->original);
++	if (ret)
++		dev_err(regmap_get_device(enable->regmap),
++			"failed to restore global enable: %d\n", ret);
+ }
+ 
+ static int pm8008_probe(struct i2c_client *client)
+@@ -565,22 +519,15 @@
+ 	struct fwnode_handle *fwnode;
+ 	struct irq_domain *domain;
+ 	struct i2c_client *dummy;
+-	struct pm8008_imx319_lab_state *lab;
+-	struct pm8008_imx319_lab_data *lab_data;
+-	struct mfd_cell lab_cell = { .name = "pm8008-reg-lab14" };
++	struct pm8008_reset *reset;
++	struct pm8008_global_enable *enable;
+ 	int num_cells;
+ 	char *name;
+ 	int ret;
+ 
+-	ret = pm8008_reset_and_address(client);
++	ret = pm8008_reset_and_address(client, &reset);
+ 	if (ret)
+ 		return dev_err_probe(dev, ret, "failed to initialize PMIC address\n");
+-
+-	if (experimental_p_address_only &&
+-	    device_property_present(dev, "qcom,address-setup-supplier")) {
+-		dev_info(dev, "dependent PMIC identity verified; address-only bring-up, no children\n");
+-		return 0;
+-	}
+ 
+ 	dummy = devm_i2c_new_dummy_device(dev, client->adapter, client->addr + 1);
+ 	if (IS_ERR(dummy)) {
+@@ -603,29 +550,20 @@
+ 		return PTR_ERR(regmap);
+ 
+ 
+-	if (experimental_p_imx319_power &&
+-	    device_property_present(dev, "qcom,address-setup-supplier")) {
+-		lab = devm_kzalloc(dev, sizeof(*lab), GFP_KERNEL);
+-		if (!lab)
+-			return -ENOMEM;
+-		lab_data = devm_kzalloc(dev, sizeof(*lab_data), GFP_KERNEL);
+-		if (!lab_data)
+-			return -ENOMEM;
+-		lab->magic = PM8008_IMX319_LAB_MAGIC;
+-		lab->parent = dev;
+-		lab->primary = regmap;
+-		lab->secondary = regmap2;
+-		lab->mask = PM8008_IMX319_LAB_MASK;
+-		mutex_init(&lab->lock);
+-		lab->assert_p_reset = pm8008_lab_assert_p_reset;
+-		lab->reset_cookie = dev_get_drvdata(dev);
+-		lab_data->state = lab;
+-		lab_cell.platform_data = lab_data;
+-		lab_cell.pdata_size = sizeof(*lab_data);
+-		/* Child receives a pointer; fault survives child unbind/reprobe. */
+-		return devm_mfd_add_devices(dev, PLATFORM_DEVID_AUTO, &lab_cell,
+-					    1, NULL, 0, NULL);
+-	}
++	enable = devm_kzalloc(dev, sizeof(*enable), GFP_KERNEL);
++	if (!enable)
++		return -ENOMEM;
++	enable->regmap = regmap;
++	ret = regmap_read(regmap, 0x0950, &enable->original);
++	if (ret)
++		return ret;
++	enable->original &= BIT(0);
++	ret = devm_add_action_or_reset(dev, pm8008_restore_global, enable);
++	if (ret)
++		return ret;
++	ret = regmap_update_bits(regmap, 0x0950, BIT(0), BIT(0));
++	if (ret)
++		return ret;
+ 
+ 	if (client->irq > 0) {
+ 		name = devm_kasprintf(dev, GFP_KERNEL, "%pOF-internal", dev->of_node);
+@@ -662,8 +600,16 @@
+ 	/* Needed by GPIO driver. */
+ 	dev_set_drvdata(dev, domain);
+ 
+-	return devm_mfd_add_devices(dev, PLATFORM_DEVID_AUTO, cells,
+-				num_cells, NULL, 0, domain);
++	ret = devm_mfd_add_devices(dev, PLATFORM_DEVID_AUTO, cells,
++				   num_cells, NULL, 0, domain);
++	if (ret)
++		return ret;
++	/* The persistent consumer link permits the dependent PMIC to probe next. */
++	if (reset->blocker) {
++		devm_gpiod_put(dev, reset->blocker);
++		reset->blocker = NULL;
++	}
++	return 0;
+ }
+ 
+ static const struct of_device_id pm8008_match[] = {

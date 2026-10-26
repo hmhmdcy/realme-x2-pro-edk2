@@ -1,0 +1,59 @@
+{
+  "schema": "samurai-current-native-usb-pm-readonly-summary-v1",
+  "passed": true,
+  "same_runtime_identity": true,
+  "manifest_sha256": "18e8a1049a2c497fbc47ace50f8319aefccd63a9cd1ce5a7e9ef06916773b4e5",
+  "resident_notes_sha256": {
+    "samurai_mp2650": "fe15a2fcb618dee0b161952cd66c32f2d5ecc9c8d50b0975242da5353c472016",
+    "samurai_usb_input": "a845cd08aa415ca01ad4791b8c66047a927577e76439e632c73b6b4e2cff8c6d",
+    "samurai_gauge_protection": "fc0d253d556b6ba656db263aaa50c37e3af2c7fe115b67e6b02641ae8b5733ec",
+    "qcom_camss": "380af5b6a88427c32912f475746762b2424620ac0cfa95aa2b4714c46e7f5be7",
+    "qcom_camss_icp_a5_core": "2cb3702681976886bd34bd399031b047cbd4fbbbbeb5adac4658283aaa46032d",
+    "camss_icp_a5_m2m": "b695af3811e2b63f19ea631711b868c518d9f07d74e07173c51c90721a04e172",
+    "s5k3m5": "a52ef87a2388757c542768e5438120d858e785bd334c080b55dec0f532c54d13"
+  },
+  "taint": 0,
+  "controller_of_node": "/sys/firmware/devicetree/base/soc@0/usb@a6f8800/usb@a600000",
+  "controller_compatible": "snps,dwc3",
+  "controller_usb_psy_name": "samurai-usb-input",
+  "controller_power": {
+    "control": "on",
+    "runtime_status": "active",
+    "runtime_suspended_time": "0",
+    "runtime_active_time": "8406002",
+    "autosuspend_delay_ms": "5000"
+  },
+  "provider_of_node": "/sys/firmware/devicetree/base/soc@0/spmi@c440000/pmic@2/usb-input@1300",
+  "provider_power": {
+    "control": "auto",
+    "runtime_status": "unsupported",
+    "runtime_suspended_time": "0",
+    "runtime_active_time": "0",
+    "autosuspend_delay_ms": {
+      "errno": 5
+    }
+  },
+  "controller_supplier_count": 5,
+  "controller_suppliers": [
+    "/sys/devices/platform/soc@0/88e2000.phy/phy/phy-88e2000.phy.3",
+    "/sys/devices/platform/soc@0/88e8000.phy/phy/phy-88e8000.phy.0",
+    "/sys/devices/platform/soc@0/15000000.iommu",
+    "/sys/devices/platform/soc@0/88e2000.phy",
+    "/sys/devices/platform/soc@0"
+  ],
+  "controller_to_input_device_link_present": false,
+  "provider_consumer_names": [
+    "consumer:i2c:0-005c"
+  ],
+  "native_DEVICE_on_active_premise_observed": true,
+  "read_duration_seconds": 0.009528967,
+  "read_only": true,
+  "bus_access_performed": false,
+  "pm_requested": false,
+  "device_writes": false,
+  "original_child_wait_zero": true,
+  "original_source_sha256": "f5e91e657355cc46d0e3ba3e4559c18a6fae0846f0d59b3b9c25d42d2bfdd833",
+  "original_stdout_sha256": "89d3769623700bf10b535634209f643ee51a71cd8fd69c79394a722254444622",
+  "original_terminal_sha256": "c3eb9b0a997adc6fa9d9cbfcc51cd4eb8f4e056f3848ee3d73abda8512029302",
+  "scope": "当前IRQ/charger97c同boot的PM依赖和runtime状态快照；未请求挂起、改控制或读取总线。缺失DWC→input依赖支持补系统PM顺序，不证明历史r5根因或恢复修复。"
+}

@@ -1,0 +1,27 @@
+{
+  "passed": true,
+  "groups": 5,
+  "complete_candidate_functions": {
+    "qcom_pmic_typec_port.c": [
+      "qcom_pmic_typec_port_get_current_limit",
+      "qcom_pmic_typec_port_get_usb_supply"
+    ],
+    "tcpm.c": [
+      "tcpm_get_current_limit",
+      "tcpm_set_current_limit",
+      "tcpm_psy_external_power_changed",
+      "tcpm_unregister_port"
+    ]
+  },
+  "source_sha256": {
+    "qcom_pmic_typec_port.c": "adfd6719c6620379d7fc8233fa4fd53165b8b2d91e168ba3aacd9a68b8c0a833",
+    "tcpm.c": "c774db3fe4fb18a09700f2ab76e2da336750340b8c3ee65ee0089c8002d15e91"
+  },
+  "compiler": "cc -Wall -Wextra -Werror -pthread -fsanitize=address,undefined",
+  "stdout": "five groups passed\n",
+  "stderr": "",
+  "returncode": 0,
+  "scope": "PSY/device/kernel lifecycle boundaries mocked; real pthread callback/unregister synchronization",
+  "phone_accessed": false,
+  "installed": false
+}

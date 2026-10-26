@@ -1,0 +1,21 @@
+--- a/meson_options.txt
++++ b/meson_options.txt
+@@ -53,7 +53,7 @@
+ 
+ option('ipas',
+         type : 'array',
+-        choices : ['ipu3', 'mali-c55', 'rkisp1', 'rpi/pisp', 'rpi/vc4', 'simple',
++        choices : ['camss-vfe', 'ipu3', 'mali-c55', 'rkisp1', 'rpi/pisp', 'rpi/vc4', 'simple',
+                    'vimc'],
+         description : 'Select which IPA modules to build')
+ 
+--- a/include/libcamera/ipa/meson.build
++++ b/include/libcamera/ipa/meson.build
+@@ -63,6 +63,7 @@
+ 
+ # Mapping from pipeline handler name to mojom file
+ pipeline_ipa_mojom_mapping = {
++    'camss-vfe': 'camss.mojom',
+     'ipu3': 'ipu3.mojom',
+     'mali-c55': 'mali-c55.mojom',
+     'rkisp1': 'rkisp1.mojom',

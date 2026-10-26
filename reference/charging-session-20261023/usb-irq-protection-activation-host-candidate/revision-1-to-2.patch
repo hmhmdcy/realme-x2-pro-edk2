@@ -1,0 +1,73 @@
+--- R1/controller.py
++++ R2/controller.py
+@@ -178,9 +178,11 @@
+     job_path = Path(job_path); j = load_json(job_path); directory = job_path.parent
+     need(directory.is_relative_to(PRIVATE) and j['controller_sha256'] == sha(Path(__file__).read_bytes()), 'original host worker')
+     program = Path(j['program']).read_bytes(); need(sha(program) == j['program_sha256'], 'original exact stdin')
+-    with (directory / 'stdout-private.bin').open('xb') as out, (directory / 'stderr-private.bin').open('xb') as err:
++    out = err = None
++    identity = None; receipt_error = None; io_error = None; cleanup_errors = {}; waited = False
++    try:
++        out = (directory / 'stdout-private.bin').open('xb'); err = (directory / 'stderr-private.bin').open('xb')
+         child = subprocess.Popen(j['ssh_argv'], stdin=subprocess.PIPE, stdout=out, stderr=err, close_fds=True)
+-        identity = None; receipt_error = None; io_error = None
+         try:
+             try:
+                 identity = process_identity(child.pid)
+@@ -189,12 +191,38 @@
+             try: child.communicate(input=program)
+             except Exception as error: io_error = repr(error)
+         finally:
+-            child.wait()  # Original handle, including metadata/pipe errors. No kill or retry.
+-            out.flush(); err.flush(); os.fsync(out.fileno()); os.fsync(err.fileno())
+-        save(directory / 'ssh-terminal-private.json', dict(identity or dict(pid=child.pid), terminal=True,
+-            returncode=child.returncode, receipt_error=receipt_error, io_error=io_error,
+-            stdin_sha256=sha(program), stdout_sha256=sha((directory / 'stdout-private.bin').read_bytes()),
+-            stderr_sha256=sha((directory / 'stderr-private.bin').read_bytes())))
++            # A partial communicate may leave the remote python waiting for
++            # EOF. Close only this Popen's still-open pipe BEFORE waiting.
++            try:
++                if child.stdin is not None and not child.stdin.closed: child.stdin.close()
++            except Exception as error: cleanup_errors['stdin_close'] = repr(error)
++            try: child.wait(); waited = True  # Same handle; no timeout, kill or retry.
++            except Exception as error: cleanup_errors['wait'] = repr(error)
++            for name, stream in (('stdout', out), ('stderr', err)):
++                try: stream.flush(); os.fsync(stream.fileno())
++                except Exception as error: cleanup_errors[name + '_flush'] = repr(error)
++    finally:
++        for name, stream in (('stdout', out), ('stderr', err)):
++            if stream is not None:
++                try: stream.close()
++                except Exception as error: cleanup_errors[name + '_close'] = repr(error)
++    hashes = {}
++    for name in ('stdout', 'stderr'):
++        try: hashes[name + '_sha256'] = sha((directory / (name + '-private.bin')).read_bytes())
++        except Exception as error: hashes[name + '_sha256'] = None; cleanup_errors[name + '_hash'] = repr(error)
++    terminal = dict(identity or dict(pid=child.pid), terminal=waited, returncode=child.returncode,
++        receipt_error=receipt_error, io_error=io_error, cleanup_errors=cleanup_errors, stdin_sha256=sha(program), **hashes)
++    terminal_publish_error = None
++    try: save(directory / 'ssh-terminal-private.json', terminal)
++    except Exception as error: terminal_publish_error = repr(error)
++    # Separate finalization proof prevents a full-looking terminal whose
++    # publication/fsync failed from being qualified. Missing proof is unknown.
++    complete = dict(pid=child.pid, stdin_sha256=sha(program), wait_returned=waited,
++        cleanup_errors=cleanup_errors, terminal_publish_error=terminal_publish_error,
++        cleanup_passed=waited and not cleanup_errors and terminal_publish_error is None,
++        terminal_sha256=sha((directory / 'ssh-terminal-private.json').read_bytes()) if terminal_publish_error is None else None)
++    save(directory / 'ssh-finalization-private.json', complete)
++    if not complete['cleanup_passed']: raise RuntimeError('original SSH finalization failed; preserve and observe only')
+ 
+ 
+ def start_job(directory, action, request, pins, endpoint, wait_seconds=35):
+@@ -227,6 +255,11 @@
+     directory = Path(path); j = load_json(directory / 'job-private.json')
+     program = Path(j['program']).read_bytes(); need(sha(program) == j['program_sha256'], 'retained exact program')
+     original = load_json(directory / 'ssh-process-private.json'); terminal = load_json(directory / 'ssh-terminal-private.json')
++    finalization = load_json(directory / 'ssh-finalization-private.json')
++    need(finalization['cleanup_passed'] is True and finalization['wait_returned'] is True and
++         not finalization['cleanup_errors'] and finalization['terminal_publish_error'] is None and
++         finalization['pid'] == terminal['pid'] and finalization['stdin_sha256'] == j['program_sha256'] and
++         finalization['terminal_sha256'] == sha((directory / 'ssh-terminal-private.json').read_bytes()), 'original cleanup/publication proof required')
+     need(terminal['terminal'] is True and type(terminal['returncode']) is int and not terminal.get('receipt_error'), 'original SSH terminal/identity required')
+     need(type(original['pid']) is int and original['pid'] > 0 and type(original['startticks']) is int and original['startticks'] > 0 and original['argv'], 'real original SSH process')
+     need(all(terminal[k] == original[k] for k in ('pid', 'startticks', 'argv')) and

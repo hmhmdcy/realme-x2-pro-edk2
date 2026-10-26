@@ -1,0 +1,23 @@
+--- a/drivers/misc/fastrpc.c
++++ b/drivers/misc/fastrpc.c
+@@ -6,6 +6,7 @@
+ #include <linux/device.h>
+ #include <linux/dma-buf.h>
+ #include <linux/dma-mapping.h>
++#include <linux/freezer.h>
+ #include <linux/dma-resv.h>
+ #include <linux/idr.h>
+ #include <linux/list.h>
+@@ -1326,7 +1327,11 @@
+ 		if (!wait_for_completion_timeout(&ctx->work, 10 * HZ))
+ 			err = -ETIMEDOUT;
+ 	} else {
+-		err = wait_for_completion_interruptible(&ctx->work);
++		/* Keep this RPC and its DMA buffers while the invoking task freezes. */
++		do {
++			err = wait_for_completion_state(&ctx->work,
++							TASK_INTERRUPTIBLE | TASK_FREEZABLE);
++		} while (err == -ERESTARTSYS && try_to_freeze());
+ 	}
+ 
+ 	return err;

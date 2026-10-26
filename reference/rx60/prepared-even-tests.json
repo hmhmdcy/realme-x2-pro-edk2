@@ -1,0 +1,113 @@
+{
+    "admin_helper_sha256":  "effe2bc4f5ae67bd6956a85da1677de09ee296ccddef2254a96b9deef14513d4",
+    "parser_clean":  true,
+    "no_real_registry_or_pnp_or_etw_io":  true,
+    "no_serial_opened":  true,
+    "cases":  [
+                  {
+                      "case":  "success",
+                      "phase":  "restored",
+                      "sets":  2,
+                      "deletes":  2,
+                      "reloads":  2,
+                      "remaining_values":  0,
+                      "trace_start":  1,
+                      "trace_stop":  1,
+                      "etw_stopped":  true,
+                      "exception":  null
+                  },
+                  {
+                      "case":  "second-write",
+                      "phase":  "restored",
+                      "sets":  2,
+                      "deletes":  2,
+                      "reloads":  1,
+                      "remaining_values":  0,
+                      "trace_start":  0,
+                      "trace_stop":  0,
+                      "etw_stopped":  true,
+                      "exception":  "Capture setup/result: Exception calling \"SetValue\" with \"3\" argument(s): \"simulated second write failure\"; restore: "
+                  },
+                  {
+                      "case":  "first-reload",
+                      "phase":  "restored",
+                      "sets":  2,
+                      "deletes":  2,
+                      "reloads":  2,
+                      "remaining_values":  0,
+                      "trace_start":  0,
+                      "trace_stop":  0,
+                      "etw_stopped":  true,
+                      "exception":  "Capture setup/result: simulated first reload failure; restore: "
+                  },
+                  {
+                      "case":  "trace-start",
+                      "phase":  "restored",
+                      "sets":  2,
+                      "deletes":  2,
+                      "reloads":  2,
+                      "remaining_values":  0,
+                      "trace_start":  1,
+                      "trace_stop":  0,
+                      "etw_stopped":  true,
+                      "exception":  "Capture setup/result: simulated ETW start failure; restore: "
+                  },
+                  {
+                      "case":  "trace-update",
+                      "phase":  "restored",
+                      "sets":  2,
+                      "deletes":  2,
+                      "reloads":  2,
+                      "remaining_values":  0,
+                      "trace_start":  1,
+                      "trace_stop":  1,
+                      "etw_stopped":  true,
+                      "exception":  "Capture setup/result: simulated ETW provider update failure; restore: "
+                  },
+                  {
+                      "case":  "trace-stop",
+                      "phase":  "restore-failed",
+                      "sets":  2,
+                      "deletes":  2,
+                      "reloads":  2,
+                      "remaining_values":  0,
+                      "trace_start":  1,
+                      "trace_stop":  1,
+                      "etw_stopped":  false,
+                      "exception":  "Capture setup/result: ; restore: simulated ETW stop failure"
+                  },
+                  {
+                      "case":  "external-conflict",
+                      "phase":  "restore-failed",
+                      "sets":  2,
+                      "deletes":  1,
+                      "reloads":  1,
+                      "remaining_values":  1,
+                      "trace_start":  1,
+                      "trace_stop":  1,
+                      "etw_stopped":  true,
+                      "exception":  "Capture setup/result: ; restore: Restore conflict: external changes preserved: QCDriverConfig"
+                  }
+              ],
+    "bounded_stop_cases":  [
+                               {
+                                   "initial_failures":  0,
+                                   "calls":  1,
+                                   "stopped":  true,
+                                   "exception":  null
+                               },
+                               {
+                                   "initial_failures":  1,
+                                   "calls":  2,
+                                   "stopped":  true,
+                                   "exception":  null
+                               },
+                               {
+                                   "initial_failures":  3,
+                                   "calls":  3,
+                                   "stopped":  false,
+                                   "exception":  "simulated native stop failure"
+                               }
+                           ],
+    "limitations":  "Mocks verify control flow only. Real ETW/PnP/driver timing and interrupted process cleanup still require actual observation."
+}

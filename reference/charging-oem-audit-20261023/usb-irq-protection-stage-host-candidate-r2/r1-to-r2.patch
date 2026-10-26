@@ -1,0 +1,79 @@
+--- R1/host.py
++++ R2/host.py
+@@ -220,15 +220,40 @@
+     create(call / 'executed-remote.py', code)
+     with (call / 'stdout-private.json').open('xb') as stdout, (call / 'stderr-private.txt').open('xb') as stderr:
+         child = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=stdout, stderr=stderr, close_fds=True)
+-        save(call / 'transport-child-private.json', dict(pid=child.pid, argv=argv, terminal=False))
+-        # This exact child is waited. There is no timeout, kill, retry, or
+-        # redispatch on a lost reply. The exclusive launch intent stays forever.
++        primary_error = None
++        cleanup_errors = []
++        terminal = False
+         try:
++            # If publication fails, no stateful code has been sent. Close the
++            # owned stdin to EOF before waiting; do not leave SSH waiting for it.
++            save(call / 'transport-child-private.json', dict(pid=child.pid, argv=argv, terminal=False))
+             child.communicate(input=code)
++        except BaseException as error:
++            primary_error = error
+         finally:
+-            child.wait()
+-        stdout.flush(); stderr.flush(); os.fsync(stdout.fileno()); os.fsync(stderr.fileno())
+-    save(call / 'transport-terminal-private.json', dict(pid=child.pid, terminal=True, returncode=child.returncode))
++            try:
++                if child.stdin is not None and not child.stdin.closed:
++                    child.stdin.close()
++            except BaseException as error:
++                cleanup_errors.append(dict(phase='owned_stdin_close', error=repr(error)))
++            try:
++                child.wait()
++                terminal = True
++            except BaseException as error:
++                cleanup_errors.append(dict(phase='same_child_wait', error=repr(error)))
++            try:
++                stdout.flush(); stderr.flush(); os.fsync(stdout.fileno()); os.fsync(stderr.fileno())
++            except BaseException as error:
++                cleanup_errors.append(dict(phase='transport_log_fsync', error=repr(error)))
++            try:
++                save(call / 'transport-terminal-private.json', dict(pid=child.pid, terminal=terminal,
++                     returncode=child.returncode, primary_error=repr(primary_error) if primary_error else None,
++                     cleanup_errors=cleanup_errors))
++            except BaseException as error:
++                cleanup_errors.append(dict(phase='terminal_receipt', error=repr(error)))
++        if primary_error is not None:
++            raise primary_error
++        need(terminal and not cleanup_errors, 'transport terminal/receipt uncertain; inspect original child only')
+     need(child.returncode == 0, 'transport outcome unverified; retain this child/evidence and fetch only')
+     response = json.loads((call / 'stdout-private.json').read_bytes())
+     need(response['transaction_id'] == transaction and response['request_sha256'] == sha(request_raw), 'remote binding differs')
+--- R1/remote.py
++++ R2/remote.py
+@@ -159,7 +159,10 @@
+                     terminal_not_assumed=True)
+ 
+     retained = read_json(root / 'launch-claim-private.json')
+-    receipt = read_json(root / 'launch-receipt-private.json')
++    receipt_observation = observed_json(root / 'launch-receipt-private.json')
++    receipt = receipt_observation
++    if receipt is not None and 'read_error' in receipt:
++        receipt = None  # Keep the observation/raw; do not attribute a PID.
+     if retained is not None:
+         need(retained['transaction_id'] == tx and retained['request_sha256'] == data['request_sha256']
+              and retained['argv'] == argv and retained['supervisor_argv'] == supervisor_argv
+@@ -194,6 +197,7 @@
+ 
+     response = dict(transaction_id=tx, request_sha256=data['request_sha256'],
+                     supervisor_receipt=receipt, supervisor_process=source_process(receipt, supervisor_argv),
++                    supervisor_receipt_observation=receipt_observation,
+                     launch_receipt=child_receipt,
+                     process=source_process(child_receipt if child_bound else None, argv),
+                     worker_terminal=terminal, worker_terminal_verified=terminal_verified,
+@@ -202,6 +206,7 @@
+     if action == 'fetch':
+         files = {}
+         paths = [(root / name, name) for name in ('worker-private.log', 'supervisor-private.log',
++            'launch-receipt-private.json',
+             'supervisor-process-private.json', 'supervisor-terminal-private.json',
+             'worker-launch-receipt-private.json', 'worker-terminal-private.json')]
+         if out.exists():

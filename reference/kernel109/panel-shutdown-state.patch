@@ -1,0 +1,104 @@
+--- a/drivers/gpu/drm/panel/panel-samsung-sofef03f.c
++++ b/drivers/gpu/drm/panel/panel-samsung-sofef03f.c
+@@ -25,6 +25,7 @@
+ 	struct gpio_desc *reset;
+ 	struct gpio_desc *vci;
+ 	struct gpio_desc *vddd;
++	bool supply_enabled[2];
+ };
+ 
+ static const struct regulator_bulk_data sofef03f_supplies[] = {
+@@ -122,6 +123,33 @@
+ 	return dsi_ctx.accum_err;
+ }
+ 
++/* Keep our regulator references balanced even when disable fails. */
++static int sofef03f_supply_enable(struct sofef03f *ctx, unsigned int index)
++{
++	int ret;
++
++	if (ctx->supply_enabled[index])
++		return 0;
++	ret = regulator_enable(ctx->supplies[index].consumer);
++	if (!ret)
++		ctx->supply_enabled[index] = true;
++	return ret;
++}
++
++static void sofef03f_supply_disable(struct sofef03f *ctx, unsigned int index)
++{
++	int ret;
++
++	if (!ctx->supply_enabled[index])
++		return;
++	ret = regulator_disable(ctx->supplies[index].consumer);
++	if (ret)
++		dev_err(&ctx->dsi->dev, "Failed to disable %s: %d\n",
++			ctx->supplies[index].supply, ret);
++	else
++		ctx->supply_enabled[index] = false;
++}
++
+ static void sofef03f_power_off(struct sofef03f *ctx)
+ {
+ 	gpiod_set_value_cansleep(ctx->reset, 1);
+@@ -129,8 +157,8 @@
+ 	gpiod_set_value_cansleep(ctx->vddd, 0);
+ 	usleep_range(2000, 7000);
+ 	gpiod_set_value_cansleep(ctx->vci, 0);
+-	regulator_disable(ctx->supplies[1].consumer);
+-	regulator_disable(ctx->supplies[0].consumer);
++	sofef03f_supply_disable(ctx, 1);
++	sofef03f_supply_disable(ctx, 0);
+ }
+ 
+ static int sofef03f_prepare(struct drm_panel *panel)
+@@ -138,13 +166,13 @@
+ 	struct sofef03f *ctx = to_sofef03f(panel);
+ 	int ret;
+ 
+-	ret = regulator_enable(ctx->supplies[0].consumer);
++	ret = sofef03f_supply_enable(ctx, 0);
+ 	if (ret)
+ 		return ret;
+ 	msleep(20);
+-	ret = regulator_enable(ctx->supplies[1].consumer);
++	ret = sofef03f_supply_enable(ctx, 1);
+ 	if (ret) {
+-		regulator_disable(ctx->supplies[0].consumer);
++		sofef03f_supply_disable(ctx, 0);
+ 		return ret;
+ 	}
+ 	gpiod_set_value_cansleep(ctx->vci, 1);
+@@ -189,8 +217,12 @@
+ 	struct mipi_dsi_multi_context dsi_ctx = { .dsi = ctx->dsi };
+ 
+ 	mipi_dsi_dcs_set_display_off_multi(&dsi_ctx);
+-	mipi_dsi_msleep(&dsi_ctx, 22);
+-	return dsi_ctx.accum_err;
++	/* Shutdown must progress to unprepare, including after a DCS timeout. */
++	msleep(22);
++	if (dsi_ctx.accum_err)
++		dev_warn(&ctx->dsi->dev, "Display-off failed: %d; forcing teardown\n",
++			 dsi_ctx.accum_err);
++	return 0;
+ }
+ 
+ static int sofef03f_unprepare(struct drm_panel *panel)
+@@ -199,9 +231,14 @@
+ 	struct mipi_dsi_multi_context dsi_ctx = { .dsi = ctx->dsi };
+ 
+ 	mipi_dsi_dcs_enter_sleep_mode_multi(&dsi_ctx);
+-	mipi_dsi_msleep(&dsi_ctx, 120);
++	/* Preserve the stock wait even if the command bus is unresponsive. */
++	msleep(120);
+ 	sofef03f_power_off(ctx);
+-	return dsi_ctx.accum_err;
++	if (dsi_ctx.accum_err)
++		dev_warn(&ctx->dsi->dev, "Sleep failed: %d; panel reset and power removed\n",
++			 dsi_ctx.accum_err);
++	/* Reset and VCI/VDDD are off: DRM must allow the next prepare/enable. */
++	return 0;
+ }
+ 
+ static const struct drm_display_mode sofef03f_mode = {

@@ -1,0 +1,88 @@
+{
+  "scope": "Independent static review only; no device, SDK, build or additional tests",
+  "reviewed": [
+    "reference/bluetooth-20261023/inspect-runtime.py",
+    "reference/bluetooth-20261023/host.py",
+    "reference/kernel449/host.py",
+    "reference/package-hardening-20261023/PM-CANDIDATE-R2.md",
+    "reference/package-hardening-20261023/hardening.py",
+    "linux-port/packages/samurai-platform/usr_sbin_samurai-bluetooth"
+  ],
+  "mainline_files_changed": false,
+  "recommendations_sent_before_writing": true,
+  "findings": [
+    {
+      "priority": "P1 before any deployment gate",
+      "path": "reference/bluetooth-20261023/inspect-runtime.py:45",
+      "issue": "Loaded note hashes and disk module metadata are only recorded independently. A disk r0 hash does not establish that the currently loaded module is r0.",
+      "minimal_fix": "For hci_uart, btqca and btbcm, record loaded presence/initstate plus compare sysfs .note.gnu.build-id bytes or their hash with the note section of the verified current k363 ELF. Reuse kernel234/collect-baseline.py note() or package-hardening hardening.elf_sections(). Treat a missing note on a present module as unknown/failure, not unloaded. Include the comparison in the public status booleans without exposing identities."
+    },
+    {
+      "priority": "P2 read-only correctness",
+      "path": "reference/bluetooth-20261023/inspect-runtime.py:68",
+      "issue": "The owner check and default proxy for the well-known org.bluez name are separate operations. If BlueZ exits between them, the proxy/introspection or later default method call may activate the service.",
+      "minimal_fix": "Resolve GetNameOwner once, use that unique bus name with introspect=False, and call GetManagedObjects with an explicit timeout. A vanished unique owner should yield an unavailable inventory, without activating a replacement service."
+    },
+    {
+      "priority": "P2 receipt completeness",
+      "path": "reference/bluetooth-20261023/inspect-runtime.py:90",
+      "issue": "The outer SSH timeout is 100 seconds, but many independent remote commands each allow 20 seconds and the D-Bus call uses its implicit default timeout. Their aggregate allowance exceeds the transport budget. A transport timeout loses the final JSON and does not prove that the remote reader has ended.",
+      "minimal_fix": "Bound the remote inventory as a whole within the transport budget, give D-Bus an explicit timeout, and retain partial command-status evidence on timeout. Do not replay a stateful transaction or infer idle from a missing final receipt."
+    },
+    {
+      "priority": "P1 before interpreting connected_device_count=0",
+      "path": "reference/bluetooth-20261023/inspect-runtime.py:102",
+      "issue": "A failed D-Bus inventory currently summarizes as zero adapters, zero paired and zero connected devices, while no_device_changes remains true. Those zeros are not evidence that Bluetooth is idle.",
+      "minimal_fix": "Keep the script as an inventory, but explicitly report D-Bus/MGMT probe validity and use unknown/null counts on missing inventory. Any later deployment gate must require valid probes, or independently establish stopped bluetoothd and absent hci_uart/controller after the explicit stop operation."
+    },
+    {
+      "priority": "P2 key preservation scope",
+      "path": "reference/bluetooth-20261023/inspect-runtime.py:75",
+      "issue": "Only **/info is hashed. This can establish stability of those device files, but does not justify claiming that the entire /var/lib/bluetooth state or all local identity data is preserved.",
+      "minimal_fix": "For the deployment transaction, privately snapshot the existing Bluetooth storage files with relative paths, hashes and permissions, including adapter settings/identity files when present. Compare only relevant unchanged state after the test; preserve the original info files and key sections. Do not delete existing paired devices or overwrite their state with an older generic backup."
+    },
+    {
+      "priority": "P2 mutation guard boundary",
+      "path": "reference/kernel449/host.py:9",
+      "issue": "The adopted boot guard is checked in a separate SSH command from the requested operation. This is useful for read-only inspection but leaves a boot-change gap before future mutations.",
+      "minimal_fix": "Retain the original authenticated transport/adoption. For a future state change, perform the current boot/release check inside the same native transaction immediately before mutation, and record boot ID again at completion. A newly reported boot requires a fresh adoption, not silent reuse of kernel449 guard state."
+    }
+  ],
+  "minimum_runtime_evidence": {
+    "handoff": [
+      "Charging owner explicitly confirms its worker ended and returns the device window; USB recovery uncertainty must be resolved first.",
+      "No new system suspend, reboot, USB reprobe or charging service/module action is included in the Bluetooth window."
+    ],
+    "before_stop": [
+      "Current adopted boot ID and exact k363 release; taint and only relevant new kernel errors.",
+      "Canonical paths, actual APK owners, exact byte hashes and loaded-note matches for hci_uart, btqca and btbcm against r0/k363.",
+      "BlueZ owner/PID and valid adapter state: Powered, Discovering, Pairable, Discoverable plus valid connected-device count; no pending samurai-bluetooth lifecycle lock/worker.",
+      "Private Bluetooth storage/config snapshot, original service enable/running state, and hash of the unchanged helper/address-assistant bytes.",
+      "Current charging manifest equals the handed-off manifest; only read its existing limits/protection state. Preserve camera440 and existing charging/USB module identity."
+    ],
+    "immediately_before_r2_install": [
+      "Explicitly stop BlueZ and use the existing Bluetooth helper stop order; do not force unload or remove a stale lifecycle lock.",
+      "Confirm bluetoothd absent, hci_uart absent and hci0 unregistered; no other owner is using the Bluetooth window.",
+      "Confirm all three disk modules still match r0 and package ownership permits the intended signed package transition. Do not bypass unrelated owners with force-overwrite.",
+      "Verify r2 APK signature and exact hci_uart candidate SHA fe14136068584d212625a7c2bfb20b72e082539daa10dfcecd877e43531fc32d."
+    ],
+    "after_start_and_cleanup": [
+      "Use the existing helper/address setup and standard service only; loaded hci_uart note must match r2 ELF, unchanged btqca/btbcm notes must match their baseline ELFs.",
+      "First verify ordinary controller setup and the chosen bounded Bluetooth action; retain separate failed results. Do not add system PM while SDP/USB recovery is unresolved.",
+      "Return to the original adapter/service state, disconnect only the test peer, stop only discovery owned by the test, and compare original key/config state.",
+      "Same boot, charging manifest/protection identity and camera payload; no camera test or charging writes are needed for this module change."
+    ]
+  },
+  "rollback_transaction_requirement": [
+    "Save verified original r0 module bytes and ownership/version evidence before installing r2; retain signed r0 and r2 APKs.",
+    "On rollback, inspect current state rather than replaying the deployment worker. Stop BlueZ and unload the Bluetooth modules using the same guarded order; confirm hci_uart/controller absence.",
+    "The existing r0 adoption hook rejects r2 bytes. Therefore restoring the original r0 file and the package-database downgrade must be an explicit reviewed transaction, not a blind apk add of r0.",
+    "After restoring the exact r0 bytes and consistent package ownership/version, reload normally and compare loaded ELF notes, keys, config and original idle/service state. Saving an r0 APK alone is not a tested runtime rollback."
+  ],
+  "not_required_for_this_change": [
+    "Full module-tree/partition/NV scans",
+    "Camera captures, audio route changes, modem restarts",
+    "Charging/USB service restart, module replacement or limit writes",
+    "New Image/DTB build, flash or system suspend"
+  ]
+}

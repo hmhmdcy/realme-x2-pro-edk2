@@ -1,0 +1,433 @@
+diff --git a/drivers/media/platform/qcom/camss/camss-icp-a5-colour.c b/drivers/media/platform/qcom/camss/camss-icp-a5-colour.c
+index 2a79fb136..fa6e9bc7a 100644
+--- a/drivers/media/platform/qcom/camss/camss-icp-a5-colour.c
++++ b/drivers/media/platform/qcom/camss/camss-icp-a5-colour.c
+@@ -1,3 +1,4 @@
++#include <linux/export.h>
+ // SPDX-License-Identifier: GPL-2.0-only
+ #include <linux/errno.h>
+ #include <linux/kernel.h>
+@@ -490,3 +491,35 @@ int camss_a5_ipe_encode_ltm_iq(void *destination, u32 bytes, u32 iq_iova,
+ 		ltm_unsigned_encode(table + offsets[8 + i], ltm->reverse_gamma[i], 64, 14);
+ 	return 0;
+ }
++
++
++int camss_a5_ipe_frame_params_check(const struct qcom_ipe_a5_frame_params *params)
++{
++	int ret;
++
++	static_assert(sizeof(*params) == 6008);
++	static_assert(sizeof(params->colour) == sizeof(struct camss_a5_ipe_colour));
++	static_assert(offsetof(struct qcom_ipe_a5_colour, cc) ==
++		      offsetof(struct camss_a5_ipe_colour, cc));
++	static_assert(offsetof(struct qcom_ipe_a5_colour, cv) ==
++		      offsetof(struct camss_a5_ipe_colour, cv));
++	static_assert(sizeof(params->gamma) == sizeof(struct camss_a5_ipe_gamma));
++	static_assert(sizeof(params->ltm) == sizeof(struct camss_a5_ipe_ltm));
++	if (!params)
++		return -EINVAL;
++	if (!params->version)
++		return memchr_inv(params, 0, sizeof(*params)) ? -EINVAL : 0;
++	if (params->version != QCOM_IPE_A5_PARAMS_VERSION ||
++	    params->size != sizeof(*params) ||
++	    params->flags & ~(QCOM_IPE_A5_GAMMA | QCOM_IPE_A5_LTM) ||
++	    params->colour.padding ||
++	    memchr_inv(params->reserved, 0, sizeof(params->reserved)))
++		return -EINVAL;
++	ret = camss_a5_ipe_colour_check((const void *)&params->colour);
++	if (!ret)
++		ret = camss_a5_ipe_gamma_check((const void *)&params->gamma);
++	if (!ret)
++		ret = camss_a5_ipe_ltm_check((const void *)&params->ltm);
++	return ret;
++}
++EXPORT_SYMBOL_GPL(camss_a5_ipe_frame_params_check);
+diff --git a/drivers/media/platform/qcom/camss/camss-icp-a5-colour.h b/drivers/media/platform/qcom/camss/camss-icp-a5-colour.h
+index 594be9858..a1245f59d 100644
+--- a/drivers/media/platform/qcom/camss/camss-icp-a5-colour.h
++++ b/drivers/media/platform/qcom/camss/camss-icp-a5-colour.h
+@@ -3,6 +3,7 @@
+ #define CAMSS_A5_IPE_COLOUR_H
+ 
+ #include <linux/types.h>
++#include <linux/qcom-ipe-a5.h>
+ 
+ #define CAMSS_A5_IPE_CC_COMMAND_BYTES 44
+ #define CAMSS_A5_IPE_CC_ARRAY_OFFSET 2592U
+@@ -149,4 +150,6 @@ int camss_a5_ipe_encode_ltm_iq(void *destination, u32 bytes, u32 iq_iova,
+ 			     const struct camss_a5_ipe_gamma *gamma,
+ 			     const struct camss_a5_ipe_ltm *ltm);
+ 
++int camss_a5_ipe_frame_params_check(const struct qcom_ipe_a5_frame_params *params);
++
+ #endif
+diff --git a/drivers/media/platform/qcom/camss/camss-icp-a5-m2m.c b/drivers/media/platform/qcom/camss/camss-icp-a5-m2m.c
+index 3892da2be..7ed35bd9c 100644
+--- a/drivers/media/platform/qcom/camss/camss-icp-a5-m2m.c
++++ b/drivers/media/platform/qcom/camss/camss-icp-a5-m2m.c
+@@ -8,6 +8,9 @@
+ #include <linux/kernel.h>
+ #include <linux/module.h>
+ #include <linux/slab.h>
++#include <linux/sched.h>
++#include <linux/qcom-ipe-a5.h>
++#include <media/v4l2-ctrls.h>
+ #include <linux/workqueue.h>
+ #include <media/v4l2-device.h>
+ #include <media/media-device.h>
+@@ -27,6 +30,10 @@ struct ipe_context {
+ 	struct camss_a5_session session;
+ 	struct v4l2_pix_format_mplane format;
+ 	struct work_struct work;
++	struct v4l2_ctrl_handler controls;
++	struct task_struct *control_task;
++	struct qcom_ipe_a5_frame_params *pending_params;
++	bool params_written;
+ 	struct list_head node;
+ 	u32 sequence;
+ 	bool aborting, closed;
+@@ -53,6 +60,63 @@ struct camss_a5_m2m {
+ 	u64 jobs, completed, direct_completed, cancelled, failed, starts, stops;
+ };
+ 
++
++static int frame_params_try(struct v4l2_ctrl *ctrl)
++{
++	return camss_a5_ipe_frame_params_check(ctrl->p_new.p);
++}
++
++static int frame_params_set(struct v4l2_ctrl *ctrl)
++{
++	struct ipe_context *ctx = container_of(ctrl->handler, struct ipe_context, controls);
++
++	/* Only request_setup running on this context's hardware worker may apply
++	 * parameters. Direct S_CTRL cannot race or replace a request snapshot.
++	 * EXECUTE_ON_WRITE ensures identical consecutive payloads are copied too.
++	 */
++	if (current != READ_ONCE(ctx->control_task) || !ctx->pending_params)
++		return -EACCES;
++	memcpy(ctx->pending_params, ctrl->p_new.p, sizeof(*ctx->pending_params));
++	ctx->params_written = true;
++	return 0;
++}
++
++static const struct v4l2_ctrl_ops frame_params_ops = {
++	.try_ctrl = frame_params_try,
++	.s_ctrl = frame_params_set,
++};
++
++static const struct v4l2_ctrl_config frame_params_config = {
++	.ops = &frame_params_ops,
++	.id = V4L2_CID_QCOM_IPE_A5_FRAME_PARAMS,
++	.name = "IPE frame parameters",
++	.type = V4L2_CTRL_TYPE_U8,
++	.min = 0,
++	.max = 255,
++	.step = 1,
++	.def = 0,
++	.dims = { sizeof(struct qcom_ipe_a5_frame_params) },
++	.flags = V4L2_CTRL_FLAG_EXECUTE_ON_WRITE,
++};
++
++static int frame_params_run(struct ipe_context *ctx,
++			    const struct camss_a5_ipe_job *job,
++			    const struct qcom_ipe_a5_frame_params *params,
++			    enum camss_a5_ipe_result *result)
++{
++	const struct camss_a5_ipe_colour *colour;
++	const struct camss_a5_ipe_gamma *gamma;
++	const struct camss_a5_ipe_ltm *ltm;
++
++	if (!params || !params->version)
++		return camss_a5_ipe_run_status(ctx->dev->a5, &ctx->session, job, result);
++	colour = (const void *)&params->colour;
++	gamma = params->flags & QCOM_IPE_A5_GAMMA ? (const void *)&params->gamma : NULL;
++	ltm = params->flags & QCOM_IPE_A5_LTM ? (const void *)&params->ltm : NULL;
++	return camss_a5_ipe_run_ltm_status(ctx->dev->a5, &ctx->session, job,
++					 colour, gamma, ltm, result);
++}
++
+ /* Export the original SG buffer with the platform owner pinned. The owner
+  * depends on this adapter, which depends on DMA-SG; the DMA-BUF core drops
+  * that pin only after allocator release, including delayed fput and VMAs.
+@@ -199,12 +263,16 @@ static void device_work(struct work_struct *work)
+ 		.target_time_ns = 100000000,
+ 	};
+ 	enum camss_a5_ipe_result result = CAMSS_A5_IPE_RESET_REQUIRED;
++	struct media_request *request = src ? src->vb2_buf.req_obj.req : NULL;
++	struct qcom_ipe_a5_frame_params *params = NULL;
+ 	int ret = -ECANCELED;
+ 
+ 	if (!src || !dst) {
+-		if (src)
++		if (src) {
++			v4l2_ctrl_request_complete(request, &ctx->controls);
+ 			v4l2_m2m_buf_done(v4l2_m2m_src_buf_remove(ctx->fh.m2m_ctx),
+ 					 VB2_BUF_STATE_ERROR);
++		}
+ 		if (dst)
+ 			v4l2_m2m_buf_done(v4l2_m2m_dst_buf_remove(ctx->fh.m2m_ctx),
+ 					 VB2_BUF_STATE_ERROR);
+@@ -223,6 +291,19 @@ static void device_work(struct work_struct *work)
+ 		ret = -EAGAIN;
+ 		goto finish;
+ 	}
++	if (request) {
++		params = kzalloc(sizeof(*params), GFP_KERNEL);
++		if (!params) { ret = -ENOMEM; goto finish; }
++		ctx->pending_params = params;
++		ctx->params_written = false;
++		WRITE_ONCE(ctx->control_task, current);
++		ret = v4l2_ctrl_request_setup(request, &ctx->controls);
++		WRITE_ONCE(ctx->control_task, NULL);
++		ctx->pending_params = NULL;
++		if (!ret && !ctx->params_written) ret = -ENOENT;
++		if (!ret) ret = camss_a5_ipe_frame_params_check(params);
++		if (ret) goto finish;
++	}
+ 	input = image_buffer(&src->vb2_buf);
+ 	if (IS_ERR(input)) {
+ 		ret = PTR_ERR(input);
+@@ -243,7 +324,7 @@ static void device_work(struct work_struct *work)
+ 	if (ret)
+ 		goto hw_fail;
+ 	job.request_id = ctx->sequence + 1;
+-	ret = camss_a5_ipe_run_status(dev->a5, &ctx->session, &job, &result);
++	ret = frame_params_run(ctx, &job, params, &result);
+ 	/* A proven local rejection errors this queue, not the shared engine. */
+ 	if (!ret || result == CAMSS_A5_IPE_REJECTED)
+ 		goto finish;
+@@ -255,6 +336,7 @@ static void device_work(struct work_struct *work)
+ 	 */
+ 	stop_backend(dev);
+ finish:
++	kfree(params);
+ 	if (output)
+ 		dma_buf_put(output);
+ 	if (input)
+@@ -278,6 +360,7 @@ static void device_work(struct work_struct *work)
+ 		vb2_queue_error(v4l2_m2m_get_src_vq(ctx->fh.m2m_ctx));
+ 		vb2_queue_error(v4l2_m2m_get_dst_vq(ctx->fh.m2m_ctx));
+ 	}
++	v4l2_ctrl_request_complete(request, &ctx->controls);
+ 	v4l2_m2m_buf_copy_metadata(src, dst);
+ 	src->sequence = dst->sequence = ctx->sequence++;
+ 	v4l2_m2m_buf_done_and_job_finish(dev->scheduler, ctx->fh.m2m_ctx,
+@@ -334,6 +417,16 @@ static int buffer_prepare(struct vb2_buffer *vb)
+ 	return 0;
+ }
+ 
++
++static int buffer_output_validate(struct vb2_buffer *vb)
++{
++	struct vb2_v4l2_buffer *buffer = to_vb2_v4l2_buffer(vb);
++
++	if (buffer->field == V4L2_FIELD_ANY)
++		buffer->field = V4L2_FIELD_NONE;
++	return buffer->field == V4L2_FIELD_NONE ? 0 : -EINVAL;
++}
++
+ static void buffer_queue(struct vb2_buffer *vb)
+ {
+ 	struct ipe_context *ctx = vb2_get_drv_priv(vb->vb2_queue);
+@@ -364,7 +457,10 @@ static void stop_streaming(struct vb2_queue *q)
+ 	while ((buffer = V4L2_TYPE_IS_OUTPUT(q->type) ?
+ 		v4l2_m2m_src_buf_remove(ctx->fh.m2m_ctx) :
+ 		v4l2_m2m_dst_buf_remove(ctx->fh.m2m_ctx)))
++	{
++		v4l2_ctrl_request_complete(buffer->vb2_buf.req_obj.req, &ctx->controls);
+ 		v4l2_m2m_buf_done(buffer, VB2_BUF_STATE_ERROR);
++	}
+ 	mutex_lock(&dev->hw_lock);
+ 	if (ctx->session.handle)
+ 		ret = camss_a5_ipe_destroy(dev->a5, &ctx->session);
+@@ -379,14 +475,67 @@ static void stop_streaming(struct vb2_queue *q)
+ 	mutex_unlock(&dev->hw_lock);
+ }
+ 
++static void buffer_request_complete(struct vb2_buffer *vb);
++
+ static const struct vb2_ops queue_ops = {
+ 	.queue_setup = queue_setup,
+ 	.buf_prepare = buffer_prepare,
++	.buf_out_validate = buffer_output_validate,
++	.buf_request_complete = buffer_request_complete,
+ 	.buf_queue = buffer_queue,
+ 	.start_streaming = start_streaming,
+ 	.stop_streaming = stop_streaming,
+ };
+ 
++
++static void buffer_request_complete(struct vb2_buffer *vb)
++{
++	struct ipe_context *ctx = vb2_get_drv_priv(vb->vb2_queue);
++
++	v4l2_ctrl_request_complete(vb->req_obj.req, &ctx->controls);
++}
++
++static int request_validate(struct media_request *request)
++{
++	struct media_request_object *object;
++	struct ipe_context *ctx = NULL;
++	struct v4l2_ctrl_handler *handler;
++	struct v4l2_ctrl *control;
++	unsigned int count = vb2_request_buffer_cnt(request);
++	int ret;
++
++	if (!count)
++		return -ENOENT;
++	if (count != 1)
++		return -EINVAL;
++	list_for_each_entry(object, &request->objects, list) {
++		struct vb2_buffer *vb;
++
++		if (!vb2_request_object_is_buffer(object))
++			continue;
++		vb = container_of(object, struct vb2_buffer, req_obj);
++		if (vb->vb2_queue->ops != &queue_ops ||
++		    vb->type != V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
++			return -EINVAL;
++		ctx = vb2_get_drv_priv(vb->vb2_queue);
++	}
++	if (!ctx)
++		return -EINVAL;
++	handler = v4l2_ctrl_request_hdl_find(request, &ctx->controls);
++	if (!handler)
++		return -ENOENT;
++	control = v4l2_ctrl_request_hdl_ctrl_find(handler,
++					      V4L2_CID_QCOM_IPE_A5_FRAME_PARAMS);
++	ret = control ? 0 : -ENOENT;
++	v4l2_ctrl_request_hdl_put(handler);
++	return ret ?: vb2_request_validate(request);
++}
++
++static const struct media_device_ops request_ops = {
++	.req_validate = request_validate,
++	.req_queue = v4l2_m2m_request_queue,
++};
++
+ static int queue_init(void *private, struct vb2_queue *src,
+ 		      struct vb2_queue *dst)
+ {
+@@ -402,6 +551,7 @@ static int queue_init(void *private, struct vb2_queue *src,
+ 			      V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
+ 		q->io_modes = VB2_MMAP | VB2_DMABUF;
+ 		q->drv_priv = ctx;
++		q->supports_requests = !i;
+ 		q->buf_struct_size = sizeof(struct v4l2_m2m_buffer);
+ 		q->ops = &queue_ops;
+ 		q->mem_ops = &ctx->dev->memory_ops;
+@@ -527,11 +677,22 @@ static int open_context(struct file *file)
+ 	ctx->dev = dev;
+ 	INIT_WORK(&ctx->work, device_work);
+ 	v4l2_fh_init(&ctx->fh, &dev->video);
++	v4l2_ctrl_handler_init(&ctx->controls, 1);
++	v4l2_ctrl_new_custom(&ctx->controls, &frame_params_config, NULL);
++	ret = ctx->controls.error;
++	if (ret) {
++		v4l2_ctrl_handler_free(&ctx->controls);
++		v4l2_fh_exit(&ctx->fh);
++		kfree(ctx);
++		goto put_owner;
++	}
++	ctx->fh.ctrl_handler = &ctx->controls;
+ 	try_format(file, NULL, &format);
+ 	ctx->format = format.fmt.pix_mp;
+ 	ctx->fh.m2m_ctx = v4l2_m2m_ctx_init(dev->scheduler, ctx, queue_init);
+ 	if (IS_ERR(ctx->fh.m2m_ctx)) {
+ 		ret = PTR_ERR(ctx->fh.m2m_ctx);
++		v4l2_ctrl_handler_free(&ctx->controls);
+ 		v4l2_fh_exit(&ctx->fh);
+ 		kfree(ctx);
+ 		goto put_owner;
+@@ -560,6 +721,7 @@ static int release_context(struct file *file)
+ 	mutex_lock(&dev->video_lock);
+ 	v4l2_m2m_ctx_release(ctx->fh.m2m_ctx);
+ 	flush_work(&ctx->work);
++	v4l2_ctrl_handler_free(&ctx->controls);
+ 	v4l2_fh_del(&ctx->fh, file);
+ 	v4l2_fh_exit(&ctx->fh);
+ 	mutex_lock(&dev->hw_lock);
+@@ -624,6 +786,7 @@ struct camss_a5_m2m *camss_a5_m2m_register(struct camss_a5 *a5,
+ 	snprintf(dev->media.bus_info, sizeof(dev->media.bus_info), "platform:%s",
+ 		 dev_name(a5->dev));
+ 	media_device_init(&dev->media);
++	dev->media.ops = &request_ops;
+ 	dev->firmware = kstrdup(firmware, GFP_KERNEL);
+ 	if (!dev->firmware) {
+ 		ret = -ENOMEM;
+diff --git a/include/uapi/linux/qcom-ipe-a5.h b/include/uapi/linux/qcom-ipe-a5.h
+new file mode 100644
+index 000000000..581f672cb
+--- /dev/null
++++ b/include/uapi/linux/qcom-ipe-a5.h
+@@ -0,0 +1,68 @@
++/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
++#ifndef _UAPI_QCOM_IPE_A5_H
++#define _UAPI_QCOM_IPE_A5_H
++#include <linux/types.h>
++#include <linux/v4l2-controls.h>
++
++/* Experimental local control allocation; not an upstream-reserved CID. */
++#define V4L2_CID_QCOM_IPE_A5_FRAME_PARAMS (V4L2_CID_USER_BASE + 0x1240)
++#define QCOM_IPE_A5_PARAMS_VERSION 1U
++#define QCOM_IPE_A5_GAMMA 1U
++#define QCOM_IPE_A5_LTM 2U
++#define QCOM_IPE_A5_COLOUR_CST 1U
++#define QCOM_IPE_A5_COLOUR_CC 2U
++#define QCOM_IPE_A5_COLOUR_CV 4U
++
++struct qcom_ipe_a5_cst {
++	__s16 matrix[9], subtract[3];
++	__u16 offset[3], minimum[3], maximum[3];
++};
++struct qcom_ipe_a5_cc {
++	__s16 matrix[9], offset[3];
++	__u32 shift;
++};
++struct qcom_ipe_a5_cv {
++	__s16 luma[3], y_offset, chroma[8], offset[2];
++};
++struct qcom_ipe_a5_colour {
++	__u32 modules;
++	struct qcom_ipe_a5_cst cst;
++	/* Explicit alignment bytes: callers must zero padding. */
++	__u16 padding;
++	struct qcom_ipe_a5_cc cc;
++	struct qcom_ipe_a5_cv cv;
++};
++struct qcom_ipe_a5_gamma {
++	__u16 base[3][256];
++	__s16 delta[3][256];
++};
++struct qcom_ipe_a5_ltm_unsigned { __u16 base; __s16 delta; };
++struct qcom_ipe_a5_ltm_signed { __s16 base, delta; };
++struct qcom_ipe_a5_ltm_iq {
++	__u32 reverse_gamma, local_adaptation, mask_filter, bin_init_count;
++	__u32 rgb2y[4], lce_threshold, y_ratio_max, mask_kernel[6];
++	__u32 mask_shift, mask_scale, horizontal_termination, vertical_termination;
++	__u32 data_collection, image_processing;
++};
++struct qcom_ipe_a5_ltm {
++	struct qcom_ipe_a5_ltm_iq iq;
++	__u16 weight[12];
++	struct qcom_ipe_a5_ltm_unsigned la[2][64], curve[64];
++	struct qcom_ipe_a5_ltm_signed scale[64];
++	struct qcom_ipe_a5_ltm_unsigned mask[64];
++	struct qcom_ipe_a5_ltm_signed lce[2][16];
++	struct qcom_ipe_a5_ltm_unsigned reverse_gamma[5][64];
++};
++/* A compound U8 control stored in a Media Request with one OUTPUT buffer.
++ * All-zero payload means bypass. Otherwise version1 and size6008 are required.
++ * Values are native-endian fixed-width quantized fields. No pointers, device
++ * addresses, commands or arbitrary registers are accepted. CAPTURE buffers
++ * are queued normally. Direct non-request buffers always retain bypass.
++ */
++struct qcom_ipe_a5_frame_params {
++	__u32 version, size, flags, reserved[5];
++	struct qcom_ipe_a5_colour colour;
++	struct qcom_ipe_a5_gamma gamma;
++	struct qcom_ipe_a5_ltm ltm;
++};
++#endif

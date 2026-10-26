@@ -1,0 +1,314 @@
+--- r6/device-candidate/r7-base.py
++++ r7/device-candidate/r7-base.py
+@@ -18,12 +18,12 @@
+ KO = '/lib/modules/' + RELEASE + '/extra/samurai-charging/samurai-mp2650.ko'
+ SERVICE = '/usr/sbin/samurai-charging'
+ MANIFEST = '/usr/share/samurai-charging/manifest.json'
+-GUARD = '/var/lib/samurai/k449-adopted/boot-id-private.txt'
++GUARD = '/var/lib/samurai/charging-r7-8162b1e7040030d514a83534-adopted/boot-id-private.txt'
+ WINDOW = '/run/samurai-charging-r6-window.json'
+ SOC_SERIAL = '/sys/devices/soc0/serial_number'
+ OUT = '/root/charging-management-20261023/charging-update-r6'
+ OLD = 'f1a885e2ca9c3226ca50d94f39c17c3cae5411b1047696976975df976aa971cf'
+-NEW = '944f2d91f66c5642bbcb130c3ef59e022ca6652e599401908f8528a29d34202d'
++NEW = '5638db4c183ec502ed1df4facfe91111d1956754bb2338a5ddaf8838e9552c68'
+ PAYLOAD = '2433d8c04d22bb3e88eb1a2f0ea15c3fc3285706c40695fac6ce605613c57d58'
+ HASHES = {KO: 'fac827cfd3d1d847cb1db82f0a29e451652bd16a996b20666be2d9b330889cb6',
+           SERVICE: '61451ffea87cca466dbbb2f1a2c6e7c05d0eee517479e8b019d43b1869355aa4',
+@@ -120,7 +120,7 @@
+     r = data['registers']
+     need((r['00'] & 0x7f) * 50000 == (r['0f'] & 0x7f) * 50000 == lim['input_ua'], 'both physical input limits')
+     need((r['02'] & 0x7f) * 50000 == lim['charge_ua'], 'physical charge current limit')
+-    need(s.get('budget_ua') == lim['native_ua'], 'fresh sample/source budget agreement')
++    need(s.get('budget_ua') == lim['source_budget_ua'], 'fresh sample/effective source budget agreement')
+     return 'full_holding' if full else 'managed'
+ 
+ 
+@@ -366,6 +366,7 @@
+         return {'state': state, 'sample': manager['sample'](), 'registers': state['registers'], 'notes': notes,
+                 'openrc_started': Path('/run/openrc/started/samurai-charging').exists(),
+                 'limits': {'native_ua': int((live.PSY / 'samurai-usb-input/input_current_limit').read_text()),
++                           'source_budget_ua': int((live.PSY / 'samurai-usb-input/current_max').read_text()),
+                            'input_ua': int((supply / 'input_current_limit').read_text()),
+                            'charge_ua': int((supply / 'constant_charge_current').read_text()),
+                            'cv_uv': 3712500 + ((state['registers']['04'] & 0x7e) >> 1) * 12500}}
+--- r6/device-candidate/worker.py
++++ r7/device-candidate/worker.py
+@@ -1,5 +1,5 @@
+ #!/usr/bin/python3
+-"""Offline candidate: one volatile r6 USB500 diagnostic, always restore100.
++"""Offline candidate: one volatile r7 USB500 diagnostic, always restore100.
+ No device/network action on import. No launcher or installed-file updates.
+ """
+ from pathlib import Path
+@@ -15,11 +15,11 @@
+ import time
+ 
+ HERE = Path(__file__).resolve().parent
+-BASE_SHA = 'b5cfad278a1d1887e0cb38e47edcb796929b760151e5cb5bb59e775f1e2b2e98'
++BASE_SHA = 'cef5c0f585e4f77db77c93652a7d30c0edf1903e7586f21e7fb89a62a3129902'
+ HEALTH_SHA = 'a41942f21773c97b22d0b3760b1e256650f8e5506ee6cd0883db7145a39f4b4f'
+-TX = 'usb500-r6-diagnostic-v1'
++TX = 'usb500-r7-diagnostic-v1'
+ PREFIX = '/root/charging-management-20261023/' + TX + '-'
+-WINDOW = '/run/samurai-usb500-r6-window.json'
++WINDOW = '/run/samurai-usb500-r7-window.json'
+ GADGET = '/sys/kernel/config/usb_gadget/samurai'
+ BINDING = 'a600000.usb'
+ 
+@@ -35,7 +35,7 @@
+     return module
+ 
+ 
+-r6 = library('usb500_r6_base', 'r6-base.py', BASE_SHA)
++r6 = library('usb500_r7_base', 'r7-base.py', BASE_SHA)
+ health = library('usb500_health', 'health.py', HEALTH_SHA)
+ need, detail = r6.need, r6.detail
+ 
+@@ -68,6 +68,7 @@
+     source = row['source']
+     need(row['udc'] == 'configured' and source['online'] == '1' and '[SDP]' in source['usb_type'], 'configured native SDP')
+     need(source['input_current_limit'] == source['current_max'] == str(ma * 1000), 'native host callback allowance')
++    need(row['limits']['source_budget_ua'] == int(source['current_max']) == row['sample']['budget_ua'], 'effective source budget and fresh sample agree')
+     need(row['limits']['native_ua'] == row['limits']['input_ua'] == ma * 1000, 'exact source and physical input limit')
+     return status
+ 
+@@ -169,6 +170,19 @@
+     return result
+ 
+ 
++def ipv6_ready(links):
++    # The peer is the original-key-verified r7-postboot observation, not a
++    # guessed EUI64 or a new address to add. Reject incomplete DAD state.
++    for link in links:
++        for address in link.get('addr_info', []):
++            if (address.get('local') == 'fe80::62:bcff:fe28:a101'
++                    and address.get('prefixlen') == 64 and address.get('scope') == 'link'
++                    and not any(address.get(k, False) for k in ('tentative', 'dadfailed'))
++                    and not set(address.get('flags', [])).intersection(('tentative', 'dadfailed'))):
++                return True
++    return False
++
++
+ class Diagnostic(r6.Device):
+     def __init__(self, directory):
+         super().__init__()
+@@ -206,7 +220,7 @@
+                              'host_trigger_nonce', 'host_ready', 'host_trigger_utc', 'worker_sha256'}, 'new diagnostic request schema')
+         nonce = config['host_trigger_nonce']
+         need(isinstance(nonce, str) and len(nonce) == 48 and all(x in '0123456789abcdef' for x in nonce), 'new host trigger nonce')
+-        need(config['transaction'] == TX and config['guard'] == r6.GUARD and config['manifest_sha256'] == r6.NEW, 'only actual r6 transaction')
++        need(config['transaction'] == TX and config['guard'] == r6.GUARD and config['manifest_sha256'] == r6.NEW, 'only actual r7 transaction')
+         need(str(self.directory) == PREFIX + nonce and not self.directory.is_symlink(), 'unique dedicated directory')
+         st = self.directory.stat()
+         need(st.st_uid == 0 and stat.S_ISDIR(st.st_mode) and stat.S_IMODE(st.st_mode) == 0o700, 'private staged directory')
+@@ -257,7 +271,7 @@
+                     raise  # no unjournaled forward500; cleanup100 must still run
+ 
+     def preflight(self):
+-        need(r6.sha(self.read_owned(r6.MANIFEST)[0]) == r6.NEW, 'actual installed r6 manifest')
++        need(r6.sha(self.read_owned(r6.MANIFEST)[0]) == r6.NEW, 'actual installed r7 manifest')
+         self.manager_current = self.manager(r6.HASHES[r6.SERVICE])
+         meta = self.verify(self.manager_current)
+         self.notes_match(self.manager_current, meta)
+@@ -338,11 +352,17 @@
+         return stdout
+ 
+     def network(self, deadline):
++        # Existing observed Linux usb0 link-local peer. No host IPv4 privilege,
++        # static address injection, interface/address fallback or sysctl write.
+         need(Path(GADGET, 'functions/ncm.usb0/ifname').read_text().strip() == 'usb0', 'original NCM usb0')
+         self.net_command(['ip', 'link', 'set', 'usb0', 'up'], deadline)
+-        links = json.loads(self.net_command(['ip', '-j', '-4', 'addr', 'show', 'dev', 'usb0'], deadline))
+-        if not any(a.get('local') == '169.254.42.1' and a.get('prefixlen') == 16 for link in links for a in link['addr_info']):
+-            self.net_command(['ip', 'addr', 'add', '169.254.42.1/16', 'dev', 'usb0'], deadline)
++        ready_deadline = min(deadline, self.now() + 3)
++        while self.now() < ready_deadline:
++            links = json.loads(self.net_command(['ip', '-j', '-6', 'addr', 'show', 'dev', 'usb0'], ready_deadline))
++            if ipv6_ready(links):
++                return
++            self.pause(min(.2, max(0, ready_deadline-self.now())))
++        raise RuntimeError('observed original IPv6 peer not ready; no address/IPv4 fallback')
+ 
+     def finish(self, result):
+         if self.started:
+--- r6/host-parent.ps1
++++ r7/host-parent.ps1
+@@ -64,7 +64,7 @@
+         owned_handle_checked=$true; host_trigger_utc=$Now.ToString('o')
+         host_ready=[ordered]@{ armed=$true; target_port=[int]$ready.TargetPort; remaining_seconds_at_trigger=$remaining
+             decoder_sha256=$meta.DecoderSha256; collector_sha256=$meta.CollectorSha256; host_worker_pid=$OwnedPid
+-            capture_id=('usb500-r6-'+$Nonce); ready_at_utc=$when.ToString('o') }
++            capture_id=('usb500-r7-'+$Nonce); ready_at_utc=$when.ToString('o') }
+         reader_proof=[ordered]@{ pid=$OwnedPid; handle=$OwnedHandle; start_ticks=$OwnedStartTicks; exe=$OwnedExe; sweep=$frame.Sweep }
+     }
+ }
+@@ -96,7 +96,7 @@
+     if ((Get-FileHash (Join-Path $PSScriptRoot $reviewName) -Algorithm SHA256).Hash.ToLowerInvariant() -ne $review.tested_files.$reviewName) { throw 'Orchestration source differs from offline receipt' }
+ }
+ $nonce=[Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(24)).ToLowerInvariant()
+-$out=Join-Path 'E:/edk2-samurai-out/charging-management-20261023' ('usb500-r6-'+$nonce)
++$out=Join-Path 'E:/edk2-samurai-out/charging-management-20261023' ('usb500-r7-'+$nonce)
+ New-Item -ItemType Directory -Path $out -ErrorAction Stop | Out-Null
+ $hostOut=Join-Path $out 'host-reader'
+ $source=Join-Path $PSScriptRoot 'host-launcher.py'
+--- r6/host-launcher.py
++++ r7/host-launcher.py
+@@ -16,15 +16,14 @@
+ 
+ HERE = Path(__file__).resolve().parent
+ PRIVATE = Path('/mnt/e/edk2-samurai-out/charging-management-20261023')
+-TX = 'usb500-r6-diagnostic-v1'
++TX = 'usb500-r7-diagnostic-v1'
+ PREFIX = '/root/charging-management-20261023/' + TX + '-'
+-MANIFEST = '944f2d91f66c5642bbcb130c3ef59e022ca6652e599401908f8528a29d34202d'
++MANIFEST = '5638db4c183ec502ed1df4facfe91111d1956754bb2338a5ddaf8838e9552c68'
+ DECODER = '9fe2ffb2792bf5feb7113167056bec4466fced9dc1b591bffbcbe8373b5e7716'
+ COLLECTOR = '31c0f8e99f8ba4878b489f9b8dda34e5a688bb1e6b44415ce40a88c17fcfb6f5'
+-REVIEWED = {'worker.py':'b9f7cc4c741ca85608ec769640b920e0783d76e383ad0c36c7c8e3c912e81f21',
+-            'r6-base.py':'b5cfad278a1d1887e0cb38e47edcb796929b760151e5cb5bb59e775f1e2b2e98',
+-            'health.py':'a41942f21773c97b22d0b3760b1e256650f8e5506ee6cd0883db7145a39f4b4f',
+-            'test-result.json':'faf128cf133e0c91127d1d7cef466a402abdc23c93f02d46d1a9bc5910d42348'}
++GUARD = '/var/lib/samurai/charging-r7-8162b1e7040030d514a83534-adopted/boot-id-private.txt'
++TRANSPORT_SHA = '23f2281d0b89fcc8eba0c7b7372d6774e7f16ca6e5bd5a612da64fd94aadef1a'
++REVIEWED = {'worker.py': '57a2c8c216204fcabf955ea69a55b7dec2ff464698db1018326244e80cec8a80', 'r7-base.py': 'cef5c0f585e4f77db77c93652a7d30c0edf1903e7586f21e7fb89a62a3129902', 'health.py': 'a41942f21773c97b22d0b3760b1e256650f8e5506ee6cd0883db7145a39f4b4f', 'test-result.json': '073ef5e536ec0450510b0545fa62bece8e3ff8bfcdb101a914c8ba620810d787'}
+ sha = lambda raw: hashlib.sha256(raw).hexdigest()
+ 
+ 
+@@ -39,7 +38,7 @@
+             and type(ready['host_worker_pid']) is int and ready['host_worker_pid'] > 0
+             and type(ready['target_port']) is int and 1 <= ready['target_port'] <= 15
+             and ready['remaining_seconds_at_trigger'] >= 110
+-            and ready['capture_id'] == 'usb500-r6-' + nonce
++            and ready['capture_id'] == 'usb500-r7-' + nonce
+             and ready['decoder_sha256'] == DECODER and ready['collector_sha256'] == COLLECTOR):
+         raise ValueError('actual owned reader/remaining time/identity is unproved')
+     stamp=dt.datetime.fromisoformat(ready['ready_at_utc'])
+@@ -48,11 +47,36 @@
+     if not 0 <= when - ready_at <= 3: raise ValueError('last complete armed sweep is stale')
+ 
+ 
++def load_baseline(private):
++    before=json.loads((private/'r7-handoff/snapshot-private.json').read_bytes())
++    adoption=json.loads((private/'boot-adoption-private.json').read_bytes())
++    endpoint=json.loads((private/'r7-postboot/usb-ipv6-transport-private.json').read_bytes())
++    if not (before['result']['passed'] is True and before['result']['modules_exact'] is True
++            and before['result']['manifest_sha256']==MANIFEST
++            and before['source_budget_ua']==before['limits']['native_ua']==before['limits']['input_ua']==100000
++            and '[SDP]' in before['source_type']):
++        raise ValueError('R7 verified SDP100 baseline required; stored baseline is not a fresh device gate')
++    if not (adoption['original_key_verified'] is True and adoption['baseline440_verified'] is True
++            and adoption['charging_manifest_sha256']==MANIFEST and adoption['guard_path']==GUARD
++            and endpoint['kind']=='usb-ipv6' and endpoint['original_key_verified'] is True
++            and endpoint['peer']=='fe80::62:bcff:fe28:a101%29' and endpoint['interface_index']==29
++            and endpoint['host_key_alias']=='169.254.42.1'
++            and endpoint['observed_new_boot']==before['state']['boot_id']):
++        raise ValueError('original-key R7 guard/IPv6 endpoint/baseline disagree')
++    return before
++
++
+ def transport():
+-    source = HERE.parents[1] / 'charging-management-20261023/device-window.py'
+-    spec = importlib.util.spec_from_file_location('usb500_window', source)
+-    module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+-    return module.host.ssh
++    # Fixed observed IPv6 + original HostKeyAlias. Never the optional IPv4 path.
++    load_baseline(PRIVATE)
++    source=HERE.parents[1]/'charging-management-20261023/r7-transport.py'
++    if sha(source.read_bytes())!=TRANSPORT_SHA:raise ValueError('reviewed original-key IPv6 helper changed')
++    spec=importlib.util.spec_from_file_location('usb500_r7_ipv6',source)
++    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
++    def same_boot(command,**kwargs):
++        module.raw_ssh('cmp -s /proc/sys/kernel/random/boot_id '+shlex.quote(GUARD),timeout=15).check_returncode()
++        return module.raw_ssh(command,**kwargs)
++    return same_boot
+ 
+ 
+ def validate_receipt(receipt, nonce, allow_missing=False):
+@@ -66,37 +90,37 @@
+ REMOTE_LAUNCH = r'''from pathlib import Path
+ import base64,hashlib,json,os,subprocess,sys,time
+ data=json.loads(sys.stdin.buffer.read());os.umask(0o077);assert os.geteuid()==0 and not sys.flags.optimize
+-root=Path(data['remote']);assert str(root)=='/root/charging-management-20261023/usb500-r6-diagnostic-v1-'+data['nonce']
+-guard=Path('/var/lib/samurai/k449-adopted/boot-id-private.txt')
++root=Path(data['remote']);assert str(root)=='/root/charging-management-20261023/usb500-r7-diagnostic-v1-'+data['nonce']
++guard=Path('/var/lib/samurai/charging-r7-8162b1e7040030d514a83534-adopted/boot-id-private.txt');assert data['guard']==str(guard)
+ boot=Path('/proc/sys/kernel/random/boot_id').read_text().strip()
+ assert boot==data['expected_boot']==guard.read_text().strip()
+ sha=lambda raw:hashlib.sha256(raw).hexdigest()
+ assert sha(Path('/usr/share/samurai-charging/manifest.json').read_bytes())==data['manifest_sha256']
+-lease=Path('/run/samurai-usb500-r6-window.json');assert not lease.exists()
++lease=Path('/run/samurai-usb500-r7-window.json');assert not lease.exists()
+ old=[b'/root/charging-management-20261023/charging-pm-r5.py',b'/root/charging-management-20261023/usb-reenumerate/worker.py',b'/root/charging-management-20261023/usb-power500/worker.py',b'/root/charging-management-20261023/usb-hotplug-r4/worker.py',b'/root/charging-management-20261023/charging-update-r6-runner.py',b'/root/charging-management-20261023/r6-smoke-runner.py']
+ for p in Path('/proc').glob('[0-9]*/cmdline'):
+  try:args=p.read_bytes().split(bytes([0]))
+  except FileNotFoundError:continue
+- assert not any(a in old or a.startswith(b'/root/charging-management-20261023/usb500-r6-diagnostic-v1-') and a.endswith(b'/worker.py') for a in args),'prior worker still live'
++ assert not any(a in old or a.startswith((b'/root/charging-management-20261023/usb500-r6-diagnostic-v1-',b'/root/charging-management-20261023/usb500-r7-diagnostic-v1-')) and a.endswith(b'/worker.py') for a in args),'prior worker still live'
+ root.mkdir(mode=0o700)
+ for name,item in data['files'].items():
+- assert name in ['worker.py','r6-base.py','health.py','test-result.json']
++ assert name in ['worker.py','r7-base.py','health.py','test-result.json']
+  raw=base64.b64decode(item['base64'],validate=True);assert sha(raw)==item['sha256']
+  with (root/name).open('xb') as f:f.write(raw);f.flush();os.fsync(f.fileno())
+ assert {n:sha((root/n).read_bytes()) for n in data['reviewed']}==data['reviewed']
+-tested=json.loads((root/'test-result.json').read_bytes());assert tested['passed'] is True and tested['cases']==51
+-assert all(tested['tested_files'][n]==data['files'][n]['sha256'] for n in ['worker.py','r6-base.py','health.py'])
++tested=json.loads((root/'test-result.json').read_bytes());assert tested['passed'] is True and tested['schema']=='usb500-r7-migration-v1' and tested['cases']>=8
++assert all(tested['tested_files'][n]==data['files'][n]['sha256'] for n in ['worker.py','r7-base.py','health.py'])
+ serial=Path('/sys/devices/soc0/serial_number').read_bytes();assert serial.strip()
+ compat=Path('/sys/firmware/devicetree/base/compatible').read_bytes();assert b'realme,samurai' in compat.split(bytes([0]))
+ ready=dict(data['gate']['host_ready']);ready['armed_utc']=ready['ready_at_utc']
+-config={'transaction':'usb500-r6-diagnostic-v1','guard':str(guard),'manifest_sha256':data['manifest_sha256'],
++config={'transaction':'usb500-r7-diagnostic-v1','guard':str(guard),'manifest_sha256':data['manifest_sha256'],
+  'identity':{'boot_id':boot,'serial_sha256':sha(serial),'compatible_sha256':sha(compat)},
+  'window_token':data['token'],'host_trigger_nonce':data['nonce'],'host_ready':ready,
+  'host_trigger_utc':data['gate']['host_trigger_utc'],'worker_sha256':data['files']['worker.py']['sha256']}
+ def save(path,obj):
+  with path.open('x') as f:json.dump(obj,f);f.flush();os.fsync(f.fileno())
+ save(root/'config-private.json',config)
+-save(lease,{'transaction':'usb500-r6-diagnostic-v1','owner':'charging','camera_released':True,'bluetooth_released':True,
++save(lease,{'transaction':'usb500-r7-diagnostic-v1','owner':'charging','camera_released':True,'bluetooth_released':True,
+  'exclusive':True,'token':data['token'],'host_trigger_nonce':data['nonce'],'boot_id':boot,'expires_boottime_s':time.clock_gettime(time.CLOCK_BOOTTIME)+180})
+ argv=['python3','-B',str(root/'worker.py'),'--worker',str(root)]
+ with (root/'worker-private.log').open('xb') as log:
+@@ -131,23 +155,22 @@
+ 
+ def run(action, nonce, gate_file=None, confirmed=False, *, ssh=None, private=PRIVATE):
+     if not re.fullmatch('[a-f0-9]{48}', nonce): raise ValueError('invalid transaction nonce')
+-    out = private / ('usb500-r6-' + nonce)
++    out = private / ('usb500-r7-' + nonce)
+     if action == 'launch':
+         if not confirmed: raise ValueError('explicit camera/Bluetooth handback required')
+         gate = json.loads(Path(gate_file).read_bytes()); validate_gate(gate, nonce, time.time())
+         candidate = HERE / 'device-candidate'; tested = json.loads((candidate/'test-result.json').read_bytes())
+-        if tested['passed'] is not True or tested['cases'] != 51: raise ValueError('unqualified device candidate')
++        if tested['passed'] is not True or tested.get('schema')!='usb500-r7-migration-v1' or tested['cases']<8: raise ValueError('unqualified device candidate')
+         files = {}
+-        for name in ['worker.py','r6-base.py','health.py','test-result.json']:
++        for name in ['worker.py','r7-base.py','health.py','test-result.json']:
+             raw=(candidate/name).read_bytes(); digest=sha(raw)
+-            if digest!=REVIEWED[name]:raise ValueError('different reviewed candidate/51-case receipt')
++            if digest!=REVIEWED[name]:raise ValueError('different reviewed R7 migration candidate/receipt')
+             if name!='test-result.json' and digest!=tested['tested_files'][name]: raise ValueError('untested candidate bytes')
+             files[name]={'sha256':digest,'base64':base64.b64encode(raw).decode()}
+-        before=json.loads((private/'r6-update/handoff-private.json').read_bytes())
+-        if before['manifest_sha256']!=MANIFEST: raise ValueError('expected deployed r6 baseline')
++        before=load_baseline(private)
+         import secrets
+-        request={'nonce':nonce,'remote':PREFIX+nonce,'expected_boot':before['observation']['state']['boot_id'],
+-                 'manifest_sha256':MANIFEST,'token':secrets.token_hex(24),'gate':gate,'files':files,'dispatch_count':1,'reviewed':REVIEWED}
++        request={'nonce':nonce,'remote':PREFIX+nonce,'expected_boot':before['state']['boot_id'],
++                 'manifest_sha256':MANIFEST,'guard':GUARD,'token':secrets.token_hex(24),'gate':gate,'files':files,'dispatch_count':1,'reviewed':REVIEWED}
+         out.mkdir(mode=0o700,exist_ok=True)
+         with (out/'launch-request-private.json').open('x') as stream:
+             json.dump(request,stream);stream.flush()
+@@ -187,7 +210,7 @@
+             if name=='launch-receipt-private.json' and item!=receipt:raise ValueError('two fetched process receipts differ')
+             if name=='execution-started-private.json' and (item.get('nonce')!=nonce or receipt and item.get('pid')!=receipt['pid']):raise ValueError('execution marker differs')
+             if name=='config-private.json' and (item.get('host_trigger_nonce')!=nonce or item.get('manifest_sha256')!=MANIFEST
+-                    or item.get('worker_sha256')!=REVIEWED['worker.py'] or item.get('identity',{}).get('boot_id')!=request['expected_boot']):raise ValueError('fetched config identity differs')
++                    or item.get('guard')!=GUARD or item.get('transaction')!=TX or item.get('worker_sha256')!=REVIEWED['worker.py'] or item.get('identity',{}).get('boot_id')!=request['expected_boot']):raise ValueError('fetched config identity differs')
+         if (dest/'worker.pid').exists() and receipt and int((dest/'worker.pid').read_text())!=receipt['pid']:raise ValueError('worker.pid differs')
+         complete=set(REVIEWED)|{'config-private.json','execution-started-private.json','launch-receipt-private.json','worker.pid','result.json'}
+         report={'process_state':data['process_state'],'retained_directory':str(dest),'result':result,

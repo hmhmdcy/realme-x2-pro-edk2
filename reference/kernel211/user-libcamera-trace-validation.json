@@ -1,0 +1,60 @@
+{
+  "stage": 211,
+  "uid": 10000,
+  "actual_phosh_environment_used": true,
+  "camera_stream_role": "viewfinder",
+  "requested_pixel_format": "RGB888",
+  "requested_size": [
+    1928,
+    1088
+  ],
+  "camera_and_csid_test_patterns": {
+    "msm_csid0": 0,
+    "imx471 7-0010": 0
+  },
+  "cam_exit": 1,
+  "timed_out": false,
+  "forced_kill": false,
+  "frames": [],
+  "three_rgb_frames_captured": false,
+  "sensor_runtime_status": "suspended",
+  "camss_runtime_status": "suspended",
+  "cci_runtime_status": "suspended",
+  "taint": 0,
+  "fault_delta": {
+    "warning": 0,
+    "oops": 0,
+    "gpu": 0,
+    "slpi_fatal": 0,
+    "bluetooth": 0
+  },
+  "error_lines": [
+    "[0:10:47.727430830] [6827] DEBUG DmaBufAllocator dma_buf_allocator.cpp:106 Failed to open /dev/dma_heap/linux,cma: No such file or directory",
+    "[0:10:48.148399083] [6827]  WARN IPASoft soft_simple.cpp:105 IPASoft: Failed to create camera sensor helper for imx471",
+    "[0:10:48.162445725] [6827] DEBUG DmaBufAllocator dma_buf_allocator.cpp:106 Failed to open /dev/dma_heap/linux,cma: No such file or directory",
+    "[0:10:48.185168228] [6827] ERROR DmaBufAllocator dma_buf_allocator.cpp:173 dma-heap allocation failure for frame-3",
+    "[0:10:48.185383074] [6827] ERROR DmaBufAllocator dma_buf_allocator.cpp:231 Unable to create buffer",
+    "[0:10:48.187811222] [6826] ERROR Allocator framebuffer_allocator.cpp:97 Stream is not part of /base/soc@0/cci@ac4b000/i2c-bus@1/camera@10 active configuration"
+  ],
+  "raw_scene_images_kept_private": true,
+  "dma_heap_trace": [
+    "6827  openat(AT_FDCWD</run/user/10000/samurai-camera-211-trace>, \"/dev/dma_heap/linux,cma\", O_RDWR|O_LARGEFILE|O_CLOEXEC) = -1 ENOENT (No such file or directory)",
+    "6827  openat(AT_FDCWD</run/user/10000/samurai-camera-211-trace>, \"/dev/dma_heap/reserved\", O_RDWR|O_LARGEFILE|O_CLOEXEC) = 17</dev/dma_heap/reserved<char 250:3>>",
+    "6827  openat(AT_FDCWD</run/user/10000/samurai-camera-211-trace>, \"/dev/dma_heap/linux,cma\", O_RDWR|O_LARGEFILE|O_CLOEXEC) = -1 ENOENT (No such file or directory)",
+    "6827  openat(AT_FDCWD</run/user/10000/samurai-camera-211-trace>, \"/dev/dma_heap/reserved\", O_RDWR|O_LARGEFILE|O_CLOEXEC) = 20</dev/dma_heap/reserved<char 250:3>>",
+    "6827  ioctl(17</dev/dma_heap/reserved<char 250:3>>, DMA_HEAP_IOCTL_ALLOC, 0x7f813ff6f0) = 0",
+    "6827  ioctl(17</dev/dma_heap/reserved<char 250:3>>, DMA_HEAP_IOCTL_ALLOC, 0x7f813ff6f0) = 0",
+    "6827  ioctl(17</dev/dma_heap/reserved<char 250:3>>, DMA_HEAP_IOCTL_ALLOC, 0x7f813ff6f0) = 0",
+    "6827  ioctl(17</dev/dma_heap/reserved<char 250:3>>, DMA_HEAP_IOCTL_ALLOC, 0x7f813ff6f0) = -1 ENOMEM (Out of memory)"
+  ],
+  "cma_pools": {},
+  "allocator_debug": [
+    "[0:10:47.727430830] [6827] DEBUG DmaBufAllocator dma_buf_allocator.cpp:106 Failed to open /dev/dma_heap/linux,cma: No such file or directory",
+    "[0:10:47.728122972] [6827] DEBUG DmaBufAllocator dma_buf_allocator.cpp:112 Using /dev/dma_heap/reserved",
+    "[0:10:48.162445725] [6827] DEBUG DmaBufAllocator dma_buf_allocator.cpp:106 Failed to open /dev/dma_heap/linux,cma: No such file or directory",
+    "[0:10:48.163080262] [6827] DEBUG DmaBufAllocator dma_buf_allocator.cpp:112 Using /dev/dma_heap/reserved",
+    "[0:10:48.176817109] [6827]  INFO SoftwareIsp software_isp.cpp:308 Input 1928x1088-RGGB-10-CSI2P stride 2416",
+    "[0:10:48.185168228] [6827] ERROR DmaBufAllocator dma_buf_allocator.cpp:173 dma-heap allocation failure for frame-3",
+    "[0:10:48.185383074] [6827] ERROR DmaBufAllocator dma_buf_allocator.cpp:231 Unable to create buffer"
+  ]
+}

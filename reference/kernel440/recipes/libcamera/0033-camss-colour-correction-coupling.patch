@@ -1,0 +1,621 @@
+--- a/src/ipa/camss-vfe/camss.cpp
++++ b/src/ipa/camss-vfe/camss.cpp
+@@ -24,6 +24,7 @@
+ #include "parameter_encoder.h"
+ #include "lens_shading.h"
+ #include "white_balance_reference.h"
++#include "colour_correction_profile.h"
+ #include "../libipa/camera_sensor_helper.h"
+ #include "hardware_agc.h"
+ #include "hardware_awb.h"
+@@ -67,7 +68,7 @@
+ 	bool awbEnabled_ = false;
+ 	uint32_t ispRevision_ = 0;
+ 	std::optional<AutoIspUpdate> pendingWhiteBalance_;
+-	struct ParameterContext { uint32_t revision; double red, blue; bool awbEnabled; double sourceRed, sourceBlue; std::optional<int32_t> colourTemperature, estimatedColourTemperature; };
++	struct ParameterContext { uint32_t revision; double red, blue; bool awbEnabled; double sourceRed, sourceBlue; std::optional<int32_t> colourTemperature, estimatedColourTemperature; std::optional<ColourCorrectionState> colourCorrection; };
+ 	std::map<uint32_t, ParameterContext> preparedParameters_, parameterHistory_;
+  bool automatic_ = false;
+  uint32_t revision_ = 0;
+@@ -86,6 +87,12 @@
+ 	std::optional<camss_params_lsc> lensShading_;
+  std::optional<WhiteBalanceReference> whiteBalance_;
+  std::optional<int32_t> colourTemperature_;
++ std::optional<ColourCorrectionProfile> colourCorrection_;
++ std::optional<ColourMatrix> manualMatrix_;
++ int selectColourCorrection(double red, double blue, std::optional<int32_t> temperature,
++                            const std::optional<ColourMatrix> &manualMatrix,
++                            const ColourCorrectionState *fallback,
++                            std::optional<ColourCorrectionState> *state) const;
+ 	ResidualBlackProfile profile_{ 0, 1.0 };
+ 	std::string model_;
+ 	Size input_;
+@@ -189,7 +196,7 @@
+      input.width < 4 || input.height < 2 || ((input.width | input.height) & 1)) return -EINVAL;
+  int ret = describeSensor(info, sensorControls, ipaControls);
+  if (ret) return ret;
+- profile_ = { 0, 1.0 }; lensShading_.reset(); whiteBalance_.reset(); colourTemperature_.reset();
++ profile_ = { 0, 1.0 }; lensShading_.reset(); whiteBalance_.reset(); colourTemperature_.reset(); colourCorrection_.reset(); manualMatrix_.reset();
+  afEnabled_=false;af_.cancel();frameLength_=info.minFrameLength;
+  if (!profilePath.empty()) {
+   File file(profilePath);
+@@ -226,6 +233,17 @@
+    map[&controls::ColourTemperature]=ControlInfo(int32_t(1500),int32_t(12000),int32_t(6500));
+    *ipaControls=ControlInfoMap(std::move(map),controls::controls);
+   }
++  ret=ColourCorrectionProfile::configure(tuning["colour_correction"],&colourCorrection_);
++  if (ret) return ret;
++  if (colourCorrection_) {
++   ControlInfoMap::Map map;
++   for (const auto &[id,value]:*ipaControls) map.emplace(id,value);
++   const std::array<float,9> minimum{colourCorrection_->minimum(),colourCorrection_->minimum(),colourCorrection_->minimum(),colourCorrection_->minimum(),colourCorrection_->minimum(),colourCorrection_->minimum(),colourCorrection_->minimum(),colourCorrection_->minimum(),colourCorrection_->minimum()};
++   const std::array<float,9> maximum{colourCorrection_->maximum(),colourCorrection_->maximum(),colourCorrection_->maximum(),colourCorrection_->maximum(),colourCorrection_->maximum(),colourCorrection_->maximum(),colourCorrection_->maximum(),colourCorrection_->maximum(),colourCorrection_->maximum()};
++   const std::array<float,9> identity{1,0,0,0,1,0,0,0,1};
++   map[&controls::ColourCorrectionMatrix]=ControlInfo(ControlValue(Span<const float,9>(minimum)),ControlValue(Span<const float,9>(maximum)),ControlValue(Span<const float,9>(identity)));
++   *ipaControls=ControlInfoMap(std::move(map),controls::controls);
++  }
+   ret=configureAutofocus(tuning["autofocus"].isEmpty()?(*root)["autofocus"]:tuning["autofocus"],ipaControls);
+   if (ret) return ret;
+   auto subtraction = tuning["residual_black_subtraction"].get<uint16_t>();
+@@ -292,6 +310,14 @@
+    if (id==libcamera::controls::AfTrigger.id() && value.get<int32_t>()!=libcamera::controls::AfTriggerStart && value.get<int32_t>()!=libcamera::controls::AfTriggerCancel) return -ENOTSUP;
+    continue;
+   }
++  if (id == controls::ColourCorrectionMatrix.id()) {
++   if (!colourCorrection_) return -ENOTSUP;
++   if (value.type()!=ControlTypeFloat || !value.isArray() || value.numElements()!=9) return -EINVAL;
++   ColourCorrectionState check;
++   int status=colourCorrection_->manual(value.get<Span<const float>>(),&check);
++   if (status) return status;
++   continue;
++  }
+   if (id == controls::ColourTemperature.id()) {
+    if (!whiteBalance_) return -ENOTSUP;
+    if (value.type()!=ControlTypeInteger32 || value.isArray()) return -EINVAL;
+@@ -340,12 +366,28 @@
+  if (!running_ || epoch != epoch_) return -ESTALE;
+  ControlList sensorOnly(libcamera::controls::controls);
+  for (const auto &[id, value] : controls)
+-  if (id != libcamera::controls::ColourTemperature.id() && id != libcamera::controls::ColourGains.id() && id != libcamera::controls::AwbEnable.id() && id!=libcamera::controls::AfMode.id() && id!=libcamera::controls::AfTrigger.id()) sensorOnly.set(id,value);
++  if (id != libcamera::controls::ColourCorrectionMatrix.id() && id != libcamera::controls::ColourTemperature.id() && id != libcamera::controls::ColourGains.id() && id != libcamera::controls::AwbEnable.id() && id!=libcamera::controls::AfMode.id() && id!=libcamera::controls::AfTrigger.id()) sensorOnly.set(id,value);
+  ControlList ignored(sensorControls_);
+  int ret = translate(controls, true, &ignored);
+  if (ret) return ret;
+  if (automatic_ && !sensorOnly.empty()) return -ENOTSUP;
+  return translate(sensorOnly, false, sensorControls);
++}
++
++int IPACamss::selectColourCorrection(double red, double blue, std::optional<int32_t> temperature,
++ const std::optional<ColourMatrix> &manualMatrix, const ColourCorrectionState *fallback,
++ std::optional<ColourCorrectionState> *state) const
++{
++ state->reset();
++ if (!colourCorrection_) return 0;
++ double effectiveRed, effectiveBlue;
++ int ret=effectiveColourGains(profile_,red,blue,&effectiveRed,&effectiveBlue);
++ if (ret) return ret;
++ if (!temperature && whiteBalance_) temperature=whiteBalance_->temperature(effectiveRed,effectiveBlue);
++ ColourCorrectionState result;
++ ret=colourCorrection_->select(temperature,manualMatrix,fallback,&result);
++ if (!ret) *state=result;
++ return ret;
+ }
+ 
+ int IPACamss::applyIspControls(uint64_t epoch, const ControlList &controls, AutoIspUpdate *update)
+@@ -373,10 +415,18 @@
+    temperature=kelvin;
+   }
+  }
+- if (enabled == current.awbEnabled && red == current.sourceRed && blue == current.sourceBlue && temperature == current.colourTemperature) return 0;
++ auto manualMatrix=manualMatrix_;
++ if (enabled) manualMatrix.reset();
++ else if (auto requested=controls.get(libcamera::controls::ColourCorrectionMatrix)) {
++  ColourMatrix matrix;std::copy(requested->begin(),requested->end(),matrix.begin());manualMatrix=matrix;
++ } else if (controls.contains(libcamera::controls::ColourTemperature.id()) || controls.contains(libcamera::controls::ColourGains.id())) manualMatrix.reset();
++ std::optional<ColourCorrectionState> selected;
++ ret=selectColourCorrection(red,blue,temperature,manualMatrix,current.colourCorrection ? &*current.colourCorrection : nullptr,&selected);
++ if (ret) return ret;
++ if (enabled == current.awbEnabled && red == current.sourceRed && blue == current.sourceBlue && temperature == current.colourTemperature && manualMatrix == manualMatrix_) return 0;
+  if (ispRevision_ >= UINT32_MAX-1) return -EOVERFLOW;
+  af_.cancelScan();
+- awbEnabled_ = enabled; colourTemperature_ = temperature;
++ awbEnabled_ = enabled; colourTemperature_ = temperature; manualMatrix_ = manualMatrix;
+  if (awb_) awb_->reset();
+  pendingWhiteBalance_ = AutoIspUpdate{ true, ++ispRevision_, red, blue };
+  *update = *pendingWhiteBalance_;
+@@ -399,6 +449,8 @@
+  metadata->set(controls::AwbEnable,context->second.awbEnabled);
+  if (auto temperature = context->second.colourTemperature ? context->second.colourTemperature : context->second.estimatedColourTemperature)
+   metadata->set(controls::ColourTemperature,*temperature);
++ if (context->second.colourCorrection)
++  metadata->set(controls::ColourCorrectionMatrix,Span<const float,9>(context->second.colourCorrection->effective));
+  metadata->set(controls::AwbLocked,false);
+  metadata->set(controls::ExposureTimeMode,int32_t(automatic_?controls::ExposureTimeModeAuto:controls::ExposureTimeModeManual));
+  metadata->set(controls::AnalogueGainMode,int32_t(automatic_?controls::AnalogueGainModeAuto:controls::AnalogueGainModeManual));
+@@ -502,9 +554,22 @@
+   int status=whiteBalance_->gains(*temperature,&red,&blue);
+   if (status) return status;
+  }
+-	alignas(8) std::array<uint8_t, sizeof(v4l2_isp_buffer) + sizeof(camss_params_wb_gain) + sizeof(camss_params_aec_bhist) + sizeof(camss_params_lsc)> packet;
++	alignas(8) std::array<uint8_t, sizeof(v4l2_isp_buffer) + sizeof(camss_params_wb_gain) + sizeof(camss_params_aec_bhist) + sizeof(camss_params_lsc) + sizeof(camss_params_color_correct)> packet;
++ std::optional<ColourMatrix> manualMatrix;
++ if (!awbEnabled) if (auto requested=controls.get(libcamera::controls::ColourCorrectionMatrix)) {
++  ColourMatrix matrix;std::copy(requested->begin(),requested->end(),matrix.begin());manualMatrix=matrix;
++ }
++ std::optional<ColourCorrectionState> selected;
++ int ret=selectColourCorrection(red,blue,temperature,manualMatrix,nullptr,&selected);
++ if (ret) return ret;
++ camss_params_color_correct ccm{};
++ if (selected) {
++  const auto &params=selected->parameters;
++  std::copy(params.a.begin(),params.a.end(),ccm.a);std::copy(params.b.begin(),params.b.end(),ccm.b);
++  std::copy(params.c.begin(),params.c.end(),ccm.c);std::copy(params.k.begin(),params.k.end(),ccm.k);ccm.qfactor=params.qfactor;
++ }
+ 	size_t used;
+-	int ret = encodeParameters(packet, profile_, red, blue, input_, Rectangle(input_), &used, lensShading_ ? &*lensShading_ : nullptr);
++	ret = encodeParameters(packet, profile_, red, blue, input_, Rectangle(input_), &used, lensShading_ ? &*lensShading_ : nullptr, selected ? &ccm : nullptr);
+ 	if (ret)
+ 		return ret;
+  *sensorControls = initial;
+@@ -515,7 +580,7 @@
+  if (agc_) agc_->resetFrameCount();
+  epoch_ = epoch;
+ 	red_ = red; blue_ = blue;
+-	awbEnabled_ = awbEnabled; colourTemperature_ = temperature;
++	awbEnabled_ = awbEnabled; colourTemperature_ = temperature; manualMatrix_ = manualMatrix;
+ 	ispRevision_ = 0;
+ 	pendingWhiteBalance_.reset();
+ 	preparedParameters_.clear(); parameterHistory_.clear();
+@@ -530,7 +595,7 @@
+ {
+ 	running_ = false;af_.cancel();initialAfTrigger_.reset();
+  automatic_ = false; awaiting_.reset();
+-	awbEnabled_ = false; colourTemperature_.reset(); pendingWhiteBalance_.reset();
++	awbEnabled_ = false; colourTemperature_.reset(); manualMatrix_.reset(); pendingWhiteBalance_.reset();
+ 	preparedParameters_.clear(); parameterHistory_.clear();
+ 	applied_ = effective_ = false;
+ 	lastStats_.reset();
+@@ -555,10 +620,21 @@
+ 	double effectiveRed, effectiveBlue;
+ 	int ret = effectiveColourGains(profile_, red, blue, &effectiveRed, &effectiveBlue);
+ 	if (ret) return ret;
++ std::optional<ColourCorrectionState> selected;
++ const ColourCorrectionState *fallback=nullptr;
++ if (!parameterHistory_.empty() && parameterHistory_.rbegin()->second.colourCorrection) fallback=&*parameterHistory_.rbegin()->second.colourCorrection;
++ ret=selectColourCorrection(red,blue,colourTemperature_,manualMatrix_,fallback,&selected);
++ if (ret) return ret;
++ camss_params_color_correct ccm{};
++ if (selected) {
++  const auto &params=selected->parameters;
++  std::copy(params.a.begin(),params.a.end(),ccm.a);std::copy(params.b.begin(),params.b.end(),ccm.b);
++  std::copy(params.c.begin(),params.c.end(),ccm.c);std::copy(params.k.begin(),params.k.end(),ccm.k);ccm.qfactor=params.qfactor;
++ }
+ 	size_t used;
+-	ret = encodeParameters(it->second.memory->planes()[0], profile_, red, blue, input_, Rectangle(input_), &used, revision==0 && lensShading_ ? &*lensShading_ : nullptr);
++	ret = encodeParameters(it->second.memory->planes()[0], profile_, red, blue, input_, Rectangle(input_), &used, revision==0 && lensShading_ ? &*lensShading_ : nullptr, selected ? &ccm : nullptr);
+ 	if (!ret) {
+-		preparedParameters_[revision] = { revision, effectiveRed, effectiveBlue, awbEnabled_, red, blue, colourTemperature_, whiteBalance_ ? whiteBalance_->temperature(effectiveRed,effectiveBlue) : std::nullopt };
++		preparedParameters_[revision] = { revision, effectiveRed, effectiveBlue, awbEnabled_, red, blue, colourTemperature_, whiteBalance_ ? whiteBalance_->temperature(effectiveRed,effectiveBlue) : std::nullopt, selected };
+ 		*bytesused = used;
+ 	}
+ 	return ret;
+@@ -619,6 +695,8 @@
+   if (auto temperature = context->second.colourTemperature ? context->second.colourTemperature : context->second.estimatedColourTemperature)
+    metadata.set(controls::ColourTemperature,*temperature);
+  }
++ if (result.parametersKnown && context->second.colourCorrection)
++  metadata.set(controls::ColourCorrectionMatrix,Span<const float,9>(context->second.colourCorrection->effective));
+ 	metadata.set(controls::AwbLocked, false);
+ 	if (af_.state()!=ipa::ContrastAf::State::Scanning && awbEnabled_ && effective_ && context->second.awbEnabled && result.rgbPresent && context == std::prev(parameterHistory_.end()) &&
+ 	    !pendingWhiteBalance_ && preparedParameters_.empty()) {
+--- /dev/null
++++ b/src/ipa/camss-vfe/colour_correction_profile.cpp
+@@ -0,0 +1,179 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#include "colour_correction_profile.h"
++#include <algorithm>
++#include <cerrno>
++#include <cmath>
++#include <utility>
++
++namespace libcamera::ipa::camss {
++namespace {
++constexpr std::array<unsigned int, 5> triggerSize{ 2, 6, 1, 4, 2 };
++const ColourCorrectionData unity{ { 1, 0, 0, 0, 1, 0, 0, 0, 1 }, { 0, 0, 0 } };
++} /* namespace */
++
++int ColourCorrectionProfile::encode(const ColourCorrectionData &data,
++				    ColourCorrectionState *state) const
++{
++	if (!state) return -EINVAL;
++	ColourCorrectionState result;
++	result.data = data;
++	if (!encodeColourCorrection(data, qfactor_, &result.parameters, &result.effective))
++		return -ERANGE;
++	*state = result;
++	return 0;
++}
++
++int ColourCorrectionProfile::manual(Span<const float> matrix,
++				    ColourCorrectionState *state) const
++{
++	if (matrix.size() != 9) return -EINVAL;
++	ColourCorrectionData data{};
++	std::copy(matrix.begin(), matrix.end(), data.matrix.begin());
++	return encode(data, state);
++}
++
++int ColourCorrectionProfile::select(std::optional<int32_t> kelvin,
++				    const std::optional<ColourMatrix> &manualMatrix,
++				    const ColourCorrectionState *fallback,
++				    ColourCorrectionState *state) const
++{
++	if (manualMatrix) return manual(*manualMatrix, state);
++	if (!kelvin) {
++		if (fallback) { *state = *fallback; return 0; }
++		/* Undefined chromaticity, such as a zero channel gain, has no CCT.
++		 * Keep the last matrix, or begin with unity, without inventing a CCT. */
++		return encode(unity, state);
++	}
++	ColourCorrectionData data;
++	int ret = evaluate(core_, 0, float(*kelvin), &data);
++	return ret ? ret : encode(data, state);
++}
++
++int ColourCorrectionProfile::readNodes(const ValueNode &value, unsigned int level,
++				       std::vector<Node> *nodes)
++{
++	if (!value.isList() || !value.size() || level >= triggerSize.size()) return -EINVAL;
++	for (const auto &item : value.asList()) {
++		if (!item.isDictionary()) return -EINVAL;
++		const auto &trigger = item["trigger"];
++		if (!trigger.isList() || trigger.size() != triggerSize[level]) return -EINVAL;
++		Node node;
++		for (unsigned int i = 0; i < trigger.size(); ++i) {
++			auto v = trigger[i].get<float>();
++			if (!v || !std::isfinite(*v)) return -EINVAL;
++			node.trigger[i] = *v;
++		}
++		if (level == 2) {
++			if (node.trigger[0] < 0 || std::floor(node.trigger[0]) != node.trigger[0]) return -EINVAL;
++		} else {
++			for (unsigned int i = 0; i < trigger.size(); i += 2)
++				if (node.trigger[i] > node.trigger[i + 1]) return -EINVAL;
++		}
++		unsigned int position = level == 1 ? hdrPosition_ : level == 3 ? aecPosition_ : 0;
++		if (!nodes->empty()) {
++			if (level == 2 ? nodes->back().trigger[0] >= node.trigger[0]
++				       : nodes->back().trigger[position + 1] > node.trigger[position])
++				return -EINVAL;
++		}
++		if (level == 4) {
++			const auto &matrix = item["matrix"], &offsets = item["offsets"];
++			if (!matrix.isList() || matrix.size() != 9 || !offsets.isList() || offsets.size() != 3) return -EINVAL;
++			for (unsigned int i = 0; i < 9; ++i) {
++				auto v = matrix[i].get<float>();
++				if (!v) return -EINVAL;
++				node.data.matrix[i] = *v;
++			}
++			for (unsigned int i = 0; i < 3; ++i) {
++				auto v = offsets[i].get<int32_t>();
++				if (!v) return -EINVAL;
++				node.data.offsets[i] = *v;
++			}
++			ColourCorrectionState check;
++			if (encode(node.data, &check)) return -ERANGE;
++		} else {
++			int ret = readNodes(item["children"], level + 1, &node.children);
++			if (ret) return ret;
++		}
++		nodes->push_back(std::move(node));
++	}
++	return 0;
++}
++
++int ColourCorrectionProfile::evaluate(const std::vector<Node> &nodes,
++				      unsigned int level, float kelvin,
++				      ColourCorrectionData *data) const
++{
++	if (nodes.empty() || level >= triggerSize.size()) return -EINVAL;
++	auto child = [&](const Node &node, ColourCorrectionData *output) {
++		if (level == 4) { *output = node.data; return 0; }
++		return evaluate(node.children, level + 1, kelvin, output);
++	};
++	if (level == 2) {
++		for (const Node &node : nodes)
++			if (node.trigger[0] == ledIndex_) return child(node, data);
++		return -ENOENT;
++	}
++	float value = level == 0 ? drcGain_ : level == 1 ? hdrRatio_ : level == 3 ? aecValue_ : kelvin;
++	unsigned int position = level == 1 ? hdrPosition_ : level == 3 ? aecPosition_ : 0;
++	for (unsigned int i = 0; i < nodes.size(); ++i) {
++		const Node &first = nodes[i];
++		if (value <= first.trigger[position + 1] || i + 1 == nodes.size()) return child(first, data);
++		const Node &second = nodes[i + 1];
++		if (value < second.trigger[position]) {
++			ColourCorrectionData a, b;
++			int ret = child(first, &a);
++			if (ret) return ret;
++			ret = child(second, &b);
++			if (ret) return ret;
++			float weight = float((double(value) - first.trigger[position + 1]) /
++					     (double(second.trigger[position]) - first.trigger[position + 1]));
++			return interpolateColourCorrection(a, b, weight, data) ? 0 : -ERANGE;
++		}
++	}
++	return -EINVAL;
++}
++
++int ColourCorrectionProfile::configure(const ValueNode &tuning,
++				       std::optional<ColourCorrectionProfile> *profile)
++{
++	if (!profile) return -EINVAL;
++	profile->reset();
++	if (tuning.isEmpty()) return 0;
++	if (!tuning.isDictionary()) return -EINVAL;
++	if (!tuning["enabled"].isEmpty()) {
++		auto enabled = tuning["enabled"].get<bool>();
++		if (!enabled) return -EINVAL;
++		if (!*enabled) return 0;
++	}
++	ColourCorrectionProfile result;
++	auto q = tuning["qfactor"].get<unsigned int>();
++	if (!q || *q > 3) return -EINVAL;
++	result.qfactor_ = *q;
++	auto aec = tuning["aec_control"].get<std::string>();
++	auto hdr = tuning["hdr_control"].get<std::string>();
++	if (!aec || !hdr) return -EINVAL;
++	if (*aec == "lux_index") result.aecPosition_ = 0;
++	else if (*aec == "analogue_gain") result.aecPosition_ = 2;
++	else return -EINVAL;
++	if (*hdr == "exposure_time_ratio") result.hdrPosition_ = 0;
++	else if (*hdr == "sensitivity_ratio") result.hdrPosition_ = 2;
++	else if (*hdr == "exposure_gain_ratio") result.hdrPosition_ = 4;
++	else return -EINVAL;
++	/* These coordinates are explicit references until their corresponding
++	 * runtime AEC/DRC/flash inputs are available. CCT is selected per revision. */
++	const auto &reference = tuning["reference_triggers"];
++	if (!reference.isDictionary()) return -EINVAL;
++	auto drc = reference["drc_gain"].get<float>(), ratio = reference["hdr_ratio"].get<float>(), aecValue = reference["aec_value"].get<float>();
++	auto led = reference["led_index"].get<unsigned int>();
++	if (!drc || !ratio || !aecValue || !led || !std::isfinite(*drc) || !std::isfinite(*ratio) || !std::isfinite(*aecValue)) return -EINVAL;
++	result.drcGain_ = *drc; result.hdrRatio_ = *ratio; result.aecValue_ = *aecValue; result.ledIndex_ = *led;
++	int ret = result.readNodes(tuning["core"], 0, &result.core_);
++	if (ret) return ret;
++	ColourCorrectionData probe;
++	ret = result.evaluate(result.core_, 0, 6500, &probe);
++	if (ret) return ret;
++	*profile = std::move(result);
++	return 0;
++}
++
++} /* namespace libcamera::ipa::camss */
+--- /dev/null
++++ b/src/ipa/camss-vfe/colour_correction_profile.h
+@@ -0,0 +1,43 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++#include <array>
++#include <optional>
++#include <vector>
++#include <libcamera/base/span.h>
++#include "libcamera/internal/yaml_parser.h"
++#include "../libipa/colour_correction.h"
++
++namespace libcamera::ipa::camss {
++
++using ColourMatrix = std::array<float, 9>;
++struct ColourCorrectionState {
++	ColourCorrectionData data;
++	ColourCorrectionParameters parameters;
++	ColourMatrix effective;
++};
++
++class ColourCorrectionProfile {
++public:
++	static int configure(const ValueNode &tuning,
++			     std::optional<ColourCorrectionProfile> *profile);
++	int manual(Span<const float> matrix, ColourCorrectionState *state) const;
++	int select(std::optional<int32_t> kelvin, const std::optional<ColourMatrix> &manual,
++		   const ColourCorrectionState *fallback, ColourCorrectionState *state) const;
++	float minimum() const { return -2048.0f / (1u << (7 + qfactor_)); }
++	float maximum() const { return 2047.0f / (1u << (7 + qfactor_)); }
++private:
++	struct Node {
++		std::array<float, 6> trigger{};
++		std::vector<Node> children;
++		ColourCorrectionData data{};
++	};
++	int readNodes(const ValueNode &value, unsigned int level, std::vector<Node> *nodes);
++	int evaluate(const std::vector<Node> &nodes, unsigned int level, float kelvin,
++		     ColourCorrectionData *data) const;
++	int encode(const ColourCorrectionData &data, ColourCorrectionState *state) const;
++	unsigned int qfactor_ = 0, hdrPosition_ = 2, aecPosition_ = 0, ledIndex_ = 0;
++	float drcGain_ = 1, hdrRatio_ = 1, aecValue_ = 0;
++	std::vector<Node> core_;
++};
++
++} /* namespace libcamera::ipa::camss */
+--- a/src/ipa/camss-vfe/meson.build
++++ b/src/ipa/camss-vfe/meson.build
+@@ -1,6 +1,6 @@
+ # SPDX-License-Identifier: CC0-1.0
+ ipa_name = 'ipa_camss_vfe'
+-mod = shared_module(ipa_name, ['camss.cpp', 'parameter_encoder.cpp', 'hardware_agc.cpp', 'hardware_awb.cpp', 'lens_shading.cpp', 'white_balance_reference.cpp'],
++mod = shared_module(ipa_name, ['camss.cpp', 'parameter_encoder.cpp', 'hardware_agc.cpp', 'hardware_awb.cpp', 'lens_shading.cpp', 'white_balance_reference.cpp', 'colour_correction_profile.cpp'],
+     name_prefix : '',
+     include_directories : [ipa_includes],
+     dependencies : [libcamera_private, libipa_dep],
+--- a/src/ipa/camss-vfe/parameter_encoder.cpp
++++ b/src/ipa/camss-vfe/parameter_encoder.cpp
+@@ -44,7 +44,7 @@
+ int encodeParameters(Span<uint8_t> output, const ResidualBlackProfile &profile,
+ 		     double redGain, double blueGain, const Size &input,
+ 		     const Rectangle &roi, size_t *bytesused,
+-		     const camss_params_lsc *lsc)
++		     const camss_params_lsc *lsc, const camss_params_color_correct *ccm)
+ {
+ 	if (!bytesused)
+ 		return -EINVAL;
+@@ -52,7 +52,7 @@
+ 
+ 	const size_t required = sizeof(v4l2_isp_buffer) +
+ 				    sizeof(camss_params_wb_gain) +
+-				    sizeof(camss_params_aec_bhist) + (lsc ? sizeof(*lsc) : 0);
++				    sizeof(camss_params_aec_bhist) + (lsc ? sizeof(*lsc) : 0) + (ccm ? sizeof(*ccm) : 0);
+ 	if (output.size() < required)
+ 		return -ENOSPC;
+ 	if (!output.data() ||
+@@ -99,6 +99,11 @@
+   block.setEnabled(true);
+   std::memcpy(&block->cell_width, &lsc->cell_width, sizeof(*lsc) - sizeof(lsc->header));
+  }
++ if (ccm) {
++  auto block = params.block<CamssBlocks::ColorCorrect>();
++  block.setEnabled(true);
++  std::memcpy(&block->a, &ccm->a, sizeof(*ccm) - sizeof(ccm->header));
++ }
+ 	*bytesused = params.bytesused();
+ 	return 0;
+ }
+--- a/src/ipa/camss-vfe/parameter_encoder.h
++++ b/src/ipa/camss-vfe/parameter_encoder.h
+@@ -23,6 +23,7 @@
+ int encodeParameters(Span<uint8_t> output, const ResidualBlackProfile &profile,
+ 		     double redGain, double blueGain, const Size &input,
+ 		     const Rectangle &roi, size_t *bytesused,
+-		     const camss_params_lsc *lsc = nullptr);
++		     const camss_params_lsc *lsc = nullptr,
++		     const camss_params_color_correct *ccm = nullptr);
+ 
+ } /* namespace libcamera::ipa::camss */
+--- /dev/null
++++ b/src/ipa/libipa/colour_correction.cpp
+@@ -0,0 +1,76 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#include "colour_correction.h"
++#include <cmath>
++
++namespace libcamera::ipa {
++namespace {
++bool valid(const ColourCorrectionData &data)
++{
++	for (float value : data.matrix)
++		if (!std::isfinite(value) || value < -16 || value > 16) return false;
++	for (int32_t value : data.offsets)
++		if (value < -4096 || value > 4095) return false;
++	return true;
++}
++
++/* Preserve the pinned tuning arithmetic's separate integer/fractional
++ * rounding, including its float32 decimal-scale step. */
++float interpolateValue(float first, float second, float weight)
++{
++	int32_t a = first, b = second;
++	double af = double(first - float(a)) * 1000000.0;
++	double bf = double(second - float(b)) * 1000000.0;
++	float fraction = float(af + double(weight) * (bf - af)) / 1000000.0f;
++	float integer = float(double(a) + double(weight) * float(b - a));
++	return fraction + integer;
++}
++} /* namespace */
++
++bool interpolateColourCorrection(const ColourCorrectionData &first,
++				 const ColourCorrectionData &second, float weight,
++				 ColourCorrectionData *result)
++{
++	if (!result || !valid(first) || !valid(second) || !std::isfinite(weight) || weight < 0 || weight > 1)
++		return false;
++	if (weight == 0) { *result = first; return true; }
++	if (weight == 1) { *result = second; return true; }
++	ColourCorrectionData output;
++	for (unsigned int i = 0; i < output.matrix.size(); ++i)
++		output.matrix[i] = interpolateValue(first.matrix[i], second.matrix[i], weight);
++	for (unsigned int i = 0; i < output.offsets.size(); ++i)
++		output.offsets[i] = int32_t(interpolateValue(float(first.offsets[i]), float(second.offsets[i]), weight));
++	*result = output;
++	return true;
++}
++
++bool encodeColourCorrection(const ColourCorrectionData &data, unsigned int qfactor,
++			    ColourCorrectionParameters *result,
++			    std::array<float, 9> *effectiveMatrix)
++{
++	if (!result || !valid(data) || qfactor > 3) return false;
++	const float scale = float(1u << (7 + qfactor));
++	std::array<uint16_t, 9> encoded;
++	std::array<float, 9> effective;
++	for (unsigned int i = 0; i < data.matrix.size(); ++i) {
++		long value = std::lround(data.matrix[i] * scale);
++		if (value < -2048 || value > 2047) return false;
++		encoded[i] = uint16_t(value) & 0xfff;
++		effective[i] = float(value) / scale;
++	}
++	ColourCorrectionParameters output;
++	constexpr std::array<unsigned int, 3> order{ 1, 2, 0 };
++	for (unsigned int i = 0; i < order.size(); ++i) {
++		unsigned int row = order[i];
++		output.a[i] = encoded[row * 3 + 1];
++		output.b[i] = encoded[row * 3 + 2];
++		output.c[i] = encoded[row * 3];
++		if (data.offsets[row] < -1024 || data.offsets[row] > 1023) return false;
++		output.k[i] = uint16_t(data.offsets[row]) & 0x7ff;
++	}
++	output.qfactor = qfactor;
++	*result = output;
++	if (effectiveMatrix) *effectiveMatrix = effective;
++	return true;
++}
++
++} /* namespace libcamera::ipa */
+--- /dev/null
++++ b/src/ipa/libipa/colour_correction.h
+@@ -0,0 +1,27 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++#include <array>
++#include <cstdint>
++
++namespace libcamera::ipa {
++
++struct ColourCorrectionData {
++	std::array<float, 9> matrix; /* RGB, row-major, before gamma. */
++	std::array<int32_t, 3> offsets;
++};
++
++/* Common CAMSS block fields, output/input order G,B,R. Coefficients are
++ * 12-bit two's complement. Titan175 offsets are 11-bit two's complement. */
++struct ColourCorrectionParameters {
++	std::array<uint16_t, 3> a, b, c, k;
++	uint16_t qfactor;
++};
++
++bool interpolateColourCorrection(const ColourCorrectionData &first,
++				 const ColourCorrectionData &second, float weight,
++				 ColourCorrectionData *result);
++bool encodeColourCorrection(const ColourCorrectionData &data, unsigned int qfactor,
++			    ColourCorrectionParameters *result,
++			    std::array<float, 9> *effectiveMatrix = nullptr);
++
++} /* namespace libcamera::ipa */
+--- a/src/ipa/libipa/meson.build
++++ b/src/ipa/libipa/meson.build
+@@ -29,6 +29,7 @@
+     'awb.cpp',
+     'awb_calibration.cpp',
+     'awb_colour_temperature.cpp',
++    'colour_correction.cpp',
+     'lens_shading.cpp',
+     'lsc_resample.cpp',
+     'camera_sensor_helper.cpp',
+--- a/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
++++ b/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
+@@ -775,7 +775,7 @@
+   int ret = d->ipa_->convertControls(d->epoch_, request->controls(), &sensorControls);
+   if (ret) return ret;
+  }
+- const bool isp = request->controls().contains(controls::AwbEnable.id()) || request->controls().contains(controls::ColourGains.id()) || request->controls().contains(controls::ColourTemperature.id());
++ const bool isp = request->controls().contains(controls::AwbEnable.id()) || request->controls().contains(controls::ColourGains.id()) || request->controls().contains(controls::ColourTemperature.id()) || request->controls().contains(controls::ColourCorrectionMatrix.id());
+  if (isp && !d->ispHealthy_) return -EPIPE;
+  if (!sensorControls.empty() && (!d->delayedControls_ || !d->sensorContextHealthy_)) return -ENOTSUP;
+  if ((!sensorControls.empty() && d->sensorUpdates_.size() >= 8) || (isp && d->ispControls_.size() >= 8)) return -ENOSPC;

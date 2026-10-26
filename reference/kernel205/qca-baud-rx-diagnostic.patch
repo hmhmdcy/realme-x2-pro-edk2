@@ -1,0 +1,99 @@
+--- a/drivers/bluetooth/hci_qca.c
++++ b/drivers/bluetooth/hci_qca.c
+@@ -24,6 +24,7 @@
+ #include <linux/device.h>
+ #include <linux/gpio/consumer.h>
+ #include <linux/module.h>
++#include <linux/timekeeping.h>
+ #include <linux/of.h>
+ #include <linux/acpi.h>
+ #include <linux/platform_device.h>
+@@ -84,6 +85,10 @@
+ };
+ 
+ /* Diagnostic tags are independent of the power-pulse receive window. */
++static bool samurai_rx_diag;
++module_param(samurai_rx_diag, bool, 0600);
++MODULE_PARM_DESC(samurai_rx_diag, "Private bounded QCA baud-switch RX diagnostics");
++
+ enum qca_rx_phase {
+ 	QCA_RX_UNSPECIFIED,
+ 	QCA_RX_POWER_OFF_PULSE,
+@@ -155,6 +160,11 @@
+ 	struct sk_buff *rx_skb;
+ 	u32 rx_phase;
+ 	u32 requested_baudrate;
++	u32 diag_actual_baudrate;
++	u64 diag_change_start_ns;
++	u64 diag_host_start_ns;
++	u64 diag_host_end_ns;
++	u64 diag_flow_release_ns;
+ 	atomic_t pulse_rx_nuls;
+ 	struct sk_buff_head txq;
+ 	struct sk_buff_head tx_wait_q;	/* HCI_IBS wait queue	*/
+@@ -1329,6 +1339,20 @@
+ 			   err, READ_ONCE(qca->rx_phase),
+ 			   READ_ONCE(qca->requested_baudrate), count, partial,
+ 			   count > 0 ? buffer[0] : 0);
++		if (READ_ONCE(samurai_rx_diag) &&
++		    READ_ONCE(qca->rx_phase) == QCA_RX_BAUDRATE_CHANGE) {
++			unsigned int length = count > 0 ? min_t(int, count, 32) : 0;
++
++			bt_dev_err(hu->hdev,
++				   "RXDIAG drop=%u actual=%u change=%llu host_start=%llu host_end=%llu flow_release=%llu",
++				   test_bit(QCA_DROP_VENDOR_EVENT, &qca->flags),
++				   READ_ONCE(qca->diag_actual_baudrate),
++				   READ_ONCE(qca->diag_change_start_ns),
++				   READ_ONCE(qca->diag_host_start_ns),
++				   READ_ONCE(qca->diag_host_end_ns),
++				   READ_ONCE(qca->diag_flow_release_ns));
++			bt_dev_err(hu->hdev, "RXDIAG head=%*ph", length, buffer);
++		}
+ 		qca->rx_skb = NULL;
+ 		return err;
+ 	}
+@@ -1438,10 +1462,18 @@
+ 	struct qca_data *qca = hu->priv;
+ 
+ 	WRITE_ONCE(qca->requested_baudrate, speed);
+-	if (hu->serdev)
+-		serdev_device_set_baudrate(hu->serdev, speed);
+-	else
++	if (READ_ONCE(samurai_rx_diag))
++		WRITE_ONCE(qca->diag_host_start_ns, ktime_get_mono_fast_ns());
++	if (hu->serdev) {
++		unsigned int actual = serdev_device_set_baudrate(hu->serdev, speed);
++
++		if (READ_ONCE(samurai_rx_diag))
++			WRITE_ONCE(qca->diag_actual_baudrate, actual);
++	} else {
+ 		hci_uart_set_baudrate(hu, speed);
++	}
++	if (READ_ONCE(samurai_rx_diag))
++		WRITE_ONCE(qca->diag_host_end_ns, ktime_get_mono_fast_ns());
+ }
+ 
+ static int qca_send_power_pulse(struct hci_uart *hu, bool on)
+@@ -1586,6 +1618,12 @@
+ 		}
+ 
+ 		WRITE_ONCE(qca->rx_phase, QCA_RX_BAUDRATE_CHANGE);
++		if (READ_ONCE(samurai_rx_diag)) {
++			WRITE_ONCE(qca->diag_change_start_ns, ktime_get_mono_fast_ns());
++			WRITE_ONCE(qca->diag_host_start_ns, 0);
++			WRITE_ONCE(qca->diag_host_end_ns, 0);
++			WRITE_ONCE(qca->diag_flow_release_ns, 0);
++		}
+ 		qca_baudrate = qca_get_baudrate_value(speed);
+ 		bt_dev_dbg(hu->hdev, "Set UART speed to %d", speed);
+ 		ret = qca_set_baudrate(hu->hdev, qca_baudrate);
+@@ -1605,6 +1643,9 @@
+ 		case QCA_WCN6855:
+ 		case QCA_WCN7850:
+ 			hci_uart_set_flow_control(hu, false);
++			if (READ_ONCE(samurai_rx_diag))
++				WRITE_ONCE(qca->diag_flow_release_ns,
++					   ktime_get_mono_fast_ns());
+ 			break;
+ 
+ 		default:

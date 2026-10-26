@@ -1,0 +1,487 @@
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe-175-stats.c b/drivers/media/platform/qcom/camss/camss-vfe-175-stats.c
+index 2957f5efc..e4fd2ae10 100644
+--- a/drivers/media/platform/qcom/camss/camss-vfe-175-stats.c
++++ b/drivers/media/platform/qcom/camss/camss-vfe-175-stats.c
+@@ -1,5 +1,5 @@
+ // SPDX-License-Identifier: GPL-2.0-only
+-/* Qualcomm SM8150 VFE175 linear luma Bayer histogram. */
++/* Qualcomm SM8150 VFE175 Bayer histogram and RGB grid statistics. */
+ 
+ #include <linux/bitfield.h>
+ #include <linux/io.h>
+@@ -12,6 +12,21 @@
+ 
+ #define VFE_175_STATS_ENABLE             0x044
+ #define VFE_175_BHIST_ENABLE             BIT(4)
++#define VFE_175_BG_ENABLE                BIT(3)
++#define VFE_175_BG_QUAD_SYNC             BIT(6)
++#define VFE_175_BG_OFFSET                0xbc8
++#define VFE_175_BG_REGIONS               0xbcc
++#define VFE_175_BG_SIZE                  0xbd0
++#define VFE_175_BG_HIGH_0                0xbd4
++#define VFE_175_BG_HIGH_1                0xbd8
++#define VFE_175_BG_LOW_0                 0xbdc
++#define VFE_175_BG_LOW_1                 0xbe0
++#define VFE_175_BG_Y                     0xc14
++#define VFE_175_BG_CONFIG                0xcb0
++#define VFE_175_BG_CLIENT                15
++#define VFE_175_BG_BYTES                 (CAMSS_STATS_BG_MAX_REGIONS * 24)
++#define VFE_175_BG_THRESHOLD             16383
++#define VFE_175_STATS_MASK               (BIT(15) | BIT(16))
+ #define VFE_175_STATS_CGC                0x030
+ #define VFE_175_DMI_CONFIG               0xc24
+ #define VFE_175_DMI_ADDRESS              0xc28
+@@ -35,6 +50,17 @@
+ #define VFE_175_BUS_NO_SYNC              0x2084
+ #define VFE_175_WM(n, r)                 (0x2200 + (n) * 0x100 + (r))
+ 
++void vfe_175_stats_init_output(struct vfe_output *output)
++{
++	const u8 clients[] = { VFE_175_BHIST_CLIENT, VFE_175_BG_CLIENT };
++
++	vfe_add_output(output, MSM_VFE_PAD_SRC_STATS, VFE_175_BHIST_GROUP,
++		       ARRAY_SIZE(clients), clients);
++	/* Each hardware destination remains 256-byte aligned. */
++	output->dma_size = VFE_175_BHIST_BYTES + VFE_175_BG_BYTES;
++	output->stats_payload_size = CAMSS_STATS_MAX_PAYLOAD;
++}
++
+ static struct vfe_output *vfe_175_stats_output(struct vfe_line *line)
+ {
+ 	unsigned int i;
+@@ -46,6 +72,93 @@ static struct vfe_output *vfe_175_stats_output(struct vfe_line *line)
+ 	return NULL;
+ }
+ 
++static void vfe_175_stats_write_mask(struct vfe_device *vfe, u32 reg,
++				      u32 mask, u32 value)
++{
++	u32 old = readl_relaxed(vfe->base + reg);
++
++	writel_relaxed((old & ~mask) | value, vfe->base + reg);
++}
++
++static void vfe_175_bg_write(struct vfe_device *vfe)
++{
++	const struct vfe_175_bg_state *bg = &vfe->pixel175.stats.bg;
++	u32 thresholds = VFE_175_BG_THRESHOLD | (VFE_175_BG_THRESHOLD << 16);
++	u32 mask = GENMASK(13, 0) | GENMASK(29, 16);
++
++	vfe_175_stats_write_mask(vfe, VFE_175_BG_OFFSET,
++		GENMASK(12, 0) | GENMASK(29, 16), bg->left | (bg->top << 16));
++	vfe_175_stats_write_mask(vfe, VFE_175_BG_REGIONS,
++		GENMASK(7, 0) | GENMASK(22, 16),
++		(bg->columns - 1) | ((bg->rows - 1) << 16));
++	vfe_175_stats_write_mask(vfe, VFE_175_BG_SIZE,
++		GENMASK(8, 0) | GENMASK(25, 16),
++		(bg->width - 1) | ((bg->height - 1) << 16));
++	vfe_175_stats_write_mask(vfe, VFE_175_BG_HIGH_0, mask, thresholds);
++	vfe_175_stats_write_mask(vfe, VFE_175_BG_HIGH_1, mask, thresholds);
++	vfe_175_stats_write_mask(vfe, VFE_175_BG_LOW_0, mask, 0);
++	vfe_175_stats_write_mask(vfe, VFE_175_BG_LOW_1, mask, 0);
++	/* Regular RGB records: disable Y and saturation extension, shift zero. */
++	vfe_175_stats_write_mask(vfe, VFE_175_BG_Y, BIT(0), 0);
++	vfe_175_stats_write_mask(vfe, VFE_175_BG_CONFIG,
++		GENMASK(3, 0) | GENMASK(23, 8), GENMASK(23, 8));
++	vfe_175_stats_write_mask(vfe, VFE_175_STATS_CONFIG,
++		VFE_175_BG_QUAD_SYNC, VFE_175_BG_QUAD_SYNC);
++}
++
++void vfe_175_stats_fill(struct vfe_device *vfe, struct vfe_output *output,
++			struct v4l2_isp_buffer *stats)
++{
++	const struct vfe_175_bg_state *bg = &vfe->pixel175.stats.bg;
++	u32 count = bg->columns * bg->rows;
++	struct v4l2_isp_stats_block_type_info info[] = {
++		[CAMSS_STATS_AEC_BHIST] = { .size = sizeof(struct camss_stats_bhist) },
++		[CAMSS_STATS_AWB_BG] = {
++			.size = sizeof(struct camss_stats_awb_bg) +
++				count * sizeof(struct camss_stats_bg_region),
++		},
++	};
++	const __le32 *raw = output->dma_vaddr + VFE_175_BHIST_BYTES;
++	struct v4l2_isp_block_header *header;
++	struct camss_stats_bhist *bhist;
++	struct camss_stats_awb_bg *grid;
++	unsigned int i;
++
++	header = v4l2_isp_stats_init_block(vfe->camss->dev, stats, info,
++		ARRAY_SIZE(info), CAMSS_STATS_AEC_BHIST, output->stats_payload_size);
++	if (IS_ERR(header))
++		return;
++	bhist = container_of(header, struct camss_stats_bhist, header);
++	memcpy(bhist->bins, output->dma_vaddr, sizeof(bhist->bins));
++
++	header = v4l2_isp_stats_init_block(vfe->camss->dev, stats, info,
++		ARRAY_SIZE(info), CAMSS_STATS_AWB_BG, output->stats_payload_size);
++	if (IS_ERR(header))
++		return;
++	grid = container_of(header, struct camss_stats_awb_bg, header);
++	grid->left = bg->left;
++	grid->top = bg->top;
++	grid->region_width = bg->width;
++	grid->region_height = bg->height;
++	grid->columns = bg->columns;
++	grid->rows = bg->rows;
++	grid->high_threshold = VFE_175_BG_THRESHOLD;
++	grid->input_bits = 14;
++	/* Six little-endian words per regular hardware region; omit reserved bits. */
++	for (i = 0; i < count; i++, raw += 6) {
++		struct camss_stats_bg_region *r = &grid->regions[i];
++
++		r->r_sum = le32_to_cpu(raw[0]) & GENMASK(29, 0);
++		r->b_sum = le32_to_cpu(raw[1]) & GENMASK(29, 0);
++		r->gr_sum = le32_to_cpu(raw[2]) & GENMASK(29, 0);
++		r->gb_sum = le32_to_cpu(raw[3]) & GENMASK(29, 0);
++		r->r_count = le32_to_cpu(raw[4]);
++		r->b_count = le32_to_cpu(raw[4]) >> 16;
++		r->gr_count = le32_to_cpu(raw[5]);
++		r->gb_count = le32_to_cpu(raw[5]) >> 16;
++	}
++}
++
+ /* The register reset does not initialize the histogram counter SRAM. */
+ static void vfe_175_bhist_clear(struct vfe_device *vfe)
+ {
+@@ -126,13 +239,16 @@ int vfe_175_bhist_validate(struct device *dev,
+ 
+ int vfe_175_stats_validate_output(const struct vfe_output *output)
+ {
+-	if (output->pad != MSM_VFE_PAD_SRC_STATS || output->wm_num != 1 ||
++	if (output->pad != MSM_VFE_PAD_SRC_STATS || output->wm_num != 2 ||
+ 	    output->wm[0].bus_client != VFE_175_BHIST_CLIENT ||
+-	    output->wm[0].plane || output->comp_group != VFE_175_BHIST_GROUP ||
+-	    output->dma_size != VFE_175_BHIST_BYTES || !output->dma_vaddr)
++	    output->wm[0].plane ||
++	    output->wm[1].bus_client != VFE_175_BG_CLIENT ||
++	    output->wm[1].plane != 1 || output->comp_group != VFE_175_BHIST_GROUP ||
++	    output->dma_size != VFE_175_BHIST_BYTES + VFE_175_BG_BYTES ||
++	    !output->dma_vaddr)
+ 		return -EINVAL;
+ 	if (output->dma_addr > U32_MAX ||
+-	    VFE_175_BHIST_BYTES - 1 > U32_MAX - output->dma_addr ||
++	    output->dma_size - 1 > U32_MAX - output->dma_addr ||
+ 	    !IS_ALIGNED(output->dma_addr, 256))
+ 		return -ERANGE;
+ 
+@@ -145,7 +261,8 @@ int vfe_175_stats_prepare(struct vfe_line *line)
+ 	struct vfe_output *output = vfe_175_stats_output(line);
+ 	u32 width = line->fmt[MSM_VFE_PAD_SINK].width & ~1U;
+ 	u32 height = line->fmt[MSM_VFE_PAD_SINK].height & ~1U;
+-	bool valid = width >= 4 && height >= 2 &&
++	struct vfe_175_bg_state *bg;
++	bool valid = width >= 6 && height >= 2 &&
+ 		     width <= VFE_175_BHIST_MAX_WIDTH &&
+ 		     height <= VFE_175_BHIST_MAX_HEIGHT;
+ 
+@@ -157,6 +274,14 @@ int vfe_175_stats_prepare(struct vfe_line *line)
+ 		.enabled = valid,
+ 	};
+ 	if (valid) {
++		bg = &vfe->pixel175.stats.bg;
++		bg->columns = min_t(u32, CAMSS_STATS_BG_COLUMNS, width / 6);
++		bg->rows = min_t(u32, CAMSS_STATS_BG_ROWS, height / 2);
++		bg->width = min_t(u32, (width / bg->columns) & ~1U, 390);
++		bg->height = min_t(u32, (height / bg->rows) & ~1U, 512);
++		bg->left = ((width - bg->columns * bg->width) / 2) & ~1U;
++		bg->top = ((height - bg->rows * bg->height) / 2) & ~1U;
++		vfe_175_bg_write(vfe);
+ 		vfe_175_bhist_clear(vfe);
+ 		vfe_175_bhist_write(vfe, line);
+ 	}
+@@ -189,52 +314,67 @@ void vfe_175_stats_params(struct vfe_device *vfe, struct vfe_line *line,
+ 		vfe_175_bhist_write(vfe, line);
+ }
+ 
++
+ void vfe_175_stats_start(struct vfe_device *vfe, struct vfe_output *output)
+ {
+-	u32 wm = output->wm[0].bus_client;
+ 	u32 value;
++	unsigned int i;
+ 
+ 	memset(output->dma_vaddr, 0, output->dma_size);
+ 	value = readl_relaxed(vfe->base + VFE_175_BUS_CGC);
+-	writel_relaxed(value | BIT(wm), vfe->base + VFE_175_BUS_CGC);
++	writel_relaxed(value | VFE_175_STATS_MASK, vfe->base + VFE_175_BUS_CGC);
+ 	value = readl_relaxed(vfe->base + VFE_175_BUS_NO_SYNC);
+-	writel_relaxed(value | BIT(wm), vfe->base + VFE_175_BUS_NO_SYNC);
++	writel_relaxed(value | VFE_175_STATS_MASK, vfe->base + VFE_175_BUS_NO_SYNC);
+ 	value = readl_relaxed(vfe->base + VFE_175_BUS_COMP(output->comp_group));
+-	writel_relaxed(value | BIT(wm),
++	writel_relaxed(value | VFE_175_STATS_MASK,
+ 		       vfe->base + VFE_175_BUS_COMP(output->comp_group));
+-	/* Statistics are a self-sized PLAIN64 packet, not a strided image. */
+-	writel_relaxed(0, vfe->base + VFE_175_WM(wm, 0x18));
+-	writel_relaxed(0, vfe->base + VFE_175_WM(wm, 0x1c));
+-	writel_relaxed(0, vfe->base + VFE_175_WM(wm, 0x20));
+-	writel_relaxed(0xa, vfe->base + VFE_175_WM(wm, 0x24));
+-	writel_relaxed(1, vfe->base + VFE_175_WM(wm, 0x28));
+-	writel_relaxed(0, vfe->base + VFE_175_WM(wm, 0x48));
+-	writel_relaxed(1, vfe->base + VFE_175_WM(wm, 0x4c));
+-	writel_relaxed(0, vfe->base + VFE_175_WM(wm, 0x50));
+-	writel_relaxed(1, vfe->base + VFE_175_WM(wm, 0x54));
+-	writel_relaxed(VFE_175_BHIST_BYTES, vfe->base + VFE_175_WM(wm, 0x58));
+-	writel_relaxed(0xf, vfe->base + VFE_175_WM(wm, 0x5c));
+-	writel_relaxed(3, vfe->base + VFE_175_WM(wm, 0x08));
++	for (i = 0; i < output->wm_num; i++) {
++		u32 wm = output->wm[i].bus_client;
++		u32 bytes = i ? VFE_175_BG_BYTES : VFE_175_BHIST_BYTES;
++
++		/* Self-sized PLAIN64 statistics packets, not strided images. */
++		writel_relaxed(0, vfe->base + VFE_175_WM(wm, 0x18));
++		writel_relaxed(0, vfe->base + VFE_175_WM(wm, 0x1c));
++		writel_relaxed(0, vfe->base + VFE_175_WM(wm, 0x20));
++		writel_relaxed(0xa, vfe->base + VFE_175_WM(wm, 0x24));
++		writel_relaxed(1, vfe->base + VFE_175_WM(wm, 0x28));
++		writel_relaxed(0, vfe->base + VFE_175_WM(wm, 0x48));
++		writel_relaxed(1, vfe->base + VFE_175_WM(wm, 0x4c));
++		writel_relaxed(0, vfe->base + VFE_175_WM(wm, 0x50));
++		writel_relaxed(1, vfe->base + VFE_175_WM(wm, 0x54));
++		writel_relaxed(bytes, vfe->base + VFE_175_WM(wm, 0x58));
++		writel_relaxed(0xf, vfe->base + VFE_175_WM(wm, 0x5c));
++		writel_relaxed(3, vfe->base + VFE_175_WM(wm, 0x08));
++	}
+ 	vfe_175_bhist_write(vfe, output->line);
++	vfe_175_stats_write_mask(vfe, VFE_175_STATS_ENABLE,
++		VFE_175_BG_ENABLE, VFE_175_BG_ENABLE);
+ }
+ 
+ void vfe_175_stats_update(struct vfe_device *vfe, struct vfe_output *output)
+ {
+-	writel_relaxed(output->dma_addr,
+-		       vfe->base + VFE_175_WM(output->wm[0].bus_client, 0x14));
++	unsigned int i;
++
++	for (i = 0; i < output->wm_num; i++)
++		writel_relaxed(output->dma_addr + (i ? VFE_175_BHIST_BYTES : 0),
++			       vfe->base + VFE_175_WM(output->wm[i].bus_client, 0x14));
+ }
+ 
+ void vfe_175_stats_stop(struct vfe_device *vfe, struct vfe_output *output)
+ {
+ 	u32 value = readl_relaxed(vfe->base + VFE_175_STATS_ENABLE);
+-	u32 wm = output->wm[0].bus_client;
++	unsigned int i;
+ 
+-	writel_relaxed(value & ~VFE_175_BHIST_ENABLE,
++	writel_relaxed(value & ~(VFE_175_BHIST_ENABLE | VFE_175_BG_ENABLE),
+ 		       vfe->base + VFE_175_STATS_ENABLE);
+-	writel_relaxed(0, vfe->base + VFE_175_WM(wm, 0x08));
+-	/* Complete the stop before metadata buffers can be returned. */
+-	readl(vfe->base + VFE_175_WM(wm, 0x08));
++	for (i = 0; i < output->wm_num; i++) {
++		u32 wm = output->wm[i].bus_client;
++
++		writel_relaxed(0, vfe->base + VFE_175_WM(wm, 0x08));
++		/* Complete both stops before metadata buffers can be returned. */
++		readl(vfe->base + VFE_175_WM(wm, 0x08));
++	}
+ 	value = readl_relaxed(vfe->base + VFE_175_BUS_COMP(output->comp_group));
+-	writel_relaxed(value & ~BIT(wm),
++	writel_relaxed(value & ~VFE_175_STATS_MASK,
+ 		       vfe->base + VFE_175_BUS_COMP(output->comp_group));
+ }
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe-175-stats.h b/drivers/media/platform/qcom/camss/camss-vfe-175-stats.h
+index 83058fd8c..f769e4025 100644
+--- a/drivers/media/platform/qcom/camss/camss-vfe-175-stats.h
++++ b/drivers/media/platform/qcom/camss/camss-vfe-175-stats.h
+@@ -11,12 +11,21 @@ struct vfe_device;
+ struct vfe_line;
+ struct vfe_output;
+ struct v4l2_isp_block_header;
++struct v4l2_isp_buffer;
++
++struct vfe_175_bg_state {
++	u16 left, top, width, height, columns, rows;
++};
+ 
+ struct vfe_175_stats_state {
++	struct vfe_175_bg_state bg;
+ 	u16 left, top, width, height;
+ 	bool enabled;
+ };
+ 
++void vfe_175_stats_init_output(struct vfe_output *output);
++void vfe_175_stats_fill(struct vfe_device *vfe, struct vfe_output *output,
++			struct v4l2_isp_buffer *stats);
+ int vfe_175_bhist_validate(struct device *dev,
+ 			   const struct v4l2_isp_block_header *block);
+ int vfe_175_stats_validate_output(const struct vfe_output *output);
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe-17x.c b/drivers/media/platform/qcom/camss/camss-vfe-17x.c
+index 9e0015ce8..6e0721ab6 100644
+--- a/drivers/media/platform/qcom/camss/camss-vfe-17x.c
++++ b/drivers/media/platform/qcom/camss/camss-vfe-17x.c
+@@ -661,7 +661,7 @@ static void vfe_subdev_init_175(struct device *dev, struct vfe_device *vfe)
+ 
+ 		vfe_add_yuv(&pix->output[0], 3, 4, 0);
+ 		vfe_add_params(&pix->output[1], 0);
+-		vfe_add_stats(&pix->output[2], 16, 1);
++		vfe_175_stats_init_output(&pix->output[2]);
+ 		/* Keep shared pad indices; undeclared DS outputs reject formats. */
+ 		vfe_set_pix(pix, 3);
+ 	}
+@@ -740,6 +740,7 @@ static void vfe_output_update_175(struct vfe_device *vfe,
+ 
+ /* SM8150 full IFE: shared RDI transport, matched CAMIF and FULL DMA. */
+ const struct vfe_hw_ops vfe_ops_175 = {
++	.vfe_stats_fill = vfe_175_stats_fill,
+ 	.params_info = vfe_175_params_info,
+ 	.params_num_types = ARRAY_SIZE(vfe_175_params_info),
+ 	.vfe_params_apply = vfe_175_params_apply,
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe.c b/drivers/media/platform/qcom/camss/camss-vfe.c
+index 502a0c2c1..5039c9fb7 100644
+--- a/drivers/media/platform/qcom/camss/camss-vfe.c
++++ b/drivers/media/platform/qcom/camss/camss-vfe.c
+@@ -639,7 +639,10 @@ static const struct v4l2_isp_stats_block_type_info vfe_stats_block_info[] = {
+  */
+ int vfe_alloc_stats(struct vfe_device *vfe, struct vfe_output *output)
+ {
+-	output->dma_size = sizeof_field(struct camss_stats_bhist, bins);
++	if (!output->dma_size)
++		output->dma_size = sizeof_field(struct camss_stats_bhist, bins);
++	if (!output->stats_payload_size)
++		output->stats_payload_size = sizeof(struct camss_stats_bhist);
+ 	output->dma_vaddr = dmam_alloc_coherent(vfe->camss->dev,
+ 						output->dma_size,
+ 						&output->dma_addr, GFP_KERNEL);
+@@ -664,6 +667,10 @@ static void vfe_stats_fill(struct vfe_device *vfe, struct vfe_output *output,
+ 	struct camss_stats_bhist *bhist;
+ 
+ 	v4l2_isp_stats_init_buffer(stats, V4L2_ISP_VERSION_V1);
++	if (vfe->res->hw_ops->vfe_stats_fill) {
++		vfe->res->hw_ops->vfe_stats_fill(vfe, output, stats);
++		goto done;
++	}
+ 
+ 	block = v4l2_isp_stats_init_block(vfe->camss->dev, stats,
+ 					  vfe_stats_block_info,
+@@ -675,6 +682,7 @@ static void vfe_stats_fill(struct vfe_device *vfe, struct vfe_output *output,
+ 		memcpy(bhist->bins, output->dma_vaddr, sizeof(bhist->bins));
+ 	}
+ 
++done:
+ 	vb2_set_plane_payload(&buf->vb.vb2_buf, 0,
+ 			      v4l2_isp_buffer_size(stats->data_size));
+ }
+@@ -2833,7 +2841,7 @@ static int vfe_register_meta_nodes(struct vfe_device *vfe,
+ 			video->active_fmt.fmt.meta.dataformat =
+ 				V4L2_META_FMT_QCOM_ISP_STATS;
+ 			video->active_fmt.fmt.meta.buffersize =
+-				v4l2_isp_buffer_size(CAMSS_STATS_MAX_PAYLOAD);
++				v4l2_isp_buffer_size(output->stats_payload_size);
+ 			suffix = "stats";
+ 		} else if (output->pad == MSM_VFE_PAD_SINK_PARAMS &&
+ 			   vfe->res->hw_ops->vfe_params_apply) {
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe.h b/drivers/media/platform/qcom/camss/camss-vfe.h
+index b2f7b0906..0ac9cfb25 100644
+--- a/drivers/media/platform/qcom/camss/camss-vfe.h
++++ b/drivers/media/platform/qcom/camss/camss-vfe.h
+@@ -154,6 +154,7 @@ struct vfe_output {
+ 	void *dma_vaddr;
+ 	dma_addr_t dma_addr;
+ 	size_t dma_size;
++	size_t stats_payload_size;
+ };
+ 
+ struct vfe_line {
+@@ -218,6 +219,10 @@ struct vfe_hw_ops {
+ 	void (*vfe_params_apply)(struct vfe_device *vfe, struct vfe_line *line,
+ 				 const struct v4l2_isp_buffer *params);
+ 
++	/* Optional backend serializer for statistics sharing one SOF/group. */
++	void (*vfe_stats_fill)(struct vfe_device *vfe, struct vfe_output *output,
++			       struct v4l2_isp_buffer *stats);
++
+ 	/* Output based API - new and shiny */
+ 	int (*vfe_output_prepare)(struct vfe_device *vfe, struct vfe_output *output);
+ 	void (*vfe_output_start)(struct vfe_device *vfe, struct vfe_output *output);
+diff --git a/include/uapi/linux/qcom-camss-config.h b/include/uapi/linux/qcom-camss-config.h
+index fc4510cb3..8c7e63741 100644
+--- a/include/uapi/linux/qcom-camss-config.h
++++ b/include/uapi/linux/qcom-camss-config.h
+@@ -246,9 +246,11 @@ struct camss_params_aec_bhist {
+  * of &struct v4l2_isp_block_header.
+  *
+  * @CAMSS_STATS_AEC_BHIST: AEC Bayer histogram, &struct camss_stats_bhist
++ * @CAMSS_STATS_AWB_BG: Bayer RGB grid, &struct camss_stats_awb_bg
+  */
+ enum camss_stats_block_type {
+ 	CAMSS_STATS_AEC_BHIST = 1,
++	CAMSS_STATS_AWB_BG = 2,
+ };
+ 
+ /* Number of bins in a Bayer histogram. */
+@@ -269,6 +271,71 @@ struct camss_stats_bhist {
+ 	__u32 bins[CAMSS_STATS_BHIST_BINS];
+ } __attribute__((aligned(8)));
+ 
+-#define CAMSS_STATS_MAX_PAYLOAD		sizeof(struct camss_stats_bhist)
++/**
++ * struct camss_stats_bg_region - Bayer channel sums and sample counts
++ *
++ * Each channel sum includes only samples admitted by the statistics threshold.
++ * Counts are per Bayer channel, not the number of pixels in the region.
++ *
++ * @r_sum: red sum
++ * @b_sum: blue sum
++ * @gr_sum: green-on-red-row sum
++ * @gb_sum: green-on-blue-row sum
++ * @r_count: red sample count
++ * @b_count: blue sample count
++ * @gr_count: green-on-red-row sample count
++ * @gb_count: green-on-blue-row sample count
++ */
++struct camss_stats_bg_region {
++	__u32 r_sum;
++	__u32 b_sum;
++	__u32 gr_sum;
++	__u32 gb_sum;
++	__u16 r_count;
++	__u16 b_count;
++	__u16 gr_count;
++	__u16 gb_count;
++};
++
++/**
++ * struct camss_stats_awb_bg - Bayer RGB grid statistics for one input frame
++ *
++ * The driver selects an even, centred grid in the input Bayer frame.
++ * Regions are ordered left to right, top to bottom. All dimensions and
++ * offsets refer to input pixels before image scaling. The sum/count ratio
++ * gives the channel mean in the scale described by @input_bits.
++ *
++ * @header: block header; @header.type = CAMSS_STATS_AWB_BG
++ * @left: horizontal grid offset
++ * @top: vertical grid offset
++ * @region_width: width of each region
++ * @region_height: height of each region
++ * @columns: number of regions per row
++ * @rows: number of region rows
++ * @high_threshold: common channel threshold in the input scale
++ * @input_bits: number of significant input bits
++ * @regions: @columns * @rows channel sum/count records
++ */
++struct camss_stats_awb_bg {
++	struct v4l2_isp_block_header header;
++	__u16 left;
++	__u16 top;
++	__u16 region_width;
++	__u16 region_height;
++	__u16 columns;
++	__u16 rows;
++	__u16 high_threshold;
++	__u16 input_bits;
++	struct camss_stats_bg_region regions[];
++} __attribute__((aligned(8)));
++
++/* Maximum grid exported by the current VFE175 statistics configuration. */
++#define CAMSS_STATS_BG_COLUMNS		32
++#define CAMSS_STATS_BG_ROWS		24
++#define CAMSS_STATS_BG_MAX_REGIONS	(CAMSS_STATS_BG_COLUMNS * CAMSS_STATS_BG_ROWS)
++#define CAMSS_STATS_BG_MAX_PAYLOAD	(sizeof(struct camss_stats_awb_bg) + \
++	CAMSS_STATS_BG_MAX_REGIONS * sizeof(struct camss_stats_bg_region))
++#define CAMSS_STATS_MAX_PAYLOAD		(sizeof(struct camss_stats_bhist) + \
++	CAMSS_STATS_BG_MAX_PAYLOAD)
+ 
+ #endif /* _UAPI_LINUX_QCOM_CAMSS_CONFIG_H */

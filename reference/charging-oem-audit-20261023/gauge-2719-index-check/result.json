@@ -1,0 +1,84 @@
+{
+  "schema": "samurai-gauge-2719-existing-index-check-v1",
+  "passed": true,
+  "discovery_scope": [
+    "workspace reference metadata filenames containing index/inventory/manifest/file-list/listing",
+    "workspace archive/out metadata filenames only",
+    "private kernel73/kernel81/kernel88/kernel207 named existing caches referenced by those receipts; no recursive E-drive scan"
+  ],
+  "excluded_metadata": [
+    "archive camera/document manifests and out docs-mirror manifests: source/mirror records, not vendor/odm/OTA membership indexes",
+    "gauge-image363 cache-inventory: kernel build/source inventory, not ROM members",
+    "fixed OEM source manifests: repository sources, not pack firmware descriptors"
+  ],
+  "indexes": [
+    {
+      "name": "vendor_gpu_selected",
+      "path": "E:\\RealmeX2Pro edk2\\reference\\kernel73\\gpu-firmware-manifest.json",
+      "bytes": 3754,
+      "sha256": "6c4ed6be7bd4033154162c1a012827b711c65225efffa73544d006a75edc3daf",
+      "scope": "selected same-handset vendor GPU extraction manifest; not full vendor",
+      "hits": [],
+      "listed_files": 7
+    },
+    {
+      "name": "vendor_modem_wifi_candidates",
+      "path": "E:\\RealmeX2Pro edk2\\reference\\kernel81\\firmware-inventory.txt",
+      "bytes": 4250,
+      "sha256": "ad0aa35fb8ed23c8fcef47f68a0891fdfdc09e3c7994536435abca5381908de0",
+      "scope": "only maxdepth2 wlanmdsp.mbn and bdwlan.* names from vendor/firmware and modem/image",
+      "hits": []
+    },
+    {
+      "name": "modem_wifi_selected",
+      "path": "E:\\RealmeX2Pro edk2\\reference\\kernel81\\wifi-firmware-manifest.json",
+      "bytes": 7507,
+      "sha256": "f2f2c139e6bef6fbbd012a2609c4e356ce31f98630614a285babeecf47eed1cb",
+      "scope": "35 selected same-handset wireless files; not full modem/vendor",
+      "hits": [],
+      "listed_files": 35
+    },
+    {
+      "name": "modem_mpss_candidates",
+      "path": "E:\\RealmeX2Pro edk2\\reference\\kernel88\\mpss-inventory.txt",
+      "bytes": 4043,
+      "sha256": "784b338c35b7cb2f09fff33003140a880a514576b7d99357262b7cd1aa0e1675",
+      "scope": "only maxdepth2 modem.*, qdsp6*, mba.* and *.jsn names from modem/image",
+      "hits": []
+    },
+    {
+      "name": "modem_mpss_selected",
+      "path": "E:\\edk2-samurai-out\\kernel88\\mpss-firmware-manifest.json",
+      "bytes": 14130,
+      "sha256": "f44e0661f3d4224570c5b65a634d04331fc3a9f8882f2624dab01bba252fe6d5",
+      "scope": "selected MPSS extraction manifest; not full modem",
+      "hits": [],
+      "listed_files": 33
+    },
+    {
+      "name": "modem_mcfg_summary",
+      "path": "E:\\RealmeX2Pro edk2\\reference\\kernel207\\stock-mcfg-inventory-validation.json",
+      "bytes": 401,
+      "sha256": "72974d2b23083b6136420b0254a7daaf6aa5e140d03290c8db4e166fadaec1ba",
+      "scope": "summary of173MCFG files only, not the original file-path index",
+      "hits": []
+    }
+  ],
+  "mcfg_original_path_index_available_at_named_host_path": false,
+  "whole_vendor_or_odm_or_OTA_member_index_identified": false,
+  "target_suffixes": [
+    ".bqz",
+    ".bqfs",
+    ".df.fs",
+    ".srec"
+  ],
+  "target_device": "2719",
+  "target_firmware_fingerprint": "2719000400060003850200",
+  "total_matching_lines": 0,
+  "descriptor_or_binary_candidate_identified": false,
+  "conclusion": "no match in the named selected/summary indexes; no conclusion about unindexed ROM contents or other caches",
+  "archived_payloads_or_ROM_images_opened": false,
+  "new_inventory_or_ROM_extraction_or_full_disk_scan": false,
+  "firmware_download_or_write": false,
+  "device_or_SDK_or_build_or_Git_accessed": false
+}

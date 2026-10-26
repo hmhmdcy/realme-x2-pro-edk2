@@ -1,0 +1,88 @@
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_intf.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_intf.c
+@@ -476,7 +476,7 @@
+ 	u32 trigger = DPU_REG_READ(c, INTF_DSI_CMD_MODE_TRIGGER_EN);
+ 	u32 height = DPU_REG_READ(c, INTF_TEAR_VSYNC_INIT_VAL) & 0xffff;
+ 	u32 line;
+-	int ret;
++	int ret = 0;
+ 
+ 	if (!te && !(refresh & BIT(31)) && !trigger)
+ 		return 0;
+@@ -494,11 +494,11 @@
+ 					 !(line & 0xffff) || (line & 0xffff) >= height,
+ 					 100, 50000);
+ 		if (ret) {
+-			pr_err("boot INTF%d drain failed: line=%#x height=%u out=%#x count=%#x\n",
++			pr_info("boot INTF%d frame stalled: line=%#x height=%u out=%#x count=%#x\n",
+ 			       intf->idx - INTF_0, line, height,
+ 			       DPU_REG_READ(c, INTF_TEAR_OUT_LINE_COUNT),
+ 			       DPU_REG_READ(c, INTF_TEAR_INT_COUNT_VAL));
+-			return ret;
++			/* The caller must abort this inherited frame with CTL reset. */
+ 		}
+ 	}
+ 	dpu_hw_intf_disable_te(intf);
+@@ -507,7 +507,7 @@
+ 		intf->idx - INTF_0, DPU_REG_READ(c, INTF_TEAR_TEAR_CHECK_EN),
+ 		DPU_REG_READ(c, INTF_TEAR_AUTOREFRESH_CONFIG),
+ 		DPU_REG_READ(c, INTF_DSI_CMD_MODE_TRIGGER_EN));
+-	return 0;
++	return ret;
+ }
+ 
+ static int dpu_hw_intf_get_vsync_info(struct dpu_hw_intf *intf,
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_ctl.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_ctl.c
+@@ -539,7 +539,7 @@
+ 	pr_info("boot CTL%d cleared: layer0=%#x layer1=%#x fetch=%#x\n",
+ 		ctx->idx - CTL_0, DPU_REG_READ(c, CTL_LAYER(LM_0)),
+ 		DPU_REG_READ(c, CTL_LAYER(LM_1)), DPU_REG_READ(c, CTL_FETCH_PIPE_ACTIVE));
+-	return 0;
++	return 1;
+ }
+ 
+ struct ctl_blend_config {
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_rm.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_rm.c
+@@ -214,7 +214,8 @@
+ 
+ int dpu_rm_clear_boot_config(struct dpu_rm *rm, const struct dpu_mdss_cfg *cat)
+ {
+-	int i, ret;
++	int i, ret, reset_ctls = 0;
++	bool stalled = false;
+ 
+ 	for (i = 0; i < cat->intf_count; i++) {
+ 		struct dpu_hw_intf *intf;
+@@ -223,7 +224,9 @@
+ 			continue;
+ 		intf = rm->hw_intf[cat->intf[i].id - INTF_0];
+ 		ret = dpu_hw_intf_clear_boot_config(intf);
+-		if (ret)
++		if (ret == -ETIMEDOUT)
++			stalled = true;
++		else if (ret)
+ 			return ret;
+ 	}
+ 
+@@ -232,9 +235,17 @@
+ 
+ 		ctl = to_dpu_hw_ctl(rm->ctl_blks[cat->ctl[i].id - CTL_0]);
+ 		ret = dpu_hw_ctl_clear_boot_config(ctl);
+-		if (ret)
++		if (ret < 0)
+ 			return ret;
+-	}
++		reset_ctls += ret;
++	}
++
++	/* Never change domains with a stalled frame and no confirmed CMD reset. */
++	if (stalled && !reset_ctls)
++		return -ETIMEDOUT;
++	if (stalled)
++		pr_info("boot stalled command frame aborted: %d CTL reset(s) completed\n",
++			reset_ctls);
+ 
+ 	return 0;
+ }

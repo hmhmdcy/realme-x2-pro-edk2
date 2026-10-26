@@ -1,0 +1,464 @@
+{
+  "passed": true,
+  "cases": 65,
+  "sequences": [
+    {
+      "name": "normal-managed",
+      "passed": true,
+      "update_passed": true,
+      "phase": null,
+      "recovery_state": null
+    },
+    {
+      "name": "precise-full-holding",
+      "passed": true,
+      "update_passed": true,
+      "phase": null,
+      "recovery_state": null
+    },
+    {
+      "name": "preflight-reject-latched-1",
+      "passed": true,
+      "update_passed": false,
+      "phase": "preflight",
+      "recovery_state": "preflight-only; no charging mutation"
+    },
+    {
+      "name": "preflight-reject-fault-1",
+      "passed": true,
+      "update_passed": false,
+      "phase": "preflight",
+      "recovery_state": "preflight-only; no charging mutation"
+    },
+    {
+      "name": "preflight-reject-cycle_timeout-1",
+      "passed": true,
+      "update_passed": false,
+      "phase": "preflight",
+      "recovery_state": "preflight-only; no charging mutation"
+    },
+    {
+      "name": "preflight-reject-error--5",
+      "passed": true,
+      "update_passed": false,
+      "phase": "preflight",
+      "recovery_state": "preflight-only; no charging mutation"
+    },
+    {
+      "name": "preflight-reject-age_ms-3001",
+      "passed": true,
+      "update_passed": false,
+      "phase": "preflight",
+      "recovery_state": "preflight-only; no charging mutation"
+    },
+    {
+      "name": "preflight-reject-flags-16576",
+      "passed": true,
+      "update_passed": false,
+      "phase": "preflight",
+      "recovery_state": "preflight-only; no charging mutation"
+    },
+    {
+      "name": "preflight-reject-flags-32960",
+      "passed": true,
+      "update_passed": false,
+      "phase": "preflight",
+      "recovery_state": "preflight-only; no charging mutation"
+    },
+    {
+      "name": "preflight-reject-protection_ok-0",
+      "passed": true,
+      "update_passed": false,
+      "phase": "preflight",
+      "recovery_state": "preflight-only; no charging mutation"
+    },
+    {
+      "name": "preflight-reject-source_inhibit-1",
+      "passed": true,
+      "update_passed": false,
+      "phase": "preflight",
+      "recovery_state": "preflight-only; no charging mutation"
+    },
+    {
+      "name": "preflight-edge-begin:1",
+      "passed": true,
+      "update_passed": false,
+      "phase": "exclusive-window",
+      "recovery_state": "preflight-only; no charging mutation"
+    },
+    {
+      "name": "preflight-edge-window:1",
+      "passed": true,
+      "update_passed": false,
+      "phase": "exclusive-window",
+      "recovery_state": "preflight-only; no charging mutation"
+    },
+    {
+      "name": "preflight-edge-lock:1",
+      "passed": true,
+      "update_passed": false,
+      "phase": "exclusive-window",
+      "recovery_state": "preflight-only; no charging mutation"
+    },
+    {
+      "name": "preflight-edge-verify:old:1",
+      "passed": true,
+      "update_passed": false,
+      "phase": "preflight",
+      "recovery_state": "preflight-only; no charging mutation"
+    },
+    {
+      "name": "preflight-edge-notes:old:1",
+      "passed": true,
+      "update_passed": false,
+      "phase": "preflight",
+      "recovery_state": "preflight-only; no charging mutation"
+    },
+    {
+      "name": "preflight-edge-backup:1",
+      "passed": true,
+      "update_passed": false,
+      "phase": "preflight",
+      "recovery_state": "preflight-only; no charging mutation"
+    },
+    {
+      "name": "reject-directory-replay",
+      "passed": true,
+      "update_passed": false,
+      "phase": "exclusive-window",
+      "recovery_state": "preflight-only; no charging mutation"
+    },
+    {
+      "name": "reject-openrc-not-started",
+      "passed": true,
+      "update_passed": false,
+      "phase": "preflight",
+      "recovery_state": "preflight-only; no charging mutation"
+    },
+    {
+      "name": "reject-service-mode600",
+      "passed": true,
+      "update_passed": false,
+      "phase": "preflight",
+      "recovery_state": "preflight-only; no charging mutation"
+    },
+    {
+      "name": "reject-request-transaction",
+      "passed": true,
+      "update_passed": false,
+      "phase": "request",
+      "recovery_state": "preflight-only; no charging mutation"
+    },
+    {
+      "name": "reject-request-payload_sha256",
+      "passed": true,
+      "update_passed": false,
+      "phase": "request",
+      "recovery_state": "preflight-only; no charging mutation"
+    },
+    {
+      "name": "reject-request-old_manifest_sha256",
+      "passed": true,
+      "update_passed": false,
+      "phase": "request",
+      "recovery_state": "preflight-only; no charging mutation"
+    },
+    {
+      "name": "reject-request-payload_base64",
+      "passed": true,
+      "update_passed": false,
+      "phase": "request",
+      "recovery_state": "preflight-only; no charging mutation"
+    },
+    {
+      "name": "old-stop-must-not-unload-stop:old:1",
+      "passed": true,
+      "update_passed": false,
+      "phase": "old-stop",
+      "recovery_state": "r5-files-and-module-retained; stop or fresh post-stop check failed; no unload"
+    },
+    {
+      "name": "old-stop-must-not-unload-bad-stop-readback",
+      "passed": true,
+      "update_passed": false,
+      "phase": "old-stop",
+      "recovery_state": "r5-files-and-module-retained; stop or fresh post-stop check failed; no unload"
+    },
+    {
+      "name": "new-fault-during-old-stop-retains-module-latched",
+      "passed": true,
+      "update_passed": false,
+      "phase": "old-stop-check",
+      "recovery_state": "r5-files-and-module-retained; stop or fresh post-stop check failed; no unload"
+    },
+    {
+      "name": "new-fault-during-old-stop-retains-module-cycle_timeout",
+      "passed": true,
+      "update_passed": false,
+      "phase": "old-stop-check",
+      "recovery_state": "r5-files-and-module-retained; stop or fresh post-stop check failed; no unload"
+    },
+    {
+      "name": "new-fault-during-old-stop-retains-module-fault",
+      "passed": true,
+      "update_passed": false,
+      "phase": "old-stop-check",
+      "recovery_state": "r5-files-and-module-retained; stop or fresh post-stop check failed; no unload"
+    },
+    {
+      "name": "recover-boundary-unload:1",
+      "passed": true,
+      "update_passed": false,
+      "phase": "old-unload",
+      "recovery_state": "r5-managed-current-source-budget"
+    },
+    {
+      "name": "recover-boundary-window:2",
+      "passed": true,
+      "update_passed": false,
+      "phase": "old-stop-check",
+      "recovery_state": "r5-managed-current-source-budget"
+    },
+    {
+      "name": "recover-boundary-write:samurai-mp2650.ko:new:1",
+      "passed": true,
+      "update_passed": false,
+      "phase": "install-three-files",
+      "recovery_state": "r5-managed-current-source-budget"
+    },
+    {
+      "name": "recover-boundary-write:samurai-charging:new:1",
+      "passed": true,
+      "update_passed": false,
+      "phase": "install-three-files",
+      "recovery_state": "r5-managed-current-source-budget"
+    },
+    {
+      "name": "recover-boundary-write:manifest.json:new:1",
+      "passed": true,
+      "update_passed": false,
+      "phase": "install-three-files",
+      "recovery_state": "r5-managed-current-source-budget"
+    },
+    {
+      "name": "recover-boundary-load:new:1",
+      "passed": true,
+      "update_passed": false,
+      "phase": "explicit-new-load",
+      "recovery_state": "r5-managed-current-source-budget"
+    },
+    {
+      "name": "recover-boundary-fresh-manager:61451ffea87cca466dbbb2f1a2c6e7c05d0eee517479e8b019d43b1869355aa4:1",
+      "passed": true,
+      "update_passed": false,
+      "phase": "fresh-new-manager",
+      "recovery_state": "r5-managed-current-source-budget"
+    },
+    {
+      "name": "recover-boundary-verify:new:1",
+      "passed": true,
+      "update_passed": false,
+      "phase": "fresh-new-manager",
+      "recovery_state": "r5-managed-current-source-budget"
+    },
+    {
+      "name": "recover-boundary-notes:new:1",
+      "passed": true,
+      "update_passed": false,
+      "phase": "fresh-new-manager",
+      "recovery_state": "r5-managed-current-source-budget"
+    },
+    {
+      "name": "recover-boundary-start:new:1",
+      "passed": true,
+      "update_passed": false,
+      "phase": "new-start",
+      "recovery_state": "r5-managed-current-source-budget"
+    },
+    {
+      "name": "new-fault-holds-recovered-r5-latched",
+      "passed": true,
+      "update_passed": false,
+      "phase": "new-acceptance",
+      "recovery_state": "r5-inhibited; fault/unknown sample retained in receipt; AUTO withheld"
+    },
+    {
+      "name": "new-fault-holds-recovered-r5-fault",
+      "passed": true,
+      "update_passed": false,
+      "phase": "new-acceptance",
+      "recovery_state": "r5-inhibited; fault/unknown sample retained in receipt; AUTO withheld"
+    },
+    {
+      "name": "new-fault-holds-recovered-r5-cycle_timeout",
+      "passed": true,
+      "update_passed": false,
+      "phase": "new-acceptance",
+      "recovery_state": "r5-inhibited; fault/unknown sample retained in receipt; AUTO withheld"
+    },
+    {
+      "name": "new-fault-holds-recovered-r5-error",
+      "passed": true,
+      "update_passed": false,
+      "phase": "new-acceptance",
+      "recovery_state": "r5-inhibited; fault/unknown sample retained in receipt; AUTO withheld"
+    },
+    {
+      "name": "new-fault-holds-recovered-r5-age_ms",
+      "passed": true,
+      "update_passed": false,
+      "phase": "new-acceptance",
+      "recovery_state": "r5-inhibited; fault/unknown sample retained in receipt; AUTO withheld"
+    },
+    {
+      "name": "new-fault-holds-recovered-r5-flags",
+      "passed": true,
+      "update_passed": false,
+      "phase": "new-acceptance",
+      "recovery_state": "r5-inhibited; fault/unknown sample retained in receipt; AUTO withheld"
+    },
+    {
+      "name": "new-fault-holds-recovered-r5-thermal_inhibit",
+      "passed": true,
+      "update_passed": false,
+      "phase": "new-acceptance",
+      "recovery_state": "r5-inhibited; fault/unknown sample retained in receipt; AUTO withheld"
+    },
+    {
+      "name": "new-fault-holds-recovered-r5-gauge_charge_stop",
+      "passed": true,
+      "update_passed": false,
+      "phase": "new-acceptance",
+      "recovery_state": "r5-inhibited; fault/unknown sample retained in receipt; AUTO withheld"
+    },
+    {
+      "name": "partial-full-not-healthy",
+      "passed": true,
+      "update_passed": false,
+      "phase": "new-acceptance",
+      "recovery_state": "r5-managed-current-source-budget"
+    },
+    {
+      "name": "legal-source-budget-change-not-stable-acceptance",
+      "passed": true,
+      "update_passed": false,
+      "phase": "new-acceptance",
+      "recovery_state": "r5-managed-current-source-budget"
+    },
+    {
+      "name": "cv-ceiling-must-not-rise",
+      "passed": true,
+      "update_passed": false,
+      "phase": "new-acceptance",
+      "recovery_state": "r5-managed-current-source-budget"
+    },
+    {
+      "name": "camera-state-change-not-passed",
+      "passed": true,
+      "update_passed": false,
+      "phase": "new-acceptance",
+      "recovery_state": "r5-managed-current-source-budget"
+    },
+    {
+      "name": "new-stop-failure-no-second-unload",
+      "passed": true,
+      "update_passed": false,
+      "phase": "fresh-new-manager",
+      "recovery_state": null
+    },
+    {
+      "name": "recovery-secondary-failure-write:samurai-charging:old:1",
+      "passed": true,
+      "update_passed": false,
+      "phase": "fresh-new-manager",
+      "recovery_state": null
+    },
+    {
+      "name": "recovery-secondary-failure-load:old:1",
+      "passed": true,
+      "update_passed": false,
+      "phase": "fresh-new-manager",
+      "recovery_state": null
+    },
+    {
+      "name": "recovery-secondary-failure-start:old:1",
+      "passed": true,
+      "update_passed": false,
+      "phase": "fresh-new-manager",
+      "recovery_state": null
+    },
+    {
+      "name": "unknown-child-no-fallback-unload:1",
+      "passed": true,
+      "update_passed": false,
+      "phase": "old-unload",
+      "recovery_state": "unknown-worker-or-module-state; no further mutation"
+    },
+    {
+      "name": "unknown-child-no-fallback-load:new:1",
+      "passed": true,
+      "update_passed": false,
+      "phase": "explicit-new-load",
+      "recovery_state": "unknown-worker-or-module-state; no further mutation"
+    },
+    {
+      "name": "unknown-recovery-child-no-further-stop",
+      "passed": true,
+      "update_passed": false,
+      "phase": "fresh-new-manager",
+      "recovery_state": null
+    },
+    {
+      "name": "unknown-module-before-recovery-stop-no-I2C-or-unload",
+      "passed": true,
+      "update_passed": false,
+      "phase": "fresh-new-manager",
+      "recovery_state": null
+    },
+    {
+      "name": "actual-atomic-write-service755-module600-rollback",
+      "passed": true
+    },
+    {
+      "name": "actual-concrete-manager-rejects-stale-verify-and-start",
+      "passed": true
+    },
+    {
+      "name": "actual-failed-data-fsync-keeps-old-service-and-cleans-own-temp",
+      "passed": true
+    },
+    {
+      "name": "actual-coming-going-module-is-unknown-and-not-live",
+      "passed": true
+    },
+    {
+      "name": "actual-lease-boot-token-expiry-camera-record",
+      "passed": true
+    },
+    {
+      "name": "actual-popen-timeout-retains-child-and-forbids-follow-up-mutation",
+      "passed": true
+    }
+  ],
+  "scope": "actual transaction and concrete atomic-write/lease/timeout methods; fake hardware and process boundaries only",
+  "candidate_files": {
+    "update-r6.py": "a3f895101d64ab5baece893d495d5776dc709c2fe258b475804f26dadf4d1d30",
+    "test-update-r6.py": "3ae6eefb10e8e9cd9a60059465427a67e7bf3561d37b1d1f329e8bf4d1c42518"
+  },
+  "main_updater_sha256": "3a55a315b0885751afe0107d908d46ccc7478b264faa3d481877de9334b0bf9a",
+  "main_service_sha256": "4165b06ca7e6169c778d72e6dd604b89274ad29c87e15a7c03cc5a38dc21ea00",
+  "payload_sha256": "2433d8c04d22bb3e88eb1a2f0ea15c3fc3285706c40695fac6ce605613c57d58",
+  "old_manifest_sha256": "f1a885e2ca9c3226ca50d94f39c17c3cae5411b1047696976975df976aa971cf",
+  "new_manifest_sha256": "944f2d91f66c5642bbcb130c3ef59e022ca6652e599401908f8528a29d34202d",
+  "frozen_kernel_receipts": {
+    "kernel-v2": "5f8049883d7b2f163de83b811e8b00a24b68862e9c0c7fdeaf84c7cde10efacd",
+    "full-integration-candidate": "e864b2594ffe8f468c483eff7e1ba76f83731ddbef6002e944970c9e4389bbcc"
+  },
+  "phone_accessed": false,
+  "sdk_accessed": false,
+  "installed": false,
+  "tested_files": {
+    "update-r6.py": "a3f895101d64ab5baece893d495d5776dc709c2fe258b475804f26dadf4d1d30",
+    "test-update-r6.py": "3ae6eefb10e8e9cd9a60059465427a67e7bf3561d37b1d1f329e8bf4d1c42518"
+  }
+}

@@ -1,0 +1,11 @@
+--- a/rmtfs.c
++++ b/rmtfs.c
+@@ -524,7 +524,7 @@
+ 	sigaction(SIGTERM, &action, NULL);
+ 	rmem = rmtfs_mem_open();
+ 	if (!rmem) return 1;
+-	ret = storage_init("/tmp/k91-nv", true, false);
++	ret = storage_init("/run/samurai-wifi/nv", true, false);
+ 	if (ret) { rmtfs_mem_close(rmem); return 1; }
+ 	puts("RMTFS RAM COW ready; no persistent storage writes");
+ 	do { ret = run_rmtfs(-1); } while (ret == -ENETRESET && !sig_int_count);

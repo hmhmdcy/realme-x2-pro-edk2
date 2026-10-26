@@ -1,0 +1,19 @@
+{
+  "stage": 396,
+  "attempts": [
+    {
+      "case": "dispatch-fixture-address",
+      "passed": false,
+      "failure": "The new array fixture was placed at DATA+0x10000, outside the retained dispatch model's mapped DATA window.",
+      "repair": "Place the fixture at unused DATA+0xa000; no target firmware or kernel code changed."
+    },
+    {
+      "case": "dispatch-base-retention-assumption",
+      "passed": false,
+      "failure": "The verifier incorrectly expected program_array_base to survive dispatch. Original dispatch relocated all ten offsets and cleared the base field.",
+      "repair": "Assert the observed cleared base and fixed absolute pointers; feed that exact post-dispatch layout to the full frame preparation model."
+    }
+  ],
+  "final_evidence": "routing-validation.json",
+  "phone_changed": false
+}

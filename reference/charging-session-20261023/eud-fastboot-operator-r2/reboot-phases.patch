@@ -1,0 +1,88 @@
+--- a/fastboot-operator.py
++++ b/fastboot-operator.py
+@@ -27,7 +27,9 @@
+ CONTRACT_SHA = 'f12d65b62f8787732795f45d15edf0560672f3782bc16aed915c42dbd6f92dec'
+ RESTART_SHA = '0fb0948b49f7b15ca04015991d771056f1f5357539d7e9a834d4536928956ddf'
+ ACTIVATION = HERE.parent / 'eud-boot-activation-candidate'
+-ACTIONS = ('inspect', 'flash-candidate', 'rollback-original', 'reboot')
++REBOOT_IMAGES = {'reboot-candidate': ('flash-candidate', CANDIDATE_SHA),
++                 'reboot-original': ('rollback-original', ROLLBACK_SHA)}
++ACTIONS = ('inspect', 'flash-candidate', 'rollback-original', *REBOOT_IMAGES)
+ 
+ 
+ def require(condition, message):
+@@ -266,7 +268,7 @@
+         require(re.search(r"Writing 'boot'\s+OKAY", text) and 'FAILED' not in text,
+                 'flash return/output did not establish successful boot write')
+         result.update(partitions_written=['boot'], flashed_sha256=digest)
+-    elif action == 'reboot':
++    elif action in REBOOT_IMAGES:
+         out, err = call('reboot', [FASTBOOT, '-s', serial, 'reboot'])
+         require('FAILED' not in out + err, 'reboot command failed')
+         result['reboot_command_returned_zero'] = True
+@@ -274,8 +276,27 @@
+     return result
+ 
+ 
++def reboot_binding(directory, action):
++    image_action, digest = REBOOT_IMAGES[action]
++    image_results = [p for p in directory.glob('*/result-private.json')
++                     if p.parent.name in ('flash-candidate', 'rollback-original')]
++    require(image_results, 'reboot requires a successful corresponding image action')
++    latest = max(image_results, key=lambda p: read_json(p)['claimed_ns'])
++    result = read_json(latest)
++    require(latest.parent.name == image_action and result['action'] == image_action and
++            result['passed'] is True and result['terminal'] is True and
++            result['commands_terminal'] is True and result['partitions_written'] == ['boot'] and
++            result['flashed_sha256'] == digest,
++            'reboot must correspond to the last image action, successful and exact')
++    return {'image_action': image_action, 'image_sha256': digest,
++            'image_claim_sha256': sha(latest.parent / 'request-private.json'),
++            'image_result_sha256': sha(latest), 'image_claimed_ns': result['claimed_ns']}
++
++
+ def prior_terminal(directory, action):
+     """A lost owner / absent child without wait receipt is UNKNOWN, never success."""
++    require(not (directory / 'reboot').exists(),
++            'legacy reboot claim present; no R2 phase bypass of original evidence')
+     for previous in directory.iterdir():
+         if previous.name not in ACTIONS:
+             continue
+@@ -290,16 +311,16 @@
+         require(result['action'] == previous.name and all(result[k] == request[k] for k in
+                 ('transaction_id', 'token', 'old_boot_id', 'context_sha256', 'claimed_ns')),
+                 'prior terminal receipt not bound to original action')
+-    if action == 'reboot':
+-        flashes = [read_json(p) for p in directory.glob('*/result-private.json')
+-                   if p.parent.name in ('flash-candidate', 'rollback-original')]
+-        require(flashes and max(flashes, key=lambda r: r['claimed_ns'])['passed'] is True,
+-                'reboot requires last explicit image action to have succeeded')
++    if action in REBOOT_IMAGES:
++        return reboot_binding(directory, action)
+ 
+ 
+ def claim_action(directory, action, request):
+     require(action in ACTIONS, 'unsupported claim action')
+-    prior_terminal(directory, action)
++    binding = prior_terminal(directory, action)
++    request = dict(request)
++    if binding is not None:
++        request['image_binding'] = binding
+     dest = directory / action
+     dest.mkdir(mode=0o700)  # Existing, even partial, means this action is consumed.
+     fsync_dir(directory)
+@@ -331,9 +352,14 @@
+                     (request['transaction_id'], request['token'], request['old_boot_id']),
+                     'worker claim transaction mismatch')
+             require(local_inputs() == request['inputs'], 'local inputs changed after claim')
++            if request['action'] in REBOOT_IMAGES:
++                require(request['image_binding'] == reboot_binding(directory.parent, request['action']),
++                        'corresponding image evidence changed after reboot claim')
+             serial = read_json(IDENTITY)['serial']
+             report = run_action(request['action'], serial,
+                                 lambda label, argv: command(directory, label, argv))
++            if request['action'] in REBOOT_IMAGES:
++                report['image_binding'] = request['image_binding']
+             passed = True
+         except Exception as exc:
+             report = {'error': str(exc), 'runtime_readback_pending': True}

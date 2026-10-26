@@ -1,0 +1,57 @@
+{
+  "stage": 468,
+  "attempt": 1,
+  "exit": 2,
+  "phases": [
+    {
+      "target": "olddefconfig",
+      "exit": 0,
+      "seconds": 9.908
+    },
+    {
+      "target": "modules_prepare",
+      "exit": 0,
+      "seconds": 9.43
+    },
+    {
+      "target": "drivers/media/i2c/s5k3m5.ko",
+      "exit": 2,
+      "seconds": 2.636
+    }
+  ],
+  "seconds": 21.994,
+  "candidate_sha256": "4dec651efebda1680f25f254997c83432ad5f98a80e312bfcb531d5429bc4742",
+  "private_header_sha256": "0336163236832bc9aa51721205c122671e0006940bbb33377d43722d5d22fbd4",
+  "exact_image363_input_config_sha256": "23e088a90736bbbc442c672d82b35c11bf04f7dc489f1c6afb1b03dc0d8f30ed",
+  "configuration_differences_from_image363": {
+    "# CONFIG_VIDEO_QCOM_CAMSS_ICP is not set": [
+      null,
+      "# CONFIG_VIDEO_QCOM_CAMSS_ICP is not set"
+    ]
+  },
+  "kernel_release": "7.3.0-rc6-rmx1931-samurai-k363+",
+  "api_headers_equal_image363": [
+    "include/media/v4l2-subdev.h",
+    "include/media/v4l2-ctrls.h",
+    "include/media/v4l2-cci.h",
+    "include/linux/pm_runtime.h",
+    "include/linux/regulator/consumer.h",
+    "include/linux/i2c.h"
+  ],
+  "shared_inputs_and_source_unchanged": true,
+  "sparse_source_and_private_generated_output": true,
+  "private_modpost_vmlinux_object_bytes": 351502368,
+  "no_shared_vmlinux_link": true,
+  "jobs": 2,
+  "diagnostics": [
+    "ERROR: modpost: drivers/media/i2c/s5k3m5.ko: symbol 'cci_write' undefined!",
+    "ERROR: modpost: drivers/media/i2c/s5k3m5.ko: symbol 'cci_multi_reg_write' undefined!",
+    "ERROR: modpost: drivers/media/i2c/s5k3m5.ko: symbol 'devm_cci_regmap_init_i2c' undefined!",
+    "ERROR: modpost: drivers/media/i2c/s5k3m5.ko: symbol 'cci_read' undefined!"
+  ],
+  "free_bytes": 6485655552,
+  "image_or_rootfs_or_full_modules_built": false,
+  "installed_or_loaded": false,
+  "sdk_or_phone_accessed": false,
+  "passed": false
+}

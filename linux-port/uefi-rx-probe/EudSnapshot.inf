@@ -1,0 +1,27 @@
+[Defines]
+  INF_VERSION = 0x0001001B
+  BASE_NAME = EudSnapshot
+  FILE_GUID = 9ee69527-88f5-460e-9454-1f72c34ce8b8
+  MODULE_TYPE = UEFI_APPLICATION
+  VERSION_STRING = 0.1
+  ENTRY_POINT = UefiMain
+
+[Sources]
+  EudSnapshot.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  ArmPkg/ArmPkg.dec
+
+[LibraryClasses]
+  UefiApplicationEntryPoint
+  UefiBootServicesTableLib
+  BaseLib
+  DevicePathLib
+  IoLib
+  MemoryAllocationLib
+  PrintLib
+  TimerLib
+
+[Protocols]
+  gEfiLoadedImageProtocolGuid

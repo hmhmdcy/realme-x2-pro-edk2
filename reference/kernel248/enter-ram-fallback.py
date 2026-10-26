@@ -1,0 +1,5 @@
+"""Disable only the validated rootfs marker after quiescence, before one restart."""
+from pathlib import Path
+import base64,hashlib,json,os
+r=Path('/var/lib/samurai');assert Path('/proc/sys/kernel/random/boot_id').read_bytes()==(r/'k247-runtime/boot-id-private.txt').read_bytes();state=json.loads((r/'k248-quiesce/state-private.json').read_text());assert state['terminal'] and state['exit_code']==0 and Path('/proc/sys/kernel/tainted').read_text().strip()=='0';marker=Path('/etc/samurai-rootfs-release');backup=Path('/etc/samurai-rootfs-release.k248-before-rescue');assert not backup.exists();b=marker.read_bytes();assert b'ROOTFS_ID=samurai-f2fs-rootfs01' in b;marker.rename(backup);os.sync();assert not marker.exists() and backup.read_bytes()==b
+print(json.dumps(dict(report=dict(stage=248,root_marker_temporarily_renamed=True,contents_preserved=True,whole_userdata_intact=True,no_android_or_partition_flash=True),private=dict(marker_base64=base64.b64encode(b).decode(),sha256=hashlib.sha256(b).hexdigest()))))

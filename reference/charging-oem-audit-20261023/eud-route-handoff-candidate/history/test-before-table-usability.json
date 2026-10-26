@@ -1,0 +1,42 @@
+{
+  "passed": true,
+  "groups": [
+    "1 actual producer/receiver round-trip, exact whole-word set, commit-last, one CSR0 attempt and reserved-page cleanup",
+    "2 unknown pre-word and nonzero readback never publish a successful record",
+    "3 allocation/install/query/duplicate failures refuse arm before event or CSR write",
+    "4 failed event removes the table; failed uninstall retains an invalid reserved page without dangling publication",
+    "5 loader return invalidates before failed close; a late callback remains cancelled and reserved storage survives",
+    "6 actual EFI hook ignores other GUIDs and permanently rejects duplicate current-boot publications",
+    "7 actual EFI boot/config/64-bit and board provenance gates precede all mapping",
+    "8 reserved WB non-runtime memory, whole record range and bounded mapping errors are checked",
+    "9 two copies detect tearing; all64 byte corruptions and internally checksummed false status/flags fail untouched",
+    "10 evidence copy performs zero EUD MMIO; no route lease, IRQ, PD or USB operation is modeled as authorized"
+  ],
+  "group_count": 10,
+  "flags": [
+    "-std=gnu11",
+    "-g",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-fsanitize=address,undefined",
+    "-fno-omit-frame-pointer",
+    "-no-pie"
+  ],
+  "actual_BDS_arm_callback_disarm_and_kernel_receiver": true,
+  "actual_shared_wire_parser": true,
+  "firmware_services_EFI_table_iteration_memmap_mapping_MMIO_modeled": true,
+  "retained_failed_pages_disposed_only_by_fake_poweroff": true,
+  "fixture_sha256": "78455796e0391103bb7b1ebf70115bf3122ee7e5bdf2c8d16f4b41fc13b141aa",
+  "files": {
+    "PlatformBm.c.candidate": "0fe0abfabd793bc394e796467e1160c586829d4dc64f9c6252138fc76fa7e9e0",
+    "firmware-record-functions.inc": "59f33c72a10061a344819667e1999526e85879d78d55635a588b8960a5ab5aad",
+    "samurai-eud-handoff-wire.h": "d22128357f15e266f7b3627df7fafebdca285b9f90c2cb0d1cd11bda4aed8f18",
+    "samurai-eud-handoff.c": "e192cfa9b07d8f2526450bc26dad9039a8e2ed90cab42f2802376d63c8208807",
+    "samurai-eud-handoff.h": "bb92cb66ffec7d6da4be67e3ad8f6552470bfac96d3805cf42f1e2822ef4460e",
+    "test-channel.c": "0bab0d4a398bd47e3abb45b40ba052d8a5cacf8f937c4ab1a848b6ac54538e6b",
+    "run-tests.py": "95e7b2aa711e05d8a6d3ee98f5dfeccc351c54e3c64407a38049a6b100ff4cd5"
+  },
+  "phone_accessed": false,
+  "route_ownership_or_authorization_created": false
+}

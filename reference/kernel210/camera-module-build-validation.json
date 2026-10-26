@@ -1,0 +1,53 @@
+{
+  "stage": 210,
+  "persistent_camera_config_enabled": true,
+  "config_sha256": "fbde369024fc3f7ef2cfec049844d246b74f6ec9d2b26416b4630c77a7795a6e",
+  "config_delta_lines": [
+    "# CONFIG_OF_SAMURAI_CCI_BRINGUP is not set",
+    "# CONFIG_OF_SAMURAI_FRONT_IDENTIFY is not set",
+    "# CONFIG_OF_SAMURAI_FRONT_OVERLAY is not set",
+    "# CONFIG_OF_SAMURAI_PMIC_FIXTURE is not set",
+    "# CONFIG_OF_SAMURAI_VIO_PHANDLE is not set",
+    "# CONFIG_VIDEO_IMX471 is not set",
+    "CONFIG_V4L2_CCI=m",
+    "CONFIG_V4L2_CCI_I2C=m",
+    "CONFIG_VIDEO_IMX471=m"
+  ],
+  "modules": [
+    {
+      "path": "drivers/media/v4l2-core/v4l2-cci.ko",
+      "sha256": "f9c9272ac6f19712fee621b4c583f517112b6ed90324e21600d5c0c23b74a03d",
+      "bytes": 8344,
+      "vermagic": "7.3.0-rc6-rmx1931-samurai-k132+ SMP preempt mod_unload aarch64",
+      "depends": ""
+    },
+    {
+      "path": "drivers/media/i2c/imx471.ko",
+      "sha256": "c49dca633e8df556497b96e6f8b3a58b6bd98e7ad0548a14e8fef27ba73969d4",
+      "bytes": 25352,
+      "vermagic": "7.3.0-rc6-rmx1931-samurai-k132+ SMP preempt mod_unload aarch64",
+      "depends": "v4l2-cci"
+    },
+    {
+      "path": "drivers/mfd/qcom-pm8008.ko",
+      "sha256": "d1ff82c022577e65b8d5cf8d98e56ea4170eb5bf4138516be843736db25a9dea",
+      "bytes": 14336,
+      "vermagic": "7.3.0-rc6-rmx1931-samurai-k132+ SMP preempt mod_unload aarch64",
+      "depends": ""
+    }
+  ],
+  "w1_diagnostics": 0,
+  "all_import_names_available": true,
+  "base_image_dtb_driver_sources_preserved": true,
+  "base_exports_preserved": true,
+  "new_cci_exports": 5,
+  "combined_symbol_count": 16798,
+  "modules_order_count": 772,
+  "partial_build_metadata_merged_with_preserved_base": true,
+  "running_image_still183": true,
+  "full_kernel_rebuild": false,
+  "device_installed": false,
+  "first_config_audit_stopped_for_two_additional_disabled_test_helpers": true,
+  "targeted_build_removed_modules_order": true,
+  "modules_order_restored_from_baseline_plus_two_new_modules": true
+}

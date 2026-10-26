@@ -1,0 +1,38 @@
+--- a/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
++++ b/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
+@@ -130,6 +130,15 @@
+ 		 * client 1 and HLOS/MSS_MSA RW permissions. Allocate from EFI-described
+ 		 * HLOS RAM below 4 GiB; never reuse the MTP address inside this board's TZ.
+ 		 */
++		/* Stock FastRPC heap: 16 MiB, below 4 GiB in EFI-described HLOS RAM. */
++		samurai_fastrpc_heap: fastrpc-shared-pool {
++			compatible = "shared-dma-pool";
++			reusable;
++			size = <0x0 0x1000000>;
++			alignment = <0x0 0x400000>;
++			alloc-ranges = <0x0 0xc0000000 0x0 0x30000000>;
++		};
++
+ 		samurai_rmtfs_mem: rmtfs-dynamic {
+ 			compatible = "qcom,rmtfs-mem";
+ 			size = <0x0 0x202000>;
+@@ -304,8 +313,18 @@
+ 	status = "okay";
+ };
+ 
++/* Registered but not auto-booted: first SLPI experiment is explicit. */
+ &remoteproc_slpi {
+-	status = "disabled";
++	firmware-name = "qcom/sm8150/realme/samurai/slpi.mdt";
++	status = "okay";
++
++	glink-edge {
++		fastrpc {
++			memory-region = <&samurai_fastrpc_heap>;
++			/* Stock adsprpc: HLOS, SSC_Q6, ADSP_Q6; no modem access. */
++			qcom,vmids = <3 5 6>;
++		};
++	};
+ };
+ 
+ &uart2 {

@@ -1,0 +1,49 @@
+--- a/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
++++ b/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
+@@ -1273,6 +1273,20 @@
+ 	FrameBuffer *buffer = it->second;
+ 	Request *request = imageRequest(buffer);
+     if(!request || !requests_.count(request)){images_.erase(it);return;}
++    /* Cancellation needs no new synchronous IPA work. The buffers still
++     * belong to the stopped queues until their ordinary completion. */
++    if (!running_) {
++        images_.erase(it); imageArrival_.erase(sequence);
++        imageProcessed(buffer, requests_.at(request).image, false);
++        return;
++    }
++    const uint64_t frameEpoch = epoch_;
++    const uint32_t requestSequence = request->sequence();
++    const auto ownsFrame = [&]() {
++        auto live = requests_.find(request);
++        return running_ && epoch_ == frameEpoch && live != requests_.end() &&
++               live->second.ifeImage == buffer && request->sequence() == requestSequence;
++    };
+     /* A later statistics callback must not bypass an older waiting FULL.
+      * Both successful numerical history and PD10 retirement follow SOF. */
+     if(running_ && ipe_ && processedEnabled_ && sequence!=images_.begin()->first)return;
+@@ -1307,6 +1321,7 @@
+ 		ControlList metadata(controls::controls);
+ 		auto context=sensorContexts_.find(sequence);
+ 		int ret=context==sensorContexts_.end()?-ENODATA:ipa_->frameMetadata(epoch_,sequence,context->second,&metadata);
++        if (!ownsFrame()) return;
+ 		if (!ret) {
+ 			request->_d()->metadata().merge(metadata);
+ 			LOG(CamssVfe, Info) << "Image controls recovered epoch=" << epoch_ << " sof=" << sequence << " request=" << request->sequence();
+@@ -1324,6 +1339,8 @@
+   ControlList metadata(controls::controls);ipa::camss::LensMove move{};
+   uint64_t captured=buffer->_d()->timestampMonotonic()?buffer->metadata().timestamp:0;
+   int ret=ipa_->processFocus(epoch_,sequence,request->controls(),score.has_value(),score.value_or(0),captured,context,&metadata,&move);
++  /* Isolated synchronous calls may dispatch stopDevice() while waiting. */
++  if (!ownsFrame()) return;
+   if (!ret) request->_d()->metadata().merge(metadata);
+   else LOG(CamssVfe,Error)<<"Focus frame failed: "<<ret;
+   if (move.valid) {
+@@ -1342,7 +1359,7 @@
+   const uint64_t toneEpoch=epoch_;std::vector<uint8_t> tone;uint64_t toneRevision=0;bool toneFresh=false;
+   const uint64_t toneToken=requests_.at(request).ipeToken;
+   int ret=ipa_->prepareIpeParameters(toneEpoch,sequence,toneToken,&tone,&toneRevision,&toneFresh);
+-  if(!running_ || epoch_!=toneEpoch || !requests_.count(request))return;
++  if (!ownsFrame()) return;
+   qcom_ipe_a5_frame_params packet{};
+   if(!ret && !tone.empty()) {
+    if(tone.size()!=sizeof packet)ret=-EINVAL;

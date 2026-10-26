@@ -1,0 +1,18 @@
+#!/sbin/openrc-run
+
+name="Bluetooth"
+command="/usr/lib/bluetooth/bluetoothd"
+pidfile="/run/bluetoothd.pid"
+command_background=true
+
+depend() {
+    after coldplug udev-postmount
+    need dbus localmount hostname samurai-radio
+}
+
+start_pre() {
+    # Address is read from this handset's DMS into private RAM and verified
+    # through MGMT before BlueZ enumerates the controller. Never invent an
+    # identity or start BlueZ after a failed address query.
+    timeout -k 5 95 /usr/bin/samurai-bluetooth start > /run/samurai-bluetooth-openrc.log 2>&1
+}

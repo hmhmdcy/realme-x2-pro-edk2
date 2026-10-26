@@ -1,0 +1,42 @@
+{
+  "schema": "samurai-irq-rollback-restart-contract-v1",
+  "source_only": true,
+  "guard_schema": "samurai-usb-irq-protection-rollback-restart-v1",
+  "context_schema": "samurai-usb-irq-protection-rollback-fastboot-context-v1",
+  "transaction_regex": "usb-irq-protection-rollback-activate-[a-z0-9-]{8,48}",
+  "fixed_guard_fields": {
+    "kernel_release": "7.3.0-rc6-rmx1931-samurai-k363+",
+    "kernel_version": "#502 SMP PREEMPT Tue Oct 20 03:03:47 UTC 2026",
+    "rollback_boot_sha256": "97811cc4ae13b36fec98b2eae7cd54a4f12bca988864df0f3d8f663a8c67f695",
+    "unchanged_logdump_sha256": "ace2e261bbfbd923fc3e631e857163f172d09bfb3489f7107782394fbf763ed1",
+    "boot_bytes": 100663296,
+    "logdump_bytes": 67108864,
+    "partitions": [
+      "boot"
+    ],
+    "disk_state": "all_original_fsynced",
+    "runtime_validation_accepted": false
+  },
+  "operator_actions": [
+    "inspect",
+    "rollback-original",
+    "reboot-original"
+  ],
+  "context_files": [
+    "guard",
+    "quiesce_state",
+    "quiesce_summary",
+    "quiesce_boot_id",
+    "quiesce_process",
+    "restart_dispatch",
+    "restart_claim"
+  ],
+  "host_only_context_fields": [
+    "rollback_directory",
+    "rollback_fetch_directory",
+    "post_restore_probe_directory"
+  ],
+  "post_restore_probe": "actual frozen current-probe.py with a distinct rollback request/result-bound envelope, original key and original clean transport receipts",
+  "runtime_acceptance": "Only a later new boot with exact R8 loaded notes, carriers, protection/services/source/camera can close runtime_pending.",
+  "no_real_request_guard_or_device_action": true
+}

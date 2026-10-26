@@ -1,0 +1,73 @@
+{
+  "schema": "samurai-protection-saved-evidence-independent-review-v1",
+  "status": "accepted_within_offline_saved_text_scope",
+  "new_blocking_findings": [],
+  "subject_delivery_sha256": "cd351b4f3b4268e73111f12229584104c8ade7d8b7a75026078550263f876204",
+  "files": {
+    "frame-decoder.c": {
+      "sha256": "b92570b5eb1c6becd7001baecc636fcc4c4e6668f992ed4b75902d9a415d7cf0",
+      "bytes": 1480,
+      "delivery_match": true
+    },
+    "parse-evidence.py": {
+      "sha256": "2ee04828775c330bfdafdca47e945645708f90e581c8939cd5932d6f8f1dc5b8",
+      "bytes": 9582,
+      "delivery_match": true
+    },
+    "test-parser.py": {
+      "sha256": "98450cc370d686de541c071649f72525fad4753dadafe7da31a24613d6606738",
+      "bytes": 7946,
+      "delivery_match": true
+    },
+    "test-result.json": {
+      "sha256": "4c50941593d69defcde8fc5d0e061ef932084602c174d8e03424ae51d68c56db",
+      "bytes": 6273,
+      "delivery_match": true
+    },
+    "README.md": {
+      "sha256": "51e888360d2b68264e49036c6fe37f3477b34764e13bd27a5de003a8df24b5a5",
+      "bytes": 4019,
+      "delivery_match": true
+    }
+  },
+  "provider_source_bindings": {
+    "gauge-protocol.h": "98148c0701d000c21c7a9be60d0d14e412887f90fc1b83d0a3de8168359c28df",
+    "gauge-i2c.h": "8846d20648dc0b137a2608be9a7ed479ecd692b17db6875a2a18a2d046d7c8b2",
+    "samurai-gauge-protection.c": "3e1e81a341a5df072cde2c57ec7505096c192e7b873cfbb2720375ae7f9b8f6d",
+    "test-observer.c": "b4888db56d9f22b80260f1d3f09318e92758fcf6f9dbbb8165c8f95dd2af351b"
+  },
+  "classifier_mask_source_sha256": "f5371daca9d2bcfbbe8245cd01afc5df6241684ed9914599356cb2e8f8476f63",
+  "classifier_mask": "0xd860",
+  "author_receipt": {
+    "passed": true,
+    "new_case_count": 26,
+    "actual_output_modes": 13,
+    "rejection_cases": 13,
+    "cli_returncode": 0,
+    "inspected_not_rerun": true
+  },
+  "reviewed_properties": [
+    "complete requires all eight full valid frames plus 2719 and two valid BatteryStatus endpoints",
+    "complete malformed raw retained with matching negative validation errno",
+    "short or failed transfer raw unavailable",
+    "valid endpoint times ordered inside batch",
+    "unattempted and unvisited provider cache layouts accepted",
+    "mask endpoint stability separate from completion and acceptance",
+    "C decoder reuses actual provider validator"
+  ],
+  "provenance_verified": false,
+  "freshness_verified": false,
+  "compatibility_verified": false,
+  "TCA_classification_verified": false,
+  "physical_safety_accepted": false,
+  "new_counterexample_tests_run": 0,
+  "author_entrypoints_or_tests_run": false,
+  "build_or_storage_guard_used": false,
+  "device_or_transport_accessed": false,
+  "author_files_modified": false,
+  "author_delivery_unchanged": true,
+  "review_files": {
+    "review.md": "f486fdb04bdf7f407deae0dd519004aa6fd5ae48f1cf4bb98b9406c4c3b17899",
+    "review-static.ps1": "9186f08f8ed8a27737cd6f0f07b0e2985d0742d7ceaa49f7bde37a18cc349142"
+  }
+}

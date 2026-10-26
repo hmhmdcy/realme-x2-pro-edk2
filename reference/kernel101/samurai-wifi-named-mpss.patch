@@ -1,0 +1,44 @@
+--- a/usr/sbin/samurai-wifi
++++ b/usr/sbin/samurai-wifi
+@@ -30,9 +30,10 @@
+ }
+ prepare()
+ {
++    mpss=$(/usr/sbin/samurai-modem-remoteproc)
+     tr '\0' '\n' < /proc/device-tree/compatible | grep -qx realme,samurai
+-    [ "$(cat /sys/class/remoteproc/remoteproc0/state)" = offline ]
+-    [ "$(cat /sys/class/remoteproc/remoteproc0/firmware)" = "$firmware/modem.mdt" ]
++    [ "$(cat $mpss/state)" = offline ]
++    [ "$(cat $mpss/firmware)" = "$firmware/modem.mdt" ]
+     test ! -e "$base/nv"
+     test ! -e "$base/firmware"
+     modem=$(resolve modem 524288)
+@@ -71,7 +72,7 @@
+     test ! -e "$base/ready"
+     sources_ready=0
+     for attempt in $(seq 1 60); do
+-        if [ -e /sys/class/remoteproc/remoteproc0/state ] && all_sources_ready; then
++        if mpss=$(/usr/sbin/samurai-modem-remoteproc) && all_sources_ready; then
+             sources_ready=1
+             break
+         fi
+@@ -90,8 +91,8 @@
+     /usr/sbin/qrtr-lookup > "$base/qrtr-before.txt"
+     grep -qE '^ *14 ' "$base/qrtr-before.txt"
+     grep -qE '^ *4096 ' "$base/qrtr-before.txt"
+-    echo disabled > /sys/class/remoteproc/remoteproc0/recovery
+-    echo start > /sys/class/remoteproc/remoteproc0/state
++    echo disabled > $mpss/recovery
++    echo start > $mpss/state
+     for attempt in $(seq 1 60); do
+         test -e /sys/class/net/wlan0 && break
+         sleep 1
+@@ -105,7 +106,7 @@
+     sleep 1
+     /usr/sbin/wpa_cli -p"$base/wpa-control" -iwlan0 ping | grep -qx PONG
+     sleep 45
+-    [ "$(cat /sys/class/remoteproc/remoteproc0/state)" = running ]
++    [ "$(cat $mpss/state)" = running ]
+     kill -0 "$(cat "$base/tftp.pid")" "$(cat "$base/rmtfs.pid")" "$(cat "$base/wpa.pid")"
+     sha256sum -c "$base/nv-source-hashes.txt" > "$base/nv-after-start.txt"
+     touch "$base/ready"

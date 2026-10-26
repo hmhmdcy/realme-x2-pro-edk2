@@ -1,0 +1,48 @@
+{
+  "passed": true,
+  "returncode": 0,
+  "stderr": "",
+  "groups": [
+    "PASS exact board/connector/PDO gate; 9V and other roles excluded",
+    "PASS CC/PD IRQ+work, TCPM join, four zero/readbacks, supply release, final debounce/Rd",
+    "PASS every PD write/read/mismatch: first error, retained supply, CC disabled, no retry",
+    "PASS regulator/CC failures and pre-join hardware refusal",
+    "PASS never-started resources: no IRQ underflow, no PD I/O or false quiet claim",
+    "PASS shutdown/remove once and unchanged PD5V/default shutdown dispatch",
+    "PASS failed PD startup retains supply until joined cleanup",
+    "PASS high-contract path prepares with IRQ/worker alive before join/MMIO close",
+    "PASS failed preparation keeps shutdown alive; void remove joins without false5V close",
+    "PASS post-join close error and later remove never unregister NULL or double-join"
+  ],
+  "functions": [
+    "qcom_pmic_typec_port_stop",
+    "qcom_pmic_typec_port_finish_5v",
+    "qcom_pmic_typec_pdphy_reset_on",
+    "qcom_pmic_typec_pdphy_reset_off",
+    "qcom_pmic_typec_pdphy_enable",
+    "qcom_pmic_typec_pdphy_disable",
+    "pmic_typec_pdphy_reset",
+    "qcom_pmic_typec_pdphy_start",
+    "qcom_pmic_typec_pdphy_quiesce_5v",
+    "qcom_pmic_typec_pdphy_finish_5v",
+    "qcom_pmic_typec_pdphy_stop",
+    "qcom_pmic_typec_samurai_fixed_5v",
+    "qcom_pmic_typec_samurai_sink",
+    "qcom_pmic_typec_stop_samurai_5v",
+    "qcom_pmic_typec_stop_samurai_contract",
+    "qcom_pmic_typec_abort_samurai",
+    "qcom_pmic_typec_remove",
+    "qcom_pmic_typec_shutdown"
+  ],
+  "source_sha256": {
+    "qcom_pmic_typec.c": "7f6cc4d5c81ceb6c38e42e8a49855b9a78431a6dad2719c80055d334d13d8d3e",
+    "qcom_pmic_typec_port.c": "8d0ea7261ce397b59d03467b4e5bd835d8be7d32a64dc86cf86634a012c0869e",
+    "qcom_pmic_typec_pdphy.c": "1b72701c9ede2d4376654e9b63ed10053d626edc67998cfc0a1bce48e61fbb22"
+  },
+  "functions_sha256": "70888ce328ece305e42833b88779cba86d2299a9a549a936b106d372eb7023c7",
+  "kernel_device_IRQ_work_TCPM_regmap_boundaries_modeled": true,
+  "physical_contract_and_ADC_proof_mocked": true,
+  "compiler_tmpdir": "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/tcpm-contract-shutdown-candidate/tmp",
+  "phone_accessed": false,
+  "installed": false
+}

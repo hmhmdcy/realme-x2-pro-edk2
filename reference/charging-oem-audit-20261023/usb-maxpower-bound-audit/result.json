@@ -1,0 +1,129 @@
+{
+  "scope": "exact local source audit, no live device claim",
+  "sources": [
+    {
+      "path": "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/dwc-r2-independent-review/source--drivers--usb--gadget--configfs.c",
+      "sha256": "9b692e343b7336e564c02f55a2e072becfef662f0c534bad91b0f46b05a17947",
+      "byte_equal_to_image_source_commit": true
+    },
+    {
+      "path": "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/dwc-r2-independent-review/source--drivers--usb--gadget--composite.c",
+      "sha256": "01eefa9a5f01f135892a0527264905bddc23f483cd7bdff3730f75a794c819e1",
+      "byte_equal_to_image_source_commit": true
+    }
+  ],
+  "startups": [
+    {
+      "target": "/usr/local/sbin/samurai-usb",
+      "sha256": "fcfd5052a0cad7ae9c6c581e9ede271899d99e06ad0d4d15309faa6f8ef1ad3e",
+      "cached": "/mnt/e/edk2-samurai-out/charging-management-20261023/usb-hotplug-r2/usb-services-before-private.json",
+      "restored_receipt_sha256": "40644d3ba14aa22f342ae0d6dcc2fccc0aaf9a0bc38e9d5d60d3367b9317605a",
+      "MaxPower": [
+        {
+          "line": 51,
+          "text": "    echo 100 >\"$g/configs/c.1/MaxPower\""
+        }
+      ],
+      "creation_guard": [
+        {
+          "line": 39,
+          "text": "if [ ! -d \"$g\" ]; then"
+        }
+      ]
+    },
+    {
+      "target": "/usr/sbin/samurai-usb",
+      "sha256": "0f623986a4e683ffd531a04253fdd57a41252c91786d6472efb6fec419ba906a",
+      "cached": "/mnt/e/edk2-samurai-out/charging-management-20261023/usb-hotplug-r2/usb-services-before-private.json",
+      "restored_receipt_sha256": "40644d3ba14aa22f342ae0d6dcc2fccc0aaf9a0bc38e9d5d60d3367b9317605a",
+      "MaxPower": [
+        {
+          "line": 51,
+          "text": "    echo 100 >\"$g/configs/c.1/MaxPower\""
+        }
+      ],
+      "creation_guard": [
+        {
+          "line": 39,
+          "text": "if [ ! -d \"$g\" ]; then"
+        }
+      ]
+    }
+  ],
+  "repository_sources": [
+    {
+      "path": "/mnt/e/RealmeX2Pro edk2/linux-port/scripts/samurai-usb.sh",
+      "sha256": "0f623986a4e683ffd531a04253fdd57a41252c91786d6472efb6fec419ba906a",
+      "matches": [
+        {
+          "line": 51,
+          "text": "    echo 100 >\"$g/configs/c.1/MaxPower\""
+        }
+      ],
+      "same_as_cached_targets": [
+        "/usr/sbin/samurai-usb"
+      ]
+    },
+    {
+      "path": "/mnt/e/RealmeX2Pro edk2/linux-port/packages/samurai-platform/usr_sbin_samurai-usb",
+      "sha256": "46db0d9d0635cd40c7040dd1dfd51b24f93aed439040d31dc5d86c72ac2201b3",
+      "matches": [
+        {
+          "line": 43,
+          "text": " echo 100 > \"$g/configs/c.1/MaxPower\""
+        }
+      ],
+      "same_as_cached_targets": []
+    }
+  ],
+  "findings": {
+    "bound_store_allowed": true,
+    "store_function": "gadget_config_desc_MaxPower_store",
+    "store_lines": [
+      532,
+      545
+    ],
+    "store_operations": [
+      "kstrtou16",
+      "range DIV_ROUND_UP(val,8)<=0xff",
+      "cfg->c.MaxPower=val",
+      "return len"
+    ],
+    "store_calls_UDC_reset": false,
+    "store_calls_vbus_draw": false,
+    "store_checks_bound": false,
+    "immediate_native_budget_update_by_store_itself": false,
+    "only_future_descriptor_cache": false,
+    "guarantees_native100_until_physical_reconnect": false,
+    "counterexample": "bound/configured 100 -> write MaxPower500 -> USB suspend -> composite_resume reads mutated cdev->config->MaxPower and calls vbus_draw500 without any physical reconnect",
+    "resume_lines": [
+      2609,
+      2652
+    ],
+    "resume_MaxPower_read_line": 2632,
+    "resume_vbus_draw_lines": [
+      2645,
+      2649
+    ],
+    "set_config_MaxPower_lines": [
+      1038,
+      1059
+    ],
+    "descriptor_encode_lines": [
+      529,
+      548
+    ],
+    "startup_creation_only": true,
+    "startup_echo_change_alone_migrates_existing_initramfs_gadget": false
+  },
+  "current_startup_identity_boundary": "Cached latest restored startup pins only; root must use its own current device identity before any mutation. This audit did not re-read phone.",
+  "proposed_minimum": "Persist only reviewed one-line creator change without executing startup; write volatile MaxPower only in a separately proven real physical-off window, then validate fresh host descriptor/configuration/native callback. No UDC unbind is required by this store, but online write cannot promise delayed native budget.",
+  "phone_accessed": false,
+  "SSH_invoked": false,
+  "USB_invoked": false,
+  "SDK_invoked": false,
+  "Git_invoked": false,
+  "storage_helper_called": false,
+  "build_or_test_run": false,
+  "existing_files_modified": false
+}

@@ -1,0 +1,171 @@
+--- /mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/normal-restart-candidate/r7-quiesce-review.py
++++ eud-quiesce.py
+@@ -1,49 +1,121 @@
+-# REVIEW CANDIDATE ONLY. New R7 transaction; same validated hardware quiesce.
++# UNRUN EUD BOOT ACTIVATION CANDIDATE. Same validated hardware quiesce.
+ """Explicit quiesce for one RESTART2 bootloader transition; not run by this audit."""
+ from pathlib import Path
+ import ctypes,dbus,json,os,signal,subprocess,time,traceback
+ 
+-# NEW contract: root supplies a fresh, private R7 transaction guard. This is
+-# deliberately incompatible with original-private.json / old terminal workers.
+-import hashlib,re,sys
++# Embedded verbatim into both workers by prepare.py; no device action on import.
++import fcntl,hashlib,re,stat,struct,sys
++
++EUD_BOOT_SCHEMA='samurai-eud-boot-activation-v1'
++CANDIDATE_BOOT='4126a2978bc79b5cb95b6e1b86bb432a6b16ece627776237c163b93b323bbfcf'
++ROLLBACK_BOOT='a30fb4440726e1c3ab80ad65277db4e57fec9a0924380cc07830a5c6e69ec280'
++IMAGE363='15746aab311eed32478cdee4e13c1677716ff48c8a04316c9c15cf606c9d6468'
++LOGDUMP365='aca01bc2c91928f1a6a6690f62d14db014351ec5049e5684590b40c3c93de8da'
++CAMERA481='1c4584915dade64a0978a0138c6775bf99e56af9f8036d7d2276c33f132f4705'
++CAMERA_RETURN='071c5353bac3f25b97c61ea897853f69c0eaff659771043263a2641f1c8fb8e8'
++R8_MANIFEST='320316c3d93c1dbcaae29440f1f17d72c75e4994d656a9da9fcd5aeb93c10a1f'
++R8_NOTES={'samurai_usb_input':'f0edb792d30ee1168ee1793e89707aa48b2085c845acde8f472f2c13a03804b0',
++ 'samurai_gauge_protection':'930e0e1f34e89e4e06a7632ca14a26181975f9f35e55a51209af71480b56fe76',
++ 'samurai_mp2650':'f4d5768a4250b901ea956560d9c6b4b1dd32ac80893cbbd31609d9c032c4680d'}
++SENSOR468_NOTE='a52ef87a2388757c542768e5438120d858e785bd334c080b55dec0f532c54d13'
++OLD_BOOT_GUARD='/var/lib/samurai/charging-r7-8162b1e7040030d514a83534-adopted/boot-id-private.txt'
++
++def secure_file(path):
++ p=Path(path);assert p.is_file() and not p.is_symlink(),str(p)
++ s=p.stat();assert s.st_uid==0 and not s.st_mode&0o022,str(p)
++ return p
++
++def file_sha(path):
++ return hashlib.sha256(secure_file(path).read_bytes()).hexdigest()
++
++def block_sha(path,expected_bytes):
++ # This is the existing read-only by-partlabel boundary, with an actual block
++ # size check. Never read a writable mapping or use blockdev's mutation paths.
++ fd=os.open(path,os.O_RDONLY|os.O_CLOEXEC)
++ try:
++  assert stat.S_ISBLK(os.fstat(fd).st_mode)
++  assert struct.unpack('=Q',fcntl.ioctl(fd,0x80081272,bytes(8)))[0]==expected_bytes
++  digest=hashlib.sha256();remaining=expected_bytes
++  while remaining:
++   data=os.read(fd,min(1048576,remaining));assert data,'short partition read'
++   digest.update(data);remaining-=len(data)
++  return digest.hexdigest()
++ finally:os.close(fd)
++
++def camera481_check(wrapper):
++ assert file_sha(wrapper)==CAMERA481
++ expected=json.loads(Path(wrapper).read_bytes());assert expected['validated']
++ expected=expected['expected'];assert expected['kernel_release']==os.uname().release
++ for name,digest in expected['installed_files'].items():assert file_sha(name)==digest,name
++ for name,info in expected['modules'].items():
++  assert file_sha(info['path'])==info['sha256']
++  assert hashlib.sha256(Path('/sys/module',name,'notes/.note.gnu.build-id').read_bytes()).hexdigest()==info['note']
++  assert Path('/sys/module',name,'initstate').read_text().strip()=='live'
++ assert hashlib.sha256(Path('/sys/module/s5k3m5/notes/.note.gnu.build-id').read_bytes()).hexdigest()==SENSOR468_NOTE
++ assert Path('/sys/module/s5k3m5/initstate').read_text().strip()=='live'
++ versions={}
++ for block in Path('/lib/apk/db/installed').read_text().split('\n\n'):
++  fields=dict(line.split(':',1) for line in block.splitlines() if ':' in line)
++  if fields.get('P') in expected['packages']:versions[fields['P']]=fields.get('V')
++ assert versions==expected['packages']
++
++def validate_activation_guard(guard_path):
++ guard_path=secure_file(guard_path);assert guard_path.is_absolute()
++ assert guard_path.name=='guard-private.json'
++ meta=json.loads(guard_path.read_bytes());assert meta['schema']==EUD_BOOT_SCHEMA
++ assert re.fullmatch(r'eud-boot-[a-z0-9-]{8,64}',meta['transaction_id'])
++ assert re.fullmatch(r'[0-9a-f]{32,64}',meta['token'])
++ assert guard_path.parent==Path('/root/charging-management-20261023')/meta['transaction_id']
++ assert meta['old_boot_guard_path']==OLD_BOOT_GUARD
++ assert meta['boot_id']==Path('/proc/sys/kernel/random/boot_id').read_text().strip()==secure_file(OLD_BOOT_GUARD).read_text().strip()
++ assert os.uname().machine=='aarch64'
++ assert os.uname().release==meta['kernel_release']=='7.3.0-rc6-rmx1931-samurai-k363+'
++ assert os.uname().version==meta['kernel_version'] and os.uname().version.startswith('#363 ')
++ assert Path('/proc/sys/kernel/tainted').read_text().strip()=='0'
++ assert file_sha('/etc/samurai-rootfs-release')==meta['rootfs_release_sha256']
++ serial=Path('/sys/devices/soc0/serial_number').read_bytes();assert serial.strip()
++ compatible=Path('/sys/firmware/devicetree/base/compatible').read_bytes()
++ assert b'realme,samurai' in compatible.split(bytes([0]))
++ assert hashlib.sha256(serial).hexdigest()==meta['soc_serial_sha256']
++ assert hashlib.sha256(compatible).hexdigest()==meta['compatible_sha256']
++ assert meta['candidate_boot_sha256']==CANDIDATE_BOOT
++ assert meta['rollback_boot_sha256']==ROLLBACK_BOOT and meta['partition']=='boot' and meta['boot_bytes']==100663296
++ assert meta['image363_sha256']==IMAGE363 and meta['logdump_sha256']==LOGDUMP365
++ assert meta['camera481_expected_sha256']==CAMERA481 and meta['camera_return_proof_sha256']==CAMERA_RETURN
++ assert meta['charging_manifest_sha256']==R8_MANIFEST
++ assert block_sha('/dev/disk/by-partlabel/boot',100663296)==ROLLBACK_BOOT
++ # Exact FAT partition identity binds its already-verified ::/Image bytes to
++ # Image363 (kernel365/prepare-deployment.py); neither partition is written.
++ assert block_sha('/dev/disk/by-partlabel/logdump',67108864)==LOGDUMP365
++ manifest_path='/usr/share/samurai-charging/manifest.json';assert file_sha(manifest_path)==R8_MANIFEST
++ manifest=json.loads(Path(manifest_path).read_bytes())
++ assert manifest['release']==meta['kernel_release'] and manifest['adapter_revision']=='r8'
++ for name,digest in manifest['installed_files'].items():assert file_sha(name)==digest,name
++ for name,info in manifest['modules'].items():
++  assert manifest['installed_files'][info['target']]==info['sha256']
++  assert file_sha(info['target'])==info['sha256']
++ assert set(manifest['modules'])=={n.replace('_','-') for n in R8_NOTES}
++ for name,digest in R8_NOTES.items():
++  assert hashlib.sha256(Path('/sys/module',name,'notes/.note.gnu.build-id').read_bytes()).hexdigest()==digest
++  assert Path('/sys/module',name,'initstate').read_text().strip()=='live'
++ assert Path('/sys/module/samurai_usb_input/parameters/native_retained').read_text().strip()=='Y'
++ assert not Path('/sys/module/samurai_usbin_init').exists()
++ assert Path('/sys/kernel/config/usb_gadget/samurai/configs/c.1/MaxPower').read_text().strip()=='100'
++ camera481_check(guard_path.parent/'camera481-expected-private.json')
++ sample={k:int(v) for k,v in (part.split('=') for part in Path('/sys/bus/i2c/devices/0-005c/telemetry').read_text().split())}
++ assert sample['valid']==sample['online']==sample['protection_ok']==1 and 0<=sample['age_ms']<=3000
++ assert all(sample[k]==0 for k in ['shadow','error','stop_error','latched','fault','source_inhibit','thermal_inhibit','cycle_timeout','gauge_charge_stop'])
++ assert not sample['flags']&0xc000 and sample['session_seconds']<36000
++ phase=Path('/run')/(meta['transaction_id']+'-reboot-phase-private.json');assert not phase.exists()
++ return meta,Path('/var/lib/samurai')/meta['transaction_id'],phase
++
+ assert len(sys.argv)==4 and sys.argv[1]=='--guard'
+-guard_path=Path(sys.argv[2]);assert guard_path.is_absolute()
+-assert guard_path.is_file() and not guard_path.is_symlink()
+-assert guard_path.stat().st_uid==0 and not guard_path.stat().st_mode&0o022
+-meta=json.loads(guard_path.read_text())
+-assert meta['schema']=='samurai-r7-restart-review-v1'
+-assert re.fullmatch(r'charging-r7-[a-z0-9-]{8,64}',meta['transaction_id'])
+-assert meta['boot_id']==Path('/proc/sys/kernel/random/boot_id').read_text().strip()
+-assert os.uname().machine=='aarch64'
+-assert os.uname().release==meta['kernel_release']
+-assert os.uname().version==meta['kernel_version']
+-assert os.uname().version.startswith('#363 ')
+-assert Path('/proc/sys/kernel/tainted').read_text().strip()=='0'
+-assert hashlib.sha256(Path('/etc/samurai-rootfs-release').read_bytes()).hexdigest()==meta['rootfs_release_sha256']
+-module_path='/lib/modules/'+meta['kernel_release']+'/extra/samurai-charging/samurai-usb-input.ko'
+-manifest_path='/usr/share/samurai-charging/manifest.json'
+-assert set(meta['disk_pair'])=={module_path,manifest_path}
+-for name,digest in meta['disk_pair'].items():
+- p=Path(name);assert p.is_file() and not p.is_symlink()
+- assert p.stat().st_uid==0 and not p.stat().st_mode&0o022
+- assert re.fullmatch(r'[0-9a-f]{64}',digest)
+- assert hashlib.sha256(p.read_bytes()).hexdigest()==digest,name
+-manifest=json.loads(Path(manifest_path).read_text())
+-assert manifest['release']==meta['kernel_release']
+-assert manifest['modules']['samurai-usb-input']['target']==module_path
+-assert manifest['modules']['samurai-usb-input']['sha256']==meta['disk_pair'][module_path]
+-assert manifest['installed_files'][module_path]==meta['disk_pair'][module_path]
+-# The disk module is R7, while the current live native provider must still be
+-# the old accepted R6 module. No unload or replacement is attempted here.
+-assert hashlib.sha256(Path('/sys/module/samurai_usb_input/notes/.note.gnu.build-id').read_bytes()).hexdigest()==meta['old_loaded_usb_note_sha256']
+-assert Path('/sys/module/samurai_usb_input/parameters/native_retained').read_text().strip()=='Y'
+-r=Path('/var/lib/samurai');o=r/meta['transaction_id']
+-phase=Path('/run')/(meta['transaction_id']+'-reboot-phase-private.json')
+-assert not phase.exists()
++meta,o,phase=validate_activation_guard(Path(sys.argv[2]))
++r=Path('/var/lib/samurai')
+ 
+ assert sys.argv[3]=='--commit-quiesce'
+ os.umask(0o077);assert not o.exists();o.mkdir(mode=0o700)
+-state=dict(work='charging-r7-restart',transaction_id=meta['transaction_id'],boot_id=meta['boot_id'],state='preflight',terminal=False,pid=os.getpid());error=None
++state=dict(work='eud-boot-activation',transaction_id=meta['transaction_id'],boot_id=meta['boot_id'],token=meta['token'],state='preflight',terminal=False,pid=os.getpid());error=None
+ def save():
+  p=o/'state-next-private.json';p.write_text(json.dumps(state,indent=2)+'\n');p.replace(o/'state-private.json')
+ def command(args,timeout=30):
+@@ -124,7 +196,7 @@
+   time.sleep(1);text=Path('/sys/kernel/debug/dri/1/state').read_text();(o/('drm-idle-'+str(i)+'-private.txt')).write_text(text);assert 'active=1' not in text
+  command(['sha256sum','-c','/run/samurai-wifi/nv-source-hashes.txt'])
+  after=subprocess.check_output(['dmesg']);(o/'dmesg-after-private.txt').write_bytes(after);faults={k:after.count(v)-before.count(v) for k,v in dict(warning=b'WARNING:',oops=b'Oops:',gpu=b'gpu fault:',dsp_fatal=b'fatal error received').items()};assert not any(faults.values()) and Path('/proc/sys/kernel/tainted').read_text().strip()=='0'
+- report=dict(work='charging-r7-restart',transaction_id=meta['transaction_id'],boot_id=meta['boot_id'],all_remoteprocs_offline=True,display_inactive=True,audio_closed_and_muted=True,sensor_power_off=True,camera_providers_retained=True,wlan_driver_detached=True,source_nv_hashes_preserved=True,taint=0,fault_delta=faults,restart2_bootloader_expected=True)
++ report=dict(work='eud-boot-activation',transaction_id=meta['transaction_id'],boot_id=meta['boot_id'],token=meta['token'],all_remoteprocs_offline=True,display_inactive=True,audio_closed_and_muted=True,sensor_power_off=True,camera_providers_retained=True,wlan_driver_detached=True,source_nv_hashes_preserved=True,taint=0,fault_delta=faults,restart2_bootloader_expected=True)
+  (o/'summary.json').write_text(json.dumps(report,indent=2)+'\n');os.sync();state.update(state='terminal',terminal=True,exit_code=0);save()
+ except BaseException:
+  error=traceback.format_exc();(o/'failure-private.txt').write_text(error);state.update(state='failed',terminal=True,exit_code=1);save()

@@ -1,0 +1,92 @@
+{
+  "verdict": "no_new_blocker_in_offline_board_pair_scope",
+  "author_delivery_sha256": "6a6a727dc1de1601fea8aecc7ebda1def85f84a5ada46e03594a6c30b0effc51",
+  "pair_sha256": "1d1e65c1e29a25694906f1c3004972e751209b5562e070bec885ced35bcafb16",
+  "author_receipts": {
+    "dt-result.json": "a055ee096cc1bcb0f6082570be93518a1fd6cdf610315d93b7fa1d5e7e29b0e8",
+    "ko-result.json": "c710bd53c9ed8188fa144d64985d948c3c66e73eae63c9c062260e88bfeadd31",
+    "binding-result.json": "fda72ff51396f445956b7deb3acca8edecb94e7cd055ffba10f81a9ac11d6e4a",
+    "build-tools-result.json": "b30e12c96f096517e5ea5849b61f1c7eecde18ab2e8b5c6d71e79ee773d71128"
+  },
+  "prior_driver_review_reused_sha256": "7c217a9d2a974393a74a703bbb24909058dbe9b52e3f31ac19e5efc21202af7c",
+  "independent_raw_DTB_check": {
+    "old_nodes": 965,
+    "old_raw_properties": 3965,
+    "added_node": "/soc@0/spmi@c440000/pmic@2/usb-input@1300",
+    "only_five_exact_properties": true,
+    "old_nodes_reserves_versions_exact": true,
+    "SPMI_4cell_parent_inheritance": true,
+    "EUD_TypeC_disabled_unchanged": true
+  },
+  "independent_ELF_check": {
+    "AArch64_ELF64LE_relocatable": true,
+    "strong_undefined": [
+      "__dev_fwnode",
+      "__devm_add_action",
+      "__module_get",
+      "__platform_driver_register",
+      "__stack_chk_fail",
+      "_dev_info",
+      "bus_find_device",
+      "cancel_delayed_work_sync",
+      "delayed_work_timer_fn",
+      "dev_err_probe",
+      "dev_get_regmap",
+      "device_property_read_u32_array",
+      "devm_kmalloc",
+      "devm_power_supply_register",
+      "devm_request_threaded_irq",
+      "memset",
+      "mod_delayed_work_on",
+      "mutex_init_generic",
+      "mutex_lock",
+      "mutex_unlock",
+      "of_device_is_available",
+      "of_device_is_compatible",
+      "of_find_compatible_node",
+      "of_find_node_opts_by_path",
+      "of_machine_compatible_match",
+      "of_node_name_eq",
+      "of_node_put",
+      "of_property_read_string",
+      "of_property_read_variable_u32_array",
+      "param_ops_bool",
+      "platform_bus_type",
+      "platform_device_register_full",
+      "platform_device_unregister",
+      "platform_driver_unregister",
+      "platform_get_irq_byname_optional",
+      "power_supply_changed",
+      "power_supply_get_drvdata",
+      "put_device",
+      "queue_delayed_work_on",
+      "regmap_read",
+      "strcmp",
+      "system_percpu_wq",
+      "system_wq",
+      "timer_init_key"
+    ],
+    "weak_undefined": [],
+    "modinfo_intree_alias_vermagic_checked": true
+  },
+  "source_creation_chain": "PM8150B actual regmap then devm_of_platform_populate; direct enabled child on platform bus with actual PMIC parent; exact provider probe and single-node duplicate gate",
+  "terminal_build_evidence": {
+    "native_exec_session": 59826,
+    "child_PIDs": [
+      1022,
+      2880
+    ],
+    "all_rc0": true,
+    "W1_clean": true,
+    "tracked_inputs_unchanged": true
+  },
+  "limits": [
+    "Source matching is not actual probe or IRQ delivery.",
+    "44 imports are independently counted in ELF; membership uses the frozen actual Image502 builtin export-map receipt.",
+    "Both missing optional IRQs can still use original 1-second polling; loading is not IRQ acceptance.",
+    "New DT and new duplicate-aware module form one offline pair; no boot/R9 cohort or device changes prepared."
+  ],
+  "author_tools_tests_build_storage_or_device_entrypoints_executed_by_reviewer": false,
+  "physical_IRQ_or_latency_accepted": false,
+  "reviewer_sha256": "ae8540ae8e9aa8721a233bf38b84bb453611df8ebb69fd8081695701b7c501fb"
+}

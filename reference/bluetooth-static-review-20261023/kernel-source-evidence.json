@@ -1,0 +1,68 @@
+{
+  "commit": "ba61a62293e0f6bc5838c06f2e85e033e3d702a8",
+  "files": {
+    "drivers/bluetooth/hci_serdev.c": {
+      "sha256": "7ea43973798689b060eb9d7ca4359e87dcd8aa2b49f835cab4d5eb194c10b206",
+      "git_blob": "d2eaf2f12aa27898686eda068326a15679e68241",
+      "excerpts": [
+        {
+          "first": 55,
+          "last": 88,
+          "text": "}\n\nstatic void hci_uart_write_work(struct work_struct *work)\n{\n\tstruct hci_uart *hu = container_of(work, struct hci_uart, write_work);\n\tstruct serdev_device *serdev = hu->serdev;\n\tstruct hci_dev *hdev = hu->hdev;\n\tstruct sk_buff *skb;\n\n\t/* REVISIT:\n\t * should we cope with bad skbs or ->write() returning an error value?\n\t */\n\tdo {\n\t\tclear_bit(HCI_UART_TX_WAKEUP, &hu->tx_state);\n\n\t\twhile ((skb = hci_uart_dequeue(hu))) {\n\t\t\tint len;\n\n\t\t\tlen = serdev_device_write_buf(serdev,\n\t\t\t\t\t\t      skb->data, skb->len);\n\t\t\thdev->stat.byte_tx += len;\n\n\t\t\tskb_pull(skb, len);\n\t\t\tif (skb->len) {\n\t\t\t\thu->tx_skb = skb;\n\t\t\t\tbreak;\n\t\t\t}\n\n\t\t\thci_uart_tx_complete(hu, hci_skb_pkt_type(skb));\n\t\t\tkfree_skb(skb);\n\t\t}\n\n\t\tclear_bit(HCI_UART_SENDING, &hu->tx_state);\n\t} while (test_bit(HCI_UART_TX_WAKEUP, &hu->tx_state));"
+        },
+        {
+          "first": 160,
+          "last": 195,
+          "text": "\treturn 0;\n}\n\n/* Send frames from HCI layer */\nstatic int hci_uart_send_frame(struct hci_dev *hdev, struct sk_buff *skb)\n{\n\tstruct hci_uart *hu = hci_get_drvdata(hdev);\n\n\tBT_DBG(\"%s: type %d len %d\", hdev->name, hci_skb_pkt_type(skb),\n\t       skb->len);\n\n\thu->proto->enqueue(hu, skb);\n\n\thci_uart_tx_wakeup(hu);\n\n\treturn 0;\n}\n\nstatic int hci_uart_setup(struct hci_dev *hdev)\n{\n\tstruct hci_uart *hu = hci_get_drvdata(hdev);\n\tstruct hci_rp_read_local_version *ver;\n\tstruct sk_buff *skb;\n\tunsigned int speed;\n\tint err;\n\n\t/* Init speed if any */\n\tif (hu->init_speed)\n\t\tspeed = hu->init_speed;\n\telse if (hu->proto->init_speed)\n\t\tspeed = hu->proto->init_speed;\n\telse\n\t\tspeed = 0;\n\n\tif (speed)\n\t\tserdev_device_set_baudrate(hu->serdev, speed);"
+        },
+        {
+          "first": 384,
+          "last": 412,
+          "text": "err_alloc:\n\tclear_bit(HCI_UART_PROTO_READY, &hu->flags);\n\tp->close(hu);\nerr_open:\n\tserdev_device_close(hu->serdev);\nerr_rwsem:\n\tpercpu_free_rwsem(&hu->proto_lock);\n\treturn err;\n}\nEXPORT_SYMBOL_GPL(hci_uart_register_device_priv);\n\nvoid hci_uart_unregister_device(struct hci_uart *hu)\n{\n\tstruct hci_dev *hdev = hu->hdev;\n\n\tcancel_work_sync(&hu->init_ready);\n\tif (test_bit(HCI_UART_REGISTERED, &hu->flags))\n\t\thci_unregister_dev(hdev);\n\thci_free_dev(hdev);\n\n\tcancel_work_sync(&hu->write_work);\n\n\thu->proto->close(hu);\n\n\tif (test_bit(HCI_UART_PROTO_READY, &hu->flags)) {\n\t\tclear_bit(HCI_UART_PROTO_READY, &hu->flags);\n\t\tserdev_device_close(hu->serdev);\n\t}\n\tpercpu_free_rwsem(&hu->proto_lock);"
+        }
+      ]
+    },
+    "net/bluetooth/hci_core.c": {
+      "sha256": "ae98c30adeca4e851a7b61b14e1758f0f5d99306f1de676e982cff0f0e138c12",
+      "git_blob": "2076689eb30242c55a7077943036c8c8c1fd514c",
+      "excerpts": [
+        {
+          "first": 2540,
+          "last": 2560,
+          "text": "\thci_devcd_setup(hdev);\n\n\thci_init_sysfs(hdev);\n\tdiscovery_init(hdev);\n\n\treturn hdev;\n}\nEXPORT_SYMBOL(hci_alloc_dev_priv);\n\n/* Free HCI device */\nvoid hci_free_dev(struct hci_dev *hdev)\n{\n\t/* will free via device release */\n\tput_device(&hdev->dev);\n}\nEXPORT_SYMBOL(hci_free_dev);\n\n/* Register HCI device */\nint hci_register_dev(struct hci_dev *hdev)\n{\n\tint id, error;"
+        },
+        {
+          "first": 2628,
+          "last": 2650,
+          "text": "\t/* Devices that are marked for raw-only usage are unconfigured\n\t * and should not be included in normal operation.\n\t */\n\tif (hci_test_quirk(hdev, HCI_QUIRK_RAW_DEVICE))\n\t\thci_dev_set_flag(hdev, HCI_UNCONFIGURED);\n\n\t/* Mark Remote Wakeup connection flag as supported if driver has wakeup\n\t * callback.\n\t */\n\tif (hdev->wakeup)\n\t\thdev->conn_flags |= HCI_CONN_FLAG_REMOTE_WAKEUP;\n\n\thci_sock_dev_event(hdev, HCI_DEV_REG);\n\thci_dev_hold(hdev);\n\n\terror = hci_register_suspend_notifier(hdev);\n\tif (error)\n\t\tBT_WARN(\"register suspend notifier failed error:%d\\n\", error);\n\n\tidr_init(&hdev->adv_monitors_idr);\n\tmsft_register(hdev);\n\n\tqueue_work(hdev->req_workqueue, &hdev->power_on);"
+        },
+        {
+          "first": 2680,
+          "last": 2725,
+          "text": "\n\tdisable_work_sync(&hdev->rx_work);\n\tdisable_work_sync(&hdev->cmd_work);\n\tdisable_work_sync(&hdev->tx_work);\n\tdisable_work_sync(&hdev->power_on);\n\tdisable_work_sync(&hdev->error_reset);\n\tdisable_delayed_work_sync(&hdev->cmd_timer);\n\tdisable_delayed_work_sync(&hdev->ncmd_timer);\n\thci_devcd_shutdown(hdev);\n\n\thci_cmd_sync_clear(hdev);\n\n\thci_unregister_suspend_notifier(hdev);\n\n\thci_dev_do_close(hdev);\n\n\tif (!test_bit(HCI_INIT, &hdev->flags) &&\n\t    !hci_dev_test_flag(hdev, HCI_SETUP) &&\n\t    !hci_dev_test_flag(hdev, HCI_CONFIG)) {\n\t\thci_dev_lock(hdev);\n\t\tmgmt_index_removed(hdev);\n\t\thci_dev_unlock(hdev);\n\t}\n\n\t/* mgmt_index_removed should take care of emptying the\n\t * pending list */\n\tBUG_ON(!list_empty(&hdev->mgmt_pending));\n\n\thci_sock_dev_event(hdev, HCI_DEV_UNREG);\n\n\tif (hdev->rfkill) {\n\t\trfkill_unregister(hdev->rfkill);\n\t\trfkill_destroy(hdev->rfkill);\n\t}\n\n\tdevice_del(&hdev->dev);\n\t/* Actual cleanup is deferred until hci_release_dev(). */\n\thci_dev_put(hdev);\n}\nEXPORT_SYMBOL(hci_unregister_dev);\n\n/* Release HCI device */\nvoid hci_release_dev(struct hci_dev *hdev)\n{\n\tdebugfs_remove_recursive(hdev->debugfs);\n\tkfree_const(hdev->hw_info);"
+        },
+        {
+          "first": 2738,
+          "last": 2760,
+          "text": "\thci_remote_oob_data_clear(hdev);\n\thci_adv_instances_clear(hdev);\n\thci_adv_monitors_clear(hdev);\n\thci_bdaddr_list_clear(&hdev->le_accept_list);\n\thci_bdaddr_list_clear(&hdev->le_resolv_list);\n\thci_conn_params_clear_all(hdev);\n\thci_discovery_filter_clear(hdev);\n\thci_blocked_keys_clear(hdev);\n\thci_codec_list_clear(&hdev->local_codecs);\n\tmsft_release(hdev);\n\thci_dev_unlock(hdev);\n\n\tida_destroy(&hdev->unset_handle_ida);\n\tida_free(&hci_index_ida, hdev->id);\n\tkfree_skb(hdev->sent_cmd);\n\tkfree_skb(hdev->req_skb);\n\tkfree_skb(hdev->recv_event);\n\tkfree(hdev);\n}\nEXPORT_SYMBOL(hci_release_dev);\n\nint hci_register_suspend_notifier(struct hci_dev *hdev)\n{"
+        }
+      ]
+    },
+    "net/bluetooth/hci_sysfs.c": {
+      "sha256": "61155128404b6c39b792cc1b801127909033555bbac8431cfdd15363b1ef44bf",
+      "git_blob": "c2065abf753e08792f0ab360e368b903b71ba80f",
+      "excerpts": [
+        {
+          "first": 85,
+          "last": 105,
+          "text": "\t\tdev = device_find_child(&conn->dev, NULL, __match_tty);\n\t\tif (!dev)\n\t\t\tbreak;\n\t\tdevice_move(dev, NULL, DPM_ORDER_DEV_LAST);\n\t\tput_device(dev);\n\t}\n\n\tdevice_unregister(&conn->dev);\n}\n\nstatic void bt_host_release(struct device *dev)\n{\n\tstruct hci_dev *hdev = to_hci_dev(dev);\n\n\tif (hci_dev_test_flag(hdev, HCI_UNREGISTER)) {\n\t\thci_release_dev(hdev);\n\t} else {\n\t\tcleanup_srcu_struct(&hdev->srcu);\n\t\tkfree(hdev);\n\t}\n\tmodule_put(THIS_MODULE);"
+        },
+        {
+          "first": 130,
+          "last": 150,
+          "text": "};\n\nvoid hci_init_sysfs(struct hci_dev *hdev)\n{\n\tstruct device *dev = &hdev->dev;\n\n\tdev->type = &bt_host;\n\tdev->class = &bt_class;\n\n\t__module_get(THIS_MODULE);\n\tdevice_initialize(dev);\n}\n\nint __init bt_sysfs_init(void)\n{\n\treturn class_register(&bt_class);\n}\n\nvoid bt_sysfs_cleanup(void)\n{\n\tclass_unregister(&bt_class);"
+        }
+      ]
+    }
+  }
+}

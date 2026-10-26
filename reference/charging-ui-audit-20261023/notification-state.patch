@@ -1,0 +1,158 @@
+--- a/samurai-mp2650.c
++++ b/samurai-mp2650.c
+@@ -15,6 +15,7 @@
+ 
+ #include "mp2650-core.h"
+ #include "gauge-i2c.h"
++#include "charging-notify.h"
+ 
+ static bool control;
+ module_param(control, bool, 0444);
+@@ -25,7 +26,7 @@
+ 
+ struct sm_charger {
+ 	struct i2c_client *client, *gauge;
+-	struct power_supply *input, *protection, *psy;
++	struct power_supply *input, *protection, *psy, *battery;
+ 	char *battery_name;
+ 	struct mutex lock;
+ 	struct delayed_work work;
+@@ -39,6 +40,8 @@
+ 	ktime_t session_start, sampled_at;
+ 	struct notifier_block supply_notifier;
+ 	bool notifier_registered;
++	struct sm_notify_state notified;
++	bool notified_valid;
+ };
+ 
+ static int sm_read(void *ctx, unsigned int reg)
+@@ -187,18 +190,61 @@
+ 	return ret;
+ }
+ 
++/* Called after the safety step, with c->lock held and no I2C bus lock held.
++ * bq27xxx STATUS reads its own signed current/FC flags; do not infer net battery
++ * charging from CHG_EN or the charger's switching state.
++ */
++static bool sm_notification_locked(struct sm_charger *c)
++{
++	struct sm_notify_state state = {
++		.health = c->last_error || c->latched || c->stop_error ?
++			POWER_SUPPLY_HEALTH_UNSPEC_FAILURE : POWER_SUPPLY_HEALTH_GOOD,
++		.error = c->last_error,
++		.stop_error = c->stop_error,
++		.latched = c->latched,
++		.source_inhibit = c->source_inhibit,
++		.auto_requested = c->auto_requested,
++		.valid = c->sample.valid,
++		.online = c->sample.online,
++		.protection_ok = c->sample.protection_ok,
++		.fault = c->sample.fault,
++		.target_enable = c->target.enable,
++		.input_ua = c->target.input_ua,
++		.current_ua = c->target.current_ua,
++		.cell_uv = c->target.cell_uv,
++	};
++	bool changed;
++	int reg;
++
++	/* Sample after sm_step_locked() has completed any hardware writes. */
++	reg = sm_read(c, 0x13);
++	if (reg < 0)
++		state.charger_error = reg;
++	else
++		state.charger_status = reg & 0x0e; /* ONLINE and CHG_STAT only */
++	state.battery_error = sm_psy_int(c->battery, POWER_SUPPLY_PROP_STATUS,
++				       &state.battery_status);
++	changed = !c->notified_valid || sm_notify_changed(&c->notified, &state);
++	c->notified = state;
++	c->notified_valid = true;
++	return changed;
++}
++
+ static void sm_poll(struct work_struct *work)
+ {
+ 	struct sm_charger *c = container_of(to_delayed_work(work),
+ 					 struct sm_charger, work);
++	bool notify = false;
+ 
+ 	mutex_lock(&c->lock);
+ 	if (c->paused) goto out;
+ 	sm_step_locked(c);
++	notify = sm_notification_locked(c);
+ 	schedule_delayed_work(&c->work, msecs_to_jiffies(1000));
+ out:
+ 	mutex_unlock(&c->lock);
+-	power_supply_changed(c->psy);
++	if (notify)
++		power_supply_changed(c->psy);
+ }
+ 
+ static int sm_supply_changed(struct notifier_block *nb, unsigned long event, void *data)
+@@ -537,6 +583,15 @@
+ 		return ret;
+ 	if (!c->battery_name)
+ 		return -EPROBE_DEFER;
++	c->battery = power_supply_get_by_name(c->battery_name);
++	if (!c->battery)
++		return -EPROBE_DEFER;
++	ret = devm_add_action_or_reset(dev, sm_put_supply, c->battery);
++	if (ret)
++		return ret;
++	if (c->battery->desc->type != POWER_SUPPLY_TYPE_BATTERY ||
++	    c->battery->dev.parent != &c->gauge->dev)
++		return -ENODEV;
+ 	config.supplied_to = &c->battery_name;
+ 	config.num_supplicants = 1;
+ 	c->psy = devm_power_supply_register(dev, &sm_desc, &config);
+@@ -582,6 +637,8 @@
+ 
+ 	mutex_lock(&c->lock);
+ 	c->paused = false;
++	/* The first fresh post-resume sample is always reported. */
++	c->notified_valid = false;
+ 	mod_delayed_work(system_wq, &c->work, 0);
+ 	mutex_unlock(&c->lock);
+ 	return 0;
+--- /dev/null
++++ b/charging-notify.h
+@@ -0,0 +1,39 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++#ifndef SAMURAI_CHARGING_NOTIFY_H
++#define SAMURAI_CHARGING_NOTIFY_H
++
++/* Discrete notification state. Never include ADC noise, age or session time.
++ * Read failures have their own fields, so an errno cannot become a valid
++ * hardware/battery status and recovery cannot disappear behind cached data.
++ */
++struct sm_notify_state {
++	int charger_status, charger_error;
++	int battery_status, battery_error;
++	int health, error, stop_error;
++	int latched, source_inhibit, auto_requested;
++	int valid, online, protection_ok, fault;
++	int target_enable, input_ua, current_ua, cell_uv;
++};
++
++static inline int sm_notify_changed(const struct sm_notify_state *old,
++				    const struct sm_notify_state *new)
++{
++	return old->charger_status != new->charger_status ||
++		old->charger_error != new->charger_error ||
++		old->battery_status != new->battery_status ||
++		old->battery_error != new->battery_error ||
++		old->health != new->health || old->error != new->error ||
++		old->stop_error != new->stop_error ||
++		old->latched != new->latched ||
++		old->source_inhibit != new->source_inhibit ||
++		old->auto_requested != new->auto_requested ||
++		old->valid != new->valid || old->online != new->online ||
++		old->protection_ok != new->protection_ok ||
++		old->fault != new->fault ||
++		old->target_enable != new->target_enable ||
++		old->input_ua != new->input_ua ||
++		old->current_ua != new->current_ua ||
++		old->cell_uv != new->cell_uv;
++}
++
++#endif

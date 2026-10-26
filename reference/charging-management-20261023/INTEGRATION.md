@@ -1,0 +1,23 @@
+# 接入与运行管理
+
+三个驱动通过现有本机设备接线：MP2650为0-005c，电量计为5-0055。服务显式加载runtime_board=1/control=1及两个register_board=1提供端，再将原mp2650观察器client交给samurai-mp2650；不创建重复I2C client，不解绑电量计，不重放原厂配置初始化。
+
+当前DT只给/soc@0/usb@a6f8800/usb@a600000增加usb-psy-name="samurai-usb-input"。DWC3已有的原生回调记录reset/configuration/suspend/resume额度，并在提供端晚注册时重放已接受的电流。当前真实SDP/native100mA；此前CDP1.5A只对应旧连接。500mA软件重枚举未接受，实时配置及启动脚本已恢复100。源码中的可选input-supply/protection-supply/battery-gauge接线接口仍可供未来静态DT整合，本次服务使用已核对的本机runtime接线。
+
+samurai-usb-input只读PM8150B，内部set_property只接DWC3额度，未开放可写sysfs预算。非标准/QC/PD或不明状态保持额度不可用。输入切换或低于50mA时立即暂停，恢复前重采样；这类暂态不能清除已经锁存的电气/IO故障。保护提供端每次查询都读取真实报文，错误不缓存Good。
+
+原生DWC3持有USB power_supply到控制器生命周期结束。提供端在此DT下自持模块引用并隐藏unbind属性，正常服务停用不卸载它，直到下一启动；不要强卸。此规则来自当前内核power_supply_unregister的引用要求，避免卸载后留下DWC3引用。其它提供端由充电器持有模块及设备依赖，PM按供应端顺序恢复。
+
+管理入口为rc-service samurai-charging start|stop|status，或/usr/sbin/samurai-charging status|resume|rollback。start/resume显式请求AUTO并设900mA/250mA上限；stop同步INHIBIT并核对硬件暂停，不卸载提供端。rollback只在新鲜源预算/温度/保护/电芯条件允许时恢复首次安装前配置，再绑定原观察器；条件不明时保持暂停并报错。rollback不等于已禁用开机项，也不等于DT已回退。
+
+驱动默认control=false是shadow；服务使用control=true但probe仍初始INHIBIT。可写标准属性只有charge_behaviour、input_current_limit和constant_charge_current；输入50至2000mA、充电200至1100mA只是请求范围，仍受预算、温区和继承电压限制。CORE以50mA/12.5mV步进向下量化，单节约束分别校验。默认250mA低于原厂亮屏/通话/相机其它降额，不能据此称完整高功率运行分支已复刻。
+
+I2C设备telemetry为root只读，含样本年龄、两节电压、错误、暂停错误、锁存、source_inhibit、thermal_inhibit和cycle_timeout。r6另含gauge_current_ua（原厂0x0c瞬时值）、logical_full/full_holding/hold_requested/full_cause、软件Full及再充计数和gauge_charge_stop。源预算暂态及精确温控/温区OVP原因可在新鲜完整数据满足条件后恢复；外界冷热采用2℃恢复迟滞，不能清除既有硬件、采集、保护或IO锁存。10小时使用BOOTTIME覆盖休眠，健康完整的硬件或软件Full可开启新周期；SOC100或零电流不单独构成Full。已有超时保持优先直到真实断源；冷boot/模块重载仍按原厂易失初始化，服务stop不卸载所以自然保留。
+
+充电器通过supplied_to关联实际gauge父设备下的Battery，并持有标准power_supply引用。安全采样仍每秒一次，通知仅比较硬件ONLINE/CHG_STAT、原bq即时STATUS/errno、健康/错误/锁存、请求及离散目标。排除ADC/年龄/计时微变，通知在charger锁外发出；bq按原0.5秒回调刷新并上报真实净充电/放电，不把插线或CHG_EN伪造成电池Charging。resume强制通知首个新鲜样本。
+
+r6已接入原厂19781的软件Full累计及温区差异再充门限：严格5秒最小节拍、不补算缺失样本；软件Full暂停CHG并保留输入供电，再充需6个新鲜合格样本。手动INHIBIT清除未完成计数、保留既有Full事实，不能误走AUTO。健康TCA只作为精确可恢复gauge停充，不冒认Full；硬故障/已有超时优先。继续保留MP2650硬件终止100mA和100mV再充兜底，不重放原厂关闭安全计时/终止等初始化。完整实体Full/再充及2719族0050/0056分类仍待验证。
+
+服务及manifest为新增路径，不覆盖原内核观察器、相机或根文件系统镜像。开机manifest校验文件摘要/权限、内核ABI及加载note。首次原配置保存在/var/lib/samurai/charging-managed/original-install-private.json；不要用新运行配置覆盖它。永久输入提供端不能按早期shadow脚本卸载；所有带状态脚本只在其对应已协调窗口使用，不盲重放旧事务。
+
+只读观察器charging-health.py可在已交接窗口以内存脚本执行，默认120秒/10秒间隔，上限600秒；不安装常驻进程，不写配置/寄存器/开机项，不触发睡眠或告警。它先核对当前安装文件与loaded-note，分类managed/inhibited/detached/waiting_source/fault/stale等状态，保留Full和净电流的语义区别，不据此自行启停充电。持续连接的验收要求所有样本有效、计时不倒退、限值/额度/启动/相机/用户服务保持；其它状态如实报告，不自动恢复或重跑。R1首次采集结果和执行源码在私有health-continued目录，audit-health-observation.py仅从缓存重审。

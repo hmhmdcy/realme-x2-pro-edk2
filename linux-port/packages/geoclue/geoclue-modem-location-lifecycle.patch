@@ -1,0 +1,476 @@
+--- a/src/gclue-modem-manager.c
++++ b/src/gclue-modem-manager.c
+@@ -57,6 +57,14 @@
+         GClueTowerTec tec;
+ 
+         guint time_threshold;
++
++        /* Keep global MM preferences scoped to our actual location requests. */
++        MMModemLocationSource owned_caps;
++        gboolean signals_saved;
++        gboolean previous_signals;
++        gboolean refresh_saved;
++        guint previous_refresh;
++        guint pending_setups;
+ };
+ 
+ G_DEFINE_TYPE_WITH_CODE (GClueModemManager, gclue_modem_manager, G_TYPE_OBJECT,
+@@ -602,33 +610,106 @@
+                 on_location_changed_get_gps_nmea (modem_object, manager);
+ }
+ 
++static MMModemLocationSource
++requested_location_caps (GClueModemManager *manager)
++{
++        GClueModemManagerPrivate *priv = manager->priv;
++
++        return (mm_modem_location_get_enabled (priv->modem_location) &
++                ~priv->owned_caps) | priv->caps;
++}
++
++static gboolean
++requested_location_signals (GClueModemManager *manager)
++{
++        return manager->priv->caps != MM_MODEM_LOCATION_SOURCE_NONE ||
++               manager->priv->previous_signals;
++}
++
++static gboolean
++update_gps_refresh (GClueModemManager *manager, GError **error)
++{
++        GClueModemManagerPrivate *priv = manager->priv;
++        guint target;
++
++        if (priv->caps & MM_MODEM_LOCATION_SOURCE_GPS_NMEA) {
++                if (!priv->refresh_saved) {
++                        priv->previous_refresh = mm_modem_location_get_gps_refresh_rate (priv->modem_location);
++                        priv->refresh_saved = TRUE;
++                }
++                target = priv->time_threshold;
++        } else if (priv->refresh_saved) {
++                target = priv->previous_refresh;
++        } else {
++                return TRUE;
++        }
++
++        /* Do not leave an older async rate write outstanding after GPS stops. */
++        return mm_modem_location_set_gps_refresh_rate_sync (priv->modem_location,
++                                                           target, NULL, error);
++}
++
++static void
++release_location_preferences (GClueModemManager *manager)
++{
++        GClueModemManagerPrivate *priv = manager->priv;
++
++        if (priv->pending_setups != 0)
++                return;
++        priv->owned_caps &= priv->caps;
++        if (!(priv->caps & MM_MODEM_LOCATION_SOURCE_GPS_NMEA))
++                priv->refresh_saved = FALSE;
++        if (priv->caps == MM_MODEM_LOCATION_SOURCE_NONE)
++                priv->signals_saved = FALSE;
++}
++
+ static void
+ on_modem_location_setup (GObject      *modem_object,
+                          GAsyncResult *res,
+                          gpointer      user_data)
+ {
+         GTask *task = G_TASK (user_data);
+-        GClueModemManager *manager = GCLUE_MODEM_MANAGER
+-                (g_task_get_source_object (task));
++        GClueModemManager *manager = GCLUE_MODEM_MANAGER (g_task_get_source_object (task));
+         GClueModemManagerPrivate *priv = manager->priv;
+         GError *error = NULL;
+-
+-        if (!mm_modem_location_setup_finish (MM_MODEM_LOCATION (modem_object),
+-                                             res,
+-                                             &error)) {
++        gboolean ok;
++
++        ok = mm_modem_location_setup_finish (MM_MODEM_LOCATION (modem_object), res, &error);
++        g_assert (priv->pending_setups > 0);
++        priv->pending_setups--;
++
++        /* The modem may have been removed while this request was in flight. */
++        if (MM_MODEM_LOCATION (modem_object) == priv->modem_location) {
++                g_autoptr(GError) restore_error = NULL;
++                MMModemLocationSource target = requested_location_caps (manager);
++                gboolean target_signals = requested_location_signals (manager);
++
++                /* A stop or another request may have superseded this enable.
++                 * Keep our lease until the actual MM reply, even if the caller
++                 * cancelled, then reconcile the latest request before release. */
++                if (target != GPOINTER_TO_UINT (g_task_get_task_data (task)) ||
++                    mm_modem_location_signals_location (priv->modem_location) != target_signals) {
++                        if (!mm_modem_location_setup_sync (priv->modem_location, target,
++                                                          target_signals, NULL, &restore_error))
++                                g_warning ("Failed to reconcile modem location: %s", restore_error->message);
++                }
++                if (!restore_error && !update_gps_refresh (manager, &restore_error))
++                        g_warning ("Failed to restore GPS refresh rate: %s", restore_error->message);
++                if (!restore_error)
++                        release_location_preferences (manager);
++                if (ok && restore_error) {
++                        error = g_steal_pointer (&restore_error);
++                        ok = FALSE;
++                }
++                if (ok && priv->caps != MM_MODEM_LOCATION_SOURCE_NONE) {
++                        priv->location_3gpp_ignore_previous = TRUE;
++                        on_location_changed (modem_object, NULL, manager);
++                }
++        }
++        if (ok)
++                g_task_return_boolean (task, TRUE);
++        else
+                 g_task_return_error (task, error);
+-
+-                goto out;
+-        }
+-
+-        g_debug ("Modem '%s' setup.", mm_object_get_path (priv->mm_object));
+-
+-        /* Make sure that we actually emit that signal */
+-        priv->location_3gpp_ignore_previous = TRUE;
+-        on_location_changed (modem_object, NULL, manager);
+-
+-        g_task_return_boolean (task, TRUE);
+-out:
+         g_object_unref (task);
+ }
+ 
+@@ -642,14 +723,29 @@
+         GClueModemManagerPrivate *priv = manager->priv;
+         GTask *task;
+ 
++        MMModemLocationSource previous_caps = priv->caps;
++        GError *error = NULL;
++
++        task = g_task_new (manager, cancellable, callback, user_data);
++        if (!priv->signals_saved) {
++                priv->previous_signals = mm_modem_location_signals_location (priv->modem_location);
++                priv->signals_saved = TRUE;
++        }
++        priv->owned_caps |= caps & ~mm_modem_location_get_enabled (priv->modem_location);
+         priv->caps |= caps;
+-        task = g_task_new (manager, cancellable, callback, user_data);
+-
+-        caps = mm_modem_location_get_enabled (priv->modem_location) | priv->caps;
++        if (!update_gps_refresh (manager, &error)) {
++                priv->caps = previous_caps;
++                g_task_return_error (task, error);
++                g_object_unref (task);
++                return;
++        }
++        caps = requested_location_caps (manager);
++        g_task_set_task_data (task, GUINT_TO_POINTER (caps), NULL);
++        priv->pending_setups++;
+         mm_modem_location_setup (priv->modem_location,
+                                  caps,
+                                  TRUE,
+-                                 g_task_get_cancellable (task),
++                                 NULL,
+                                  on_modem_location_setup,
+                                  task);
+ }
+@@ -674,17 +770,22 @@
+         GClueModemManagerPrivate *priv;
+ 
+         priv = manager->priv;
++        (void) cancellable;
+ 
+         if (priv->modem_location == NULL)
+                 return TRUE;
+ 
+         priv->caps &= ~caps;
+-
+-        return mm_modem_location_setup_sync (priv->modem_location,
+-                                             priv->caps,
+-                                             TRUE,
+-                                             cancellable,
+-                                             error);
++        if (!priv->signals_saved && !priv->refresh_saved)
++                return TRUE;
++        if (!mm_modem_location_setup_sync (priv->modem_location,
++                                           requested_location_caps (manager),
++                                           requested_location_signals (manager),
++                                           NULL, error) ||
++            !update_gps_refresh (manager, error))
++                return FALSE;
++        release_location_preferences (manager);
++        return TRUE;
+ }
+ 
+ static gboolean
+@@ -768,22 +869,9 @@
+                                               manager);
+ 
+         g_clear_object (&priv->modem_location);
+-}
+-
+-static void
+-on_gps_refresh_rate_set (GObject      *source_object,
+-                         GAsyncResult *res,
+-                         gpointer      user_data)
+-{
+-        g_autoptr(GError) error = NULL;
+-
+-        mm_modem_location_set_gps_refresh_rate_finish
+-                (MM_MODEM_LOCATION (source_object), res, &error);
+-        if (error && !g_error_matches (error, G_IO_ERROR, G_IO_ERROR_CANCELLED)) {
+-                g_warning ("Failed to set GPS refresh rate: %s",
+-                           error->message);
+-                /* TODO: try selecting better modem if GPS is unsupported? */
+-        }
++        priv->owned_caps = MM_MODEM_LOCATION_SOURCE_NONE;
++        priv->signals_saved = FALSE;
++        priv->refresh_saved = FALSE;
+ }
+ 
+ static gboolean
+@@ -804,12 +892,6 @@
+ 
+         g_assert (!manager->priv->modem_location);
+         manager->priv->modem_location = g_object_ref (modem_location);
+-
+-        mm_modem_location_set_gps_refresh_rate (manager->priv->modem_location,
+-                                                manager->priv->time_threshold,
+-                                                manager->priv->cancellable,
+-                                                on_gps_refresh_rate_set,
+-                                                NULL);
+ 
+         g_signal_connect (G_OBJECT (manager->priv->modem_location),
+                           "notify::location",
+@@ -1161,13 +1243,11 @@
+         manager = GCLUE_MODEM_MANAGER (modem);
+         manager->priv->time_threshold = time_threshold;
+ 
+-        if (manager->priv->modem_location != NULL) {
+-                mm_modem_location_set_gps_refresh_rate
+-                        (manager->priv->modem_location,
+-                         time_threshold,
+-                         manager->priv->cancellable,
+-                         on_gps_refresh_rate_set,
+-                         NULL);
++        if (manager->priv->modem_location != NULL &&
++            (manager->priv->caps & MM_MODEM_LOCATION_SOURCE_GPS_NMEA)) {
++                g_autoptr(GError) error = NULL;
++                if (!update_gps_refresh (manager, &error))
++                        g_warning ("Failed to set GPS refresh rate: %s", error->message);
+         }
+ 
+         g_object_notify_by_pspec (G_OBJECT (manager),
+--- a/src/meson.build
++++ b/src/meson.build
+@@ -5,9 +5,10 @@
+             geoclue_iface_sources,
+             wpa_supplicant_sources ]
+ 
+-sources += gnome.genmarshal('gclue-marshal',
++modem_marshal_sources = gnome.genmarshal('gclue-marshal',
+                             prefix: 'gclue_marshal',
+                             sources: ['gclue-marshal.list'])
++sources += modem_marshal_sources
+ 
+ include_dirs = [ configinc,
+                  libgeoclue_public_api_inc,
+@@ -74,6 +75,17 @@
+            install: true,
+            install_dir: libexecdir)
+ 
++if get_option('modem-gps-source')
++    modem_lifecycle_test = executable('test-modem-lifecycle',
++        ['../tests/test-modem-lifecycle.c', 'gclue-modem.c',
++         'gclue-nmea-utils.c', modem_marshal_sources],
++        link_with: [libgeoclue_public_api],
++        include_directories: include_dirs,
++        dependencies: geoclue_deps,
++        c_args: c_args)
++    test('modem-lifecycle', modem_lifecycle_test)
++endif
++
+ dbus_interface = join_paths(dbus_interface_dir, 'org.freedesktop.GeoClue2.xml')
+ agent_dbus_interface = join_paths(dbus_interface_dir, 'org.freedesktop.GeoClue2.Agent.xml')
+ pkgconf = import('pkgconfig')
+--- /dev/null
++++ b/tests/test-modem-lifecycle.c
+@@ -0,0 +1,178 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++/* Exercise the production backend, including replies after a stop/cancellation. */
++#include <libmm-glib.h>
++#include <gio/gio.h>
++
++typedef struct {
++    GObject *proxy;
++    MMModemLocationSource caps;
++    gboolean signals;
++    GAsyncReadyCallback callback;
++    gpointer data;
++} Pending;
++static GQueue pending;
++static MMModemLocationSource enabled;
++static gboolean signals_location;
++static guint refresh_rate, cached_rate, writes;
++static gboolean stale_rate_cache;
++
++static MMModemLocationSource fake_enabled(MMModemLocation *p) { (void)p; return enabled; }
++static gboolean fake_signals(MMModemLocation *p) { (void)p; return signals_location; }
++static guint fake_rate(MMModemLocation *p) { (void)p; return stale_rate_cache ? cached_rate : refresh_rate; }
++static gboolean fake_set_rate(MMModemLocation *p, guint rate, GCancellable *c, GError **e)
++{
++    (void)p; (void)e; g_assert_null(c); refresh_rate=rate; writes++; return TRUE;
++}
++static gboolean fake_setup_sync(MMModemLocation *p, MMModemLocationSource caps,
++                                gboolean signals, GCancellable *c, GError **e)
++{
++    (void)p; (void)e; g_assert_null(c); enabled=caps; signals_location=signals; return TRUE;
++}
++static void fake_setup(MMModemLocation *p, MMModemLocationSource caps,
++                       gboolean signals, GCancellable *c,
++                       GAsyncReadyCallback callback, gpointer data)
++{
++    Pending *q=g_new0(Pending,1);g_assert_null(c);
++    q->proxy=g_object_ref(G_OBJECT(p));q->caps=caps;q->signals=signals;
++    q->callback=callback;q->data=data;g_queue_push_tail(&pending,q);
++}
++static gboolean fake_setup_finish(MMModemLocation *p, GAsyncResult *r, GError **e)
++{ (void)p; return g_task_propagate_boolean(G_TASK(r),e); }
++static MMLocationGpsNmea *fake_nmea(MMModemLocation *p) { (void)p;return NULL; }
++static void fake_bus_get(GBusType type, GCancellable *c, GAsyncReadyCallback cb, gpointer data)
++{ (void)type;(void)c;(void)cb;(void)data; }
++
++#undef MM_MODEM_LOCATION
++#define MM_MODEM_LOCATION(p) ((MMModemLocation *)(p))
++#define mm_modem_location_get_enabled fake_enabled
++#define mm_modem_location_signals_location fake_signals
++#define mm_modem_location_get_gps_refresh_rate fake_rate
++#define mm_modem_location_set_gps_refresh_rate_sync fake_set_rate
++#define mm_modem_location_setup fake_setup
++#define mm_modem_location_setup_sync fake_setup_sync
++#define mm_modem_location_setup_finish fake_setup_finish
++#define mm_modem_location_get_signaled_gps_nmea fake_nmea
++#define g_bus_get fake_bus_get
++#include "../src/gclue-modem-manager.c"
++
++static GClueModemManager *manager_new(guint caps, gboolean signals, guint rate)
++{
++    GClueModemManager *m;
++    g_assert_true(g_queue_is_empty(&pending));
++    enabled=caps;signals_location=signals;refresh_rate=rate;cached_rate=rate;
++    writes=0;stale_rate_cache=FALSE;
++    m=g_object_new(GCLUE_TYPE_MODEM_MANAGER,NULL);
++    m->priv->modem_location=(MMModemLocation *)g_object_new(G_TYPE_OBJECT,NULL);
++    m->priv->time_threshold=1;
++    return m;
++}
++static void complete_one(void)
++{
++    Pending *q=g_queue_pop_head(&pending);g_assert_nonnull(q);
++    enabled=q->caps;signals_location=q->signals;
++    GTask *ack=g_task_new(q->proxy,NULL,NULL,NULL);
++    g_task_return_boolean(ack,TRUE);
++    q->callback(q->proxy,G_ASYNC_RESULT(ack),q->data);
++    g_object_unref(ack);g_object_unref(q->proxy);g_free(q);
++    while(g_main_context_iteration(NULL,FALSE));
++}
++static void stop_gps(GClueModemManager *m)
++{
++    GError *e=NULL;
++    g_assert_true(clear_caps(m,MM_MODEM_LOCATION_SOURCE_GPS_NMEA,NULL,&e));
++    g_assert_no_error(e);
++}
++static void test_normal(void)
++{
++    GClueModemManager *m=manager_new(0,FALSE,30);
++    enable_caps(m,MM_MODEM_LOCATION_SOURCE_GPS_NMEA,NULL,NULL,NULL);complete_one();
++    g_assert_cmpuint(enabled,==,4);g_assert_true(signals_location);g_assert_cmpuint(refresh_rate,==,1);
++    stop_gps(m);g_assert_cmpuint(enabled,==,0);g_assert_false(signals_location);g_assert_cmpuint(refresh_rate,==,30);
++    g_object_unref(m);
++}
++static void test_idle_threshold(void)
++{
++    GClueModemManager *m=manager_new(0,FALSE,30);
++    gclue_modem_manager_set_time_threshold(GCLUE_MODEM(m),0);
++    g_assert_cmpuint(writes,==,0);stop_gps(m);g_assert_cmpuint(writes,==,0);
++    g_assert_cmpuint(refresh_rate,==,30);g_assert_false(signals_location);g_object_unref(m);
++}
++static void test_preserve_external(void)
++{
++    GClueModemManager *m=manager_new(MM_MODEM_LOCATION_SOURCE_GPS_RAW,TRUE,17);
++    enable_caps(m,MM_MODEM_LOCATION_SOURCE_GPS_NMEA,NULL,NULL,NULL);complete_one();
++    g_assert_cmpuint(enabled,==,6);stop_gps(m);
++    g_assert_cmpuint(enabled,==,2);g_assert_true(signals_location);g_assert_cmpuint(refresh_rate,==,17);
++    g_object_unref(m);
++}
++static void test_preexisting_gps(void)
++{
++    GClueModemManager *m=manager_new(MM_MODEM_LOCATION_SOURCE_GPS_NMEA,TRUE,11);
++    enable_caps(m,MM_MODEM_LOCATION_SOURCE_GPS_NMEA,NULL,NULL,NULL);complete_one();stop_gps(m);
++    g_assert_cmpuint(enabled,==,4);g_assert_true(signals_location);g_assert_cmpuint(refresh_rate,==,11);
++    g_object_unref(m);
++}
++static void test_late_reply(void)
++{
++    GClueModemManager *m=manager_new(0,FALSE,30);
++    enable_caps(m,MM_MODEM_LOCATION_SOURCE_GPS_NMEA,NULL,NULL,NULL);stop_gps(m);
++    g_assert_cmpuint(m->priv->pending_setups,==,1);complete_one();
++    g_assert_cmpuint(enabled,==,0);g_assert_false(signals_location);g_assert_cmpuint(refresh_rate,==,30);
++    g_assert_cmpuint(m->priv->pending_setups,==,0);g_object_unref(m);
++}
++static void test_cancelled_reply(void)
++{
++    GClueModemManager *m=manager_new(0,FALSE,30);GCancellable *c=g_cancellable_new();
++    enable_caps(m,MM_MODEM_LOCATION_SOURCE_GPS_NMEA,c,NULL,NULL);
++    g_cancellable_cancel(c);stop_gps(m);complete_one();
++    g_assert_cmpuint(enabled,==,0);g_assert_false(signals_location);g_assert_cmpuint(refresh_rate,==,30);
++    g_object_unref(c);g_object_unref(m);
++}
++static void test_rapid_restart(void)
++{
++    GClueModemManager *m=manager_new(0,FALSE,30);
++    enable_caps(m,MM_MODEM_LOCATION_SOURCE_GPS_NMEA,NULL,NULL,NULL);stop_gps(m);
++    enable_caps(m,MM_MODEM_LOCATION_SOURCE_GPS_NMEA,NULL,NULL,NULL);
++    complete_one();complete_one();g_assert_cmpuint(enabled,==,4);g_assert_cmpuint(refresh_rate,==,1);
++    stop_gps(m);g_assert_cmpuint(enabled,==,0);g_assert_false(signals_location);g_assert_cmpuint(refresh_rate,==,30);
++    g_object_unref(m);
++}
++static void test_external_added(void)
++{
++    GClueModemManager *m=manager_new(0,FALSE,30);
++    enable_caps(m,MM_MODEM_LOCATION_SOURCE_GPS_NMEA,NULL,NULL,NULL);complete_one();
++    enabled|=MM_MODEM_LOCATION_SOURCE_GPS_RAW;stop_gps(m);
++    g_assert_cmpuint(enabled,==,2);g_assert_cmpuint(refresh_rate,==,30);g_object_unref(m);
++}
++static void test_stale_rate_cache(void)
++{
++    GClueModemManager *m=manager_new(0,FALSE,30);stale_rate_cache=TRUE;
++    enable_caps(m,MM_MODEM_LOCATION_SOURCE_GPS_NMEA,NULL,NULL,NULL);
++    g_assert_cmpuint(refresh_rate,==,1);stop_gps(m);complete_one();
++    g_assert_cmpuint(refresh_rate,==,30);g_assert_false(signals_location);g_assert_cmpuint(enabled,==,0);
++    g_object_unref(m);
++}
++static void test_repeated(void)
++{
++    GClueModemManager *m=manager_new(0,FALSE,30);
++    for(guint i=0;i<4;i++){
++        enable_caps(m,MM_MODEM_LOCATION_SOURCE_GPS_NMEA,NULL,NULL,NULL);complete_one();stop_gps(m);
++        g_assert_cmpuint(enabled,==,0);g_assert_false(signals_location);g_assert_cmpuint(refresh_rate,==,30);
++    }
++    g_object_unref(m);
++}
++int main(int argc,char **argv)
++{
++    g_test_init(&argc,&argv,NULL);
++    g_test_add_func("/modem-config/normal",test_normal);
++    g_test_add_func("/modem-config/idle-threshold",test_idle_threshold);
++    g_test_add_func("/modem-config/preserve-external",test_preserve_external);
++    g_test_add_func("/modem-config/preexisting-gps",test_preexisting_gps);
++    g_test_add_func("/modem-config/late-reply",test_late_reply);
++    g_test_add_func("/modem-config/cancelled-reply",test_cancelled_reply);
++    g_test_add_func("/modem-config/rapid-restart",test_rapid_restart);
++    g_test_add_func("/modem-config/external-added",test_external_added);
++    g_test_add_func("/modem-config/stale-rate-cache",test_stale_rate_cache);
++    g_test_add_func("/modem-config/repeated",test_repeated);
++    return g_test_run();
++}

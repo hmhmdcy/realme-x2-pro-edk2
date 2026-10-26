@@ -1,0 +1,54 @@
+{
+  "phases": [
+    {
+      "target": "olddefconfig",
+      "exit": 0,
+      "seconds": 10.041
+    },
+    {
+      "target": "modules_prepare",
+      "exit": 0,
+      "seconds": 7.323
+    },
+    {
+      "target": "drivers/bluetooth/hci_uart.ko",
+      "exit": 2,
+      "seconds": 5.234
+    }
+  ],
+  "exit": 2,
+  "seconds": 22.61,
+  "kernel_release": "7.3.0-rc6-rmx1931-samurai-k363+",
+  "image363_config_exactly_extracted": true,
+  "image363_config_sha256": "23e088a90736bbbc442c672d82b35c11bf04f7dc489f1c6afb1b03dc0d8f30ed",
+  "input_module_symvers_exactly_image363": true,
+  "original_source_head": "5b0e7a9ac5b311a4c4fe17cf48b7ed4fc9a7b91d",
+  "configuration_differences_from_image363": {
+    "# CONFIG_VIDEO_QCOM_CAMSS_ICP is not set": [
+      null,
+      "# CONFIG_VIDEO_QCOM_CAMSS_ICP is not set"
+    ]
+  },
+  "driver_source_sha256": "8f37fd639214e6c56f25ad4926579d4dd26aba8a228aac210a85adeebe2c242b",
+  "baseline_source_sha256": "645ded4980918a2d0a22dd2d56327bbc69c08e3689e9d313158f0d263e291d90",
+  "patch_sha256": "b2345c461163cf31a02ed4d13ed20df80a25664b199c4dde8022a9e773b607b2",
+  "shared_inputs_unchanged": true,
+  "private_source_view_and_output": true,
+  "shared_source_or_build_written": false,
+  "sdk_or_phone_accessed": false,
+  "installed_or_loaded": false,
+  "diagnostics": [
+    "ERROR: modpost: drivers/bluetooth/hci_uart.ko: symbol 'btbcm_finalize' undefined!",
+    "ERROR: modpost: drivers/bluetooth/hci_uart.ko: symbol 'btbcm_initialize' undefined!",
+    "ERROR: modpost: drivers/bluetooth/hci_uart.ko: symbol 'qca_send_pre_shutdown_cmd' undefined!",
+    "ERROR: modpost: drivers/bluetooth/hci_uart.ko: symbol 'btbcm_read_pcm_int_params' undefined!",
+    "ERROR: modpost: drivers/bluetooth/hci_uart.ko: symbol 'qca_uart_setup' undefined!",
+    "ERROR: modpost: drivers/bluetooth/hci_uart.ko: symbol 'qca_read_soc_version' undefined!",
+    "ERROR: modpost: drivers/bluetooth/hci_uart.ko: symbol 'btbcm_write_pcm_int_params' undefined!",
+    "ERROR: modpost: drivers/bluetooth/hci_uart.ko: symbol 'btbcm_set_bdaddr' undefined!",
+    "ERROR: modpost: drivers/bluetooth/hci_uart.ko: symbol 'btbcm_check_bdaddr' undefined!",
+    "ERROR: modpost: drivers/bluetooth/hci_uart.ko: symbol 'qca_set_bdaddr_rome' undefined!",
+    "WARNING: modpost: suppressed 1 unresolved symbol warnings because there were too many)"
+  ],
+  "passed": false
+}

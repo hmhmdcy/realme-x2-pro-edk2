@@ -1,0 +1,638 @@
+--- a/include/linux/qcom-camss-config.h
++++ b/include/linux/qcom-camss-config.h
+@@ -25,6 +25,7 @@
+  *	&struct camss_params_color_correct
+  * @CAMSS_PARAMS_GAMMA: per-channel gamma correction curves (CLC_GLUT),
+  *	&struct camss_params_gamma
++ * @CAMSS_PARAMS_LSC: regular lens shading mesh, &struct camss_params_lsc
+  * @CAMSS_PARAMS_AEC_BHIST: region of the AEC Bayer histogram statistics,
+  *	&struct camss_params_aec_bhist
+  */
+@@ -34,6 +35,7 @@
+ 	CAMSS_PARAMS_COLOR_CORRECT = 3,
+ 	CAMSS_PARAMS_GAMMA = 4,
+ 	CAMSS_PARAMS_AEC_BHIST = 5,
++	CAMSS_PARAMS_LSC = 6,
+ };
+ 
+ /* Number of entries in each gamma channel LUT. */
+@@ -238,6 +240,44 @@
+ 	(sizeof(struct camss_params_aec_bhist) +	\
+ 	 sizeof(struct camss_params_wb_gain))
+ 
++/* Fixed mesh, expressed in Bayer input coordinates before image scaling. */
++#define CAMSS_LSC_MESH_WIDTH	17
++#define CAMSS_LSC_MESH_HEIGHT	13
++#define CAMSS_LSC_MESH_POINTS	(CAMSS_LSC_MESH_WIDTH * CAMSS_LSC_MESH_HEIGHT)
++#define CAMSS_LSC_CHANNELS	4
++
++/**
++ * struct camss_params_lsc - Lens shading correction mesh
++ *
++ * @header: block header; type is CAMSS_PARAMS_LSC
++ * @cell_width: horizontal mesh cell spacing, in 2-pixel Bayer quads
++ * @cell_height: vertical mesh cell spacing, in 2-line Bayer quads
++ * @x_start: first input quad's horizontal position relative to mesh node (0,0)
++ * @y_start: first input quad's vertical position relative to mesh node (0,0)
++ * @subdivision: log2 of the number of interpolation subgrids per cell (0..3)
++ * @_pad: reserved; must be zero
++ * @gains: row-major R, GR, GB, B gains, Q10 in [1024, 8191] (1024 is unity)
++ *
++ * The last node is at ((WIDTH-1)*cell_width, (HEIGHT-1)*cell_height).
++ * The mesh must cover the active Bayer sink image. Width and height must
++ * be divisible by 2^subdivision; hardware interpolation subgrids have
++ * minimum dimensions of 9 quads. Calibration and crop/mode resampling
++ * are userspace operations; these fields describe the resulting mesh.
++ */
++struct camss_params_lsc {
++	struct v4l2_isp_params_block_header header;
++	__u16 cell_width;
++	__u16 cell_height;
++	__u16 x_start;
++	__u16 y_start;
++	__u8 subdivision;
++	__u8 _pad[7];
++	__u16 gains[CAMSS_LSC_CHANNELS][CAMSS_LSC_MESH_POINTS];
++} __attribute__((aligned(8)));
++
++#define CAMSS_PARAMS_IFE_LSC_MAX_PAYLOAD \
++	(CAMSS_PARAMS_IFE_MAX_PAYLOAD + sizeof(struct camss_params_lsc))
++
+ /**
+  * enum camss_stats_block_type - CAMSS ISP statistics block identifiers
+  *
+--- a/src/ipa/camss-vfe/camss.cpp
++++ b/src/ipa/camss-vfe/camss.cpp
+@@ -22,6 +22,7 @@
+ #include "libcamera/internal/mapped_framebuffer.h"
+ #include "libcamera/internal/yaml_parser.h"
+ #include "parameter_encoder.h"
++#include "lens_shading.h"
+ #include "../libipa/camera_sensor_helper.h"
+ #include "hardware_agc.h"
+ #include "hardware_awb.h"
+@@ -81,6 +82,7 @@
+ 		std::unique_ptr<MappedFrameBuffer> memory;
+ 	};
+ 	std::map<uint32_t, Buffer> buffers_;
++	std::optional<camss_params_lsc> lensShading_;
+ 	ResidualBlackProfile profile_{ 0, 1.0 };
+ 	std::string model_;
+ 	Size input_;
+@@ -184,7 +186,7 @@
+      input.width < 4 || input.height < 2 || ((input.width | input.height) & 1)) return -EINVAL;
+  int ret = describeSensor(info, sensorControls, ipaControls);
+  if (ret) return ret;
+- profile_ = { 0, 1.0 };
++ profile_ = { 0, 1.0 }; lensShading_.reset();
+  afEnabled_=false;af_.cancel();frameLength_=info.minFrameLength;
+  if (!profilePath.empty()) {
+   File file(profilePath);
+@@ -211,6 +213,8 @@
+    if (!selected) return -ENOTSUP;
+   } else if (version!=1) return -EINVAL;
+   const ValueNode &tuning=*selected;
++  ret=configureLensShading(tuning["lens_shading"],input,&lensShading_);
++  if (ret) return ret;
+   ret=configureAutofocus(tuning["autofocus"].isEmpty()?(*root)["autofocus"]:tuning["autofocus"],ipaControls);
+   if (ret) return ret;
+   auto subtraction = tuning["residual_black_subtraction"].get<uint16_t>();
+@@ -261,7 +265,7 @@
+  input_ = input; configured_ = true;
+  LOG(IPACamss, Info) << "Sensor configuration model=" << model_ << " pixel-rate=" << info.pixelRate
+   << " line-length=" << info.minLineLength << " frame-length=" << info.minFrameLength
+-  << " delayed-controls=" << sensorConfiguration->enabled;
++  << " delayed-controls=" << sensorConfiguration->enabled << " lsc=" << bool(lensShading_);
+  return 0;
+ }
+ 
+@@ -465,9 +469,9 @@
+ 			return -EINVAL;
+ 		red = gains[0]; blue = gains[1];
+ 	}
+-	alignas(8) std::array<uint8_t, sizeof(v4l2_isp_buffer) + sizeof(camss_params_wb_gain) + sizeof(camss_params_aec_bhist)> packet;
++	alignas(8) std::array<uint8_t, sizeof(v4l2_isp_buffer) + sizeof(camss_params_wb_gain) + sizeof(camss_params_aec_bhist) + sizeof(camss_params_lsc)> packet;
+ 	size_t used;
+-	int ret = encodeParameters(packet, profile_, red, blue, input_, Rectangle(input_), &used);
++	int ret = encodeParameters(packet, profile_, red, blue, input_, Rectangle(input_), &used, lensShading_ ? &*lensShading_ : nullptr);
+ 	if (ret)
+ 		return ret;
+  *sensorControls = initial;
+@@ -519,7 +523,7 @@
+ 	int ret = effectiveColourGains(profile_, red, blue, &effectiveRed, &effectiveBlue);
+ 	if (ret) return ret;
+ 	size_t used;
+-	ret = encodeParameters(it->second.memory->planes()[0], profile_, red, blue, input_, Rectangle(input_), &used);
++	ret = encodeParameters(it->second.memory->planes()[0], profile_, red, blue, input_, Rectangle(input_), &used, revision==0 && lensShading_ ? &*lensShading_ : nullptr);
+ 	if (!ret) {
+ 		preparedParameters_[revision] = { revision, effectiveRed, effectiveBlue, awbEnabled_, red, blue };
+ 		*bytesused = used;
+--- /dev/null
++++ b/src/ipa/camss-vfe/lens_shading.cpp
+@@ -0,0 +1,101 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#include "lens_shading.h"
++
++#include <array>
++#include <cerrno>
++#include <cmath>
++
++#include "libcamera/internal/yaml_parser.h"
++#include "../libipa/lens_shading.h"
++#include "../libipa/lsc_resample.h"
++
++namespace libcamera::ipa::camss {
++
++static int readPair(const ValueNode &value, double *a, double *b)
++{
++	if (!value.isList() || value.size() != 2)
++		return -EINVAL;
++	auto x = value[0].get<double>(), y = value[1].get<double>();
++	if (!x || !y || !std::isfinite(*x) || !std::isfinite(*y))
++		return -EINVAL;
++	*a = *x; *b = *y;
++	return 0;
++}
++
++static int readMesh(const ValueNode &value, LscMesh *mesh)
++{
++	static constexpr std::array<const char *, 4> names = { "r", "gr", "gb", "b" };
++	if (!value.isDictionary())
++		return -EINVAL;
++	for (unsigned int c = 0; c < LscChannels; ++c) {
++		const auto &channel = value[names[c]];
++		if (!channel.isList() || channel.size() != LscPoints)
++			return -EINVAL;
++		for (unsigned int i = 0; i < LscPoints; ++i) {
++			auto number = channel[i].get<float>();
++			if (!number || !std::isfinite(*number) || *number <= 0)
++				return -EINVAL;
++			(*mesh)[c][i] = *number;
++		}
++	}
++	return 0;
++}
++
++int configureLensShading(const ValueNode &tuning, const Size &input,
++			 std::optional<camss_params_lsc> *parameters)
++{
++	if (!parameters)
++		return -EINVAL;
++	parameters->reset();
++	if (tuning.isEmpty())
++		return 0;
++	if (!tuning.isDictionary())
++		return -EINVAL;
++	if (!tuning["enabled"].isEmpty()) {
++		auto enabled = tuning["enabled"].get<bool>();
++		if (!enabled)
++			return -EINVAL;
++		if (!*enabled)
++			return 0;
++	}
++
++	LscMapping mapping;
++	if (readPair(tuning["source_span"], &mapping.sourceSpanX, &mapping.sourceSpanY) ||
++	    readPair(tuning["first_quad"], &mapping.firstX, &mapping.firstY) ||
++	    readPair(tuning["quad_step"], &mapping.stepX, &mapping.stepY))
++		return -EINVAL;
++	LscGrid grid;
++	LscMesh source, resampled;
++	if (!lscGridForSize(input.width, input.height, &grid) ||
++	    readMesh(tuning["gains"], &source))
++		return -EINVAL;
++	if (!tuning["golden"].isEmpty() || !tuning["unit"].isEmpty()) {
++		LscMesh golden, unit, factors, calibrated;
++		if (readMesh(tuning["golden"], &golden) || readMesh(tuning["unit"], &unit) ||
++		    !lscCalibrationFactors(golden, unit, &factors) ||
++		    !lscApplyCalibration(source, factors, &calibrated))
++			return -EINVAL;
++		source = calibrated;
++	}
++	LscPackedMesh packed;
++	if (!lscResample(source, grid, mapping, &resampled) ||
++	    !lscPackTitan17x(resampled, &packed))
++		return -EINVAL;
++
++	camss_params_lsc result{};
++	static_assert(sizeof(result) == 1792);
++	result.header = { CAMSS_PARAMS_LSC, V4L2_ISP_PARAMS_FL_BLOCK_ENABLE, sizeof(result) };
++	result.cell_width = grid.cellWidth; result.cell_height = grid.cellHeight;
++	result.x_start = grid.xStart; result.y_start = grid.yStart;
++	result.subdivision = grid.subdivision;
++	for (unsigned int i = 0; i < LscPoints; ++i) {
++		result.gains[LscR][i] = packed.grr[i] & 8191;
++		result.gains[LscGr][i] = packed.grr[i] >> 13;
++		result.gains[LscGb][i] = packed.gbb[i] >> 13;
++		result.gains[LscB][i] = packed.gbb[i] & 8191;
++	}
++	*parameters = result;
++	return 0;
++}
++
++} /* namespace libcamera::ipa::camss */
+--- /dev/null
++++ b/src/ipa/camss-vfe/lens_shading.h
+@@ -0,0 +1,19 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++
++#include <optional>
++#include <linux/qcom-camss-config.h>
++#include <libcamera/geometry.h>
++
++namespace libcamera {
++class ValueNode;
++namespace ipa::camss {
++
++/* Static mode tuning. The ISP applies it once at stream start; colour-gain
++ * updates do not repeatedly upload this mesh. Absence leaves LSC disabled.
++ */
++int configureLensShading(const ValueNode &tuning, const Size &input,
++			 std::optional<camss_params_lsc> *parameters);
++
++} /* namespace ipa::camss */
++} /* namespace libcamera */
+--- a/src/ipa/camss-vfe/meson.build
++++ b/src/ipa/camss-vfe/meson.build
+@@ -1,6 +1,6 @@
+ # SPDX-License-Identifier: CC0-1.0
+ ipa_name = 'ipa_camss_vfe'
+-mod = shared_module(ipa_name, ['camss.cpp', 'parameter_encoder.cpp', 'hardware_agc.cpp', 'hardware_awb.cpp'],
++mod = shared_module(ipa_name, ['camss.cpp', 'parameter_encoder.cpp', 'hardware_agc.cpp', 'hardware_awb.cpp', 'lens_shading.cpp'],
+     name_prefix : '',
+     include_directories : [ipa_includes],
+     dependencies : [libcamera_private, libipa_dep],
+--- a/src/ipa/camss-vfe/parameter_encoder.cpp
++++ b/src/ipa/camss-vfe/parameter_encoder.cpp
+@@ -5,6 +5,7 @@
+ #include <algorithm>
+ #include <cerrno>
+ #include <cmath>
++#include <cstring>
+ #include <limits>
+ 
+ #include "params.h"
+@@ -42,15 +43,16 @@
+ 
+ int encodeParameters(Span<uint8_t> output, const ResidualBlackProfile &profile,
+ 		     double redGain, double blueGain, const Size &input,
+-		     const Rectangle &roi, size_t *bytesused)
++		     const Rectangle &roi, size_t *bytesused,
++		     const camss_params_lsc *lsc)
+ {
+ 	if (!bytesused)
+ 		return -EINVAL;
+ 	*bytesused = 0;
+ 
+-	constexpr size_t required = sizeof(v4l2_isp_buffer) +
++	const size_t required = sizeof(v4l2_isp_buffer) +
+ 				    sizeof(camss_params_wb_gain) +
+-				    sizeof(camss_params_aec_bhist);
++				    sizeof(camss_params_aec_bhist) + (lsc ? sizeof(*lsc) : 0);
+ 	if (output.size() < required)
+ 		return -ENOSPC;
+ 	if (!output.data() ||
+@@ -91,6 +93,12 @@
+ 	bhist->width = roi.width;
+ 	bhist->height = roi.height;
+ 
++
++ if (lsc) {
++  auto block = params.block<CamssBlocks::LensShading>();
++  block.setEnabled(true);
++  std::memcpy(&block->cell_width, &lsc->cell_width, sizeof(*lsc) - sizeof(lsc->header));
++ }
+ 	*bytesused = params.bytesused();
+ 	return 0;
+ }
+--- a/src/ipa/camss-vfe/parameter_encoder.h
++++ b/src/ipa/camss-vfe/parameter_encoder.h
+@@ -3,6 +3,7 @@
+ 
+ #include <cstddef>
+ #include <cstdint>
++#include <linux/qcom-camss-config.h>
+ 
+ #include <libcamera/base/span.h>
+ #include <libcamera/geometry.h>
+@@ -21,6 +22,7 @@
+ /* Serialize only supported blocks through the shared libipa V4L2Params helper. */
+ int encodeParameters(Span<uint8_t> output, const ResidualBlackProfile &profile,
+ 		     double redGain, double blueGain, const Size &input,
+-		     const Rectangle &roi, size_t *bytesused);
++		     const Rectangle &roi, size_t *bytesused,
++		     const camss_params_lsc *lsc = nullptr);
+ 
+ } /* namespace libcamera::ipa::camss */
+--- a/src/ipa/camss-vfe/params.h
++++ b/src/ipa/camss-vfe/params.h
+@@ -25,6 +25,7 @@
+ 	ChromaEnh,
+ 	ColorCorrect,
+ 	AecBhist,
++	LensShading,
+ };
+ 
+ namespace details {
+@@ -45,6 +46,7 @@
+ CAMSS_DEFINE_BLOCK_TYPE(ChromaEnh, chroma_enhan, CHROMA_ENHAN);
+ CAMSS_DEFINE_BLOCK_TYPE(ColorCorrect, color_correct, COLOR_CORRECT);
+ CAMSS_DEFINE_BLOCK_TYPE(AecBhist, aec_bhist, AEC_BHIST);
++CAMSS_DEFINE_BLOCK_TYPE(LensShading, lsc, LSC);
+ 
+ struct param_traits {
+ 	using id_type = CamssBlocks;
+--- /dev/null
++++ b/src/ipa/libipa/lens_shading.cpp
+@@ -0,0 +1,79 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#include "lens_shading.h"
++
++#include <algorithm>
++#include <cmath>
++
++namespace libcamera::ipa {
++
++static bool positive(float value)
++{
++	return std::isfinite(value) && value > 0.0f;
++}
++
++bool lscCalibrationFactors(const LscMesh &golden, const LscMesh &unit,
++			   LscMesh *factors)
++{
++	if (!factors)
++		return false;
++	LscMesh result;
++	for (unsigned int channel = 0; channel < LscChannels; ++channel) {
++		for (unsigned int point = 0; point < LscPoints; ++point) {
++			if (!positive(golden[channel][point]) || !positive(unit[channel][point]))
++				return false;
++			result[channel][point] = golden[channel][point] / unit[channel][point];
++			if (!positive(result[channel][point]))
++				return false;
++		}
++	}
++	*factors = result;
++	return true;
++}
++
++bool lscApplyCalibration(const LscMesh &base, const LscMesh &factors,
++			 LscMesh *calibrated)
++{
++	if (!calibrated)
++		return false;
++	LscMesh result;
++	for (unsigned int channel = 0; channel < LscChannels; ++channel) {
++		for (unsigned int point = 0; point < LscPoints; ++point) {
++			if (!positive(base[channel][point]) || !positive(factors[channel][point]))
++				return false;
++			result[channel][point] = base[channel][point] * factors[channel][point];
++			if (!positive(result[channel][point]))
++				return false;
++		}
++	}
++	for (unsigned int point = 0; point < LscPoints; ++point) {
++		/* Halving first avoids overflow when both valid inputs are large. */
++		float green = result[LscGr][point] * 0.5f + result[LscGb][point] * 0.5f;
++		result[LscGr][point] = result[LscGb][point] = green;
++	}
++	*calibrated = result;
++	return true;
++}
++
++bool lscPackTitan17x(const LscMesh &mesh, LscPackedMesh *packed)
++{
++	if (!packed)
++		return false;
++	LscPackedMesh result;
++	for (unsigned int point = 0; point < LscPoints; ++point) {
++		std::array<uint32_t, LscChannels> q;
++		for (unsigned int channel = 0; channel < LscChannels; ++channel) {
++			float gain = mesh[channel][point];
++			if (!positive(gain))
++				return false;
++			/* Four 13-bit unsigned Q10 gains, minimum unity. */
++			gain = std::clamp(gain, 1.0f, 8191.0f / 1024.0f);
++			q[channel] = std::lround(gain * 1024.0f);
++		}
++		result.grr[point] = q[LscR] | q[LscGr] << 13;
++		result.gbb[point] = q[LscB] | q[LscGb] << 13;
++	}
++	*packed = result;
++	return true;
++}
++
++} /* namespace libcamera::ipa */
+--- /dev/null
++++ b/src/ipa/libipa/lens_shading.h
+@@ -0,0 +1,26 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++
++#include <array>
++#include <cstdint>
++
++namespace libcamera::ipa {
++
++/* Full-sensor mesh. Mapping to a cropped/binned mode is a separate operation. */
++constexpr unsigned int LscWidth = 17, LscHeight = 13;
++constexpr unsigned int LscPoints = LscWidth * LscHeight;
++enum LscChannel { LscR, LscGr, LscGb, LscB, LscChannels };
++using LscMesh = std::array<std::array<float, LscPoints>, LscChannels>;
++
++struct LscPackedMesh {
++	std::array<uint32_t, LscPoints> grr;
++	std::array<uint32_t, LscPoints> gbb;
++};
++
++bool lscCalibrationFactors(const LscMesh &golden, const LscMesh &unit,
++			   LscMesh *factors);
++bool lscApplyCalibration(const LscMesh &base, const LscMesh &factors,
++			 LscMesh *calibrated);
++bool lscPackTitan17x(const LscMesh &mesh, LscPackedMesh *packed);
++
++} /* namespace libcamera::ipa */
+--- /dev/null
++++ b/src/ipa/libipa/lsc_resample.cpp
+@@ -0,0 +1,134 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#include "lsc_resample.h"
++
++#include <algorithm>
++#include <cmath>
++
++namespace libcamera::ipa {
++
++static bool validGrid(const LscGrid &g)
++{
++	if (g.subdivision > 3)
++		return false;
++	unsigned int scale = 1U << g.subdivision;
++	return g.cellWidth >= 18 && g.cellWidth <= 2048 &&
++	       g.cellHeight >= 9 && g.cellHeight <= 1024 &&
++	       !(g.cellWidth % scale) && !(g.cellHeight % scale) &&
++	       g.cellWidth / scale >= 9 && g.cellHeight / scale >= 9 &&
++	       g.xStart < (LscWidth - 1) * g.cellWidth &&
++	       g.yStart < (LscHeight - 1) * g.cellHeight;
++}
++
++bool lscGridForSize(uint32_t width, uint32_t height, LscGrid *grid)
++{
++	/* A Bayer-quad mesh requires complete quads. Bounds are the hardware's
++	 * largest grid span, checked before performing any dimension arithmetic.
++	 */
++	if (!grid || !width || !height || width % 2 || height % 2 ||
++	    width > 2 * (LscWidth - 1) * 2048 ||
++	    height > 2 * (LscHeight - 1) * 1024)
++		return false;
++	unsigned int qw = width / 2, qh = height / 2;
++	for (int level = 3; level >= 0; --level) {
++		unsigned int scale = 1U << level;
++		unsigned int w = ((qw + 16 * scale - 1) / (16 * scale)) * scale;
++		unsigned int h = ((qh + 12 * scale - 1) / (12 * scale)) * scale;
++		unsigned int overX = w * 16 - qw, overY = h * 12 - qh;
++		LscGrid candidate = { static_cast<uint16_t>(w), static_cast<uint16_t>(h),
++			static_cast<uint16_t>((overX + 1) / 2),
++			static_cast<uint16_t>((overY + 1) / 2), static_cast<uint8_t>(level) };
++		if (!validGrid(candidate))
++			continue;
++		/* Prefer a complete first interpolation segment. This is the
++		 * source algorithm's placement policy, beyond UAPI validation.
++		 */
++		if (overX >= w || overY >= h || w - candidate.xStart < 18 ||
++		    w / scale - candidate.xStart % (w / scale) < 9)
++			continue;
++		*grid = candidate;
++		return true;
++	}
++	return false;
++}
++
++/* One border cell with the same edge slope. At a corner continue the
++ * diagonal slope; this is the source LSC34 boundary convention.
++ */
++static double extended(const std::array<float, LscPoints> &m, int x, int y)
++{
++	int bx = std::clamp(x, 0, 16), by = std::clamp(y, 0, 12);
++	double edge = m[by * LscWidth + bx];
++	if (bx == x && by == y)
++		return edge;
++	int nx = bx + (x < 0 ? 1 : x > 16 ? -1 : 0);
++	int ny = by + (y < 0 ? 1 : y > 12 ? -1 : 0);
++	return 2 * edge - m[ny * LscWidth + nx];
++}
++
++static std::array<double, 4> cubicWeights(double t)
++{
++	double t2 = t * t, t3 = t2 * t;
++	return { (-t3 + 2 * t2 - t) / 2,
++		 (3 * t3 - 5 * t2 + 2) / 2,
++		 (-3 * t3 + 4 * t2 + t) / 2,
++		 (t3 - t2) / 2 };
++}
++
++static double sample(const std::array<float, LscPoints> &m,
++		     double x, double y, bool outer)
++{
++	int ix = std::min(static_cast<int>(std::floor(x)), 16);
++	int iy = std::min(static_cast<int>(std::floor(y)), 12);
++	double tx = x - ix, ty = y - iy;
++	if (outer || ix < 0 || iy < 0 || ix >= 16 || iy >= 12) {
++		double a = extended(m, ix, iy) * (1 - tx) + extended(m, ix + 1, iy) * tx;
++		double b = extended(m, ix, iy + 1) * (1 - tx) + extended(m, ix + 1, iy + 1) * tx;
++		return a * (1 - ty) + b * ty;
++	}
++	auto wx = cubicWeights(tx), wy = cubicWeights(ty);
++	double value = 0;
++	for (int row = 0; row < 4; ++row)
++		for (int col = 0; col < 4; ++col)
++			value += extended(m, ix + col - 1, iy + row - 1) * wx[col] * wy[row];
++	return value;
++}
++
++bool lscResample(const LscMesh &source, const LscGrid &grid,
++		 const LscMapping &mapping, LscMesh *result)
++{
++	if (!result || !validGrid(grid) || !std::isfinite(mapping.sourceSpanX) ||
++	    !std::isfinite(mapping.sourceSpanY) || mapping.sourceSpanX <= 0 ||
++	    mapping.sourceSpanY <= 0 || !std::isfinite(mapping.firstX) ||
++	    !std::isfinite(mapping.firstY) || !std::isfinite(mapping.stepX) ||
++	    !std::isfinite(mapping.stepY) || !mapping.stepX || !mapping.stepY)
++		return false;
++	for (const auto &channel : source)
++		for (float gain : channel)
++			if (!std::isfinite(gain) || gain <= 0)
++				return false;
++
++	LscMesh output;
++	for (unsigned int y = 0; y < LscHeight; ++y) {
++		for (unsigned int x = 0; x < LscWidth; ++x) {
++			double sx = (mapping.firstX + (static_cast<double>(x * grid.cellWidth) -
++				grid.xStart) * mapping.stepX) / mapping.sourceSpanX * 16;
++			double sy = (mapping.firstY + (static_cast<double>(y * grid.cellHeight) -
++				grid.yStart) * mapping.stepY) / mapping.sourceSpanY * 12;
++			/* The reference algorithm extends one mesh cell. Reject a
++			 * mapping that would invent calibration farther outside it.
++			 */
++			if (!std::isfinite(sx) || !std::isfinite(sy) ||
++			    sx < -1 || sx > 17 || sy < -1 || sy > 13)
++				return false;
++			bool outer = !x || !y || x == 16 || y == 12;
++			for (unsigned int c = 0; c < LscChannels; ++c) {
++				double value = sample(source[c], sx, sy, outer);
++				output[c][y * LscWidth + x] = std::clamp(value, 1.0, 8191.0 / 1024);
++			}
++		}
++	}
++	*result = output;
++	return true;
++}
++
++} /* namespace libcamera::ipa */
+--- /dev/null
++++ b/src/ipa/libipa/lsc_resample.h
+@@ -0,0 +1,31 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++
++#include "lens_shading.h"
++
++namespace libcamera::ipa {
++
++struct LscGrid {
++	uint16_t cellWidth, cellHeight;
++	uint16_t xStart, yStart;
++	uint8_t subdivision;
++};
++
++/* Coordinates use the source calibration's Bayer-channel sample lattice.
++ * sourceSpanX/Y are the distances between its first and last mesh nodes.
++ * (firstX,firstY) is the source coordinate of the input frame's first quad;
++ * stepX/Y map adjacent input quads to source coordinates. Negative steps
++ * express sensor flips. The caller must establish the actual mode mapping;
++ * an output size alone cannot identify binning, cropping or sample centres.
++ */
++struct LscMapping {
++	double sourceSpanX, sourceSpanY;
++	double firstX, firstY;
++	double stepX, stepY;
++};
++
++bool lscGridForSize(uint32_t width, uint32_t height, LscGrid *grid);
++bool lscResample(const LscMesh &source, const LscGrid &grid,
++		 const LscMapping &mapping, LscMesh *result);
++
++} /* namespace libcamera::ipa */
+--- a/src/ipa/libipa/meson.build
++++ b/src/ipa/libipa/meson.build
+@@ -27,6 +27,8 @@
+     'awb_bayes.cpp',
+     'awb_grey.cpp',
+     'awb.cpp',
++    'lens_shading.cpp',
++    'lsc_resample.cpp',
+     'camera_sensor_helper.cpp',
+     'colours.cpp',
+     'exposure_mode_helper.cpp',

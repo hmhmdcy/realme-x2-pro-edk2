@@ -1,0 +1,371 @@
+{
+  "scope": "USBIN003 retained capture, offline independent value-directed review",
+  "passed_cache_checks": true,
+  "raw_input_sha256": {
+    "capture-private.json": "c45f08a246b37915f605703cdfdf61e8198bcdf3fa82d2a440aee3e2988589dd",
+    "result.json": "f76aec0e6223ab8785f7ca2792754fbab853a66ed242c9ae02ce552b2d45a468",
+    "kernel-events-private.jsonl": "6b281439b0acbcdff87f0d37503e73a743f13cb8a06100353678f919de5c8f41",
+    "upower-dbus-private.log": "39c8f76d600a4e7517596ebf6f882cffd75b2181c1ca6172860f4ae461137d06",
+    "samples-private.jsonl": "0589eff6b80773fb42aad6b8cc12c3cafb5b74c2249cedd6dc63b6901bf1d014",
+    "clock-start.json": "876569ab2b83da179f9d209439608a418d0401d38e3fa757ccc904135f9e02a0",
+    "clock-end.json": "57462370076678e9d608e8154232372702b7940dd6242c81156b876a6fbf4c10"
+  },
+  "fetch_receipt_sha256": "9b29e3fe3d01004d604cee0fc5f12365f1fe8e54924db16170aa894bef77d908",
+  "duration_seconds": 425.5781813805006,
+  "samples": 362,
+  "terminal_reason": "cycle_complete",
+  "physical_cycle_passed": true,
+  "environment_health_CV_capture_gates_passed": true,
+  "owned_processes_at_fetch": {
+    "absent": 7
+  },
+  "clock_mapping": {
+    "endpoints_consistent": true,
+    "endpoint_offset_change_seconds": -2.384185791015625e-06,
+    "anchor_bracket_seconds": 8.801998774288222e-06,
+    "quality": "endpoint-based estimates; no proof against cancelling clock steps inside the interval"
+  },
+  "times_are": "seconds from capture start; netlink receipt and endpoint-mapped D-Bus times, not cable/pixel times",
+  "timeline": {
+    "baseline_battery_uevent_Charging": 120.38978620699709,
+    "baseline_UPower_Battery_State1": 120.43862645196427,
+    "baseline_UPower_Display_State1": 120.44165246058627,
+    "detach_source_name_only_uevent": 354.55421592999846,
+    "detach_ACOK_uevent_online0": 354.5601035999971,
+    "detach_source_uevent_online0": 354.672804378999,
+    "detach_UPower_source_Online_false": 354.5585307825715,
+    "detach_UPower_charger_Online_false": 354.57772371670967,
+    "detach_Battery_uevent_Discharging": 359.4953395289958,
+    "detach_UPower_Battery_State2": 358.670876738319,
+    "detach_UPower_Display_State2": 358.6736657588722,
+    "detach_UPower_OnBattery_true": 358.68181991273934,
+    "attach_ACOK_uevent_online1": 364.30390282499866,
+    "attach_source_uevent_online1": 364.8571568519983,
+    "attach_source_uevent_budget100000": 364.9608391199981,
+    "attach_UPower_charger_Online_true": 364.31884577579734,
+    "attach_UPower_source_Online_true": 364.86604574322587,
+    "attach_UPower_OnBattery_false": 364.3425488742203,
+    "attach_converter_uevent_Charging": 366.10850768399905,
+    "attach_Battery_uevent_Charging": null,
+    "attach_UPower_Battery_State1": null,
+    "attach_UPower_Display_State1": null
+  },
+  "intervals_seconds": {
+    "baseline_battery_uevent_to_correct_State1": 0.04884024496718098,
+    "detach_ACOK0_to_Battery_State2": 4.1107731383219175,
+    "detach_ACOK0_to_Display_State2": 4.113562158875084,
+    "detach_source0_to_Battery_State2": 3.9980723593200196,
+    "detach_ACOK0_to_Battery_Discharging_uevent": 4.935235928998736,
+    "detach_Battery_uevent_to_State2_signed_not_causal": -0.8244627906768187,
+    "attach_ACOK1_to_charger_Online_true": 0.014942950798683796,
+    "attach_source1_to_source_Online_true": 0.008888891227570639,
+    "attach_ACOK1_to_OnBattery_false": 0.038646049221654266,
+    "attach_ACOK1_to_converter_Charging": 1.804604859000392
+  },
+  "selected_kernel_events": [
+    {
+      "t_seconds": 119.85162841299825,
+      "object": "Charger",
+      "properties": {
+        "ONLINE": "1",
+        "STATUS": "Charging",
+        "CURRENT_NOW": "206250",
+        "INPUT_CURRENT_LIMIT": "100000"
+      }
+    },
+    {
+      "t_seconds": 120.38978620699709,
+      "object": "Battery",
+      "properties": {
+        "STATUS": "Charging",
+        "CURRENT_NOW": "4000"
+      }
+    },
+    {
+      "t_seconds": 354.55421592999846,
+      "object": "Source",
+      "properties": {}
+    },
+    {
+      "t_seconds": 354.5601035999971,
+      "object": "Charger",
+      "properties": {
+        "ONLINE": "0",
+        "STATUS": "Not charging",
+        "INPUT_CURRENT_LIMIT": "100000"
+      }
+    },
+    {
+      "t_seconds": 354.672804378999,
+      "object": "Source",
+      "properties": {
+        "ONLINE": "0",
+        "CURRENT_MAX": "0",
+        "USB_TYPE": "[Unknown] SDP DCP CDP C"
+      }
+    },
+    {
+      "t_seconds": 354.73584467899855,
+      "object": "Charger",
+      "properties": {
+        "ONLINE": "0",
+        "STATUS": "Not charging",
+        "INPUT_CURRENT_LIMIT": "100000"
+      }
+    },
+    {
+      "t_seconds": 358.9546519899959,
+      "object": "Charger",
+      "properties": {
+        "ONLINE": "0",
+        "STATUS": "Not charging",
+        "INPUT_CURRENT_LIMIT": "100000"
+      }
+    },
+    {
+      "t_seconds": 359.4953395289958,
+      "object": "Battery",
+      "properties": {
+        "STATUS": "Discharging",
+        "CURRENT_NOW": "-5000"
+      }
+    },
+    {
+      "t_seconds": 364.30390282499866,
+      "object": "Charger",
+      "properties": {
+        "ONLINE": "1",
+        "STATUS": "Not charging",
+        "CURRENT_NOW": "18750",
+        "INPUT_CURRENT_LIMIT": "100000"
+      }
+    },
+    {
+      "t_seconds": 364.8571568519983,
+      "object": "Source",
+      "properties": {
+        "ONLINE": "1",
+        "USB_TYPE": "Unknown [SDP] DCP CDP C"
+      }
+    },
+    {
+      "t_seconds": 364.8748911629991,
+      "object": "Charger",
+      "properties": {
+        "ONLINE": "1",
+        "STATUS": "Not charging",
+        "CURRENT_NOW": "18750",
+        "INPUT_CURRENT_LIMIT": "100000"
+      }
+    },
+    {
+      "t_seconds": 364.9103928589975,
+      "object": "Source",
+      "properties": {
+        "ONLINE": "1",
+        "USB_TYPE": "Unknown [SDP] DCP CDP C"
+      }
+    },
+    {
+      "t_seconds": 364.9608391199981,
+      "object": "Source",
+      "properties": {
+        "ONLINE": "1",
+        "CURRENT_MAX": "100000",
+        "INPUT_CURRENT_LIMIT": "100000",
+        "USB_TYPE": "Unknown [SDP] DCP CDP C"
+      }
+    },
+    {
+      "t_seconds": 365.083746848999,
+      "object": "Charger",
+      "properties": {
+        "ONLINE": "1",
+        "STATUS": "Not charging",
+        "CURRENT_NOW": "18750",
+        "INPUT_CURRENT_LIMIT": "100000"
+      }
+    },
+    {
+      "t_seconds": 365.9350893699957,
+      "object": "Source",
+      "properties": {
+        "ONLINE": "1",
+        "CURRENT_MAX": "100000",
+        "INPUT_CURRENT_LIMIT": "100000",
+        "USB_TYPE": "Unknown [SDP] DCP CDP C"
+      }
+    },
+    {
+      "t_seconds": 366.10850768399905,
+      "object": "Charger",
+      "properties": {
+        "ONLINE": "1",
+        "STATUS": "Charging",
+        "CURRENT_NOW": "206250",
+        "INPUT_CURRENT_LIMIT": "100000"
+      }
+    }
+  ],
+  "selected_dbus_changes": [
+    {
+      "t_seconds": 120.43862645196427,
+      "object": "Battery",
+      "State": 1
+    },
+    {
+      "t_seconds": 120.44165246058627,
+      "object": "Display",
+      "State": 1
+    },
+    {
+      "t_seconds": 354.5585307825715,
+      "object": "Source line power",
+      "Online": false
+    },
+    {
+      "t_seconds": 354.57772371670967,
+      "object": "Charger line power",
+      "Online": false
+    },
+    {
+      "t_seconds": 358.670876738319,
+      "object": "Battery",
+      "State": 2
+    },
+    {
+      "t_seconds": 358.6736657588722,
+      "object": "Display",
+      "State": 2
+    },
+    {
+      "t_seconds": 358.68181991273934,
+      "object": "UPower daemon",
+      "OnBattery": true
+    },
+    {
+      "t_seconds": 364.31884577579734,
+      "object": "Charger line power",
+      "Online": true
+    },
+    {
+      "t_seconds": 364.3425488742203,
+      "object": "UPower daemon",
+      "OnBattery": false
+    },
+    {
+      "t_seconds": 364.86604574322587,
+      "object": "Source line power",
+      "Online": true
+    }
+  ],
+  "standard_Battery_Charging_first_sample_interval_seconds": [
+    118.69904770199719,
+    119.8677329289967
+  ],
+  "standard_Battery_Discharging_after_detach_first_sample_interval_seconds": [
+    357.93037860399636,
+    358.96522352499596
+  ],
+  "all_samples_summary": {
+    "samples": 362,
+    "Battery_status_counts": {
+      "Discharging": 155,
+      "Charging": 207
+    },
+    "Battery_current_now_ua_range": [
+      -45000,
+      39000
+    ],
+    "known_source_budget_ua": [
+      0,
+      100000
+    ],
+    "known_native_limit_ua": [
+      100000
+    ],
+    "input_limit_ua": [
+      100000
+    ],
+    "CC_request_ua": [
+      250000
+    ],
+    "pack_CV_uv": [
+      8725000
+    ],
+    "USB_type_strings": [
+      "Unknown [SDP] DCP CDP C",
+      "[Unknown] SDP DCP CDP C"
+    ],
+    "budget_ENODATA_samples": 1,
+    "native_ENODATA_samples": 10
+  },
+  "post_attach_summary": {
+    "samples": 51,
+    "Battery_status_counts": {
+      "Discharging": 51
+    },
+    "Battery_current_now_ua_range": [
+      -45000,
+      -20000
+    ],
+    "known_source_budget_ua": [
+      100000
+    ],
+    "known_native_limit_ua": [
+      100000
+    ],
+    "input_limit_ua": [
+      100000
+    ],
+    "CC_request_ua": [
+      250000
+    ],
+    "pack_CV_uv": [
+      8725000
+    ],
+    "USB_type_strings": [
+      "Unknown [SDP] DCP CDP C",
+      "[Unknown] SDP DCP CDP C"
+    ],
+    "budget_ENODATA_samples": 1,
+    "native_ENODATA_samples": 1
+  },
+  "post_attach_last_sample_after_ACOK1_seconds": 61.14737748399784,
+  "helper": {
+    "phase": "clear_verified",
+    "before_cfg": 192,
+    "after_cfg": 64,
+    "write_attempted": true,
+    "write_return": 0,
+    "readback_error": 0,
+    "post_error": 0,
+    "unknown_write": false
+  },
+  "conclusions": {
+    "source_budget_ever_above_100mA_in_known_samples_or_events": false,
+    "post_attach_Charging_State_delayed_proven": false,
+    "post_attach_no_Charging_State_has_matching_net_Discharging_samples": true,
+    "detach_correct_State2_delayed_about_4s_from_digital_supply_off": true,
+    "Battery_uevent_then_State2_serial_causal_chain_supported": false,
+    "screen_pixel_delay_measured": false,
+    "bit_clear_caused_budget_upgrade_proven": false
+  },
+  "user_observation_only": {
+    "unplug_icon_estimate_seconds": 6,
+    "replug_no_charging_icon_estimate_seconds_greater_than": 60,
+    "clock_aligned_to_capture": false
+  },
+  "limitations": [
+    "No screen recording/pixel timestamp. User estimates are separate from telemetry.",
+    "D-Bus State1 means Charging; State2 means Discharging. First opposite State is never used as the intended response.",
+    "Online1/OnBattery=false proves external power presence, not positive net Battery current.",
+    "Offline telemetry flags are cleared by the collector/driver and flags_fresh=false; zero is not a raw gauge-flags reading.",
+    "A transient ENODATA source/native read is not authorization and is not silently replaced by100mA.",
+    "No inference beyond this capture; finish/commit/unload was root-owned and not performed by this review."
+  ],
+  "device_accessed": false,
+  "SSH_executed": false,
+  "controller_helper_modified": false,
+  "raw_logs_or_private_identity_exported": false
+}

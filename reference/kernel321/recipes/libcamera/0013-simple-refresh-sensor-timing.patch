@@ -1,0 +1,47 @@
+Subject: [PATCH] ipa: simple: refresh sensor timing when configuring a stream
+
+Sensor output size, line length and pixel-array clock can change after IPA
+initialization. Pass the current sensor information on every configure so
+exposure metadata uses the selected mode, including mode switches.
+
+---
+diff --git a/include/libcamera/ipa/soft.mojom b/include/libcamera/ipa/soft.mojom
+--- a/include/libcamera/ipa/soft.mojom
++++ b/include/libcamera/ipa/soft.mojom
+@@ -9,6 +9,7 @@
+ import "include/libcamera/ipa/core.mojom";
+ 
+ struct IPAConfigInfo {
++	libcamera.IPACameraSensorInfo sensorInfo;
+ 	libcamera.ControlInfoMap sensorControls;
+ };
+ 
+diff --git a/src/libcamera/pipeline/simple/simple.cpp b/src/libcamera/pipeline/simple/simple.cpp
+--- a/src/libcamera/pipeline/simple/simple.cpp
++++ b/src/libcamera/pipeline/simple/simple.cpp
+@@ -1604,6 +1604,9 @@
+ 		return data->converter_->configure(inputCfg, outputCfgs);
+ 	} else {
+ 		ipa::soft::IPAConfigInfo configInfo;
++		ret = data->sensor_->sensorInfo(&configInfo.sensorInfo);
++		if (ret)
++			return ret;
+ 		configInfo.sensorControls = data->sensor_->controls();
+ 		return data->swIsp_->configure(inputCfg, outputCfgs, configInfo);
+ 	}
+diff --git a/src/ipa/simple/soft_simple.cpp b/src/ipa/simple/soft_simple.cpp
+--- a/src/ipa/simple/soft_simple.cpp
++++ b/src/ipa/simple/soft_simple.cpp
+@@ -202,6 +202,12 @@
+ 
+ int IPASoftSimple::configure(const IPAConfigInfo &configInfo)
+ {
++	if (!configInfo.sensorInfo.pixelRate || !configInfo.sensorInfo.minLineLength) {
++		LOG(IPASoft, Error) << "Invalid sensor timing for software ISP";
++		return -EINVAL;
++	}
++
++	context_.sensorInfo = configInfo.sensorInfo;
+ 	sensorInfoMap_ = configInfo.sensorControls;
+ 
+ 	const ControlInfo &exposureInfo = sensorInfoMap_.find(V4L2_CID_EXPOSURE)->second;

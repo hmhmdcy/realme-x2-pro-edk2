@@ -1,0 +1,5 @@
+# GNSS assistance and no-SIM power management
+
+2-r1 retains UTC preparation and current XTRA maintenance, and adds a power controller for the SIM-missing `realme,samurai` modem. It uses normal ModemManager SetPowerState calls, preserves explicit OFFLINE and externally owned states, and returns its own online lease to LOW_POWER after the last GPS consumer leaves. It never resets the modem or writes OFFLINE, RF, NV or calibration.
+
+Run `python3 test-power-policy.py` to exercise fourteen scenarios against the production controller. PC and actual-phone tests passed; four desktop start/stop cycles verified two automatic online/low-power cycles. A subsequent 300-second outdoor desktop run received 280 location updates, including 262 conservatively validated fresh coordinates, and automatically released its online lease to LOW_POWER. The existing 203 MM daemon stays installed through the separate legacy-image compatibility pin. Cold starts, suspend recovery and long-duration reliability remain open; see [evidence and collector limits](../../../reference/kernel260/README.md).

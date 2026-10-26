@@ -1,0 +1,67 @@
+; Experimental EUD COM package, offline candidate only.
+; Based on Qualcomm qcwdfser.inf, commit 14b6fe1, BSD-3-Clause.
+; Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+; SPDX-License-Identifier: BSD-3-Clause
+; This new option is implemented by the candidate source; it is NOT an
+; existing setting for the currently installed proprietary qcusbser.
+
+[Version]
+Signature="$WINDOWS NT$"
+Class=Ports
+ClassGuid={4D36E978-E325-11CE-BFC1-08002BE10318}
+Provider=%Provider%
+DriverVer=10/10/2026,1.0.0.1
+CatalogFile=qceudexp.cat
+PnpLockdown=1
+
+[ControlFlags]
+ExcludeFromSelect=*
+
+[Manufacturer]
+%Provider%=EudCom,NTamd64
+
+[EudCom.NTamd64]
+%Device%=EudInstall,USB\VID_05C6&PID_9505
+
+[SourceDisksNames]
+1=%Disk%,,,
+
+[SourceDisksFiles]
+qcwdfserial.sys=1
+
+[DestinationDirs]
+EudCopy=13
+
+[EudInstall.NT]
+CopyFiles=EudCopy
+AddReg=EudPortSettings
+
+[EudCopy]
+qcwdfserial.sys
+
+[EudInstall.NT.Services]
+AddService=qceudexp,0x00000002,EudService
+
+[EudInstall.NT.Wdf]
+KmdfService=qceudexp,EudKmdf
+
+[EudKmdf]
+KmdfLibraryVersion=$KMDFVERSION$
+
+[EudService]
+DisplayName=%Service%
+ServiceType=1
+StartType=3
+ErrorControl=1
+ServiceBinary=%13%\qcwdfserial.sys
+
+[EudPortSettings]
+HKR,,PortSubClass,0x00000001,01
+HKR,,EnumPropPages32,,"MsPorts.dll,SerialPortPropPageProvider"
+HKR,,QCEudPreserveToggleOnOpen,0x00010001,1
+
+[Strings]
+Provider="Realme X2 Pro EUD experiment"
+Device="EUD COM 9505 toggle preservation candidate"
+Service="Experimental EUD COM serial"
+Disk="EUD COM offline candidate package"

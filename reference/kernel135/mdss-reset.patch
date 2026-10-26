@@ -1,0 +1,10 @@
+--- a/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
++++ b/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
+@@ -498,6 +498,7 @@
+ 
+ /* Native display: wiring and rail values verified against stock live DT. */
+ &mdss {
++	resets = <&dispcc DISP_CC_MDSS_CORE_BCR>;
+ 	status = "okay";
+ };
+ 

@@ -1,0 +1,220 @@
+{
+  "stage": 114,
+  "evidence": {
+    "final-health-validation": {
+      "all_archive_member_hashes_verified": true,
+      "checks": {
+        "kernel_113": true,
+        "same_boot": true,
+        "taint_unchanged": true,
+        "sensor_power_off": true,
+        "pcm_closed": true,
+        "both_amps_idle": true,
+        "phosh_phoc_running": true,
+        "traces_off": true,
+        "nv6_source4_unchanged": true,
+        "no_new_dpu_timeouts": true,
+        "no_new_gpu_faults": true
+      },
+      "diagnostics_drained": true,
+      "new_kernel_not_deployed": true,
+      "new_image_not_flashed": true,
+      "live_packages_updated": true,
+      "hardware_complete": false,
+      "goal_complete": false
+    },
+    "gnss-single-client-validation": {
+      "three_archives_and_all_member_hashes_verified": true,
+      "first_two_failures_before_engine_start": [
+        "unimplemented_signal_name",
+        "wrong_recurrence_enum_name"
+      ],
+      "successful_trial": 3,
+      "single_loc_client_registers_starts_monitors_and_stops": true,
+      "gi_none_on_success_handled_correctly": true,
+      "monitor_window_seconds": 55,
+      "event_counts": {
+        "engine-state": 1,
+        "position-report": 55,
+        "nmea": 55,
+        "gnss-sv-info": 54
+      },
+      "position_report_statuses": {
+        "in_progress": 55
+      },
+      "valid_position_fix_received": false,
+      "gnss_real_time_indication_transport_verified": true,
+      "nmea_stream_received": true,
+      "engine_session_stop_acknowledged": true,
+      "nv6_source4_unchanged": true,
+      "desktop_location_integration": false,
+      "goal_complete": false
+    },
+    "gnss-window-validation": {
+      "archive_and_member_hashes_verified": true,
+      "start_and_stop_requests_succeeded": true,
+      "monitor_window_seconds": 55,
+      "monitor_return_code": 0,
+      "position_or_satellite_events_received": false,
+      "location_fix_verified": false,
+      "engine_session_stop_acknowledged": true,
+      "nv_sources_unchanged": true,
+      "slpi_offline_sensor_power_off": true,
+      "no_timeout_return_code_does_not_imply_position_success": true,
+      "goal_complete": false
+    },
+    "kernel-build-validation": {
+      "kernel_build": 114,
+      "full_image_modules_dtb_build_pass": true,
+      "artifact_sha256": {
+        "arch/arm64/boot/Image": "8cc0f5987d1e7fe8bd43846749c16d73849bd6e591bdbc68d93f62a1bba008b0",
+        "arch/arm64/boot/dts/qcom/sm8150-samurai.dtb": "12a6b7205bdbab1a7df9caccb0f50b300716b268ae011306a4dee7e5c85f479b",
+        "drivers/net/ipa/ipa.ko": "a2976dc78238e9d68b7c77bdf470265495a877bd951a0c6cd262eadc5ea4b2b1",
+        "drivers/block/zram/zram.ko": "5fe4de928b2e8db26b25629ee7591dfd66b3e4157eea4f23aeeacec249222eda",
+        "mm/zsmalloc.ko": "bb5f030f246da5af4f8c5a400c54c950a6edf546e136505becce365cc1545249",
+        "usr/initramfs_data.cpio": "27c100547ee4cbb0674c2fc4c39ffae9decee019afef545578d3d322bd5def09"
+      },
+      "zram_driver_built": true,
+      "zsmalloc_module_built": true,
+      "tcp_syncookies_enabled": true,
+      "ipa_v4_1_driver_built": true,
+      "ipa_soc_node_disabled": true,
+      "foreign_board_config_not_applied": true,
+      "no_device_flash_or_reboot": true,
+      "rootfs114_image_retains_kernel113_modules": true,
+      "runtime_hardware_acceptance": false,
+      "goal_complete": false
+    },
+    "live-userspace-validation": {
+      "archive_and_member_sha_verified": true,
+      "package_count": 936,
+      "mobile_apps_installed_on_phone": true,
+      "boot_and_userdata_not_flashed": true,
+      "desktop_files_unchanged": true,
+      "source_nv_unchanged": true,
+      "phosh_phoc_running": true,
+      "pcm_closed": true,
+      "both_amps_idle": true,
+      "taint_after": 512,
+      "sensor_power_off": true,
+      "new_dpu_timeouts": 0,
+      "new_gpu_faults": 0,
+      "applications_not_launched_for_acceptance": true,
+      "hardware_complete": false,
+      "goal_complete": false
+    },
+    "loc-readonly-validation": {
+      "archive_and_members_sha_verified": true,
+      "query_exit_codes": {
+        "loc-get-operation-mode": 0,
+        "loc-get-engine-lock": 0,
+        "loc-get-nmea-types": 0
+      },
+      "gnss_qmi_loc_control_verified": true,
+      "position_fix_not_verified": true,
+      "engine_not_started": true,
+      "source_nv_unchanged": true,
+      "earlier_unknown_cli_option_was_not_modem_failure": true,
+      "goal_complete": false
+    },
+    "qmi-readonly-validation": {
+      "archive_sha256_verified": true,
+      "all_member_hashes_verified": true,
+      "query_exit_codes": {
+        "dms-get-capabilities": 0,
+        "dms-get-operating-mode": 0,
+        "uim-get-card-status": 0,
+        "nas-get-system-info": 0,
+        "loc-get-supported-messages": 1
+      },
+      "modem_control_channel_verified": true,
+      "modemmanager_enumeration": false,
+      "cellular_data_not_verified": true,
+      "gnss_not_verified": true,
+      "loc_failure": "error: Unknown option --loc-get-supported-messages",
+      "nv_sources_unchanged": true,
+      "other_sources_unchanged": true,
+      "taint_after": 512,
+      "new_dpu_timeouts": 0,
+      "new_gpu_faults": 0,
+      "goal_complete": false
+    },
+    "rootfs-image-validation": {
+      "rootfs_image_created": true,
+      "sparse_bytes": 1783174616,
+      "expanded_bytes": 119033245696,
+      "sha256": "37d0ccd221e857465da303b249d5bff09e9e0a2c93a7c7f5cd9c7d24c9bc3f52",
+      "sparse_reconstruction_matches": true,
+      "both_fsck_pass": true,
+      "package_count": 936,
+      "compatible_running_kernel": 113,
+      "image_not_flashed": true,
+      "userdata_not_erased": true,
+      "private_device_specific_image": true,
+      "hardware_complete": false,
+      "goal_complete": false,
+      "artifact_path": "E:/edk2-samurai-out/kernel114/samurai-rootfs-f2fs.simg",
+      "final_coreutils_hash_allocation_failure_recovered_with_bounded_python_stream": true
+    },
+    "userspace-validation": {
+      "package_count": 936,
+      "required_packages": [
+        "postmarketos-ui-phosh",
+        "phosh",
+        "phoc",
+        "mesa-dri-gallium",
+        "networkmanager",
+        "modemmanager",
+        "qmi-utils",
+        "libcamera-tools",
+        "calls",
+        "chatty",
+        "firefox",
+        "mobile-config-firefox",
+        "megapixels",
+        "rsync",
+        "strace",
+        "openssh-server-pam",
+        "bluez",
+        "pulseaudio",
+        "hexagonrpcd"
+      ],
+      "userspace_validation_pass": true,
+      "rootfs_compatible_kernel_build": 113,
+      "new_kernel_deployed": false,
+      "new_rootfs_deployed": false,
+      "hardware_complete": false,
+      "goal_complete": false,
+      "static_export_and_import_files": 13254,
+      "files_sha256": {
+        "usr/local/bin/samurai-phosh-session": "e4d2b9c9063c10e58e872a6f9a2c9265619306a2c674ee32c15731eeeb594a18",
+        "usr/local/sbin/samurai-usb": "fcfd5052a0cad7ae9c6c581e9ede271899d99e06ad0d4d15309faa6f8ef1ad3e",
+        "usr/sbin/samurai-wifi": "ed1a3624ca418b8aa115e7434f6cf0c402f855c826d3aee4fe55176d461fd308",
+        "usr/sbin/samurai-radio-address": "3421ee681da7714678f4c64e62d060997e585e93857ae02d8fd5d050e417ef0d",
+        "usr/sbin/samurai-bt-address": "7bb09d987ba4b7ced1a295f7f4c5c7d76c2ee179e3ed6d8ccaa30a9bffeec693",
+        "usr/sbin/samurai-rmtfs-cow": "d1ca1fc4087e47f1618e09f568605f2f253eac8721598fc930d1eb8c604fe251",
+        "usr/sbin/samurai-tqftpserv": "d3a19b2f2daa1c85345182095510ee6d2e5db065118855c8938d9ad7d82dff4e",
+        "usr/share/alsa/ucm2/conf.d/Realme_X2_Pro/HiFi.conf": "2b806b169b17d1c67b326ae2166ee1e8237f37e2ebbbef3d9f12572083252328",
+        "usr/share/alsa/ucm2/conf.d/Realme_X2_Pro/Realme_X2_Pro.conf": "1547730cd87b94888880af229c881af106ea5ac832d995dfc8ca14061ef2d583",
+        "etc/greetd/samurai-phosh.toml": "ff7c25efe841ebe811ed6674f1600f5439cd6169f2dca7d26c1037c9e218ffec",
+        "usr/bin/qmicli": "0a89508ecd7ba6658a9e0550d32d97f32e4ce4ee6972e821e1459debc57b10aa",
+        "usr/bin/cam": "ed4a21467a68f98df31c724d7336f035dbb3136e44cc0df5fb9426feb9c7fdc8"
+      },
+      "missing_functionality": [
+        "display_gpu_stability",
+        "5ghz_current_regression",
+        "full_sensor_service",
+        "ipa_cellular_data",
+        "calls",
+        "gnss",
+        "camera_capture",
+        "fingerprint",
+        "suspend_resume",
+        "otg_acceptance",
+        "audio_acoustic_acceptance",
+        "charging_control"
+      ]
+    }
+  },
+  "goal_complete": false
+}

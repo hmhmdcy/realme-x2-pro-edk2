@@ -1,0 +1,95 @@
+{
+  "scope": "Offline Image501 pair-activation profile; no device invocation",
+  "schema": "samurai-image501-activation-v1",
+  "guard_remote_path": "/root/charging-management-20261023/<transaction_id>/guard-private.json",
+  "camera_wrapper_remote_path": "/root/charging-management-20261023/<transaction_id>/camera481-expected-private.json",
+  "fixed_guard_fields": {
+    "schema": "samurai-image501-activation-v1",
+    "candidate_boot_sha256": "97811cc4ae13b36fec98b2eae7cd54a4f12bca988864df0f3d8f663a8c67f695",
+    "rollback_boot_sha256": "4126a2978bc79b5cb95b6e1b86bb432a6b16ece627776237c163b93b323bbfcf",
+    "boot_bytes": 100663296,
+    "kernel_release": "7.3.0-rc6-rmx1931-samurai-k363+",
+    "image363_sha256": "15746aab311eed32478cdee4e13c1677716ff48c8a04316c9c15cf606c9d6468",
+    "camera481_expected_sha256": "1c4584915dade64a0978a0138c6775bf99e56af9f8036d7d2276c33f132f4705",
+    "charging_manifest_sha256": "320316c3d93c1dbcaae29440f1f17d72c75e4994d656a9da9fcd5aeb93c10a1f",
+    "old_boot_guard_path": "/var/lib/samurai/eud-boot-r2-live-001-adopted/boot-id-private.txt",
+    "candidate_logdump_sha256": "7e5de5b437fbc884d97a103e77bd97a21b77c99151c67b7bcb1745d51076cbf9",
+    "rollback_logdump_sha256": "aca01bc2c91928f1a6a6690f62d14db014351ec5049e5684590b40c3c93de8da",
+    "logdump_bytes": 67108864,
+    "partitions": [
+      "boot",
+      "logdump"
+    ],
+    "image501_sha256": "3a656c75d3b714153d77b637654c894a0418fd688cc906d59a37a41401e8cc02",
+    "startup500_sha256": "2a364e12d72229ef7b0ddfd7620d5ff434b97eaf93eb60899fd24a03b5b9a54a",
+    "startup500_path": "/usr/local/sbin/samurai-usb",
+    "max_power_ma": 500
+  },
+  "fresh_private_guard_fields": {
+    "transaction_id": "new image501- plus 8..64 lowercase alphanumeric/hyphen; old transaction rejected",
+    "token": "new 32..64 lowercase hex characters; same token in all quiesce/restart/host action receipts",
+    "boot_id": "fresh exact current UUID and exact old_boot_guard_path contents",
+    "kernel_version": "fresh exact uname.version, beginning #363 ",
+    "rootfs_release_sha256": "fresh exact /etc/samurai-rootfs-release raw bytes hash",
+    "soc_serial_sha256": "fresh exact raw bytes from /sys/devices/soc0/serial_number; private, no fallback",
+    "compatible_sha256": "fresh exact /sys/firmware/devicetree/base/compatible raw bytes hash"
+  },
+  "prepare_prerequisites": [
+    "root has actual exclusive handoff, not merely a lease; camera481 return proof is provenance, not a current ownership detector",
+    "original pinned SSH key, old guard and fresh board identity verified by root launcher",
+    "no live or outcome-unknown camera/USB/update/PM/other mutator; no reuse of any historical transaction",
+    "copy exact camera481 formal wrapper raw bytes, both pinned worker raw bytes and fresh guard into new root-owned 0700 directory; files 0600, no symlinks",
+    "runtime must still use R8 disk/loaded notes; no module unload/hot replacement or service start between quiesce and restart",
+    "Freshly verify both whole candidate and rollback boot96MiB/logdump64MiB pairs and carriers delivery; old camera handoff boot not used as current identity. No native-provider unload."
+  ],
+  "quiesce": {
+    "argv": [
+      "python3",
+      "-B",
+      "<new-base>/eud-quiesce.py",
+      "--guard",
+      "<new-base>/guard-private.json",
+      "--commit-quiesce"
+    ],
+    "launch": "one detached Popen, DEVNULL stdin, own log/PID/startticks; durable exclusive host and remote launch intent before dispatch",
+    "result_directory": "/var/lib/samurai/<transaction_id>",
+    "required_terminal": "state-private.json terminal=true exit_code=0, summary.json taint=0, exact transaction_id/boot_id/token, saved boot-id exact; original process absent/zombie confirmed before next mutator",
+    "unknown": "fetch same process/result only; do not clear directory or dispatch again"
+  },
+  "restart": {
+    "inspect_argv": [
+      "python3",
+      "-B",
+      "<new-base>/eud-restart.py",
+      "--guard",
+      "<new-base>/guard-private.json",
+      "--inspect"
+    ],
+    "commit_argv": [
+      "python3",
+      "-B",
+      "<new-base>/eud-restart.py",
+      "--guard",
+      "<new-base>/guard-private.json",
+      "--commit-restart2-bootloader"
+    ],
+    "inspect": "read-only guards/quiesce/hardware idle checks; no /dev/mem open",
+    "launch": "one detached Popen with close_fds=True, start_new_session=True, stdin DEVNULL, stdout/stderr to unique verified tmpfs /run log; durable host request before dispatch, capture PID/startticks where possible",
+    "claim": "/run/<transaction_id>-reboot-phase-private.json exclusive x; transaction_id/boot_id/token/state=claimed_once/request_count=1, file and parent fsync before first freeze",
+    "last_phase": "filesystem_frozen_restart2_armed only proves intent; not syscall or bootloader success",
+    "hardware": "No EUD retirement, MMIO or driver controls. Require native COM disabled and unbound/read-only. Durable once claim; filesystem freeze and one RESTART2 bootloader. Logging errors cannot block the committed tail; returned/error syscall thaws and closes.",
+    "unknown": "no second restart or automatic EUD rebind; same process/status and fresh host evidence only"
+  },
+  "host_boundary": {
+    "implementation_owner": "root/UI separate explicit host operator",
+    "required_context": "same transaction_id/token/old_boot_id and exact guard hash, quiesce terminal/process evidence, one restart dispatch claim; never old R7 receipts",
+    "actions": "inspect, flash-candidate, rollback-original and reboot require separate exclusive action claims; each uses fresh exact sole serial, msmnile product and boot partition 100663296 bytes",
+    "write_scope": "Only exact boot+logdump candidate pair or exact boot4126+ACA rollback pair; each fresh host action and terminal receipt bound. Never boot a mixed or unknown pair.",
+    "unknown": "any mutating child alive/unknown blocks subsequent mutation; no timeout replay or automatic rollback while prior write unknown",
+    "postboot": "New boot UUID, #501, exact whole candidate boot/logdump pair, parameter Y plus exact cmdline token and current_avg, startup500/native500, unchanged R8/camera481/services/absent EUD producers. No RAM ring or CSR MMIO in this acceptance; root owns independent read-only collector.",
+    "context_schema": "samurai-image501-fastboot-context-v1",
+    "dispatch_schema": "samurai-eud-restart-dispatch-v1",
+    "claim_schema": "samurai-eud-restart-host-claim-v1"
+  },
+  "context_schema": "samurai-image501-fastboot-context-v1"
+}

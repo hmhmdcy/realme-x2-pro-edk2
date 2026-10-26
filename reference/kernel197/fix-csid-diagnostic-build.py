@@ -1,0 +1,4 @@
+from pathlib import Path
+import hashlib,json
+ref=Path(__file__).resolve().parent;p=Path('/home/cy122/pmos-samurai-kernel136/kernel/drivers/media/platform/qcom/camss/camss-csid-gen2.c');s=p.read_text();assert s.count('readl(csid->base + CSID_HW_VERSION)')==1;p.write_text(s.replace('readl(csid->base + CSID_HW_VERSION)','csid_hw_version(csid)'));r=json.loads((ref/'csid-diagnostic-source-validation.json').read_text());r['source_sha256']=hashlib.sha256(p.read_bytes()).hexdigest();(ref/'csid-diagnostic-source-validation.json').write_text(json.dumps(r,indent=2)+'\n')
+p=ref/'build-camss-diagnostic-module.py';s=p.read_text().replace('camss-olddefconfig-r5','camss-olddefconfig-r6').replace('camss-module-build-r5','camss-module-build-r6');s=s.replace('module_sha256=sha(dest),','csid_diagnostic_source_sha256=sha(k/"drivers/media/platform/qcom/camss/camss-csid-gen2.c"),module_sha256=sha(dest),');p.write_text(s)

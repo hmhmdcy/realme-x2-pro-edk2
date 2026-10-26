@@ -1,0 +1,17 @@
+# 当前 IRQ 同 boot 单 charger 更新候选
+
+只更换 charger `10ec06…6297f` → `97c16c…8ffdd` 和清单 `5fca8e…69417` → `18e8a1…3b4e5`。复用冻结 R8 updater 的实际 stop、仅 charger unload/load、两文件 atomic replace 和错误恢复主体。USB `7cbf10…ff5f`、protection `7848cf…3044`、服务、启动文件、boot `eddade…6e06`、logdump `ace2e2…3ed1` 均不写。新模块已有独立编译收据；本叶没有构建、安装或访问手机。
+
+请求为 `contract.json` 的平级字段；使用当前实际 IRQ adoption 的 boot/guard/SoC/rootfs，拒绝旧 R7/R8 请求。根 host 负责原 key、固定压缩 transport、真实 adoption 原件审核和唯一事务。`stage-worker.py --execute-stage` 是复用原 stage supervisor 的文件名/argv，动作是单 charger 更新；输出目录为该事务的 `device-update/`。原 supervisor SHA `b29ab985159ecc911571514cdc5fa72a1a44886037e35ff024dfa6fe623440cc`，regular request fd、原 Popen/finally wait 不变。本 worker 的 rmmod/insmod 子进程沿原 R8 所有权：终态 wait；超时不 kill、不重发、不回退，原 worker 持锁隔离并报告未知。不得用 worker 结果标签替代外层真实 supervisor/worker 终态。
+
+`python3 -B stage-worker.py` 默认仅输出 source-only。`--preflight` 从 stdin 接同请求；也可加载模块后调用 `preflight(request, Device(request_raw), request_raw)`。预检只打开**已存在**的 charging lock（O_RDONLY、LOCK_SH|LOCK_NB），不创建目录、lease、lock 或 PID 文件，不执行 stop。固定输出 schema `samurai-charger-reattach-preflight-v1`，含 request SHA、identity 双夹、原始 snapshot、健康分类和 eligible。完整 Full 可健康通过但 `eligible=false/reason=full_state_not_restorable`；执行路径在任何 stop/unload 前重做同门。现有模块没有 Full 状态导入接口，不能用 AUTO 抹除 Full。Full 或健康状态转变后再考虑独立窗口，不强制放电/重置。
+
+唯一执行须有新的 root:0600 `/run/<transaction_id>-window-private.json`，精确字段在合同内，issued≤now<expires≤issued+120s；摄像头/蓝牙均已实际交回。begin 持原 charging exclusive flock、核实际 kernel/board/rootfs/guard、完整当前 boot/logdump、原磁盘和三 live note，再占用独占新目录。真实 MAC cache 固定为已消耗的 `02c981…545a8`，必须 attempted=terminal=1；只打开 `mac_evidence` O_RDONLY，不打开 capture 属性。保存原 bytes/base64/SHA、held fd 的 dev/inode 与 platform instance inode，前后逐次核对同 kernfs 属性和原 bytes。该旧 batch 的 `-90`、缺少 after0A 保留，不作兼容/TCA 结论。
+
+仅健康 NORMAL managed 状态可更新。源必须真实已知：native500，SDP budget500；CDP/DCP budget1500；C budget1500或3000（单位 mA）。输入是 min(900mA,真实预算)，CC250mA，继承 pack CV≤8.725V，寄存器两输入/CC必须对应；预算未知或变化不猜值。fresh sample、独立 protection、pack/cell、温区、fault/timeout、相机 idle、四服务和同 boot/guard 全部复核。原 manager stop 直接在所持锁内执行并核 REG08 INHIBIT；之后才卸 charger。新模块在 INHIBIT 下先通过既有 PSY 接口恢复原受限 input/CC250，物理读回，再得到新鲜安全样本，最后允许原 manager.start。每次 start（含回退）前再核原预算/限值/保护/MAC/环境，provider 缺失时拒绝，不能让 manager 补载 protection。
+
+预算变化、Full、新 fault 或缓存/实例变化会停充失败；一致的新磁盘/新 live 模块优先保留 INHIBIT，不通过重载赦免 fault。只有原 R8 已支持的安全安装失败可恢复精确旧两个文件并重新验证；不一致磁盘修复、未知子进程和二次恢复失败均明确失败。重载仍是既有易失 cycle/thermal 历史边界，记录 `before_session_seconds` 和 `volatile_cycle_reload_boundary=true`；不伪造旧 timer。保护读取和最后 AUTO 不是一个原子事务，内核保护仍负责新异步故障。
+
+实际输出：`request-private.json` 保留 stdin 原 bytes；`process-private.json` 含 pid/start_ticks/argv；`before-private.json` 为 `{observation,modes}` 并保存两个 `.before` 原文件；`old-inhibited-private.json`、`new-inhibited-private.json`、`after-private.json` 为完整 snapshot。snapshot 包含原 R8 state/sample/registers/notes/source/limits，加 read_start/read_end（BOOTTIME 秒）、identity、独立 protection/health 和 mac_evidence。limits.cv_uv 为单芯值。result schema `samurai-charger-reattach-update-result-v1`，含 transaction_id/request_sha256、真实错误、passed/terminal、installed_new/runtime_validation_pending、final_files。结果在自有 fd close 之后发布，close 失败不可 passed。
+
+`prepare.py` 固定旧 R8 源 SHA后生成独立 worker；`migration.patch` 和 `source-reuse.json` 列实际增量及未变函数。14 组只执行新增组合/实际函数，用冻结两文件 payload、6145 原包服务和已保存 Full telemetry 作 fixture；硬件/I/O边界为模型，不是实机验收。旧 67/23 和其它矩阵没有重跑。初次测试从主目录读取到4165服务与实际6145不同即失败，后改为冻结 r6 原包中实际6145；未静默以主目录历史源冒充部署输入。没有生成实际身份、request、lease或任何现场事务。根 host 与独立 runtime overlay 审查另行接线。

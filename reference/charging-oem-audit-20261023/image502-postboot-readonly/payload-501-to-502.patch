@@ -1,0 +1,38 @@
+--- 501/payload.py
++++ 502/payload.py
+@@ -2,21 +2,22 @@
+ from pathlib import Path
+ import ast,base64,hashlib,importlib.util,json,os,sys
+ HERE=Path(__file__).resolve().parent
+-PAIR=HERE.parent.parent/'charging-session-20261023/gauge-image501-fastboot-pair-candidate'
++PAIR=HERE.parent/'image502-logdump-activation-candidate'
+ sha=lambda raw:hashlib.sha256(raw).hexdigest()
+ CAMERA='1c4584915dade64a0978a0138c6775bf99e56af9f8036d7d2276c33f132f4705'
+ 
+ 
+ def make_request(context_path,camera_path,endpoint,window_confirmed,original_key_verified):
+  assert window_confirmed is True and original_key_verified is True
+- assert isinstance(endpoint,str) and endpoint and not any(x.isspace() for x in endpoint)
+- spec=importlib.util.spec_from_file_location('image501_pair',PAIR/'fastboot-operator.py')
++ assert endpoint=='fe80::62:bcff:fe28:a101%29','root must use the observed peer with the original key'
++ check_local()
++ spec=importlib.util.spec_from_file_location('image502_logdump',PAIR/'fastboot-operator.py')
+  pair=importlib.util.module_from_spec(spec);spec.loader.exec_module(pair)
+  context_path=Path(context_path);context=pair.validate_context(context_path)
+  camera_raw=Path(camera_path).read_bytes();assert sha(camera_raw)==CAMERA
+  camera=json.loads(camera_raw);assert camera['validated']
+  guard_raw=(context_path.parent/context['files']['guard']['path']).read_bytes()
+- return {'schema':'samurai-image501-postboot-readonly-v1','new_endpoint':endpoint,
++ return {'schema':'samurai-image502-notify-postboot-readonly-v1','new_endpoint':endpoint,
+    'original_key_transport_verified':True,'context_sha256':sha(context_path.read_bytes()),
+    'guard_sha256':sha(guard_raw),'guard':json.loads(guard_raw),'camera':camera}
+ 
+@@ -53,6 +54,8 @@
+ 
+ 
+ def check_local():
++ pins=json.loads((HERE/'source-pins.json').read_bytes())
++ for row in pins.values():assert sha(Path(row['path']).read_bytes())==row['sha256']
+  source=(HERE/'device.py').read_bytes();tree=ast.parse(source)
+  forbidden={'write_text','write_bytes','pack_into','write','writelines','system','Popen','mkdir','unlink','remove'}
+  assert not any(isinstance(x,ast.Attribute) and x.attr in forbidden for x in ast.walk(tree))

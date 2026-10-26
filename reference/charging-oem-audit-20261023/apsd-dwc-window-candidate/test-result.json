@@ -1,0 +1,55 @@
+{
+  "passed": true,
+  "actual_function_groups": [
+    "active peripheral/bound owner only; no resume",
+    "claim, HALT, stale/duplicate and restore receipt",
+    "HALT error stays owned; explicit cancel/end",
+    "zero return without DEVCTRLHLT rejected",
+    "pullup defers latest intent; cancel never reconnects",
+    "restore error parked; explicit retry keeps cookie",
+    "restore failure does not hide failed park",
+    "pullup during restore cannot take connect_mutex",
+    "continuous pullup race parks after two attempts",
+    "error work defers and end reuses real recovery helper",
+    "runtime/system PM atomic gate excludes window",
+    "claim between pullup PM and mutex is rechecked",
+    "UDC/remove shutdown wins claim race, joins stop before mutex destroy"
+  ],
+  "groups_count": 13,
+  "actual_functions": 20,
+  "patch_dry_run": true,
+  "pm_error_exits_release_gate": true,
+  "shutdown_before_irq_free_and_mutex_destroy": true,
+  "mutex_destroy_after_usb_del_gadget": true,
+  "flags": [
+    "-std=c11",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-Wno-unused-parameter",
+    "-fsanitize=address,undefined",
+    "-fno-omit-frame-pointer"
+  ],
+  "compile_returncode": 0,
+  "compile_stderr": "",
+  "runtime_returncode": 0,
+  "runtime_stdout": "ok: active peripheral/bound owner only; no resume\nok: claim, HALT, stale/duplicate and restore receipt\nok: HALT error stays owned; explicit cancel/end\nok: zero return without DEVCTRLHLT rejected\nok: pullup defers latest intent; cancel never reconnects\nok: restore error parked; explicit retry keeps cookie\nok: restore failure does not hide failed park\nok: pullup during restore cannot take connect_mutex\nok: continuous pullup race parks after two attempts\nok: error work defers and end reuses real recovery helper\nok: runtime/system PM atomic gate excludes window\nok: claim between pullup PM and mutex is rechecked\nok: UDC/remove shutdown wins claim race, joins stop before mutex destroy\n",
+  "runtime_stderr": "",
+  "sources": {
+    "core.h": "eadd437fb786868b75f8d806bf00cd6571422dcd0032a9c6d7e7a11f4a6e564c",
+    "core.c": "1dc9c1961a0c0b74f42c65c739702e305b9378fcbea9a348d1e73e97fd72b846",
+    "gadget.c": "2c44ea15cad900fc78c3575ebaea0cca08d81afdce39c599b1c74324454e4adf",
+    "dwc-window.patch": "e708a98cb38f0897328ee2a796f3145e3c022bb29037ce9e0ff5d402491fc287"
+  },
+  "fixtures": {
+    "test-window.c": "d71e81f0b47544b3f70c59b17b6d214bb5d4cdf18b4f635666f866bfb7c015e7",
+    "tested-types.inc": "30e253dc36cebdaf41d93d7bff69c4f5467cff53867a83cd303e3274b7046b2c",
+    "tested-functions.inc": "181a957ced6ae33738004e00dfdc0e76d24264cc806376a17389a620ea6cb0aa",
+    "tested-functions.json": "8f3e5c7fcc242de60140cf073db3d5b9fd7b5546c32fefac624f8866dfcb8d4a"
+  },
+  "phone_accessed": false,
+  "ssh_executed": false,
+  "sdk_invoked": false,
+  "old_suites_repeated": false,
+  "scope": "actual candidate C functions; fake PM/MMIO/lock boundaries and deterministic interleavings; not full lockdep or hardware validation"
+}

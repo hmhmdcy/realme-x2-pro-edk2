@@ -1,0 +1,98 @@
+{
+  "stage": 174,
+  "kernel_build": 174,
+  "capture_input": "DMIC0",
+  "tone_peak_dbfs": -24,
+  "method": "20ms Hann coherent tone-band energy; coded 15-slot envelope; physical target amp-off control",
+  "correlation_search_accounts_for_pcm_start_latency": true,
+  "threshold_predeclared_correlation": 0.75,
+  "threshold_predeclared_on_off_db": 6,
+  "threshold_predeclared_amp_control_db": 8,
+  "results": [
+    {
+      "case": "left-on",
+      "speaker": "left",
+      "frequency_hz": 997,
+      "target_speaker_enabled": true,
+      "best_code_energy_correlation": 0.9727405865561584,
+      "code_start_seconds": 1.18,
+      "expected_code_start_seconds": 1.1308987549999756,
+      "code_on_band_rms_pcm_counts": 9.613274942899793,
+      "code_off_band_rms_pcm_counts": 0.925295090448164,
+      "on_to_off_band_power_db": 20.331822112420785,
+      "capture_rms_after_half_second": 9.940609242959514,
+      "clipped_samples_after_half_second": 0
+    },
+    {
+      "case": "left-off-control",
+      "speaker": "left",
+      "frequency_hz": 997,
+      "target_speaker_enabled": false,
+      "best_code_energy_correlation": 0.2282548303933321,
+      "code_start_seconds": 1.74,
+      "expected_code_start_seconds": 1.1352796649999846,
+      "code_on_band_rms_pcm_counts": 0.953201314746763,
+      "code_off_band_rms_pcm_counts": 0.857237188148528,
+      "on_to_off_band_power_db": 0.9216725922958675,
+      "capture_rms_after_half_second": 8.394095823670927,
+      "clipped_samples_after_half_second": 0
+    },
+    {
+      "case": "right-on",
+      "speaker": "right",
+      "frequency_hz": 1511,
+      "target_speaker_enabled": true,
+      "best_code_energy_correlation": 0.9856082498428799,
+      "code_start_seconds": 1.18,
+      "expected_code_start_seconds": 1.1323027809999644,
+      "code_on_band_rms_pcm_counts": 96.06010346797451,
+      "code_off_band_rms_pcm_counts": 0.7190641815505026,
+      "on_to_off_band_power_db": 42.51550788260377,
+      "capture_rms_after_half_second": 51.48062543767845,
+      "clipped_samples_after_half_second": 0
+    },
+    {
+      "case": "right-off-control",
+      "speaker": "right",
+      "frequency_hz": 1511,
+      "target_speaker_enabled": false,
+      "best_code_energy_correlation": 0.18671057118695122,
+      "code_start_seconds": 1.52,
+      "expected_code_start_seconds": 1.1274001820000308,
+      "code_on_band_rms_pcm_counts": 0.7176028075733182,
+      "code_off_band_rms_pcm_counts": 0.6212462905003233,
+      "on_to_off_band_power_db": 1.2524064127502177,
+      "capture_rms_after_half_second": 8.483594908749332,
+      "clipped_samples_after_half_second": 0
+    }
+  ],
+  "speaker_decisions": [
+    {
+      "speaker": "left",
+      "known_tone_detected_with_disabled_amp_control": true,
+      "active_code_correlation": 0.9727405865561584,
+      "disabled_code_correlation": 0.2282548303933321,
+      "active_on_to_off_db": 20.331822112420785,
+      "active_to_disabled_tone_band_db": 20.073734615252384
+    },
+    {
+      "speaker": "right",
+      "known_tone_detected_with_disabled_amp_control": true,
+      "active_code_correlation": 0.9856082498428799,
+      "disabled_code_correlation": 0.18671057118695122,
+      "active_on_to_off_db": 42.51550788260377,
+      "active_to_disabled_tone_band_db": 42.53317841803022
+    }
+  ],
+  "taint": 0,
+  "fault_delta": {
+    "warnings": 0,
+    "dma_prepare": 0,
+    "tx_timeout": 0,
+    "resume_failed": 0
+  },
+  "mixer_restored": true,
+  "amplifiers_off": true,
+  "archive_sha256": "aff6b519fe58d1d9e1c01e279f623733e1e56384f5d32eb798c47cf14f418301",
+  "physical_listening_quality_and_calibrated_frequency_response_not_verified": true
+}

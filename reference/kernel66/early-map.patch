@@ -1,0 +1,27 @@
+--- a/drivers/tty/serial/eud_earlycon.c
++++ b/drivers/tty/serial/eud_earlycon.c
+@@ -25,6 +25,8 @@
+ #include <linux/kernel.h>
+ #include <linux/minmax.h>
+ #include <linux/serial_core.h>
++
++#include <asm/early_ioremap.h>
+ 
+ #define EUD_REG_CSR_EUD_EN    0x1014 /* BIT(0) enables the EUD block */
+ #define EUD_REG_INT_STATUS_1  0x0044 /* BIT(1) is the TX flow control bit */
+@@ -119,10 +121,13 @@
+ 	 * through the framebuffer pointer would take a data abort here and kill
+ 	 * the boot before any output.
+ 	 */
+-	csr = ioremap(device->port.mapbase + EUD_REG_CSR_EUD_EN, sizeof(u32));
++	/* setup_earlycon() runs before slab and ordinary ioremap are ready. */
++	csr = early_ioremap(device->port.mapbase + EUD_REG_CSR_EUD_EN, sizeof(u32));
+ 	if (csr) {
+ 		writel_relaxed(1, csr);
+-		/* deliberately leaked: this console lives for the whole boot */
++		/* Complete the one-shot enable before releasing the temporary mapping. */
++		readl_relaxed(csr);
++		early_iounmap(csr, sizeof(u32));
+ 	}
+ 
+ 	/*

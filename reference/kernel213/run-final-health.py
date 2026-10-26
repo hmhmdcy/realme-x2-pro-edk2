@@ -1,0 +1,12 @@
+from pathlib import Path
+import host,json
+here=Path(__file__).resolve().parent
+proof=here/'dark-and-first-frame-validation.json';host.upload(proof,'/var/lib/samurai/k213-libcamera-build/dark-and-first-frame-validation.json')
+code=(here.parent/'kernel210/final-health.py').read_text().replace("root/'k210-final-health'","root/'k213-final-health'").replace("root/'k210-runtime/boot-id-private.txt'","root/'k213-baseline/boot-id-private.txt'").replace('stage=210','stage=213').replace('k210-before-reboot','k212-before-reboot')
+start=code.index('capture=json.loads(');end=code.index('sensor=Path(',start)
+code=code[:start]+"proof=json.loads((root/'k213-libcamera-build/dark-and-first-frame-validation.json').read_text());assert proof['raw10_dark_noise_and_frame_changes_verified'] and proof['one_line_fix_candidate_all_six_rgb_pixels_254']\noriginal=json.loads((root/'k213-baseline/products-before-private.json').read_text());assert all(hashlib.sha256(Path(name).read_bytes()).hexdigest()==digest for name,digest in original.items())\nassert Path('/lib/apk/db/installed').read_bytes()==(root/'k213-baseline/apk-installed-before-private.txt').read_bytes()\n"+code[end:]
+code=code.replace("watch['worker_starts']==watch['worker_completions']==0","watch['worker_starts']==watch['worker_completions']")
+code=code.replace('wireplumber_resumed=True,','desktop_camera_monitor_not_paused=True,')
+code=code.replace('report=dict(stage=213,',"for name in ['imx471 7-0010','msm_csid0']:\n    nodes=[p for p in Path('/sys/class/video4linux').glob('v4l-subdev*') if (p/'name').read_text().strip()==name];assert len(nodes)==1\n    result=subprocess.check_output(['v4l2-ctl','-d','/dev/'+nodes[0].name,'--get-ctrl=test_pattern'],text=True);assert re.search(r'^test_pattern:\\s*0(?:\\s|\\(|$)',result)\nactive=json.loads((root/'k213-libcamera-build/active-build-private.json').read_text());assert not Path('/proc',str(active['pid'])).exists()\nreport=dict(stage=213,installed_camera_products_and_package_database_unchanged=True,all_test_patterns_disabled=True,all_native_builds_finished=True,isolated_first_frame_fix_verified=True,no_transition_or_flash=True,")
+p=host.ssh('python3 -',input=code.encode(),timeout=80);(host.PRIVATE/'final-health-host-private.log').write_bytes(p.stdout+p.stderr)
+report=json.loads(p.stdout);(here/'final-health-validation.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report))

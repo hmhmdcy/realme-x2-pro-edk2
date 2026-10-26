@@ -1,0 +1,122 @@
+{
+  "stock_library_sha256": "c72f5ee34e9f4fcf200e4987285f6fdfef4442fd146b77a4c0d1cbf5d5525955",
+  "mesa_modified": false,
+  "kernel_modified": false,
+  "capability_failures_simulated_in_process": true,
+  "tests": [
+    {
+      "label": "vm-bind-only-capabilities",
+      "exit": 0,
+      "kernel_iova_simulated": false,
+      "en_vm_bind_rejected": 1,
+      "va_start_rejected": 0,
+      "va_size_success": 1,
+      "vm_bind_calls": 0,
+      "set_iova_calls": 0,
+      "get_iova_calls": 0,
+      "unaligned_get_iova": 0,
+      "features": {
+        "device": "Turnip Adreno (TM) 640",
+        "sparseBinding": 0,
+        "sparseResidencyBuffer": 1,
+        "bufferDeviceAddress": 1,
+        "bufferDeviceAddressCaptureReplay": 1
+      }
+    },
+    {
+      "label": "kernel-iova-capabilities",
+      "exit": 0,
+      "kernel_iova_simulated": true,
+      "en_vm_bind_rejected": 1,
+      "va_start_rejected": 1,
+      "va_size_success": 0,
+      "vm_bind_calls": 0,
+      "set_iova_calls": 0,
+      "get_iova_calls": 0,
+      "unaligned_get_iova": 0,
+      "features": {
+        "device": "Turnip Adreno (TM) 640",
+        "sparseBinding": 0,
+        "sparseResidencyBuffer": 1,
+        "bufferDeviceAddress": 1,
+        "bufferDeviceAddressCaptureReplay": 0
+      }
+    },
+    {
+      "label": "stock-gmem-holes",
+      "exit": 0,
+      "kernel_iova_simulated": true,
+      "en_vm_bind_rejected": 1,
+      "va_start_rejected": 1,
+      "va_size_success": 0,
+      "vm_bind_calls": 0,
+      "set_iova_calls": 0,
+      "get_iova_calls": 183,
+      "unaligned_get_iova": 0,
+      "pixel_result_lines": 18,
+      "pixel_log_tail": [
+        "PIXEL iteration=17 size=1080x2259 samples=4 format=97 draws=128 mismatches=0",
+        "ALL_PIXELS_PASS iterations=18 pixels=12909717 fence_ordered_lifetime=1 holes=1"
+      ],
+      "pixel_mismatches": 0,
+      "pixels_verified": 12909717,
+      "parser_corrected_from_saved_logs_without_rerun": true
+    }
+  ],
+  "before": {
+    "gpu_faults": 3,
+    "warnings": 0,
+    "dpu_timeouts": 0,
+    "dsi_errors": 0,
+    "dma_prepare": 0
+  },
+  "after": {
+    "gpu_faults": 3,
+    "warnings": 0,
+    "dpu_timeouts": 0,
+    "dsi_errors": 0,
+    "dma_prepare": 0
+  },
+  "new_gpu_faults": 0,
+  "delayed_observation_seconds": 60,
+  "desktop_preserved": true,
+  "boot_preserved": true,
+  "protected_files_preserved": true,
+  "taint": 0,
+  "pending_devcoredumps": 0,
+  "source_provenance": {
+    "mesa_version": "26.2.4",
+    "archive_sha256": "bce5f7fbebb934373b86c999a064d52fb5065878dc57f287f95346648ec832e9",
+    "official_checksum_url": "https://docs.mesa3d.org/relnotes/26.2.4.html",
+    "sources": {
+      "src/freedreno/vulkan/tu_knl_drm_msm.cc": {
+        "sha256": "86dd62b9754199fd553049677c398590e8967011487ab30df619fc4b3275358a",
+        "live_source_matches_release": true
+      },
+      "src/freedreno/vulkan/tu_device.cc": {
+        "sha256": "f70cb51cbd8f5cde788cdf747a1c8dbc2a9bc8780d46e003ee1b5d2873a602df",
+        "live_source_matches_release": true
+      },
+      "src/freedreno/drm/msm/msm_pipe.c": {
+        "sha256": "bdf41d20964859f71c391678435ed77c97972d1e101ba18f990bebdcffa68d10",
+        "live_source_matches_release": true
+      },
+      "src/gallium/drivers/freedreno/freedreno_screen.c": {
+        "sha256": "ecfd792560fe435966a86126718ab96afa9368164ded9762b1db9355fc3df393",
+        "live_source_matches_release": true
+      },
+      "src/freedreno/vulkan/tu_image.cc": {
+        "sha256": "ab1c6bb15a668c8d8a1d89f396f2e99bc60d3988d9deccc77c47eed893e62737",
+        "live_source_matches_release": true
+      },
+      "src/freedreno/fdl/fd6_layout.c": {
+        "sha256": "3b8e9408eebed252c0cd480fbc85485297a99114cf8cb0bd1f351a017739a955",
+        "live_source_matches_release": true
+      },
+      "src/freedreno/vulkan/tu_knl_drm.cc": {
+        "released_automatic_allocation_alignment": "os_page_size",
+        "patched_live_file_not_used_by_stock_ICD": true
+      }
+    }
+  }
+}

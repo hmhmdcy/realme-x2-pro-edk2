@@ -1,0 +1,141 @@
+Subject: [PATCH] drm/msm/dsi: serialize error recovery with host lifecycle
+
+The underrun worker can restore CTRL after a concurrent mode disable, or
+access registers after link clocks are disabled. Use cmd_mutex for reset,
+mode, power and command serialization and drain error work after disabling
+the IRQ. Recheck power_on under the command lock before DMA submission.
+
+---
+
+diff --git a/drivers/gpu/drm/msm/dsi/dsi_host.c b/drivers/gpu/drm/msm/dsi/dsi_host.c
+--- a/drivers/gpu/drm/msm/dsi/dsi_host.c
++++ b/drivers/gpu/drm/msm/dsi/dsi_host.c
+@@ -1580,19 +1580,26 @@
+ {
+ 	struct msm_dsi_host *msm_host =
+ 		container_of(work, struct msm_dsi_host, err_work);
+-	u32 status = msm_host->err_work_state;
++	u32 status;
++
++	/* Serialize reset with command DMA and host power/mode changes. */
++	mutex_lock(&msm_host->cmd_mutex);
++	status = msm_host->err_work_state;
+ 
+ 	trace_msm_dsi_error_work(msm_host->id, status, false);
+ 	pr_err_ratelimited("%s: status=%x\n", __func__, status);
+-	if (status & DSI_ERR_STATE_MDP_FIFO_UNDERFLOW)
++	if (msm_host->power_on &&
++	    (status & DSI_ERR_STATE_MDP_FIFO_UNDERFLOW))
+ 		dsi_sw_reset(msm_host);
+ 
+ 	/* It is safe to clear here because error irq is disabled. */
+ 	msm_host->err_work_state = 0;
+ 
+-	/* enable dsi error interrupt */
+-	dsi_intr_ctrl(msm_host, DSI_IRQ_MASK_ERROR, 1);
++	/* A late worker must not touch registers after clocks are off. */
++	if (msm_host->power_on)
++		dsi_intr_ctrl(msm_host, DSI_IRQ_MASK_ERROR, 1);
+ 	trace_msm_dsi_error_work(msm_host->id, status, true);
++	mutex_unlock(&msm_host->cmd_mutex);
+ }
+ 
+ static void dsi_ack_err_status(struct msm_dsi_host *msm_host)
+@@ -1809,11 +1816,14 @@
+ 	struct msm_dsi_host *msm_host = to_msm_dsi_host(host);
+ 	int ret;
+ 
+-	if (!msg || !msm_host->power_on)
++	if (!msg)
+ 		return -EINVAL;
+ 
+ 	mutex_lock(&msm_host->cmd_mutex);
+-	ret = msm_dsi_manager_cmd_xfer(msm_host->id, msg);
++	if (!msm_host->power_on)
++		ret = -EINVAL;
++	else
++		ret = msm_dsi_manager_cmd_xfer(msm_host->id, msg);
+ 	mutex_unlock(&msm_host->cmd_mutex);
+ 
+ 	return ret;
+@@ -2464,12 +2474,16 @@
+ 	struct msm_dsi_host *msm_host = to_msm_dsi_host(host);
+ 
+ 	disable_irq(msm_host->irq);
++	/* No new error work can be queued; drain it while clocks are on. */
++	cancel_work_sync(&msm_host->err_work);
++	msm_host->err_work_state = 0;
+ }
+ 
+ int msm_dsi_host_enable(struct mipi_dsi_host *host)
+ {
+ 	struct msm_dsi_host *msm_host = to_msm_dsi_host(host);
+ 
++	mutex_lock(&msm_host->cmd_mutex);
+ 	dsi_op_mode_config(msm_host,
+ 		!!(msm_host->mode_flags & MIPI_DSI_MODE_VIDEO), true);
+ 
+@@ -2483,6 +2497,7 @@
+ 	 * }
+ 	 */
+ 	msm_host->enabled = true;
++	mutex_unlock(&msm_host->cmd_mutex);
+ 	return 0;
+ }
+ 
+@@ -2490,6 +2505,7 @@
+ {
+ 	struct msm_dsi_host *msm_host = to_msm_dsi_host(host);
+ 
++	mutex_lock(&msm_host->cmd_mutex);
+ 	msm_host->enabled = false;
+ 	dsi_op_mode_config(msm_host,
+ 		!!(msm_host->mode_flags & MIPI_DSI_MODE_VIDEO), false);
+@@ -2499,6 +2515,7 @@
+ 	 * Reset to disable video engine so that we can send off cmd.
+ 	 */
+ 	dsi_sw_reset(msm_host);
++	mutex_unlock(&msm_host->cmd_mutex);
+ 
+ 	return 0;
+ }
+@@ -2526,6 +2543,7 @@
+ 	int ret = 0;
+ 
+ 	mutex_lock(&msm_host->dev_mutex);
++	mutex_lock(&msm_host->cmd_mutex);
+ 	if (msm_host->power_on) {
+ 		DBG("dsi host already on");
+ 		goto unlock_ret;
+@@ -2565,6 +2583,7 @@
+ 	dsi_ctrl_enable(msm_host, phy_shared_timings, phy);
+ 
+ 	msm_host->power_on = true;
++	mutex_unlock(&msm_host->cmd_mutex);
+ 	mutex_unlock(&msm_host->dev_mutex);
+ 
+ 	return 0;
+@@ -2576,6 +2595,7 @@
+ 	regulator_bulk_disable(msm_host->cfg_hnd->cfg->num_regulators,
+ 			       msm_host->supplies);
+ unlock_ret:
++	mutex_unlock(&msm_host->cmd_mutex);
+ 	mutex_unlock(&msm_host->dev_mutex);
+ 	return ret;
+ }
+@@ -2586,6 +2606,7 @@
+ 	const struct msm_dsi_cfg_handler *cfg_hnd = msm_host->cfg_hnd;
+ 
+ 	mutex_lock(&msm_host->dev_mutex);
++	mutex_lock(&msm_host->cmd_mutex);
+ 	if (!msm_host->power_on) {
+ 		DBG("dsi host already off");
+ 		goto unlock_ret;
+@@ -2608,6 +2629,7 @@
+ 	msm_host->power_on = false;
+ 
+ unlock_ret:
++	mutex_unlock(&msm_host->cmd_mutex);
+ 	mutex_unlock(&msm_host->dev_mutex);
+ 	return 0;
+ }

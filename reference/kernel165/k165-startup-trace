@@ -1,0 +1,26 @@
+#!/sbin/openrc-run
+name="k165 startup trace"
+description="Single boot DSI lifecycle and display startup observation"
+command="/usr/bin/python3"
+command_args="-u /var/lib/samurai/k165-tools/capture-startup.py"
+command_background="yes"
+pidfile="/run/k165-startup-trace.pid"
+output_log="/var/lib/samurai/k165-tools/startup-output-private.log"
+error_log="/var/lib/samurai/k165-tools/startup-error-private.log"
+
+depend() {
+    need localmount
+    after bootmisc
+    before greetd
+}
+
+start_pre() {
+    umask 077
+    uname -v > /var/lib/samurai/k165-tools/service-entry-private.txt
+    uname -v | grep -q '^#163 ' || return 1
+    test ! -e /var/lib/samurai/k165-first-startup || return 1
+    test -r /var/lib/samurai/k165-preflash/boot-id-private.txt || return 1
+    if ! mountpoint -q /sys/kernel/tracing; then
+        mount -t tracefs tracefs /sys/kernel/tracing || return 1
+    fi
+}

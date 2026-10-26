@@ -1,0 +1,38 @@
+{
+  "schema": "samurai-rollback-connected-contract-v1",
+  "source_only_default": true,
+  "actual_runtime_material_generated": false,
+  "actual_device_or_transport_accessed": false,
+  "binder_sha256": "6537bd2c0c500239c0289fd5f1c5114c719366830bcb0d7f76124511bd709b50",
+  "worker_sha256": "f0767ce2506f500b5893ddfdf28f7aa7d7a4d0930ccde092970170f1b7fa4142",
+  "request_schema": "samurai-usb-irq-protection-rollback-request-v1",
+  "transaction_regex": "usb-irq-protection-rollback-[a-z0-9-]{8,48}",
+  "API": {
+    "bind": "bind(transaction,profile,stage_directory,stage_fetch_directory,probe_directory,context=None)",
+    "transfer": "transfer(action,transaction,window_confirmed=False)"
+  },
+  "profiles": [
+    "staged_same_boot_old_resident",
+    "booted_irq_new_resident",
+    "booted_original_new_resident"
+  ],
+  "actions": [
+    "launch",
+    "status",
+    "fetch"
+  ],
+  "lease_boottime_seconds": 120,
+  "parent_wait_seconds": 35,
+  "parent_timeout": "pending; original owner continues; no lease extension",
+  "owner_chains": [
+    "detached local owner -> exact SSH Popen communicate/owned EOF/actual finally wait/closed logs/exact terminal",
+    "detached device supervisor -> fsynced regular request FD -> exact restore-worker Popen/actual finally wait"
+  ],
+  "source_boot_changed": "fetch original bytes; source_boot_ended; never attribute current same PID",
+  "once_outcome_unknown": "fetch/status original transaction only; no kill/retry/replay",
+  "original_launch_required": "exact intent/input/action + terminal0 + original response transaction/request + original supervisor receipt",
+  "success_only": "staged_original/runtime_pending",
+  "runtime_validation_accepted": false,
+  "no_module_or_carrier_or_restart_or_AUTO_operation": true,
+  "old_unchanged_suites_rerun": false
+}

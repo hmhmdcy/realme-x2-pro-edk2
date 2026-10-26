@@ -1,0 +1,64 @@
+--- a/src/libcamera/sensor/camera_sensor_properties.cpp
++++ b/src/libcamera/sensor/camera_sensor_properties.cpp
+@@ -251,6 +251,17 @@
+ 				.hblankDelay = 2
+ 			},
+ 		} },
++		{ "imx319", {
++			.unitCellSize = { 1400, 1400 },
++			.testPatternModes = {
++				{ controls::draft::TestPatternModeOff, 0 },
++				{ controls::draft::TestPatternModeSolidColor, 1 },
++				{ controls::draft::TestPatternModeColorBars, 2 },
++				{ controls::draft::TestPatternModeColorBarsFadeToGray, 3 },
++				{ controls::draft::TestPatternModePn9, 4 },
++			},
++			.sensorDelays = { },
++		} },
+ 		{ "imx327", {
+ 			.unitCellSize = { 2900, 2900 },
+ 			.testPatternModes = {},
+@@ -530,6 +541,27 @@
+ 			},
+ 			.sensorDelays = { },
+ 		} },
++		{ "s5k3m5", {
++			.unitCellSize = { 1000, 1000 },
++			.testPatternModes = {
++				{ controls::draft::TestPatternModeOff, 0 },
++				{ controls::draft::TestPatternModeSolidColor, 1 },
++				{ controls::draft::TestPatternModeColorBars, 2 },
++				{ controls::draft::TestPatternModeColorBarsFadeToGray, 3 },
++				{ controls::draft::TestPatternModePn9, 4 },
++			},
++			.sensorDelays = { },
++		} },
++		{ "s5kgw1", {
++			.unitCellSize = { 800, 800 },
++			.testPatternModes = {
++				{ controls::draft::TestPatternModeOff, 0 },
++				/* V4L2 menu index1 programs register value2. */
++				{ controls::draft::TestPatternModeColorBars, 1 },
++				/* Shade Color Bars (index2) lacks a confirmed standard map. */
++			},
++			.sensorDelays = { },
++		} },
+ 		{ "vd55g1", {
+ 			.unitCellSize = { 2160, 2160 },
+ 			.testPatternModes = {
+--- a/src/libcamera/v4l2_subdevice.cpp
++++ b/src/libcamera/v4l2_subdevice.cpp
+@@ -403,6 +403,13 @@
+ 		.code = MEDIA_BUS_FMT_YUV10_1X30,
+ 		.type = MediaBusFormatInfo::Type::Image,
+ 		.bitsPerPixel = 30,
++		.colourEncoding = PixelFormatInfo::ColourEncodingYUV,
++	} },
++	{ MEDIA_BUS_FMT_UYYVYY10_0_5X30, {
++		.name = "UYYVYY10_0_5X30",
++		.code = MEDIA_BUS_FMT_UYYVYY10_0_5X30,
++		.type = MediaBusFormatInfo::Type::Image,
++		.bitsPerPixel = 15,
+ 		.colourEncoding = PixelFormatInfo::ColourEncodingYUV,
+ 	} },
+ 	{ MEDIA_BUS_FMT_AYUV8_1X32, {

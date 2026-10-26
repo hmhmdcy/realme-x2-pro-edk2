@@ -1,0 +1,81 @@
+{
+  "passed": true,
+  "returncode": 0,
+  "private_output": "/home/cy122/charging-management-20261023/tcpm-apsd-handoff-objects-02",
+  "parent_inputs_unchanged": true,
+  "parent_mounts_unchanged": true,
+  "free_bytes_before": {
+    "/home/cy122": 825055698944,
+    "/mnt/e": 152592461824
+  },
+  "phone_accessed": false,
+  "new_Image": false,
+  "installed": false,
+  "build": {
+    "passed": true,
+    "returncode": 0,
+    "seconds": 3.2509783380000954,
+    "objects": {
+      "drivers/usb/typec/tcpm/qcom/qcom_pmic_typec.o": "49399e36743f3a5eb5c468a6d801910e4f84aaba55acebfe59a300a70f24c1f3",
+      "drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_port.o": "1d0febc2cdb88e333513bb66837fd1516a5357c36a6f981d0264840de79bfe59",
+      "drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_pdphy.o": "3ea8b549f49e2fd76647f092848d80856ca4e41a4d5eb8544efe073999d617f3",
+      "drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_pdphy_stub.o": "4e46b3f8cdd4e6984b727f179d0de7ce00bd553428247fb3b3f5cec49a312665",
+      "drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_apsd.o": "cffb55786c5441b03b79fe055f8bc236aab1abee66b291acdefd8048c0116467",
+      "drivers/usb/dwc3/samurai-apsd-owner.o": "f98dac67d3035903f235818854da2fa48b1d1fa983b3f23dd6b8b3f20c3848ec"
+    },
+    "diagnostics": [],
+    "symbols": {
+      "drivers/usb/typec/tcpm/qcom/qcom_pmic_typec.o": [
+        "U qcom_pmic_typec_apsd_prepare"
+      ],
+      "drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_port.o": [],
+      "drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_pdphy.o": [
+        "U qcom_pmic_typec_apsd_verify"
+      ],
+      "drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_pdphy_stub.o": [],
+      "drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_apsd.o": [
+        "0000000000000108 T qcom_pmic_typec_apsd_prepare",
+        "0000000000000360 T qcom_pmic_typec_apsd_verify",
+        "U samurai_apsd_tcpm_quiesce",
+        "U samurai_apsd_tcpm_release"
+      ],
+      "drivers/usb/dwc3/samurai-apsd-owner.o": [
+        "0000000000000018 d __UNIQUE_ID_addressable_samurai_apsd_tcpm_quiesce_673",
+        "0000000000000010 d __UNIQUE_ID_addressable_samurai_apsd_tcpm_release_674",
+        "0000000000000000 r __export_symbol_samurai_apsd_tcpm_quiesce",
+        "0000000000000010 r __export_symbol_samurai_apsd_tcpm_release",
+        "0000000000000ae0 T samurai_apsd_tcpm_quiesce",
+        "0000000000000080 T samurai_apsd_tcpm_release"
+      ]
+    },
+    "unchanged_build_inputs": [
+      ".config",
+      "arch/arm64/boot/Image",
+      "vmlinux.symvers",
+      "modules.builtin",
+      "modules.builtin.modinfo",
+      "usr/initramfs_data.cpio",
+      "drivers/power/supply/bq27xxx_battery.o"
+    ],
+    "baseline_sources": {
+      "drivers/usb/dwc3/samurai-apsd-owner.c": "77c9e3fbca3a9578b3772fa5ec70d5282460729181cc33e9e62224e46e743551",
+      "drivers/usb/typec/tcpm/qcom/qcom_pmic_typec.c": "f8822a59467c5472b3caceab112ac8d6c9c4c8d7efe5287bbfb2e98489cf08d4",
+      "drivers/usb/typec/tcpm/qcom/qcom_pmic_typec.h": "b6a2172959be14e5bd4074bea496bb460d05ff2fd18253f6a2d2d8e9e3e3c988",
+      "drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_pdphy.c": "12b9dd9189e3aa77baf7d5c84042e88f2343deb9adac4ed00e079ba7ffec25a9",
+      "drivers/usb/typec/tcpm/qcom/Makefile": "0e71eeda4d8e7f688285e2ce3811ee94476f6899bd526e4262649494e905d54c",
+      "include/linux/usb/samurai-tcpm-apsd.h": null,
+      "drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_apsd.h": null,
+      "drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_apsd.c": null
+    },
+    "sources": {
+      "drivers/usb/dwc3/samurai-apsd-owner.c": "f2f5d44edd1e7abff234604c7badde4e9d62773502576e15d493c009beacd2d6",
+      "drivers/usb/typec/tcpm/qcom/qcom_pmic_typec.c": "229b0c5922ee00e7a598fedf73c222cd80ce1c7290f5fafda59c1df23a3d584b",
+      "drivers/usb/typec/tcpm/qcom/qcom_pmic_typec.h": "e428414f206953383a5347a2f95a8a664b114a0b43f53cfc0a9d3dbe9c6e4542",
+      "drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_pdphy.c": "dc7bd93006354183e3c97653a6394ce6738913fbde49b02910ca463bb6bebad3",
+      "drivers/usb/typec/tcpm/qcom/Makefile": "a5f4096cc778834efe6db3f3e4fa7ad4b894dc33723582d7703c1c9b42adb4e5",
+      "include/linux/usb/samurai-tcpm-apsd.h": "e29553f5aeec1053db0107a9a928cde5fede9fc56afacd54773dfd175c7a66d6",
+      "drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_apsd.h": "ef09efddb3810898fca0cbf8d9547761c1cb7b8e1c1baf2a3c7217c31c11b08e",
+      "drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_apsd.c": "3a007ccc35426c32d87a30b9ea316bc8324f389c68b12d22efa9f782f820a459"
+    }
+  }
+}

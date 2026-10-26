@@ -1,0 +1,227 @@
+diff --git a/drivers/media/platform/qcom/camss/Makefile b/drivers/media/platform/qcom/camss/Makefile
+index 1fa700903..bfad33a33 100644
+--- a/drivers/media/platform/qcom/camss/Makefile
++++ b/drivers/media/platform/qcom/camss/Makefile
+@@ -27,6 +27,7 @@ qcom-camss-objs += \
+ 		camss-vfe-175-output.o \
+ 		camss-vfe-175-pixel.o \
+ 		camss-vfe-175-lsc.o \
++		camss-vfe-175-ccm.o \
+ 		camss-vfe-175-stats.o \
+ 		camss-vfe-175-demosaic.o \
+ 		camss-vfe-175-cst.o \
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe-175-ccm.c b/drivers/media/platform/qcom/camss/camss-vfe-175-ccm.c
+new file mode 100644
+index 000000000..7cc5aef4b
+--- /dev/null
++++ b/drivers/media/platform/qcom/camss/camss-vfe-175-ccm.c
+@@ -0,0 +1,102 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/* VFE175 colour correction. Matrices and tuning policy stay in userspace. */
++#include <linux/bitfield.h>
++#include <linux/io.h>
++#include <linux/qcom-camss-config.h>
++#include "camss.h"
++#include "camss-vfe.h"
++#include "camss-vfe-175-ccm.h"
++
++#define COLOR_ENABLE	0x048
++#define CCM_ENABLE	BIT(1)
++#define CCM_COEFF0	0x760
++#define CCM_OFFSET0	0x784
++#define CCM_QFACTOR	0x790
++#define CCM_COEFF_MASK	(GENMASK(11, 0) | GENMASK(27, 16))
++#define CCM_OFFSET_MASK	(GENMASK(10, 0) | GENMASK(26, 16))
++#define CCM_Q_MASK	(GENMASK(1, 0) | GENMASK(17, 16))
++
++static void ccm_enable(struct vfe_device *vfe, bool enable)
++{
++	u32 value = readl_relaxed(vfe->base + COLOR_ENABLE);
++
++	value &= ~CCM_ENABLE;
++	if (enable)
++		value |= CCM_ENABLE;
++	writel_relaxed(value, vfe->base + COLOR_ENABLE);
++}
++
++static void ccm_write(struct vfe_device *vfe, unsigned int offset,
++		      u32 mask, u16 field)
++{
++	u32 value = readl_relaxed(vfe->base + offset);
++
++	/* Apply the same matrix to both hardware stripe fields. */
++	value = (value & ~mask) | ((u32)field | ((u32)field << 16));
++	writel_relaxed(value, vfe->base + offset);
++}
++
++int vfe_175_ccm_validate(struct device *dev,
++			 const struct v4l2_isp_block_header *block)
++{
++	const struct camss_params_color_correct *ccm;
++	unsigned int i;
++
++	(void)dev;
++	if (block->flags & ~(V4L2_ISP_PARAMS_FL_BLOCK_ENABLE |
++			     V4L2_ISP_PARAMS_FL_BLOCK_DISABLE) ||
++	    block->flags == (V4L2_ISP_PARAMS_FL_BLOCK_ENABLE |
++			     V4L2_ISP_PARAMS_FL_BLOCK_DISABLE))
++		return -EINVAL;
++	/* Header-only disable is valid; its payload must never be read. */
++	if (block->flags & V4L2_ISP_PARAMS_FL_BLOCK_DISABLE)
++		return 0;
++	ccm = container_of(block, struct camss_params_color_correct, header);
++	if (ccm->qfactor > 3 || ccm->_pad[0] || ccm->_pad[1] || ccm->_pad[2])
++		return -EINVAL;
++	for (i = 0; i < 3; i++)
++		if (ccm->a[i] > 0xfff || ccm->b[i] > 0xfff ||
++		    ccm->c[i] > 0xfff || ccm->k[i] > 0x7ff)
++			return -EINVAL;
++	return 0;
++}
++
++void vfe_175_ccm_params(struct vfe_device *vfe,
++			const struct v4l2_isp_block_header *block)
++{
++	const struct camss_params_color_correct *ccm;
++	unsigned int i;
++
++	if (block->flags & V4L2_ISP_PARAMS_FL_BLOCK_DISABLE) {
++		ccm_enable(vfe, false);
++		return;
++	}
++	ccm = container_of(block, struct camss_params_color_correct, header);
++	for (i = 0; i < 3; i++) {
++		ccm_write(vfe, CCM_COEFF0 + i * 12, CCM_COEFF_MASK, ccm->a[i]);
++		ccm_write(vfe, CCM_COEFF0 + i * 12 + 4, CCM_COEFF_MASK, ccm->b[i]);
++		ccm_write(vfe, CCM_COEFF0 + i * 12 + 8, CCM_COEFF_MASK, ccm->c[i]);
++		ccm_write(vfe, CCM_OFFSET0 + i * 4, CCM_OFFSET_MASK, ccm->k[i]);
++	}
++	ccm_write(vfe, CCM_QFACTOR, CCM_Q_MASK, ccm->qfactor);
++	if (block->flags & V4L2_ISP_PARAMS_FL_BLOCK_ENABLE)
++		ccm_enable(vfe, true);
++}
++
++void vfe_175_ccm_init(struct vfe_device *vfe)
++{
++	const struct camss_params_color_correct unity = {
++		.header = { .type = CAMSS_PARAMS_COLOR_CORRECT },
++		.a = { 128, 0, 0 },
++		.b = { 0, 128, 0 },
++		.c = { 0, 0, 128 },
++	};
++
++	ccm_enable(vfe, false);
++	vfe_175_ccm_params(vfe, &unity.header);
++}
++
++void vfe_175_ccm_stop(struct vfe_device *vfe)
++{
++	ccm_enable(vfe, false);
++}
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe-175-ccm.h b/drivers/media/platform/qcom/camss/camss-vfe-175-ccm.h
+new file mode 100644
+index 000000000..b788b95ae
+--- /dev/null
++++ b/drivers/media/platform/qcom/camss/camss-vfe-175-ccm.h
+@@ -0,0 +1,16 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++#ifndef CAMSS_VFE_175_CCM_H
++#define CAMSS_VFE_175_CCM_H
++
++struct device;
++struct vfe_device;
++struct v4l2_isp_block_header;
++
++int vfe_175_ccm_validate(struct device *dev,
++			 const struct v4l2_isp_block_header *block);
++void vfe_175_ccm_params(struct vfe_device *vfe,
++			const struct v4l2_isp_block_header *block);
++void vfe_175_ccm_init(struct vfe_device *vfe);
++void vfe_175_ccm_stop(struct vfe_device *vfe);
++
++#endif
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe-175-pixel.c b/drivers/media/platform/qcom/camss/camss-vfe-175-pixel.c
+index 79eb01c0d..ba6a2e52c 100644
+--- a/drivers/media/platform/qcom/camss/camss-vfe-175-pixel.c
++++ b/drivers/media/platform/qcom/camss/camss-vfe-175-pixel.c
+@@ -13,6 +13,7 @@
+ #include "camss-vfe-175-round.h"
+ #include "camss-vfe-175-gamma.h"
+ #include "camss-vfe-175-lsc.h"
++#include "camss-vfe-175-ccm.h"
+ #include "camss-vfe-175-demux.h"
+ #include "camss-vfe-175-mnds.h"
+ 
+@@ -159,7 +160,7 @@ const struct v4l2_isp_params_block_type_info vfe_175_params_info[7] = {
+ 	},
+ 	[CAMSS_PARAMS_COLOR_CORRECT] = {
+ 		.size = sizeof(struct camss_params_color_correct),
+-		.block_validate = vfe_175_params_unsupported,
++		.block_validate = vfe_175_ccm_validate,
+ 	},
+ 	[CAMSS_PARAMS_GAMMA] = {
+ 		.size = sizeof(struct camss_params_gamma),
+@@ -228,6 +229,7 @@ int vfe_175_pixel_prepare(struct vfe_line *line)
+ 	};
+ 	vfe_175_wb_write(vfe);
+ 	vfe_175_lsc_init(vfe);
++	vfe_175_ccm_init(vfe);
+ 	ret = vfe_175_stats_prepare(line);
+ 	if (ret)
+ 		goto error;
+@@ -243,6 +245,7 @@ void vfe_175_pixel_stop(struct vfe_device *vfe)
+ {
+ 	vfe_175_blc_enable(vfe, false);
+ 	vfe_175_lsc_stop(vfe);
++	vfe_175_ccm_stop(vfe);
+ 	vfe_175_round_stop(vfe);
+ 	vfe_175_mnds_stop(vfe);
+ 	vfe_175_gamma_stop(vfe);
+@@ -264,6 +267,11 @@ void vfe_175_params_apply(struct vfe_device *vfe, struct vfe_line *line,
+ 			(const void *)&params->data[offset];
+ 		const struct camss_params_wb_gain *wb;
+ 
++		if (block->type == CAMSS_PARAMS_COLOR_CORRECT) {
++			vfe_175_ccm_params(vfe, block);
++			offset += block->size;
++			continue;
++		}
+ 		if (block->type == CAMSS_PARAMS_LSC) {
+ 			vfe_175_lsc_params(vfe, block);
+ 			offset += block->size;
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe-17x.c b/drivers/media/platform/qcom/camss/camss-vfe-17x.c
+index 46fa27425..a92ca6583 100644
+--- a/drivers/media/platform/qcom/camss/camss-vfe-17x.c
++++ b/drivers/media/platform/qcom/camss/camss-vfe-17x.c
+@@ -743,7 +743,7 @@ static void vfe_output_update_175(struct vfe_device *vfe,
+ /* SM8150 full IFE: shared RDI transport, matched CAMIF and FULL DMA. */
+ const struct vfe_hw_ops vfe_ops_175 = {
+ 	.vfe_stats_fill = vfe_175_stats_fill,
+-	.params_max_payload = CAMSS_PARAMS_IFE_LSC_MAX_PAYLOAD,
++	.params_max_payload = CAMSS_PARAMS_IFE_COLOR_MAX_PAYLOAD,
+ 	.params_validate = vfe_175_params_validate_line,
+ 	.params_info = vfe_175_params_info,
+ 	.params_num_types = ARRAY_SIZE(vfe_175_params_info),
+diff --git a/include/uapi/linux/qcom-camss-config.h b/include/uapi/linux/qcom-camss-config.h
+index cb37f990f..f783d5314 100644
+--- a/include/uapi/linux/qcom-camss-config.h
++++ b/include/uapi/linux/qcom-camss-config.h
+@@ -152,7 +152,7 @@ struct camss_params_chroma_enhan {
+  *           a[0]=Out_G, a[1]=Out_B, a[2]=Out_R)
+  * @b:       B-input coefficients (12s)
+  * @c:       R-input coefficients (12s)
+- * @k:       per-output-channel offsets (typically 9s effective)
++ * @k:       per-output-channel offsets (VFE175 uses 11 signed bits)
+  * @qfactor: Q-format selector (2u):
+  *           0 = 12sQ7  (range ~-16.0 .. +15.992)
+  *           1 = 12sQ8  (range  ~-8.0 ..  +7.996)
+@@ -278,6 +278,9 @@ struct camss_params_lsc {
+ #define CAMSS_PARAMS_IFE_LSC_MAX_PAYLOAD \
+ 	(CAMSS_PARAMS_IFE_MAX_PAYLOAD + sizeof(struct camss_params_lsc))
+ 
++#define CAMSS_PARAMS_IFE_COLOR_MAX_PAYLOAD \
++	(CAMSS_PARAMS_IFE_LSC_MAX_PAYLOAD + sizeof(struct camss_params_color_correct))
++
+ /**
+  * enum camss_stats_block_type - CAMSS ISP statistics block identifiers
+  *

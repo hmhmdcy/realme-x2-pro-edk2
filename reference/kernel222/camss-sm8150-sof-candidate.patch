@@ -1,0 +1,111 @@
+Subject: [PATCH] media: camss: expose SM8150 VFE start-of-frame events
+
+Provide the existing RDI SOF interrupt to userspace through the standard
+subdevice FRAME_SYNC event. Keep the SOF sequence independent of completed
+buffers and reset it at stream start. Retain all IRQ masks and power
+policy.
+
+This is a development prerequisite for truthful delayed control
+association. Buffer sequence mapping and userspace pairing still
+require validation.
+
+---
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe.h b/drivers/media/platform/qcom/camss/camss-vfe.h
+--- a/drivers/media/platform/qcom/camss/camss-vfe.h
++++ b/drivers/media/platform/qcom/camss/camss-vfe.h
+@@ -77,6 +77,7 @@
+ 	};
+ 	enum vfe_output_state state;
+ 	unsigned int sequence;
++	unsigned int sof_sequence;
+ 
+ 	int wait_reg_update;
+ 	struct completion sof;
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe.c b/drivers/media/platform/qcom/camss/camss-vfe.c
+--- a/drivers/media/platform/qcom/camss/camss-vfe.c
++++ b/drivers/media/platform/qcom/camss/camss-vfe.c
+@@ -20,6 +20,7 @@
+ #include <linux/spinlock.h>
+ #include <media/media-entity.h>
+ #include <media/v4l2-device.h>
++#include <media/v4l2-event.h>
+ #include <media/v4l2-subdev.h>
+ 
+ #include "camss-vfe.h"
+@@ -541,6 +542,7 @@
+ 	output->state = VFE_OUTPUT_ON;
+ 
+ 	output->sequence = 0;
++	output->sof_sequence = 0;
+ 	output->wait_reg_update = 0;
+ 	reinit_completion(&output->reg_update);
+ 
+@@ -1967,7 +1969,22 @@
+ 	return 0;
+ }
+ 
++static int vfe_subscribe_event(struct v4l2_subdev *sd, struct v4l2_fh *fh,
++			       struct v4l2_event_subscription *sub)
++{
++	struct vfe_line *line = v4l2_get_subdevdata(sd);
++	struct vfe_device *vfe = to_vfe(line);
++
++	if (vfe->camss->res->version != CAMSS_8150 ||
++	    sub->type != V4L2_EVENT_FRAME_SYNC || sub->id)
++		return -EINVAL;
++
++	return v4l2_event_subscribe(fh, sub, 16, NULL);
++}
++
+ static const struct v4l2_subdev_core_ops vfe_core_ops = {
++	.subscribe_event = vfe_subscribe_event,
++	.unsubscribe_event = v4l2_event_subdev_unsubscribe,
+ 	.s_power = vfe_set_power,
+ };
+ 
+@@ -2075,6 +2092,8 @@
+ 		v4l2_subdev_init(sd, &vfe_v4l2_ops);
+ 		sd->internal_ops = &vfe_v4l2_internal_ops;
+ 		sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
++		if (vfe->camss->res->version == CAMSS_8150)
++			sd->flags |= V4L2_SUBDEV_FL_HAS_EVENTS;
+ 		if (i == VFE_LINE_PIX && vfe->res->is_lite == false)
+ 			snprintf(sd->name, ARRAY_SIZE(sd->name), "%s%d_%s",
+ 				 MSM_VFE_NAME, vfe->id, "pix");
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe-17x.c b/drivers/media/platform/qcom/camss/camss-vfe-17x.c
+--- a/drivers/media/platform/qcom/camss/camss-vfe-17x.c
++++ b/drivers/media/platform/qcom/camss/camss-vfe-17x.c
+@@ -10,6 +10,8 @@
+ #include <linux/interrupt.h>
+ #include <linux/io.h>
+ #include <linux/iopoll.h>
++
++#include <media/v4l2-event.h>
+ 
+ #include "camss.h"
+ #include "camss-vfe.h"
+@@ -474,7 +476,23 @@
+  */
+ static void vfe_isr_sof(struct vfe_device *vfe, enum vfe_line_id line_id)
+ {
+-	/* nop */
++	struct v4l2_event event = { .type = V4L2_EVENT_FRAME_SYNC };
++	struct vfe_output *output;
++	unsigned long flags;
++
++	if (vfe->camss->res->version != CAMSS_8150)
++		return;
++
++	spin_lock_irqsave(&vfe->output_lock, flags);
++	output = &vfe->line[line_id].output;
++	if (output->state != VFE_OUTPUT_ON) {
++		spin_unlock_irqrestore(&vfe->output_lock, flags);
++		return;
++	}
++	event.u.frame_sync.frame_sequence = output->sof_sequence++;
++	spin_unlock_irqrestore(&vfe->output_lock, flags);
++
++	v4l2_subdev_notify_event(&vfe->line[line_id].subdev, &event);
+ }
+ 
+ /*

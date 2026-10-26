@@ -1,0 +1,99 @@
+Actual source354 / drivers/tty/serial/eud.c
+
+619: /* Length 2 reboots to bootloader. Disable EUD first so
+620:  * the USB PHY goes back to the gadget/ABL, else the host never sees fastboot. */
+621: static bool eud_reboot_pending;
+622: 
+623: static void eud_restore_ahb2phy(struct eud_port *up)
+624: {
+625:         writel(up->original_ahb2phy_cfg, up->ahb2phy_cfg);
+626:         /* Complete restoration before handing the PHY back to ABL. */
+627:         readl(up->ahb2phy_cfg);
+628: }
+
+651: static void eud_reboot_cmd(struct eud_port *up, unsigned int len)
+652: {
+653: 	unsigned long flags;
+654: 	const char *what;
+655: 
+656: 	if (eud_reboot_pending)
+657: 		return;
+658: 	if (len == 2)
+659: 		what = "bootloader";
+660: 	else
+661: 		return;
+662: 	eud_reboot_pending = true;
+663: 
+664: 	uart_port_lock_irqsave(&up->port, &flags);
+665: 	up->rx_stopping = true;
+666: 	eud_rx_irq_stop_locked(up, 0);
+667: 	uart_port_unlock_irqrestore(&up->port, flags);
+668: 	if (up->rx_irq_requested)
+669: 		synchronize_irq(up->rx_irq);
+670: 
+671: 	pr_info("eud: reboot2 %s requested\n", what);
+672: 	/*
+673: 	 * The F1 notice is queued by RX work. With nbcon, printk returning
+674: 	 * does not mean its frames have reached the FIFO. Drain the queued
+675: 	 * records before retiring the printer and giving the PHY back to ABL.
+676: 	 * Do not hold tx_mutex while waiting for the printer that needs it.
+677: 	 */
+678: 	pr_flush(1000, true);
+679: 	if (up->console_registered) {
+680: 		unregister_console(&eud_console);
+681: 		up->console_registered = false;
+682: 	}
+683: 
+684: 	/* Serialize the last TTY writer with hardware shutdown as well. */
+685: 	mutex_lock(&up->tx_mutex);
+686: 	uart_port_lock_irqsave(&up->port, &flags);
+687: 	up->tx_stopping = true;
+688: 	uart_port_unlock_irqrestore(&up->port, flags);
+689: 	eud_restore_ahb2phy(up);
+690: 	writel(0, up->port.membase + EUD_REG_CSR_EUD_EN);
+691: 	readl(up->port.membase + EUD_REG_CSR_EUD_EN);
+692: 	mutex_unlock(&up->tx_mutex);
+693: 	kernel_restart((char *)what);
+
+1377: }
+1378: 
+1379: static void eud_remove(struct platform_device *pdev)
+1380: {
+1381:         struct uart_port *port = platform_get_drvdata(pdev);
+1382:         struct eud_port *up = to_eud_port(port);
+1383:         unsigned long flags;
+1384: 
+1385:         uart_port_lock_irqsave(port, &flags);
+1386:         up->rx_stopping = true;
+1387:         eud_rx_irq_stop_locked(up, 0);
+1388:         uart_port_unlock_irqrestore(port, flags);
+1389:         if (up->rx_irq_requested) {
+1390:                 free_irq(up->rx_irq, up);
+1391:                 up->rx_irq_requested = false;
+1392:         }
+1393:         cancel_delayed_work_sync(&up->rx_work);
+1394:         cancel_work_sync(&up->tx_work);
+1395:         if (up->console_registered)
+1396:                 unregister_console(&eud_console);
+1397:         uart_remove_one_port(&eud_uart_driver, port);
+1398:         eud_restore_ahb2phy(up);
+1399:         if (up->rx_irq_mapping_owned)
+1400:                 irq_dispose_mapping(up->rx_irq);
+1401:         eud = NULL;
+1402: }
+1403: 
+1404: static const struct of_device_id eud_com_dt_match[] = {
+1405:         { .compatible = "qcom,sm8150-eud-com" },
+1406:         { }
+1407: };
+1408: MODULE_DEVICE_TABLE(of, eud_com_dt_match);
+1409: 
+1410: static struct platform_driver eud_com_driver = {
+1411:         .probe  = eud_probe,
+1412:         .remove = eud_remove,
+1413:         .driver = {
+1414:                 .name           = "qcom_eud_com",
+1415:                 .of_match_table = eud_com_dt_match,
+1416:                 .dev_groups     = eud_groups,
+1417:         },
+1418: };

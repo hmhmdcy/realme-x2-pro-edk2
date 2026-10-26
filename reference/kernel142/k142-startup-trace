@@ -1,0 +1,36 @@
+#!/sbin/openrc-run
+name="k142 startup trace"
+description="One boot observation of display, interrupts and CPU idle"
+required_files="/var/lib/samurai/k142-pre-reboot/capture-next-startup.py /var/lib/samurai/k142-preflash/boot-id-private.txt"
+
+depend() {
+    need localmount
+    before greetd
+}
+
+start_pre() {
+    test ! -e /var/lib/samurai/k142-reboot140-startup || return 1
+    /usr/bin/python3 /var/lib/samurai/k142-pre-reboot/check-new-boot.py >/dev/null || return 1
+    if ! mountpoint -q /sys/kernel/tracing; then
+        mount -t tracefs tracefs /sys/kernel/tracing || return 1
+    fi
+    test -d /sys/kernel/tracing/events || return 1
+}
+
+start() {
+    ebegin "Record k142 startup interrupt and idle events"
+    start-stop-daemon --start --background --make-pidfile \
+        --pidfile /run/k142-startup-trace.pid \
+        --stdout /var/lib/samurai/k142-pre-reboot/recorder-private.log \
+        --stderr /var/lib/samurai/k142-pre-reboot/recorder-error-private.log \
+        --exec /usr/bin/python3 -- -u /var/lib/samurai/k142-pre-reboot/capture-next-startup.py
+    eend $?
+}
+
+stop() {
+    ebegin "Remove completed k142 recorder service state"
+    test -f /var/lib/samurai/k142-reboot140-startup/complete-private.txt && \
+        test ! -d /sys/kernel/tracing/instances/k142-startup || { eend 1; return 1; }
+    rm -f /run/k142-startup-trace.pid
+    eend 0
+}

@@ -1,0 +1,23 @@
+--- before/usr/local/sbin/samurai-usb
++++ after/usr/local/sbin/samurai-usb
+@@ -51 +51 @@
+-    echo 100 >"$g/configs/c.1/MaxPower"
++    echo 500 >"$g/configs/c.1/MaxPower"
+@@ -61,2 +61,15 @@
+-if [ -z "$(cat "$g/UDC")" ]; then echo "$udc" >"$g/UDC"; fi
+-test "$(cat "$g/UDC")" = "$udc"
++# MaxPower is also consumed by composite_resume. Retire the old USB
++# configuration before changing it, then let the host authorize the new one.
++power=$(cat "$g/configs/c.1/MaxPower")
++if [ "$power" != 500 ]; then
++    bound=$(cat "$g/UDC")
++    if [ -n "$bound" ]; then printf '\n' >"$g/UDC"; fi
++    bound=$(cat "$g/UDC")
++    test -z "$bound"
++    echo 500 >"$g/configs/c.1/MaxPower"
++    sleep 2
++fi
++bound=$(cat "$g/UDC")
++if [ -z "$bound" ]; then echo "$udc" >"$g/UDC"; fi
++bound=$(cat "$g/UDC")
++test "$bound" = "$udc"

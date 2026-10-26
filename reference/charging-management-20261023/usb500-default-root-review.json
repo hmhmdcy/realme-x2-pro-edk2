@@ -1,0 +1,23 @@
+{
+  "passed": true,
+  "scope": "Exact installed startup delta, detached normal-start worker, install/launch/read-only fetch, corresponding repository startup deltas",
+  "candidate_sha256": "2a364e12d72229ef7b0ddfd7620d5ff434b97eaf93eb60899fd24a03b5b9a54a",
+  "worker_sha256": "6b9b1a67b03cf7bd13215c3c9c491bf269c7d90caad83237d2f2548fe57a47d1",
+  "independently_reviewed_host_sha256": "dc462510a70b9bd1be755dcf076031b6dd3bd11303b9bdb794321a5bae11124b",
+  "final_host_sha256": "2575fc5c8f3a5475eba94226506763720acba94b2315d6f5ba5a43bc08783d7a",
+  "final_host_delta": "Print already retained fresh health_errors in fetch console summary only",
+  "review_findings_closed": [
+    "Always join the exact startup child before releasing charging lock, including stat/receipt error paths; retain child terminal/returncode in failure state",
+    "Read-only fetch works without launch receipt and returns unknown without replay permission",
+    "Fresh health failure does not block retrieving original failure logs, while root/same boot/guard identity remains mandatory",
+    "Transport exceptions retain partial output and unknown outcome; original mutation intent forbids replay"
+  ],
+  "validation": [
+    "Python host/worker and embedded remote syntax parsed",
+    "Phone sh -n exact candidate before atomic install",
+    "Both corresponding repository startup scripts sh -n passed",
+    "Platform source pkgrel3 and changed USB script SHA512 checksum updated; APKBUILD sh -n passed, no whole-package installation",
+    "Live normal startup once, exact child returncode0, worker terminal/absent, native500 stable and fresh fetch no health errors"
+  ],
+  "not_claimed": ["New unit-test suite", "Cold boot", "Physical attach latency", "All charging modes"]
+}

@@ -1,0 +1,12 @@
+from pathlib import Path
+import hashlib,json,os,shutil,subprocess
+k=Path('/home/cy122/pmos-samurai-kernel136/kernel');ref=Path(__file__).resolve().parent;out=Path('/mnt/e/edk2-samurai-out/kernel199');sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest();test=json.loads((ref/'mmcx-host-validation.json').read_text());assert test['asan_ubsan_passed'] and all(sha(k/n)==h for n,h in test['source_sha256'].items());original={n:(k/n).read_bytes() for n in ['.config','Module.symvers','modules.order']};base={n:sha(k/n) for n in ['arch/arm64/boot/Image','arch/arm64/boot/dts/qcom/sm8150-samurai.dtb']};env=dict(os.environ,KBUILD_BUILD_VERSION='183',PATH='/home/cy122/.cargo/bin:'+os.environ['PATH'],RUSTUP_HOME='/home/cy122/.rustup')
+try:
+ with (out/'mmcx-olddefconfig-private.log').open('xb') as log:subprocess.run(['make','ARCH=arm64','CROSS_COMPILE=aarch64-linux-gnu-','olddefconfig'],cwd=k,env=env,stdout=log,stderr=subprocess.STDOUT,check=True)
+ targets=['drivers/media/common/videobuf2/videobuf2-'+n+'.ko' for n in ['common','memops','v4l2','dma-sg']]+['drivers/media/platform/qcom/camss/qcom-camss.ko']
+ with (out/'mmcx-module-build-private.log').open('xb') as log:subprocess.run(['make','ARCH=arm64','CROSS_COMPILE=aarch64-linux-gnu-','LD=aarch64-linux-gnu-ld --no-keep-memory','W=1','-j3',*targets],cwd=k,env=env,stdout=log,stderr=subprocess.STDOUT,check=True)
+ dest=out/'qcom-camss-mmcx.ko';assert not dest.exists();shutil.copyfile(k/targets[-1],dest);subprocess.run(['aarch64-linux-gnu-strip','--strip-debug',str(dest)],check=True)
+finally:
+ for n,b in original.items():(k/n).write_bytes(b)
+assert all(sha(k/n)==h for n,h in base.items());vm=subprocess.check_output(['modinfo','-F','vermagic',str(dest)],text=True).strip();assert vm==json.loads((ref/'perf-helper-build-validation.json').read_text())['vermagic'];assert subprocess.check_output(['modinfo','-F','intree',str(dest)],text=True).strip()=='Y';diags=[s for s in (out/'mmcx-module-build-private.log').read_text().splitlines() if 'warning:' in s or 'error:' in s];assert not diags,diags
+r=dict(stage=199,source_sha256=test['source_sha256'],module_sha256=sha(dest),module_bytes=dest.stat().st_size,vermagic=vm,intree=True,w1_diagnostics=0,base_images_config_symbols_order_restored=True,unmodified_frequency_tables=True,no_separate_performance_helper_required=True);(ref/'mmcx-module-build-validation.json').write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r))

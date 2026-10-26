@@ -1,0 +1,35 @@
+diff --git a/drivers/mfd/qcom-pm8008.c b/drivers/mfd/qcom-pm8008.c
+--- a/drivers/mfd/qcom-pm8008.c
++++ b/drivers/mfd/qcom-pm8008.c
+@@ -232,8 +232,9 @@
+ 		.len = sizeof(write_sid),
+ 		.buf = write_sid,
+ 	};
++	bool release_attempted = false;
+ 	u32 initial;
+-	int ret, write_ret;
++	int ret, write_ret, reset_ret;
+ 
+ 	if (!device_property_present(dev, "qcom,initial-address")) {
+ 		/* Keep the pre-existing reset behaviour for ordinary PM8008 nodes. */
+@@ -277,6 +278,7 @@
+ 	if (ret != -ENXIO && ret != -EREMOTEIO)
+ 		goto out;
+ 
++	release_attempted = true;
+ 	ret = gpiod_direction_output(reset, 0);
+ 	if (ret)
+ 		goto out;
+@@ -294,6 +296,12 @@
+ 	else if (write_ret != 1)
+ 		ret = -EIO;
+ out:
++	if (ret && release_attempted) {
++		/* Do not leave an unassigned PMIC awake at the shared address. */
++		reset_ret = gpiod_direction_output(reset, 1);
++		if (reset_ret)
++			dev_err(dev, "failed to reassert reset: %d\n", reset_ret);
++	}
+ 	return ret;
+ }
+ 

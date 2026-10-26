@@ -1,0 +1,29 @@
+--- a/drivers/tty/serial/qcom_geni_serial.c
++++ b/drivers/tty/serial/qcom_geni_serial.c
+@@ -1564,10 +1564,8 @@
+ 
+ 	if (termios->c_cflag & CRTSCTS) {
+ 		tx_trans_cfg &= ~UART_CTS_MASK;
+-		port->manual_flow = false;
+ 	} else {
+ 		tx_trans_cfg |= UART_CTS_MASK;
+-		port->manual_flow = true;
+ 	}
+ 
+ 	if (baud) {
+@@ -1595,6 +1593,15 @@
+ 	writel(bits_per_char, uport->membase + SE_UART_TX_WORD_LEN);
+ 	writel(bits_per_char, uport->membase + SE_UART_RX_WORD_LEN);
+ 	writel(stop_bit_len, uport->membase + SE_UART_TX_STOP_BIT_LEN);
++
++	/* Reapply RTS after changing mode even when the cached mctrl is unchanged.
++	 * Serialize the mode and RFR register with normal modem-control updates.
++	 */
++	scoped_guard(uart_port_lock_irqsave, uport) {
++		port->manual_flow = !(termios->c_cflag & CRTSCTS);
++		if (!(uport->rs485.flags & SER_RS485_ENABLED))
++			qcom_geni_serial_set_mctrl(uport, uport->mctrl);
++	}
+ 
+ 	trace_geni_serial_set_termios(uport->dev, baud, bits_per_char,
+ 				      tx_trans_cfg, tx_parity_cfg, rx_trans_cfg,

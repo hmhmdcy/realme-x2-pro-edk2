@@ -1,0 +1,50 @@
+{
+  "passed": true,
+  "exit_code": 0,
+  "groups": [
+    "1 actual R7 two seven-field reads: exact address/order, fresh serial, raw sample, zero write",
+    "2 each actual read errno and unequal snapshots leave caller sample/serial unchanged",
+    "3 proved all-off/all-on only; partial presence rejected; present never grants sink/PD/budget permission",
+    "4 null output, serial overflow, paused/joining reject before any PMIC read",
+    "5 actual regmap_write_bits wrapper forces one masked write even when bit already set; preserves other bits",
+    "6 zero/duplicate/stale epochs rejected; transfer/paused/joining errors consume once, no retry or wrap",
+    "7 default false never registers across actual suspend/resume, original budget/UDC pause behavior preserved",
+    "8 optional owner registration failure does not fail or alter ordinary R7 budget observer",
+    "9 duplicate start short-circuits; withdraw marks joining before lock-free join; late callbacks do zero I/O",
+    "10 actual stop/resume re-registers after join without counter reset, old attempt retry or invented 100mA"
+  ],
+  "scope": "actual inc four functions, original R7 read_status/get_budget, real candidate stop/suspend/resume; fake regmap/registration/PM boundaries",
+  "tested_files": {
+    "samurai-usb-input.c": "fc7c42cf6f0df20a522c0d41e8d78d6c50d38dc85ab00f35e3583edf3c4427d7",
+    "samurai-apsd-input.inc": "ef6baeeeb927f7e74159ba1f8b339a55f2c7ee3d8f050ebad3d17ee0689f4ff2",
+    "samurai-apsd-backend.h": "00d5659e8028a18be6f9db990cb9221af8475cf434693e3b995612f04f6cee94",
+    "samurai-usb-input-decode.h": "a17caa2cbeb2352da249474e0265fa96745f544d96a29d0ebe8f14c656d548fd",
+    "test-backend.py": "59e9af41acd936b62cd2d9b9c7018ccde68fb04aec353a8d55c93b8c9f7aca64",
+    "test-fixture.c": "35c8f190bd43e194673a7ce6e913a0cb379b4c6a812cb8c1f78ba5332d6b4c9b"
+  },
+  "unchanged_R7_functions": [
+    "samurai_usb_read_status",
+    "samurai_usb_get_budget"
+  ],
+  "actual_regmap_header_sha256": "d1b8dad14d1b10b49e4dc5e3a00ae319bfa94de87759031cc21f8c181e2540ca",
+  "actual_regmap_inline_sha256": "cf8a929c6c802d803eed9bcabce5f9f5661aa400cb52d2a85582b79b5a9695e9",
+  "actual_fixture_sha256": "c8247bdc2bd5a5e2f17d8fed4bf9cae67024f7a0d46279afb1f0a7dff8eec3ce",
+  "command": [
+    "gcc",
+    "-std=gnu11",
+    "-g",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-Wno-unused-parameter",
+    "-fsanitize=address,undefined",
+    "-fno-omit-frame-pointer",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/apsd-input-backend-candidate/test-private/actual-backend.c",
+    "-o",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/apsd-input-backend-candidate/test-private/test-backend"
+  ],
+  "old_suites_rerun": false,
+  "phone_accessed": false,
+  "sdk": false,
+  "physical_or_PD_permission_proved": false
+}

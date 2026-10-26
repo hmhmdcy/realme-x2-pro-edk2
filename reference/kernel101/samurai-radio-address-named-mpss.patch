@@ -1,0 +1,12 @@
+--- a/usr/sbin/samurai-radio-address
++++ b/usr/sbin/samurai-radio-address
+@@ -30,7 +30,8 @@
+ refresh()
+ {
+     if cache; then stamp "RADIO_ADDRESS_CACHE_READY kind=$kind"; return 0; fi
+-    [ "$(cat /sys/class/remoteproc/remoteproc0/state)" = running ] || return 1
++    mpss=$(/usr/sbin/samurai-modem-remoteproc) || return 1
++    [ "$(cat $mpss/state)" = running ] || return 1
+     query=$(mktemp -d "$base/query.XXXXXX")
+     cat /proc/sys/kernel/random/boot_id > "$query/boot-id"
+     # A failure is retained in its private query directory and cannot publish

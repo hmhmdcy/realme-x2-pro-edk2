@@ -1,0 +1,32 @@
+--- a/src/libcamera/pipeline_handler.cpp
++++ b/src/libcamera/pipeline_handler.cpp
+@@ -8,6 +8,7 @@
+ #include "libcamera/internal/pipeline_handler.h"
+ 
+ #include <chrono>
++#include <set>
+ #include <sys/stat.h>
+ #include <sys/sysmacros.h>
+ 
+@@ -508,6 +509,21 @@
+  */
+ void PipelineHandler::doQueueRequests(Camera *camera)
+ {
++	/* Synchronous IPA IPC may dispatch another prepared request while
++	 * queueRequestDevice() is still processing the previous one. Defer
++	 * that request to this outer drain to preserve hardware queue order.
++	 * CameraManager serializes these calls; keep the recursion guard per
++	 * camera so another camera can still make progress in the nested loop.
++	 */
++	static thread_local std::set<Camera *> queueingCameras;
++	if (!queueingCameras.insert(camera).second)
++		return;
++	struct QueueGuard {
++		std::set<Camera *> &cameras;
++		Camera *camera;
++		~QueueGuard() { cameras.erase(camera); }
++	} guard{ queueingCameras, camera };
++
+ 	Camera::Private *data = camera->_d();
+ 	while (!data->waitingRequests_.empty()) {
+ 		if (data->queuedRequests_.size() == maxQueuedRequestsDevice_)

@@ -1,0 +1,86 @@
+--- a/src/pipewire/impl-port.c
++++ b/src/pipewire/impl-port.c
+@@ -44,6 +44,7 @@
+ 	struct spa_hook node_listener;
+ 
+ 	unsigned int cache_params:1;
++	bool reliable_broadcast;
+ };
+ 
+ static const char * const global_keys[] = {
+@@ -305,9 +306,48 @@
+         return SPA_STATUS_HAVE_DATA | SPA_STATUS_NEED_DATA;
+ }
+ 
++/* Opt-in camera fanout: wait for every graph recipient to accept its IO
++ * slot before publishing another frame. Application-held memory is protected
++ * separately by the producer's shared Busy metadata. */
++static int tee_process_reliable_broadcast(void *object)
++{
++	struct impl *impl = object;
++	struct pw_impl_port *this = &impl->this;
++	struct pw_impl_port_mix *mix;
++	struct spa_io_buffers *io = &this->rt.io;
++	uint32_t cycle = this->node->rt.position->clock.cycle & 1;
++	uint32_t buffer_id;
++	bool delivered = false;
++
++	if (io->status != SPA_STATUS_HAVE_DATA)
++		return SPA_STATUS_HAVE_DATA | SPA_STATUS_NEED_DATA;
++	spa_list_for_each(mix, &impl->rt.mix_list, rt.link) {
++		if (mix->io[cycle]->status == SPA_STATUS_HAVE_DATA)
++			return SPA_STATUS_HAVE_DATA | SPA_STATUS_NEED_DATA;
++	}
++	buffer_id = io->buffer_id;
++	spa_list_for_each(mix, &impl->rt.mix_list, rt.link) {
++		struct spa_io_buffers *mio = mix->io[cycle];
++		if (mio->buffer_id != SPA_ID_INVALID) {
++			int res = spa_node_port_reuse_buffer(this->node->node,
++				this->port_id, mio->buffer_id);
++			if (res < 0)
++				return res;
++		}
++		mio->buffer_id = buffer_id;
++		mio->status = SPA_STATUS_HAVE_DATA;
++		delivered = true;
++	}
++	io->buffer_id = delivered ? SPA_ID_INVALID : buffer_id;
++	io->status = SPA_STATUS_NEED_DATA;
++	return SPA_STATUS_HAVE_DATA | SPA_STATUS_NEED_DATA;
++}
++
+ static int tee_process_reliable(void *object)
+ {
+ 	struct impl *impl = object;
++	if (impl->reliable_broadcast)
++		return tee_process_reliable_broadcast(object);
+ 	struct pw_impl_port *this = &impl->this;
+ 	struct pw_impl_port_mix *mix;
+ 	struct spa_io_buffers *io = &this->rt.io;
+@@ -492,6 +532,18 @@
+ 	if (port->n_mix == 0) {
+ 		pw_log_debug("%p: clearing port io", port);
+ 		pw_impl_port_set_param(port, SPA_PARAM_Format, 0, NULL);
++	} else if (port->direction == PW_DIRECTION_OUTPUT && port->node && !port->node->remote &&
++			SPA_CONTAINER_OF(port, struct impl, this)->reliable_broadcast) {
++		/* Busy metadata is shared across processes. A lost consumer may
++		 * leave a reference behind. Suspend and renegotiate the pool rather
++		 * than guessing which other consumers still own its memory. */
++		struct pw_impl_node *node = port->node;
++		pw_log_info("%p: rebuild camera pool after consumer removal remote:%d exported:%d",
++			port, node->remote, node->exported);
++		int suspended = pw_impl_node_set_state(node, PW_NODE_STATE_SUSPENDED);
++		if (suspended < 0)
++			return suspended;
++		pw_context_recalc_graph(node->context, "camera consumer removed");
+ 	}
+ 	return res;
+ }
+@@ -528,6 +580,7 @@
+ 		port->exclusive = new_bool;
+ 	}
+ 
++	impl->reliable_broadcast = pw_properties_get_bool(nprops, "node.reliable.broadcast", false);
+ 	new_bool = pw_properties_get_bool(port->properties, PW_KEY_PORT_RELIABLE, node->reliable);
+ 	if (new_bool != port->reliable && port->direction == PW_DIRECTION_OUTPUT) {
+ 		pw_log_info("%p: reliable %d->%d", port, port->reliable, new_bool);

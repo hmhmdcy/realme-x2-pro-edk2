@@ -1,0 +1,123 @@
+--- a/src/libcamera/pipeline/camss-vfe/hardware_focus.h
++++ b/src/libcamera/pipeline/camss-vfe/hardware_focus.h
+@@ -5,6 +5,7 @@
+ #include <array>
+ #include <chrono>
+ #include <optional>
++#include <new>
+ #include <vector>
+ #include <linux/dma-buf.h>
+ #include <sys/ioctl.h>
+@@ -13,17 +14,42 @@
+ #include "libcamera/internal/software_isp/focus_stats.h"
+ 
+ namespace libcamera {
+-inline FocusStatistics measureLumaFocus(const uint8_t *data,size_t bytes,unsigned width,unsigned height,unsigned stride)
++struct LumaFocusWorkspace {
++ static constexpr size_t kMaximumCells=320*240;
++ unsigned width=0,height=0,columns=0,rows=0;
++ std::array<unsigned,320> sampleX{},regionX{};
++ std::vector<uint16_t> grid,smooth;
++ bool prepare(unsigned w,unsigned h)
++ {
++  if(w<12 || h<12)return false;
++  if(width==w && height==h)return true;
++  const unsigned c=std::min(320U,w/2),r=std::min(240U,h/2);
++  try {
++   grid.reserve(kMaximumCells);smooth.reserve(kMaximumCells);
++   grid.assign(size_t(c)*r,0);smooth.assign(size_t(c)*r,0);
++  } catch(const std::bad_alloc &) {clear();return false;}
++  for(unsigned x=0;x<c;++x){sampleX[x]=uint64_t(x)*(w-2)/(c-1);regionX[x]=x*FocusStatistics::kColumns/c;}
++  width=w;height=h;columns=c;rows=r;return true;
++ }
++ void clear()
++ {
++  std::vector<uint16_t>().swap(grid);std::vector<uint16_t>().swap(smooth);
++  width=height=columns=rows=0;
++ }
++ size_t storageBytes() const {return (grid.capacity()+smooth.capacity())*sizeof(uint16_t);}
++};
++
++inline FocusStatistics measureLumaFocus(const uint8_t *data,size_t bytes,unsigned width,unsigned height,unsigned stride,LumaFocusWorkspace *workspace=nullptr)
+ {
+  FocusStatistics result;
+  if (!data || width<12 || height<12 || stride<width || uint64_t(height-1)*stride+width>bytes) return result;
+- const unsigned columns=std::min(320U,width/2),rows=std::min(240U,height/2);
+- std::array<unsigned,320> sampleX{},regionX{};
+- for (unsigned x=0;x<columns;++x) {
+-  sampleX[x]=uint64_t(x)*(width-2)/(columns-1);
+-  regionX[x]=x*FocusStatistics::kColumns/columns;
+- }
+- std::vector<uint16_t> grid(size_t(columns)*rows),smooth(grid.size());
++ std::optional<LumaFocusWorkspace> local;
++ if(!workspace){local.emplace();workspace=&*local;}
++ if(!workspace->prepare(width,height))return result;
++ const unsigned columns=workspace->columns,rows=workspace->rows;
++ const auto &sampleX=workspace->sampleX,&regionX=workspace->regionX;
++ auto &grid=workspace->grid,&smooth=workspace->smooth;
++ /* Every grid cell and every smooth cell read below is overwritten this frame. */
+  for (unsigned y=0;y<rows;++y) {
+   const unsigned py=uint64_t(y)*(height-2)/(rows-1);
+   const uint8_t *line=data+size_t(py)*stride,*next=line+stride;
+@@ -64,7 +90,7 @@
+ };
+ 
+ inline std::optional<int32_t> measureFrameFocus(FrameBuffer *buffer,const StreamConfiguration &configuration,
+-                                              FocusMeasurementTiming *timing=nullptr)
++                                              FocusMeasurementTiming *timing=nullptr,LumaFocusWorkspace *workspace=nullptr)
+ {
+  using Clock=std::chrono::steady_clock;
+  auto previous=Clock::now();
+@@ -81,7 +107,7 @@
+   measured.mapUs=elapsed();
+   if (mapped.isValid() && !mapped.planes().empty()) {
+    const auto statistics=measureLumaFocus(mapped.planes()[0].data(),std::min<size_t>(mapped.planes()[0].size(),buffer->metadata().planes()[0].bytesused),
+-                                         configuration.size.width,configuration.size.height,configuration.stride);
++                                         configuration.size.width,configuration.size.height,configuration.stride,workspace);
+    measured.sampleUs=elapsed();
+    score=statistics.figureOfMerit();measured.scoreUs=elapsed();
+   }
+--- a/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
++++ b/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
+@@ -97,6 +97,7 @@
+  bool toneTraceSaved_ = false;
+  std::map<FrameBuffer *, Request *> internalRequests_;
+  std::vector<std::unique_ptr<FrameBuffer>> internalImages_;
++ LumaFocusWorkspace focusWorkspace_;
+  std::queue<FrameBuffer *> freeImages_;
+  std::map<uint32_t, uint64_t> pixStarts_, rawStarts_;
+  uint64_t framePeriod_ = 0, previousPixStart_ = 0;
+@@ -764,7 +765,12 @@
+   if (!lens) {ret=-ENODEV;goto error;}
+   ret=lens->open();if (ret) goto error;d->lensActive_=true;
+  }
+- d->running_ = true;
++ 
++  if(d->lensActive_ && d->output_.width>=12 && d->output_.height>=12 &&
++     !d->focusWorkspace_.prepare(d->output_.width,d->output_.height)){ret=-ENOMEM;goto error;}
++  LOG(CamssVfe,Debug)<<"FOCUS_WORKSPACE_PREPARE epoch="<<d->epoch_<<" width="<<d->output_.width
++   <<" height="<<d->output_.height<<" bytes="<<d->focusWorkspace_.storageBytes();
++  d->running_ = true;
+  if(d->coarseEnabled_){ret=d->coarse_->streamOn();if(ret)goto error;}
+  for (auto *device : { d->stats_.get(), d->params_.get(), d->image_.get() }) {
+   ret = device->streamOn();
+@@ -825,7 +831,9 @@
+  d->coarseImages_.clear();d->consumedCoarseSof_.reset();
+  if(d->coarseEnabled_)d->coarse_->releaseBuffers();
+  d->coarseBuffers_.clear();
+- d->internalImages_.clear();d->freeImages_={};d->internalRequests_.clear();
++ d->focusWorkspace_.clear();
++  LOG(CamssVfe,Debug)<<"FOCUS_WORKSPACE_STOP epoch="<<d->epoch_<<" bytes="<<d->focusWorkspace_.storageBytes();
++  d->internalImages_.clear();d->freeImages_={};d->internalRequests_.clear();
+  d->pixStarts_.clear();d->rawStarts_.clear();
+  d->paramsBuffers_.clear(); d->statsBuffers_.clear();
+ 	d->paramsApplied_ = false;
+@@ -1343,7 +1351,7 @@
+   StreamConfiguration focusConfig;focusConfig.pixelFormat=formats::NV12;focusConfig.size=output_;focusConfig.stride=outputStride_;
+   const auto focusBegin=std::chrono::steady_clock::now();
+   FocusMeasurementTiming focusTiming;
+-  const auto score=measureFrameFocus(buffer,focusConfig,&focusTiming);
++  const auto score=measureFrameFocus(buffer,focusConfig,&focusTiming,&focusWorkspace_);
+   LOG(CamssVfe,Debug)<<"FOCUS_TIMING epoch="<<frameEpoch<<" sof="<<sequence
+    <<" sync-start-us="<<focusTiming.syncStartUs<<" map-us="<<focusTiming.mapUs
+    <<" sample-us="<<focusTiming.sampleUs<<" score-us="<<focusTiming.scoreUs

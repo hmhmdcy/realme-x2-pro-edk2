@@ -1,0 +1,169 @@
+0002a5fc 48 89 5c 24 10           mov      qword ptr [rsp + 0x10], rbx
+0002a601 48 89 6c 24 18           mov      qword ptr [rsp + 0x18], rbp
+0002a606 56                       push     rsi
+0002a607 41 56                    push     r14
+0002a609 41 57                    push     r15
+0002a60b 48 83 ec 30              sub      rsp, 0x30
+0002a60f 4c 8b 71 10              mov      r14, qword ptr [rcx + 0x10]
+0002a613 b9 00 04 00 00           mov      ecx, 0x400
+0002a618 49 8b 5e 40              mov      rbx, qword ptr [r14 + 0x40]
+0002a61c 0f b7 83 90 03 00 00     movzx    eax, word ptr [rbx + 0x390]
+0002a623 66 85 c1                 test     cx, ax
+0002a626 74 4f                    je       0x2a677
+0002a628 83 bb dc 11 00 00 00     cmp      dword ptr [rbx + 0x11dc], 0
+0002a62f 74 3c                    je       0x2a66d
+0002a631 48 8b 0d c8 f9 00 00     mov      rcx, qword ptr [rip + 0xf9c8]
+0002a638 8b 41 2c                 mov      eax, dword ptr [rcx + 0x2c]
+0002a63b a8 01                    test     al, 1
+0002a63d 74 2e                    je       0x2a66d
+0002a63f 80 79 29 02              cmp      byte ptr [rcx + 0x29], 2
+0002a643 72 28                    jb       0x2a66d
+0002a645 48 8d 35 b4 f9 00 00     lea      rsi, [rip + 0xf9b4]
+0002a64c 48 3b ce                 cmp      rcx, rsi
+0002a64f 74 1c                    je       0x2a66d
+0002a651 48 8b 49 18              mov      rcx, qword ptr [rcx + 0x18]
+0002a655 4c 8d 8b dc 03 00 00     lea      r9, [rbx + 0x3dc]
+0002a65c ba 0a 00 00 00           mov      edx, 0xa
+0002a661 4c 8d 05 58 df 00 00     lea      r8, [rip + 0xdf58]
+0002a668 e8 73 73 fd ff           call     0x19e0 ; WPP_SF_s
+0002a66d b8 56 00 00 c0           mov      eax, 0xc0000056
+0002a672 e9 37 02 00 00           jmp      0x2a8ae
+0002a677 80 bb 01 02 00 00 01     cmp      byte ptr [rbx + 0x201], 1
+0002a67e 75 4f                    jne      0x2a6cf
+0002a680 83 bb dc 11 00 00 00     cmp      dword ptr [rbx + 0x11dc], 0
+0002a687 74 3c                    je       0x2a6c5
+0002a689 48 8b 0d 70 f9 00 00     mov      rcx, qword ptr [rip + 0xf970]
+0002a690 8b 41 2c                 mov      eax, dword ptr [rcx + 0x2c]
+0002a693 a8 01                    test     al, 1
+0002a695 74 2e                    je       0x2a6c5
+0002a697 80 79 29 02              cmp      byte ptr [rcx + 0x29], 2
+0002a69b 72 28                    jb       0x2a6c5
+0002a69d 48 8d 35 5c f9 00 00     lea      rsi, [rip + 0xf95c]
+0002a6a4 48 3b ce                 cmp      rcx, rsi
+0002a6a7 74 1c                    je       0x2a6c5
+0002a6a9 48 8b 49 18              mov      rcx, qword ptr [rcx + 0x18]
+0002a6ad 4c 8d 8b dc 03 00 00     lea      r9, [rbx + 0x3dc]
+0002a6b4 ba 0b 00 00 00           mov      edx, 0xb
+0002a6b9 4c 8d 05 00 df 00 00     lea      r8, [rip + 0xdf00]
+0002a6c0 e8 1b 73 fd ff           call     0x19e0 ; WPP_SF_s
+0002a6c5 b8 11 00 00 80           mov      eax, 0x80000011
+0002a6ca e9 df 01 00 00           jmp      0x2a8ae
+0002a6cf 80 bb bc 11 00 00 00     cmp      byte ptr [rbx + 0x11bc], 0
+0002a6d6 75 12                    jne      0x2a6ea
+0002a6d8 33 c0                    xor      eax, eax
+0002a6da 87 83 10 04 00 00        xchg     dword ptr [rbx + 0x410], eax
+0002a6e0 66 83 8b 90 03 00 00 60  or       word ptr [rbx + 0x390], 0x60
+0002a6e8 eb 0b                    jmp      0x2a6f5
+0002a6ea 66 83 c8 40              or       ax, 0x40
+0002a6ee 66 89 83 90 03 00 00     mov      word ptr [rbx + 0x390], ax
+0002a6f5 b9 00 01 00 00           mov      ecx, 0x100
+0002a6fa 66 85 8b 90 03 00 00     test     word ptr [rbx + 0x390], cx
+0002a701 74 5a                    je       0x2a75d
+0002a703 83 bb dc 11 00 00 00     cmp      dword ptr [rbx + 0x11dc], 0
+0002a70a 0f 84 9c 01 00 00        je       0x2a8ac
+0002a710 48 8b 0d e9 f8 00 00     mov      rcx, qword ptr [rip + 0xf8e9]
+0002a717 8b 41 2c                 mov      eax, dword ptr [rcx + 0x2c]
+0002a71a a8 01                    test     al, 1
+0002a71c 0f 84 8a 01 00 00        je       0x2a8ac
+0002a722 80 79 29 02              cmp      byte ptr [rcx + 0x29], 2
+0002a726 0f 82 80 01 00 00        jb       0x2a8ac
+0002a72c 48 8d 35 cd f8 00 00     lea      rsi, [rip + 0xf8cd]
+0002a733 48 3b ce                 cmp      rcx, rsi
+0002a736 0f 84 70 01 00 00        je       0x2a8ac
+0002a73c 48 8b 49 18              mov      rcx, qword ptr [rcx + 0x18]
+0002a740 4c 8d 8b dc 03 00 00     lea      r9, [rbx + 0x3dc]
+0002a747 ba 0c 00 00 00           mov      edx, 0xc
+0002a74c 4c 8d 05 6d de 00 00     lea      r8, [rip + 0xde6d]
+0002a753 e8 88 72 fd ff           call     0x19e0 ; WPP_SF_s
+0002a758 e9 4f 01 00 00           jmp      0x2a8ac
+0002a75d 80 bb 70 04 00 00 00     cmp      byte ptr [rbx + 0x470], 0
+0002a764 0f 85 09 01 00 00        jne      0x2a873
+0002a76a b2 03                    mov      dl, 3
+0002a76c 48 8b cb                 mov      rcx, rbx
+0002a76f e8 04 eb fd ff           call     0x9278 ; ResumeInterruptService
+0002a774 45 33 ff                 xor      r15d, r15d
+0002a777 48 8d 35 82 f8 00 00     lea      rsi, [rip + 0xf882]
+0002a77e ba 02 00 00 00           mov      edx, 2
+0002a783 49 8b ce                 mov      rcx, r14
+0002a786 e8 01 3b 00 00           call     0x2e28c ; QCUSB_ResetInput
+0002a78b 8b e8                    mov      ebp, eax
+0002a78d 85 c0                    test     eax, eax
+0002a78f 75 0d                    jne      0x2a79e
+0002a791 8d 50 02                 lea      edx, [rax + 2]
+0002a794 49 8b ce                 mov      rcx, r14
+0002a797 e8 d4 3f 00 00           call     0x2e770 ; QCUSB_ResetOutput
+0002a79c 8b e8                    mov      ebp, eax
+0002a79e 85 ed                    test     ebp, ebp
+0002a7a0 79 7f                    jns      0x2a821
+0002a7a2 83 bb dc 11 00 00 00     cmp      dword ptr [rbx + 0x11dc], 0
+0002a7a9 48 8b 0d 50 f8 00 00     mov      rcx, qword ptr [rip + 0xf850]
+0002a7b0 48 c7 44 24 50 00 f7 c2 ff mov      qword ptr [rsp + 0x50], 0xffffffffffc2f700
+0002a7b9 74 3e                    je       0x2a7f9
+0002a7bb 8b 41 2c                 mov      eax, dword ptr [rcx + 0x2c]
+0002a7be a8 01                    test     al, 1
+0002a7c0 74 37                    je       0x2a7f9
+0002a7c2 80 79 29 02              cmp      byte ptr [rcx + 0x29], 2
+0002a7c6 72 31                    jb       0x2a7f9
+0002a7c8 48 3b ce                 cmp      rcx, rsi
+0002a7cb 74 2c                    je       0x2a7f9
+0002a7cd 48 8b 49 18              mov      rcx, qword ptr [rcx + 0x18]
+0002a7d1 4c 8d 8b dc 03 00 00     lea      r9, [rbx + 0x3dc]
+0002a7d8 ba 0d 00 00 00           mov      edx, 0xd
+0002a7dd 89 6c 24 28              mov      dword ptr [rsp + 0x28], ebp
+0002a7e1 4c 8d 05 d8 dd 00 00     lea      r8, [rip + 0xddd8]
+0002a7e8 44 89 7c 24 20           mov      dword ptr [rsp + 0x20], r15d
+0002a7ed e8 66 ec fd ff           call     0x9458 ; WPP_SF_slD
+0002a7f2 48 8b 0d 07 f8 00 00     mov      rcx, qword ptr [rip + 0xf807]
+0002a7f9 8a 83 90 03 00 00        mov      al, byte ptr [rbx + 0x390]
+0002a7ff 24 05                    and      al, 5
+0002a801 3c 05                    cmp      al, 5
+0002a803 75 23                    jne      0x2a828
+0002a805 4c 8d 44 24 50           lea      r8, [rsp + 0x50]
+0002a80a 33 d2                    xor      edx, edx
+0002a80c 33 c9                    xor      ecx, ecx
+0002a80e ff 15 84 d9 00 00        call     qword ptr [rip + 0xd984]
+0002a814 41 ff c7                 inc      r15d
+0002a817 41 83 ff 0a              cmp      r15d, 0xa
+0002a81b 0f 8c 5d ff ff ff        jl       0x2a77e
+0002a821 48 8b 0d d8 f7 00 00     mov      rcx, qword ptr [rip + 0xf7d8]
+0002a828 85 ed                    test     ebp, ebp
+0002a82a 74 47                    je       0x2a873
+0002a82c 83 bb dc 11 00 00 00     cmp      dword ptr [rbx + 0x11dc], 0
+0002a833 74 32                    je       0x2a867
+0002a835 8b 41 2c                 mov      eax, dword ptr [rcx + 0x2c]
+0002a838 a8 01                    test     al, 1
+0002a83a 74 2b                    je       0x2a867
+0002a83c 80 79 29 02              cmp      byte ptr [rcx + 0x29], 2
+0002a840 72 25                    jb       0x2a867
+0002a842 48 3b ce                 cmp      rcx, rsi
+0002a845 74 20                    je       0x2a867
+0002a847 48 8b 49 18              mov      rcx, qword ptr [rcx + 0x18]
+0002a84b 4c 8d 8b dc 03 00 00     lea      r9, [rbx + 0x3dc]
+0002a852 ba 0e 00 00 00           mov      edx, 0xe
+0002a857 89 6c 24 20              mov      dword ptr [rsp + 0x20], ebp
+0002a85b 4c 8d 05 5e dd 00 00     lea      r8, [rip + 0xdd5e]
+0002a862 e8 ad 26 00 00           call     0x2cf14 ; WPP_SF_sl
+0002a867 b8 fb ff 00 00           mov      eax, 0xfffb
+0002a86c 66 21 83 90 03 00 00     and      word ptr [rbx + 0x390], ax
+0002a873 80 bb 40 05 00 00 00     cmp      byte ptr [rbx + 0x540], 0
+0002a87a c6 83 01 02 00 00 01     mov      byte ptr [rbx + 0x201], 1
+0002a881 c6 83 2d 12 00 00 00     mov      byte ptr [rbx + 0x122d], 0
+0002a888 75 10                    jne      0x2a89a
+0002a88a 41 b1 02                 mov      r9b, 2
+0002a88d 41 b0 01                 mov      r8b, 1
+0002a890 33 d2                    xor      edx, edx
+0002a892 48 8b cb                 mov      rcx, rbx
+0002a895 e8 16 1e ff ff           call     0x1c6b0 ; QCPWR_CancelIdleTimer
+0002a89a 48 8b cb                 mov      rcx, rbx
+0002a89d e8 22 00 00 00           call     0x2a8c4 ; QCSER_StartDataThreads
+0002a8a2 33 d2                    xor      edx, edx
+0002a8a4 48 8b cb                 mov      rcx, rbx
+0002a8a7 e8 18 74 00 00           call     0x31cc4 ; QCWT_SendAndWaitGPSC
+0002a8ac 33 c0                    xor      eax, eax
+0002a8ae 48 8b 5c 24 58           mov      rbx, qword ptr [rsp + 0x58]
+0002a8b3 48 8b 6c 24 60           mov      rbp, qword ptr [rsp + 0x60]
+0002a8b8 48 83 c4 30              add      rsp, 0x30
+0002a8bc 41 5f                    pop      r15
+0002a8be 41 5e                    pop      r14
+0002a8c0 5e                       pop      rsi
+0002a8c1 c3                       ret

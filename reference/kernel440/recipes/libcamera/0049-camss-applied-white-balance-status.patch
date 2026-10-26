@@ -1,0 +1,134 @@
+--- a/src/ipa/camss-vfe/camss.cpp
++++ b/src/ipa/camss-vfe/camss.cpp
+@@ -33,6 +33,7 @@
+ #include "../libipa/camera_sensor_helper.h"
+ #include "hardware_agc.h"
+ #include "hardware_awb.h"
++#include "awb_status.h"
+ #include "statistics.h"
+ #include "ipe_frame_history.h"
+ #include "ipe_numeric_history.h"
+@@ -84,6 +85,7 @@
+  std::unique_ptr<CameraSensorHelper> helper_;
+  std::unique_ptr<HardwareAgc> agc_;
+ 	std::unique_ptr<HardwareAwb> awb_;
++ AppliedAwbStatus awbStatus_;
+ 	bool awbEnabled_ = false;
+ 	uint32_t ispRevision_ = 0;
+ 	std::optional<AutoIspUpdate> pendingWhiteBalance_;
+@@ -181,7 +183,7 @@
+  int ret = describeSensor(info, sensorControls, ipaControls);
+  if (ret) return ret;
+  configured_ = false;
+- agc_.reset(); awb_.reset(); ipeTone_.reset(); autoAvailable_ = false;
++ agc_.reset(); awb_.reset(); awbStatus_.reset(); ipeTone_.reset(); autoAvailable_ = false;
+  if (!settings.configurationFile.empty()) {
+   File file(settings.configurationFile);
+   if (!file.open(File::OpenModeFlag::ReadOnly)) return file.error();
+@@ -225,7 +227,7 @@
+  std::lock_guard<std::recursive_mutex> stateLock(stateMutex_);
+  if (running_) return -EBUSY;
+  configured_ = false;
+- agc_.reset(); awb_.reset(); ipeTone_.reset(); autoAvailable_ = false;
++ agc_.reset(); awb_.reset(); awbStatus_.reset(); ipeTone_.reset(); autoAvailable_ = false;
+  if (!sensorConfiguration) return -EINVAL;
+  *sensorConfiguration = {};
+  if (info.model != model_ || info.outputSize != input || info.bitsPerPixel != 10 ||
+@@ -537,6 +539,7 @@
+  af_.cancelScan();
+  awbEnabled_ = enabled; colourTemperature_ = temperature; manualMatrix_ = manualMatrix;
+  if (awb_) awb_->reset();
++ awbStatus_.reset();
+  pendingLensShading_=selectedLsc;
+  pendingColourCorrection_ = selected;
+  pendingWhiteBalance_ = AutoIspUpdate{ true, ++ispRevision_, red, blue };
+@@ -710,6 +713,7 @@
+ 	pendingWhiteBalance_.reset();
+ 	preparedParameters_.clear(); parameterHistory_.clear();
+ 	if (awb_) awb_->reset();
++ awbStatus_.reset();
+ 	applied_ = effective_ = false;
+ 	lastStats_.reset();
+ 	running_ = true;
+@@ -729,6 +733,7 @@
+  if (lux_) lux_->reset();
+  ccmInputs_.reset();pendingColourCorrection_.reset();pendingLensShading_.reset();
+  automatic_ = false; awaiting_.reset();
++	awbStatus_.reset();
+ 	awbEnabled_ = false; colourTemperature_.reset(); manualMatrix_.reset(); pendingWhiteBalance_.reset();
+ 	preparedParameters_.clear(); parameterHistory_.clear();
+ 	applied_ = effective_ = false;
+@@ -856,7 +861,7 @@
+ 	}
+ 	ParsedStatistics parsed;
+ 	result.status = parseStatistics({ memory.data(), bytesused }, input_.width, input_.height, &parsed);
+-	if (result.status) { complete(); return; }
++	if (result.status) { awbStatus_.reset();if(awb_)awb_->reset();complete(); return; }
+  GtmHistory::Pointer appliedGtm;
+  if(tracksGtm()) {
+   bool changed=false;
+@@ -892,7 +897,9 @@
+  }
+  if (result.parametersKnown && context->second.colourCorrection)
+   metadata.set(controls::ColourCorrectionMatrix,Span<const float,9>(context->second.colourCorrection->effective));
+-	metadata.set(controls::AwbLocked, false);
++ if(!result.parametersKnown || !result.rgbPresent || !context->second.awbEnabled) {
++  awbStatus_.reset();if(awb_)awb_->reset();
++ }
+  double proposedRed=result.parametersKnown ? context->second.sourceRed : red_;
+  double proposedBlue=result.parametersKnown ? context->second.sourceBlue : blue_;
+  bool whiteBalanceChanged=false;
+@@ -901,7 +908,7 @@
+ 		auto awb = awb_->calculate(parsed.grid, context->second.red, context->second.blue);
+ 		result.awbRegions = awb.regions;
+ 		result.rgbMeans = { awb.means.r(), awb.means.g(), awb.means.b() };
+-		metadata.set(controls::AwbLocked, awb.locked);
++  awbStatus_.observe(sof,context->second.red,context->second.blue,awb.valid,awb.locked);
+ 		if (awb.valid && ispRevision_ < UINT32_MAX - 1) {
+ 			double red, blue;
+ 			if (!effectiveColourGains(profile_, awb.red, awb.blue, &red, &blue) &&
+@@ -910,6 +917,12 @@
+ 			}
+ 		}
+ 	}
++ const bool awbLocked=result.parametersKnown && result.rgbPresent && context->second.awbEnabled &&
++  awbStatus_.locked(sof,context->second.red,context->second.blue);
++ metadata.set(controls::AwbLocked,awbLocked);
++ LOG(IPACamss,Info)<<"AWB_STATE epoch="<<epoch<<" sof="<<sof<<" revision="<<result.ispRevision
++  <<" calculated="<<(result.awbRegions!=0)<<" regions="<<result.awbRegions<<" locked="<<awbLocked
++  <<" red="<<(result.parametersKnown?context->second.red:0)<<" blue="<<(result.parametersKnown?context->second.blue:0);
+ 	LOG(IPACamss, Info) << "RGB epoch=" << epoch << " sof=" << sof << " present=" << result.rgbPresent
+ 		<< " regions=" << result.awbRegions << " revision=" << result.ispRevision
+ 		<< " parameters-known=" << result.parametersKnown << " gamma=" << (result.parametersKnown && context->second.gammaEnabled);
+--- /dev/null
++++ b/src/ipa/camss-vfe/awb_status.h
+@@ -0,0 +1,29 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++
++#include <cmath>
++#include <cstdint>
++#include <optional>
++
++namespace libcamera::ipa::camss {
++
++/* Convergence belongs to observed, applied WB gains, not to a GTM upload. */
++class AppliedAwbStatus {
++public:
++ void reset() { locked_.reset(); }
++ void observe(uint32_t sof, double red, double blue, bool valid, bool locked)
++ {
++  if (!valid || !locked || !std::isfinite(red) || !std::isfinite(blue) || red <= 0 || blue <= 0)
++   return reset();
++  locked_ = State{sof, red, blue};
++ }
++ bool locked(uint32_t sof, double red, double blue) const
++ {
++  return locked_ && sof >= locked_->sof && red == locked_->red && blue == locked_->blue;
++ }
++private:
++ struct State { uint32_t sof; double red, blue; };
++ std::optional<State> locked_;
++};
++
++} /* namespace libcamera::ipa::camss */

@@ -1,0 +1,44 @@
+{
+  "passed": true,
+  "groups": [
+    "OEM three writes; exact old masked restore and unrelated-bit preservation",
+    "no resume/init/reset for inactive/uninitialized/wrong PHY or mode",
+    "single owner stale/double tokens and generation",
+    "each enter readback failure retains all originals and PM ref",
+    "each reverse restore failure stays owned; explicit retry only",
+    "actual generic exit/mode preserve snapshot while owned; inactive defaults return",
+    "ordinary init/reset/exit and device runtime callbacks retain original behavior",
+    "exit wins before generic mutex claim; begin never touches MMIO"
+  ],
+  "group_count": 8,
+  "actual_functions": 15,
+  "flags": [
+    "-std=c11",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-Wno-unused-parameter",
+    "-Wno-sign-compare",
+    "-fsanitize=address,undefined",
+    "-fno-omit-frame-pointer"
+  ],
+  "runtime_stdout": "ok: OEM three writes; exact old masked restore and unrelated-bit preservation\nok: no resume/init/reset for inactive/uninitialized/wrong PHY or mode\nok: single owner stale/double tokens and generation\nok: each enter readback failure retains all originals and PM ref\nok: each reverse restore failure stays owned; explicit retry only\nok: actual generic exit/mode preserve snapshot while owned; inactive defaults return\nok: ordinary init/reset/exit and device runtime callbacks retain original behavior\nok: exit wins before generic mutex claim; begin never touches MMIO\n",
+  "runtime_stderr": "",
+  "patch_dry_run": true,
+  "files": {
+    "phy-qcom-snps-femto-v2.c": "cc8e7f3292792f1f921db090384202fcf8ebb426f5a782f976b5f4614ba6b6dc",
+    "phy-qcom-snps-femto-v2-window.h": "1260c782e9059e0c0cbcf65371af3648df33bb32dde82ee287f5b803a6bab249",
+    "phy-window.patch": "5228605bac9450af97e41cb45daa7a3bc24e8f81909ba46a9b7c65c967003990",
+    "test-window.c": "9faba39b93a76de85de2d9a2bdcf720dcc4a3354f4ccefa62575e36d1ef838f5",
+    "tested-functions.inc": "411efb5ef922a74be716e3ddad0517927e8d0b97b4d697a56943d1654c0377ef",
+    "tested-types.inc": "207fbeca1c73080e63a76d7bbfa359333dd1cd8f187827f204e418b9288ecabb",
+    "function-manifest.json": "0d5ffae873a46a5b03589dd4515f9ff7ce2106d960245e760efb5afd12bde04c",
+    "prepare-tests.py": "8bbfbf412a79d3d01b6c0ebccd12d338f2497cf0ed55bb5dd61fc064399901ec",
+    "run-tests.py": "cf5000087b65256e01a7189987db0bccfe4d4104c7f8deacafc957e387545183"
+  },
+  "no_new_consumer": true,
+  "phone_accessed": false,
+  "ssh_executed": false,
+  "sdk_invoked": false,
+  "scope": "actual candidate+generic PHY functions; fake PM/MMIO/OS edges; not lockdep or physical validation"
+}

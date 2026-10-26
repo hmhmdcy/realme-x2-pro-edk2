@@ -1,0 +1,48 @@
+{
+  "stage": 373,
+  "actual_worker_held_snapshot_cleanup_and_error_fallback_blocks": true,
+  "sysfs_and_module_providers_mocked": true,
+  "tests": [
+    {
+      "case": "held",
+      "cleanup_writes": 1,
+      "passed": true
+    },
+    {
+      "case": "code-mismatch",
+      "cleanup_writes": 1,
+      "passed": true
+    },
+    {
+      "case": "ack-failed",
+      "cleanup_writes": 1,
+      "passed": true
+    },
+    {
+      "case": "cleanup-failed",
+      "cleanup_writes": 1,
+      "passed": true
+    },
+    {
+      "case": "unknown-ownership",
+      "cleanup_writes": 0,
+      "passed": true
+    },
+    {
+      "case": "ready",
+      "cleanup_writes": 0,
+      "passed": true
+    },
+    {
+      "case": "pre-cpu-failed",
+      "cleanup_writes": 0,
+      "passed": true
+    }
+  ],
+  "cleanup_attempt_saved_before_write": true,
+  "no_cleanup_retry_after_started_attempt": true,
+  "incomplete_ownership_never_assumed_released": true,
+  "handshake_not_claimed_for_collected_fault": true,
+  "phone_operations": false,
+  "passed": true
+}

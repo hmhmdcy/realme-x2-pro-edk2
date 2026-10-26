@@ -1,0 +1,129 @@
+{
+  "source": "same handset live Android DT, 2026-10-05",
+  "archive_sha256": "e3329db4f3568252286489abd2ae27b9cbd0c711a2c5d790ebfba80fffc5b56b",
+  "nodes": {
+    "soc/i2c@a84000": {
+      "interrupts": [
+        0,
+        354,
+        0
+      ],
+      "compatible": [
+        "qcom,i2c-geni"
+      ],
+      "status": [
+        "ok"
+      ],
+      "reg": [
+        11026432,
+        16384
+      ]
+    },
+    "soc/i2c@a84000/nq@28": {
+      "qcom,nq-clkreq": {
+        "cells": [
+          56,
+          113,
+          0
+        ],
+        "target": "soc/pinctrl@03000000"
+      },
+      "qcom,nq-firm": {
+        "cells": [
+          56,
+          48,
+          0
+        ],
+        "target": "soc/pinctrl@03000000"
+      },
+      "qcom,nq-irq": {
+        "cells": [
+          56,
+          47,
+          0
+        ],
+        "target": "soc/pinctrl@03000000"
+      },
+      "qcom,nq-ven": {
+        "cells": [
+          56,
+          36,
+          0
+        ],
+        "target": "soc/pinctrl@03000000"
+      },
+      "interrupts": [
+        47,
+        0
+      ],
+      "compatible": [
+        "qcom,nq-nci"
+      ],
+      "reg": [
+        40
+      ]
+    },
+    "soc/qcom,qup_uart@0xc8c000": {
+      "compatible": [
+        "qcom,msm-geni-serial-hs"
+      ],
+      "status": [
+        "ok"
+      ],
+      "reg": [
+        13156352,
+        16384
+      ],
+      "qcom,wakeup-byte": [
+        253
+      ]
+    },
+    "vendor/bt_wcn3990": {
+      "qca,bt-vdd-ldo-supply": {
+        "cells": [
+          240
+        ],
+        "target": "soc/rpmh-regulator-ldoc11/regulator-pm8150l-l11",
+        "voltage": {
+          "regulator-min-microvolt": 3000000,
+          "regulator-max-microvolt": 3312000
+        }
+      },
+      "qca,bt-vdd-core-supply": {
+        "cells": [
+          238
+        ],
+        "target": "soc/rpmh-regulator-ldoa7/regulator-pm8150-l7",
+        "voltage": {
+          "regulator-min-microvolt": 1800000,
+          "regulator-max-microvolt": 1800000
+        }
+      },
+      "qca,bt-vdd-pa-voltage-level": [
+        1304000,
+        1304000
+      ],
+      "qca,bt-vdd-pa-supply": {
+        "cells": [
+          239
+        ],
+        "target": "soc/rpmh-regulator-ldoc2/regulator-pm8150l-l2",
+        "voltage": {
+          "regulator-min-microvolt": 1304000,
+          "regulator-max-microvolt": 1304000
+        }
+      },
+      "compatible": [
+        "qca,wcn3990"
+      ],
+      "qca,bt-vdd-ldo-voltage-level": [
+        3312000,
+        3312000
+      ],
+      "qca,bt-vdd-core-voltage-level": [
+        1800000,
+        1800000
+      ]
+    }
+  }
+}

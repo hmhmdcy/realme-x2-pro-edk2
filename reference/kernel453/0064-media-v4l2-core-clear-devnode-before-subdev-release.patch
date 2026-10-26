@@ -1,0 +1,13 @@
+--- a/drivers/media/v4l2-core/v4l2-device.c
++++ b/drivers/media/v4l2-core/v4l2-device.c
+@@ -176,9 +176,9 @@
+ {
+ 	struct module *owner = !sd->owner_v4l2_dev ? sd->owner : NULL;
+ 
++	sd->devnode = NULL;
+ 	if (sd->internal_ops && sd->internal_ops->release)
+ 		sd->internal_ops->release(sd);
+-	sd->devnode = NULL;
+ 	module_put(owner);
+ }
+ 

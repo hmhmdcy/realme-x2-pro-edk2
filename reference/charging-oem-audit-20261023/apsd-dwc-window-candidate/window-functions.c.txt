@@ -1,0 +1,258 @@
+/* Internal DWC3 foundation only. No caller is installed by this patch. */
+static int dwc3_gadget_recover_locked(struct dwc3 *dwc);
+
+static bool dwc3_gadget_window_wanted(struct dwc3 *dwc)
+{
+	unsigned long flags;
+	bool wanted;
+
+	/* softconnect is a bit-field; read it under the same lock as pullup. */
+	spin_lock_irqsave(&dwc->lock, flags);
+	wanted = dwc->softconnect;
+	spin_unlock_irqrestore(&dwc->lock, flags);
+	return wanted;
+}
+
+static void dwc3_gadget_window_result_locked(struct dwc3 *dwc,
+		struct dwc3_gadget_window_result *result)
+{
+	struct dwc3_gadget_window *window = &dwc->detect_window;
+
+	*result = (struct dwc3_gadget_window_result) {
+		.cookie = window->cookie,
+		.state = window->state,
+		.halted = window->halted,
+		.cancelled = window->cancelled,
+		.restore_wanted = dwc->softconnect,
+		.halt_error = window->halt_error,
+		.restore_error = window->restore_error,
+	};
+}
+
+static int dwc3_gadget_window_park_locked(struct dwc3 *dwc)
+{
+	struct dwc3_gadget_window *window = &dwc->detect_window;
+	int ret;
+
+	lockdep_assert_held(&dwc->connect_mutex);
+	ret = dwc3_gadget_soft_disconnect(dwc);
+	if (!ret && !(dwc3_readl(dwc, DWC3_DSTS) & DWC3_DSTS_DEVCTRLHLT))
+		ret = -EIO;
+	window->halt_error = ret;
+	window->halted = !ret;
+	return ret;
+}
+
+/**
+ * dwc3_gadget_window_begin - explicitly borrow an already active gadget
+ * @dwc: bound DWC3, owned by a DWC3-internal process-context caller
+ * @result: receipt, including a nonzero cookie once claimed
+ *
+ * This never resumes a suspended controller, resets a PHY, or starts detection.
+ * A failed HALT keeps its cookie and active PM reference: the caller must cancel
+ * or end it explicitly. The caller must serialize its lifetime with UDC unbind
+ * and DWC3 removal. No external ABI, automatic owner, or timeout is installed.
+ */
+int dwc3_gadget_window_begin(struct dwc3 *dwc,
+		struct dwc3_gadget_window_result *result)
+{
+	struct dwc3_gadget_window *window = &dwc->detect_window;
+	unsigned long flags;
+	int ret;
+
+	if (!result)
+		return -EINVAL;
+	memset(result, 0, sizeof(*result));
+	/* No connect_mutex is held across any PM operation. This API does not
+	 * invoke resume, so it cannot obtain its quiet state through PHY reset.
+	 */
+	ret = pm_runtime_get_if_active(dwc->dev);
+	if (ret <= 0)
+		return ret < 0 ? ret : -EAGAIN;
+
+	spin_lock_irqsave(&dwc->lock, flags);
+	if (dwc->detect_stopping || !dwc->gadget_driver)
+		ret = -ESHUTDOWN;
+	else if (dwc->dr_mode != USB_DR_MODE_PERIPHERAL ||
+		 dwc->current_dr_role != DWC3_GCTL_PRTCAP_DEVICE)
+		ret = -EOPNOTSUPP;
+	else if (dwc->err_state != DWC3_ERR_NONE)
+		ret = -EIO;
+	else if (window->state != DWC3_WINDOW_IDLE || dwc->detect_pm_busy ||
+		 dwc->detect_system_blocked)
+		ret = -EBUSY;
+	else {
+		memset(window, 0, sizeof(*window));
+		if (!++dwc->detect_generation)
+			++dwc->detect_generation;
+		window->cookie = dwc->detect_generation;
+		window->state = DWC3_WINDOW_CLAIMED;
+		window->pm_ref = true;
+		ret = 0;
+	}
+	spin_unlock_irqrestore(&dwc->lock, flags);
+	if (ret) {
+		pm_runtime_put_noidle(dwc->dev);
+		return ret;
+	}
+
+	mutex_lock(&dwc->connect_mutex);
+	/* UDC stop/removal sets stopping before waiting for connect_mutex. */
+	if (READ_ONCE(dwc->detect_stopping)) {
+		ret = -ESHUTDOWN;
+	} else {
+		synchronize_irq(dwc->irq_gadget);
+		ret = dwc3_gadget_window_park_locked(dwc);
+	}
+	spin_lock_irqsave(&dwc->lock, flags);
+	/* shutdown may have obtained connect_mutex first after the claim. */
+	if (window->state != DWC3_WINDOW_SHUTDOWN) {
+		window->state = ret ? DWC3_WINDOW_FAILED : DWC3_WINDOW_HALTED;
+		if (ret && !window->halt_error)
+			window->halt_error = ret;
+	}
+	dwc3_gadget_window_result_locked(dwc, result);
+	spin_unlock_irqrestore(&dwc->lock, flags);
+	mutex_unlock(&dwc->connect_mutex);
+	return ret;
+}
+
+/**
+ * dwc3_gadget_window_cancel - stop a claimed window without reconnecting
+ * @dwc: bound DWC3, under its normal caller lifetime rules
+ * @cookie: successful claim's receipt cookie
+ * @result: separate HALT/cancellation receipt
+ *
+ * Keeps the active PM reference and blocks reconnect/PM until explicit end or
+ * ordinary UDC/DWC3 teardown. A future detection owner must first undo its own
+ * PHY/PMIC operation before end. This foundation has no such operation.
+ */
+int dwc3_gadget_window_cancel(struct dwc3 *dwc, u64 cookie,
+		struct dwc3_gadget_window_result *result)
+{
+	struct dwc3_gadget_window *window = &dwc->detect_window;
+	unsigned long flags;
+	int ret;
+
+	if (!result)
+		return -EINVAL;
+	memset(result, 0, sizeof(*result));
+	mutex_lock(&dwc->connect_mutex);
+	if (!cookie || cookie != window->cookie ||
+	    window->state == DWC3_WINDOW_IDLE ||
+	    READ_ONCE(dwc->detect_stopping)) {
+		ret = -ESTALE;
+		goto unlock;
+	}
+	ret = dwc3_gadget_window_park_locked(dwc);
+	spin_lock_irqsave(&dwc->lock, flags);
+	window->cancelled = true;
+	window->state = ret ? DWC3_WINDOW_FAILED : DWC3_WINDOW_HALTED;
+	dwc3_gadget_window_result_locked(dwc, result);
+	spin_unlock_irqrestore(&dwc->lock, flags);
+unlock:
+	mutex_unlock(&dwc->connect_mutex);
+	return ret;
+}
+
+/**
+ * dwc3_gadget_window_end - explicitly restore latest known pullup intent
+ * @dwc: bound DWC3, under its normal caller lifetime rules
+ * @cookie: claimed window cookie
+ * @result: independent HALT/restore errors and remaining window state
+ *
+ * The future owner must have restored its PHY state before calling this API.
+ * Restore failure parks again and retains the cookie/PM reference for an
+ * explicit retry. A bounded intent race returns -EAGAIN, never a false success.
+ */
+int dwc3_gadget_window_end(struct dwc3 *dwc, u64 cookie,
+		struct dwc3_gadget_window_result *result)
+{
+	struct dwc3_gadget_window *window = &dwc->detect_window;
+	unsigned long flags;
+	bool wanted;
+	int attempt, ret = 0;
+
+	if (!result)
+		return -EINVAL;
+	memset(result, 0, sizeof(*result));
+	mutex_lock(&dwc->connect_mutex);
+	if (!cookie || cookie != window->cookie ||
+	    window->state == DWC3_WINDOW_IDLE ||
+	    READ_ONCE(dwc->detect_stopping)) {
+		ret = -ESTALE;
+		goto unlock;
+	}
+	spin_lock_irqsave(&dwc->lock, flags);
+	window->state = DWC3_WINDOW_RESTORING;
+	spin_unlock_irqrestore(&dwc->lock, flags);
+
+	for (attempt = 0; attempt < 2; attempt++) {
+		wanted = dwc3_gadget_window_wanted(dwc);
+		if (window->recovery_pending) {
+			ret = dwc3_gadget_recover_locked(dwc);
+			if (!ret && !wanted)
+				ret = dwc3_gadget_window_park_locked(dwc);
+			if (!ret)
+				window->recovery_pending = false;
+		} else if (wanted) {
+			synchronize_irq(dwc->irq_gadget);
+			ret = dwc3_gadget_soft_connect(dwc);
+		} else {
+			ret = dwc3_gadget_window_park_locked(dwc);
+		}
+		if (ret)
+			break;
+		spin_lock_irqsave(&dwc->lock, flags);
+		if (wanted == dwc->softconnect && !dwc->detect_stopping) {
+			window->halted = !wanted;
+			window->restore_error = 0;
+			window->state = DWC3_WINDOW_IDLE;
+			window->pm_ref = false;
+			dwc3_gadget_window_result_locked(dwc, result);
+			spin_unlock_irqrestore(&dwc->lock, flags);
+			mutex_unlock(&dwc->connect_mutex);
+			pm_runtime_mark_last_busy(dwc->dev);
+			pm_runtime_put_autosuspend(dwc->dev);
+			return 0;
+		}
+		spin_unlock_irqrestore(&dwc->lock, flags);
+	}
+	if (!ret)
+		ret = -EAGAIN;
+	/* Never turn a failed reconnect into a claimed quiet success. */
+	window->restore_error = ret;
+	dwc3_gadget_window_park_locked(dwc);
+	spin_lock_irqsave(&dwc->lock, flags);
+	window->state = DWC3_WINDOW_FAILED;
+	dwc3_gadget_window_result_locked(dwc, result);
+	spin_unlock_irqrestore(&dwc->lock, flags);
+unlock:
+	mutex_unlock(&dwc->connect_mutex);
+	return ret;
+}
+
+static void dwc3_gadget_window_shutdown(struct dwc3 *dwc)
+{
+	struct dwc3_gadget_window *window = &dwc->detect_window;
+	unsigned long flags;
+	bool put;
+
+	spin_lock_irqsave(&dwc->lock, flags);
+	dwc->detect_stopping = true;
+	spin_unlock_irqrestore(&dwc->lock, flags);
+	mutex_lock(&dwc->connect_mutex);
+	put = window->pm_ref;
+	if (put) {
+		window->cancelled = true;
+		dwc3_gadget_window_park_locked(dwc);
+	}
+	spin_lock_irqsave(&dwc->lock, flags);
+	window->state = DWC3_WINDOW_SHUTDOWN;
+	window->pm_ref = false;
+	dwc->softconnect = false;
+	spin_unlock_irqrestore(&dwc->lock, flags);
+	mutex_unlock(&dwc->connect_mutex);
+	if (put)
+		pm_runtime_put_noidle(dwc->dev);
+}

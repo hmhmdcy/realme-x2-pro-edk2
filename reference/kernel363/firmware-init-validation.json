@@ -1,0 +1,210 @@
+{
+  "stage": 363,
+  "firmware_sha256": "a22bc8adbb4ae97e4f8d728eecb1fd19c1bf866250b0bb7e668951c41c159e63",
+  "actual_thumb_entry": "fwEntryFunction",
+  "entry_start": "0x24747",
+  "entry_bytes": 1298,
+  "tests": [
+    {
+      "case": "success",
+      "expected_response": [
+        1
+      ],
+      "actual_response": [
+        1
+      ],
+      "instructions": 310,
+      "mapping_requests": [
+        {
+          "address": 278921216,
+          "bytes": 1048576
+        },
+        {
+          "address": 121749504,
+          "bytes": 8
+        },
+        {
+          "address": 121749508,
+          "bytes": 4096
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "no-shared-pointer",
+      "expected_response": [
+        2
+      ],
+      "actual_response": [
+        2
+      ],
+      "instructions": 145,
+      "mapping_requests": [],
+      "passed": true
+    },
+    {
+      "case": "no-shared-size",
+      "expected_response": [
+        2
+      ],
+      "actual_response": [
+        2
+      ],
+      "instructions": 146,
+      "mapping_requests": [],
+      "passed": true
+    },
+    {
+      "case": "no-heap-pointer",
+      "expected_response": [
+        2
+      ],
+      "actual_response": [
+        2
+      ],
+      "instructions": 148,
+      "mapping_requests": [],
+      "passed": true
+    },
+    {
+      "case": "no-heap-size",
+      "expected_response": [
+        2
+      ],
+      "actual_response": [
+        2
+      ],
+      "instructions": 149,
+      "mapping_requests": [],
+      "passed": true
+    },
+    {
+      "case": "heap-map-fails",
+      "expected_response": [
+        2
+      ],
+      "actual_response": [
+        2
+      ],
+      "instructions": 170,
+      "mapping_requests": [
+        {
+          "address": 278921216,
+          "bytes": 1048576
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "register-isr-fails",
+      "expected_response": [
+        2
+      ],
+      "actual_response": [
+        2
+      ],
+      "instructions": 248,
+      "mapping_requests": [
+        {
+          "address": 278921216,
+          "bytes": 1048576
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "create-signal-fails",
+      "expected_response": [
+        2
+      ],
+      "actual_response": [
+        2
+      ],
+      "instructions": 256,
+      "mapping_requests": [
+        {
+          "address": 278921216,
+          "bytes": 1048576
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "create-mutex-fails",
+      "expected_response": [
+        2
+      ],
+      "actual_response": [
+        2
+      ],
+      "instructions": 260,
+      "mapping_requests": [
+        {
+          "address": 278921216,
+          "bytes": 1048576
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "driver-thread-fails",
+      "expected_response": [
+        2
+      ],
+      "actual_response": [
+        2
+      ],
+      "instructions": 283,
+      "mapping_requests": [
+        {
+          "address": 278921216,
+          "bytes": 1048576
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "sfr-map-fails",
+      "expected_response": [
+        2
+      ],
+      "actual_response": [
+        2
+      ],
+      "instructions": 326,
+      "mapping_requests": [
+        {
+          "address": 278921216,
+          "bytes": 1048576
+        },
+        {
+          "address": 121749504,
+          "bytes": 8
+        },
+        {
+          "address": 121749508,
+          "bytes": 4096
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "idle-thread-fails",
+      "expected_response": [],
+      "actual_response": [],
+      "instructions": 114,
+      "mapping_requests": [],
+      "passed": true
+    }
+  ],
+  "initialization_success_value": 1,
+  "initialization_failure_value": 2,
+  "early_idle_thread_failure_leaves_response_zero": true,
+  "os_allocation_thread_signal_mutex_irq_and_mmu_calls_mocked": true,
+  "firmware_code_writes_hfi_csr": true,
+  "response_three_not_observed_on_exercised_paths": true,
+  "no_claim_about_other_firmware_paths": true,
+  "not_hardware_boot_or_actual_smmu_validation": true,
+  "phone_operations": false,
+  "passed": true
+}

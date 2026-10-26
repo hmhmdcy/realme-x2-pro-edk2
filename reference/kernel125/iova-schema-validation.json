@@ -1,0 +1,33 @@
+{
+  "actual_dtb_two_exact_native_window_exclusion_ranges": true,
+  "low_excluded_end_exclusive": 121634816,
+  "high_excluded_start": 3758096384,
+  "high_end_exclusive": 4294967296,
+  "memory_region_phandle_matches": true,
+  "no_reg_or_size_no_physical_ram_reservation": true,
+  "camss_disabled": true,
+  "pinned_schema_version": "2026.9",
+  "future_main_schema_requires_iommu_ranges_migration": true,
+  "strict_actual_reservation_no_errors": true,
+  "negative_controls": [
+    {
+      "name": "missing-addresses",
+      "negative_detected": true,
+      "validator": "strict-schema",
+      "strict_errors": 1
+    },
+    {
+      "name": "physical-size-added",
+      "negative_detected": true,
+      "validator": "strict-schema",
+      "strict_errors": 1
+    },
+    {
+      "name": "wrong-phandle",
+      "negative_detected": true,
+      "validator": "exact-cross-node-contract",
+      "strict_errors": 0
+    }
+  ],
+  "phone_unchanged": true
+}

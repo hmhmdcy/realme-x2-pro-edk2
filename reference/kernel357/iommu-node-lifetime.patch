@@ -1,0 +1,13 @@
+diff --git a/drivers/iommu/of_iommu.c b/drivers/iommu/of_iommu.c
+index a18bb60f6..e76e99e9d 100644
+--- a/drivers/iommu/of_iommu.c
++++ b/drivers/iommu/of_iommu.c
+@@ -235,7 +235,7 @@ void of_iommu_get_resv_regions(struct device *dev, struct list_head *list)
+ 		end = maps + size / sizeof(__be32);
+ 
+ 		while (maps < end) {
+-			struct device_node *np;
++			struct device_node *np __free(device_node) = NULL;
+ 			u32 phandle;
+ 
+ 			phandle = be32_to_cpup(maps++);

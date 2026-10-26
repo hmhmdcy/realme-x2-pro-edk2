@@ -1,0 +1,91 @@
+{
+  "source": "Close/Dispose and exit codes directly observed in tool stdout/stderr; event logs are verified separately.",
+  "windows": {
+    "mode-receipt": {
+      "exit_code": 0,
+      "close_observed": true,
+      "end_marker": "K71F"
+    },
+    "baseline-save": {
+      "exit_code": 0,
+      "close_observed": true,
+      "end_marker": "K71BS"
+    },
+    "baseline-read": {
+      "exit_code": 0,
+      "close_observed": true,
+      "end_marker": "K71BRE"
+    },
+    "touch-f1": {
+      "exit_code": 0,
+      "close_observed": true,
+      "end_marker": null
+    },
+    "touch-save": {
+      "exit_code": 1,
+      "close_observed": true,
+      "end_marker": null
+    },
+    "boot-passive": {
+      "exit_code": 0,
+      "close_observed": true,
+      "end_marker": null
+    },
+    "touch-save-ready": {
+      "exit_code": 0,
+      "close_observed": true,
+      "end_marker": "K71LS"
+    },
+    "touch-log-read": {
+      "exit_code": 0,
+      "close_observed": true,
+      "end_marker": "K71LRE"
+    },
+    "touch-facts-save": {
+      "exit_code": 0,
+      "close_observed": true,
+      "end_marker": "K71TS"
+    },
+    "touch-facts-read": {
+      "exit_code": 0,
+      "close_observed": true,
+      "end_marker": "K71TRE"
+    },
+    "touch-event-start": {
+      "exit_code": 0,
+      "close_observed": true,
+      "end_marker": "K71TC"
+    },
+    "touch-event-save": {
+      "exit_code": 0,
+      "close_observed": true,
+      "end_marker": "K71ES"
+    },
+    "touch-events-read": {
+      "exit_code": 0,
+      "close_observed": true,
+      "end_marker": "K71MRE"
+    },
+    "finish-save": {
+      "exit_code": 0,
+      "close_observed": true,
+      "end_marker": "K71ZS"
+    },
+    "finish-read": {
+      "exit_code": 0,
+      "close_observed": true,
+      "end_marker": "K71FRE"
+    }
+  },
+  "wsl": {
+    "name": "touch-f1-wsl",
+    "exit_code": 1,
+    "receipt": "F1",
+    "read_error": "EIO after receipt",
+    "resources_disposed_observed": true,
+    "usbmon_thread_alive": false,
+    "finally_detach_attempted": true,
+    "target_already_disconnected": true,
+    "persistent_shell_exited": true
+  }
+}

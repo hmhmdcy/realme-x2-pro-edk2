@@ -1,0 +1,89 @@
+--- a/drivers/tty/serial/eud.c
++++ b/drivers/tty/serial/eud.c
+@@ -42,6 +42,7 @@
+ #include <linux/minmax.h>
+ #include <linux/module.h>
+ #include <linux/mutex.h>
++#include <linux/printk.h>
+ #include <linux/of.h>
+ #include <linux/of_irq.h>
+ #include <linux/platform_device.h>
+@@ -147,6 +148,7 @@
+         struct uart_port port;
+         struct work_struct tx_work;
+ 	struct mutex tx_mutex;
++	bool tx_stopping;
+         struct delayed_work rx_work;
+         u64 tx_journal_total;
+         u32 tx_journal_head;
+@@ -255,6 +257,10 @@
+         void __iomem *base = port->membase;
+         unsigned int i;
+ 
++	/* The reboot handoff sets this under the UART lock. */
++	if (up->tx_stopping)
++		return;
++
+         eud_put(base, EUD_REG_COM_TX_ID, EUD_COM_UART_ID);
+         eud_put(base, EUD_REG_COM_TX_LEN, n);
+         for (i = 0; i < n; i++)
+@@ -644,7 +650,9 @@
+ 
+ static void eud_reboot_cmd(struct eud_port *up, unsigned int len)
+ {
++	unsigned long flags;
+ 	const char *what;
++
+ 	if (eud_reboot_pending)
+ 		return;
+ 	if (len == 2)
+@@ -652,20 +660,36 @@
+ 	else
+ 		return;
+ 	eud_reboot_pending = true;
+-        {
+-                unsigned long flags;
+-
+-                uart_port_lock_irqsave(&up->port, &flags);
+-                up->rx_stopping = true;
+-                eud_rx_irq_stop_locked(up, 0);
+-                uart_port_unlock_irqrestore(&up->port, flags);
+-        }
+-        if (up->rx_irq_requested)
+-                synchronize_irq(up->rx_irq);
++
++	uart_port_lock_irqsave(&up->port, &flags);
++	up->rx_stopping = true;
++	eud_rx_irq_stop_locked(up, 0);
++	uart_port_unlock_irqrestore(&up->port, flags);
++	if (up->rx_irq_requested)
++		synchronize_irq(up->rx_irq);
++
+ 	pr_info("eud: reboot2 %s requested\n", what);
+-        eud_restore_ahb2phy(up);
+-	writel_relaxed(0, up->port.membase + EUD_REG_CSR_EUD_EN);
+-	wmb();
++	/*
++	 * The F1 notice is queued by RX work. With nbcon, printk returning
++	 * does not mean its frames have reached the FIFO. Drain the queued
++	 * records before retiring the printer and giving the PHY back to ABL.
++	 * Do not hold tx_mutex while waiting for the printer that needs it.
++	 */
++	pr_flush(1000, true);
++	if (up->console_registered) {
++		unregister_console(&eud_console);
++		up->console_registered = false;
++	}
++
++	/* Serialize the last TTY writer with hardware shutdown as well. */
++	mutex_lock(&up->tx_mutex);
++	uart_port_lock_irqsave(&up->port, &flags);
++	up->tx_stopping = true;
++	uart_port_unlock_irqrestore(&up->port, flags);
++	eud_restore_ahb2phy(up);
++	writel(0, up->port.membase + EUD_REG_CSR_EUD_EN);
++	readl(up->port.membase + EUD_REG_CSR_EUD_EN);
++	mutex_unlock(&up->tx_mutex);
+ 	kernel_restart((char *)what);
+ }
+ 

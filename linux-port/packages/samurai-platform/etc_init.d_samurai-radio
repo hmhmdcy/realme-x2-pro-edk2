@@ -1,0 +1,16 @@
+#!/sbin/openrc-run
+description="Same-handset radio firmware and RAM COW services"
+depend() {
+    need localmount
+    after udev
+    before networkmanager
+}
+start() {
+    ebegin "Preparing Samurai radio for NetworkManager"
+    mkdir -p /run/samurai-wifi
+    : > /run/samurai-wifi/boot-started
+    SAMURAI_WIFI_MANAGED=1 /usr/sbin/samurai-wifi start > /run/samurai-wifi-boot.log 2>&1
+    result=$?
+    echo "$result" > /run/samurai-wifi/boot-finished
+    eend "$result"
+}

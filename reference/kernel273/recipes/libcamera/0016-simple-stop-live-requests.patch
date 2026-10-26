@@ -1,0 +1,62 @@
+Subject: [PATCH] simple: cancel only requests still owned by live frames
+
+Stream-off can complete a RAW request before the conversion queue is
+cleared. Cancelling that stale queue entry again asserts, and dereferencing
+it could access a request already released by the application. Drop queue
+references without dereferencing them, extract pending requests from the
+frame map, clear that ownership before callbacks, and cancel each once.
+
+---
+diff --git a/src/libcamera/pipeline/simple/simple.cpp b/src/libcamera/pipeline/simple/simple.cpp
+--- a/src/libcamera/pipeline/simple/simple.cpp
++++ b/src/libcamera/pipeline/simple/simple.cpp
+@@ -206,7 +206,7 @@
+ public:
+ 	void create(Request *request, bool metadataRequested);
+ 	void destroy(uint32_t frame);
+-	void clear();
++	std::vector<Request *> clear();
+ 
+ 	SimpleFrameInfo *find(uint32_t frame);
+ 
+@@ -226,9 +226,13 @@
+ 	frameInfo_.erase(frame);
+ }
+ 
+-void SimpleFrames::clear()
+-{
++std::vector<Request *> SimpleFrames::clear()
++{
++	std::vector<Request *> requests;
++	for (const auto &[frame, info] : frameInfo_)
++		requests.push_back(info.request);
+ 	frameInfo_.clear();
++	return requests;
+ }
+ 
+ SimpleFrameInfo *SimpleFrames::find(uint32_t frame)
+@@ -987,10 +991,13 @@
+ 
+ void SimpleCameraData::clearIncompleteRequests()
+ {
+-	while (!conversionQueue_.empty()) {
+-		pipe()->cancelRequest(conversionQueue_.front().request);
++	/* streamOff() may have completed RAW requests still referenced here. */
++	while (!conversionQueue_.empty())
+ 		conversionQueue_.pop();
+-	}
++
++	/* The frame map owns exactly those requests that are still pending. */
++	for (Request *request : frameInfo_.clear())
++		pipe()->cancelRequest(request);
+ }
+ 
+ void SimpleCameraData::tryCompleteRequest(Request *request)
+@@ -1753,7 +1760,6 @@
+ 
+ 	video->bufferReady.disconnect(data, &SimpleCameraData::imageBufferReady);
+ 
+-	data->frameInfo_.clear();
+ 	data->clearIncompleteRequests();
+ 	data->conversionBuffers_.clear();
+ 

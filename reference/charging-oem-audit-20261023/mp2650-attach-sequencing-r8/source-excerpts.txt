@@ -1,0 +1,1034 @@
+### samurai-mp2650.c SHA256 ed2e1d4d96ea4f2d55b514288b0e8da1d731864d385944d02a105d41b03a144c
+--- retained source lines 112-164 ---
+112: static int sm_collect(struct sm_charger *c, struct sm_sample *s)
+113: {
+114: 	int online, status, present, health, ret, budget_after, online_after;
+115: 
+116: 	*s = (struct sm_sample){ 0 };
+117: 	c->source_inhibit = false;
+118: 	c->sample_full = false;
+119: 	ret = sm_psy_int(c->input, POWER_SUPPLY_PROP_ONLINE, &online);
+120: 	if (ret) { c->source_inhibit = true; return ret; }
+121: 	status = sm_read(c, 0x13);
+122: 	if (status < 0) return status;
+123: 	if (!!online != !!(status & 0x02)) { c->source_inhibit = true; return -EAGAIN; }
+124: 	s->online = !!online;
+125: 	if (!s->online) {
+126: 		/* Only an agreed physical detach resets the session and fault latch. */
+127: 		sm_cycle_update(&c->cycle, ktime_get_boottime_ns(), 0, 0);
+128: 		c->latched = false;
+129: 		c->thermal = (struct sm_thermal_state){ 0 };
+130: 		sm_oem_full_init(&c->full_state);
+131: 		s->valid = s->protection_ok = 1;
+132: 		return 0;
+133: 	}
+134: 	ret = sm_psy_int(c->input, POWER_SUPPLY_PROP_CURRENT_MAX, &s->budget_ua);
+135: 	if (ret) { c->source_inhibit = true; return ret; }
+136: 	if (s->budget_ua < 50000) { c->source_inhibit = true; return -ENODATA; }
+137: 	if (c->protection) {
+138: 		ret = sm_psy_int(c->protection, POWER_SUPPLY_PROP_PRESENT, &present);
+139: 		if (ret) return ret;
+140: 		ret = sm_psy_int(c->protection, POWER_SUPPLY_PROP_HEALTH, &health);
+141: 		if (ret) return ret;
+142: 		s->protection_ok = present == 1 && health == POWER_SUPPLY_HEALTH_GOOD;
+143: 	}
+144: 	ret = sm_gauge_sample(c, s);
+145: 	if (ret) return ret;
+146: 	/* One owning read per poll, cached for sysfs; never discard a prior fault. */
+147: 	ret = sm_read(c, 0x14);
+148: 	if (ret < 0) return ret;
+149: 	s->fault = ret;
+150: 	/* A changing source budget/attachment cannot authorize this sample. */
+151: 	ret = sm_psy_int(c->input, POWER_SUPPLY_PROP_ONLINE, &online_after);
+152: 	if (ret) { c->source_inhibit = true; return ret; }
+153: 	ret = sm_psy_int(c->input, POWER_SUPPLY_PROP_CURRENT_MAX, &budget_after);
+154: 	if (ret) { c->source_inhibit = true; return ret; }
+155: 	status = sm_read(c, 0x13);
+156: 	if (status < 0) return status;
+157: 	if (!online_after || !(status & 2) || budget_after != s->budget_ua) {
+158: 		c->source_inhibit = true;
+159: 		return -EAGAIN;
+160: 	}
+161: 	c->sample_full = (status & 0x0c) == 0x0c;
+162: 	s->valid = 1;
+163: 	return 0;
+164: }
+--- retained source lines 176-198 ---
+176: 	ret = sm_collect(c, &c->sample);
+177: 	c->sampled_at = ktime_get_boottime();
+178: 	now = ktime_get_boottime_ns();
+179: 	c->full_holding = false;
+180: 	c->hold_requested = false;
+181: 	/* Established timeout is checked before any new Full interpretation. */
+182: 	c->sample.session_seconds = c->cycle.timed_out ? SM_OEM_MAX_SECONDS : 0;
+183: 	validation = ret;
+184: 	if (!validation)
+185: 		validation = sm_policy_with_reason(&c->sample, c->cell_ceiling_uv,
+186: 				c->current_cap_ua, c->input_cap_ua, &validation_target, &reason);
+187: 	if (c->sample.online && (!validation || sm_policy_reason_is_thermal(reason))) {
+188: 		thermal_hold = sm_thermal_gate(&c->thermal, c->sample.temp_decic, 1);
+189: 		/* Re-evaluate the complete policy against that same effective band.
+190: 		 * Only fresh non-hard-failing samples can advance this history.
+191: 		 */
+192: 		validation = sm_policy_with_band_reason(&c->sample, c->cell_ceiling_uv,
+193: 			c->current_cap_ua, c->input_cap_ua, c->thermal.band,
+194: 			&validation_target, &reason);
+195: 		if (!validation && thermal_hold)
+196: 			validation = -ERANGE;
+197: 	}
+198: 	source = c->sample.online ? 1 : !ret && c->sample.valid ? 0 : -1;
+--- retained source lines 221-283 ---
+221: 	if (c->auto_requested)
+222: 		c->full_result = sm_oem_full_step(&c->full_state, now, &full_sample);
+223: 	else
+224: 		c->full_result = sm_oem_full_skip(&c->full_state);
+225: 	/* Physical detach is a normal stop/reset, never a new telemetry fault. */
+226: 	if (c->full_result.stop_all && !validation && !c->latched && source != 0) {
+227: 		ret = -ENODATA;
+228: 		validation = ret;
+229: 		reason = SM_POLICY_REASON_NONE;
+230: 	}
+231: 	healthy_full = sm_cycle_full_allowed(c->sample_full ||
+232: 		((c->full_result.full || c->full_result.recharge) && !c->full_result.stop_all),
+233: 		c->latched, validation);
+234: 	c->sample.session_seconds = sm_cycle_update(&c->cycle, now, source, healthy_full);
+235: 	if (!ret)
+236: 		ret = sm_policy_with_band_reason(&c->sample, c->cell_ceiling_uv,
+237: 			c->current_cap_ua, c->input_cap_ua,
+238: 			c->thermal.initialized ? c->thermal.band : SM_POLICY_STATIC_BAND,
+239: 			&target, &reason);
+240: 	if (!ret && thermal_hold) {
+241: 		ret = -ERANGE;
+242: 		reason = SM_POLICY_REASON_TEMPERATURE;
+243: 		target.enable = 0;
+244: 	}
+245: 	c->thermal_reason = sm_policy_reason_is_thermal(reason) ? reason : SM_POLICY_REASON_NONE;
+246: 	c->gauge_charge_stop = reason == SM_POLICY_REASON_GAUGE_CHARGE_STOP;
+247: 	/* TCA is an immediate stop request; it never masks a prior hard latch,
+248: 	 * becomes normal Full, erases raw flags, or bypasses a failed bus stop.
+249: 	 */
+250: 	c->latched = sm_sample_latch(c->latched, ret,
+251: 		c->source_inhibit || sm_policy_reason_is_thermal(reason) || c->gauge_charge_stop,
+252: 		c->sample.fault);
+253: 	c->hold_requested = !ret && !c->latched && c->auto_requested &&
+254: 		c->full_result.hold_charge_only;
+255: 	if (c->hold_requested)
+256: 		target.enable = 0; /* Desired CHG, distinct from healthy converter hold. */
+257: 	if (control) {
+258: 		if (ret || c->latched || !c->auto_requested ||
+259: 		    (!target.enable && !c->hold_requested)) {
+260: 			c->stop_error = sm_stop(&c->io);
+261: 			if (c->stop_error) c->latched = true;
+262: 			if (!ret) ret = c->stop_error;
+263: 			target.enable = 0;
+264: 		} else {
+265: 			if (c->hold_requested) {
+266: 				ret = sm_apply_charge_hold(&c->io, &target, &c->stop_error);
+267: 				c->full_holding = !ret;
+268: 			} else {
+269: 				ret = sm_apply(&c->io, &target, &c->stop_error);
+270: 			}
+271: 			if (ret) {
+272: 				c->latched = true;
+273: 				target.enable = 0;
+274: 			}
+275: 		}
+276: 	}
+277: 	c->target = target;
+278: 	c->last_error = ret;
+279: 	if (ret || c->stop_error)
+280: 		dev_warn_ratelimited(&c->client->dev,
+281: 			"policy/io error=%d stop error=%d latched=%d shadow=%d\n",
+282: 			ret, c->stop_error, c->latched, !control);
+283: 	return ret;
+--- retained source lines 286-352 ---
+286: /* Called after the safety step, with c->lock held and no I2C bus lock held.
+287:  * bq27xxx STATUS reads its own signed current/FC flags; do not infer net battery
+288:  * charging from CHG_EN or the charger's switching state.
+289:  */
+290: static bool sm_notification_locked(struct sm_charger *c)
+291: {
+292: 	struct sm_notify_state state = {
+293: 		.health = c->last_error || c->latched || c->stop_error ?
+294: 			POWER_SUPPLY_HEALTH_UNSPEC_FAILURE : POWER_SUPPLY_HEALTH_GOOD,
+295: 		.error = c->last_error,
+296: 		.stop_error = c->stop_error,
+297: 		.latched = c->latched,
+298: 		.source_inhibit = c->source_inhibit,
+299: 		.auto_requested = c->auto_requested,
+300: 		.valid = c->sample.valid,
+301: 		.online = c->sample.online,
+302: 		.protection_ok = c->sample.protection_ok,
+303: 		.fault = c->sample.fault,
+304: 		.target_enable = c->target.enable,
+305: 		.input_ua = c->target.input_ua,
+306: 		.current_ua = c->target.current_ua,
+307: 		.cell_uv = c->target.cell_uv,
+308: 		.logical_full = c->full_state.full,
+309: 		.full_holding = c->full_holding,
+310: 		.hold_requested = c->hold_requested,
+311: 		.gauge_charge_stop = c->gauge_charge_stop,
+312: 	};
+313: 	bool changed;
+314: 	int reg;
+315: 
+316: 	/* Sample after sm_step_locked() has completed any hardware writes. */
+317: 	reg = sm_read(c, 0x13);
+318: 	if (reg < 0)
+319: 		state.charger_error = reg;
+320: 	else
+321: 		state.charger_status = reg & 0x0e; /* ONLINE and CHG_STAT only */
+322: 	state.battery_error = sm_psy_int(c->battery, POWER_SUPPLY_PROP_STATUS,
+323: 				       &state.battery_status);
+324: 	changed = !c->notified_valid || sm_notify_changed(&c->notified, &state);
+325: 	c->notified = state;
+326: 	c->notified_valid = true;
+327: 	return changed;
+328: }
+329: 
+330: static void sm_poll(struct work_struct *work)
+331: {
+332: 	struct sm_charger *c = container_of(to_delayed_work(work),
+333: 					 struct sm_charger, work);
+334: 	bool notify = false;
+335: 
+336: 	mutex_lock(&c->lock);
+337: 	if (c->paused) goto out;
+338: 	sm_step_locked(c);
+339: 	notify = sm_notification_locked(c);
+340: 	schedule_delayed_work(&c->work, msecs_to_jiffies(1000));
+341: out:
+342: 	mutex_unlock(&c->lock);
+343: 	if (notify)
+344: 		power_supply_changed(c->psy);
+345: }
+346: 
+347: static int sm_supply_changed(struct notifier_block *nb, unsigned long event, void *data)
+348: {
+349: 	struct sm_charger *c = container_of(nb, struct sm_charger, supply_notifier);
+350: 	if (event == PSY_EVENT_PROP_CHANGED && (data == c->input || data == c->protection) &&
+351: 	    !READ_ONCE(c->paused)) mod_delayed_work(system_wq, &c->work, 0);
+352: 	return NOTIFY_DONE;
+--- retained source lines 355-373 ---
+355: /* Preserve the installed observer's stable-high/low/high ADC read protocol. */
+356: static int sm_adc(struct sm_charger *c, unsigned int low_reg, int *code)
+357: {
+358: 	int high, low, after;
+359: 
+360: 	for (int attempt = 0; attempt < 3; attempt++) {
+361: 		high = sm_read(c, low_reg + 1);
+362: 		if (high < 0) return high;
+363: 		low = sm_read(c, low_reg);
+364: 		if (low < 0) return low;
+365: 		after = sm_read(c, low_reg + 1);
+366: 		if (after < 0) return after;
+367: 		if (high == after) {
+368: 			*code = (high << 2) | (low >> 6);
+369: 			return 0;
+370: 		}
+371: 	}
+372: 	return -ENODATA;
+373: }
+--- retained source lines 412-439 ---
+412: 	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
+413: 	case POWER_SUPPLY_PROP_CURRENT_NOW:
+414: 		value = sm_read(c, 0x13);
+415: 		if (value < 0) { ret = value; break; }
+416: 		if (!(value & 2)) { ret = -ENODATA; break; }
+417: 		ret = sm_adc(c, prop == POWER_SUPPLY_PROP_VOLTAGE_NOW ? 0x1c : 0x1e, &code);
+418: 		if (ret) break;
+419: 		after = sm_read(c, 0x13);
+420: 		if (after < 0) { ret = after; break; }
+421: 		if (!(after & 2) || ((after ^ value) & 0x0c)) { ret = -ENODATA; break; }
+422: 		v->intval = code * (prop == POWER_SUPPLY_PROP_VOLTAGE_NOW ? 25000 : 6250);
+423: 		break;
+424: 	case POWER_SUPPLY_PROP_ONLINE:
+425: 	case POWER_SUPPLY_PROP_STATUS:
+426: 		value = sm_read(c, 0x13);
+427: 		if (value < 0) { ret = value; break; }
+428: 		if (prop == POWER_SUPPLY_PROP_ONLINE) {
+429: 			v->intval = !!(value & 2);
+430: 			break;
+431: 		}
+432: 		v->intval = POWER_SUPPLY_STATUS_NOT_CHARGING;
+433: 		if (value & 2) {
+434: 			if ((value & 0x0c) == 0x0c)
+435: 				v->intval = POWER_SUPPLY_STATUS_FULL;
+436: 			else if (value & 0x0c)
+437: 				v->intval = POWER_SUPPLY_STATUS_CHARGING;
+438: 		}
+439: 		break;
+--- retained source lines 741-751 ---
+741: static int sm_resume(struct device *dev)
+742: {
+743: 	struct sm_charger *c = dev_get_drvdata(dev);
+744: 
+745: 	mutex_lock(&c->lock);
+746: 	c->paused = false;
+747: 	/* The first fresh post-resume sample is always reported. */
+748: 	c->notified_valid = false;
+749: 	mod_delayed_work(system_wq, &c->work, 0);
+750: 	mutex_unlock(&c->lock);
+751: 	return 0;
+### mp2650-core.h SHA256 df9caed5c3678551b84e04d416c53caafd2b51036f2244b26974a87aa1ced4e8
+--- retained source lines 159-195 ---
+159: static inline int sm_update(const struct sm_io *io, unsigned int reg,
+160: 			    unsigned int mask, unsigned int value)
+161: {
+162: 	int old, after, ret;
+163: 	unsigned int next;
+164: 
+165: 	/* No raw register interface, reset, watchdog kick, OTG or BATTFET writes. */
+166: 	if (!((reg == 0x08 && !(mask & ~0x18U)) ||
+167: 	      ((reg == 0x00 || reg == 0x0f || reg == 0x02) && mask == 0x7f) ||
+168: 	      (reg == 0x03 && mask == 0xff) ||
+169: 	      (reg == 0x04 && mask == 0x7f)) || !mask)
+170: 		return -EINVAL;
+171: 	old = io->read(io->ctx, reg);
+172: 	if (old < 0)
+173: 		return old;
+174: 	if (reg == 0x08 && (old & 0xc0))
+175: 		return -EBUSY;
+176: 	next = (old & ~mask) | (value & mask);
+177: 	if (next != (unsigned int)old) {
+178: 		ret = io->write(io->ctx, reg, next);
+179: 		if (ret)
+180: 			return ret;
+181: 	}
+182: 	after = io->read(io->ctx, reg);
+183: 	if (after < 0)
+184: 		return after;
+185: 	/* Also verify unrelated bits, rather than silently clobbering them. */
+186: 	return after == (int)next ? 0 : -EIO;
+187: }
+188: 
+189: /* Pause normal charge and the input converter; never switch the protection FET.
+190:  * Failure is reported: a dead I2C bus cannot prove the hardware has stopped.
+191:  */
+192: static inline int sm_stop(const struct sm_io *io)
+193: {
+194: 	return sm_update(io, 0x08, 0x18, 0x08);
+195: }
+--- retained source lines 197-215 ---
+197: static inline int sm_preconditions(const struct sm_io *io)
+198: {
+199: 	int cell = io->read(io->ctx, 0x07);
+200: 	int control = io->read(io->ctx, 0x08);
+201: 	int timers = io->read(io->ctx, 0x09);
+202: 	int compensation = io->read(io->ctx, 0x05);
+203: 
+204: 	if (cell < 0) return cell;
+205: 	if (control < 0) return control;
+206: 	if (timers < 0) return timers;
+207: 	if (compensation < 0) return compensation;
+208: 	if ((cell & 0xc0) || (control & 0xe0) || (control & 0x26) != 0x06 ||
+209: 	    (compensation & 0xfc))
+210: 		return -EOPNOTSUPP;
+211: 	/* Do not adopt a live watchdog or disable termination/safety timers. */
+212: 	if ((timers & 0x30) || (timers & 0x48) != 0x48)
+213: 		return -EOPNOTSUPP;
+214: 	return 0;
+215: }
+--- retained source lines 217-281 ---
+217: /* Apply while suspended, verify both input limits and then resume. A failed
+218:  * transaction never rolls back to a larger old input allowance or enables
+219:  * charging. The caller latches the primary and stop errors separately.
+220:  */
+221: static inline int sm_apply(const struct sm_io *io, const struct sm_target *t,
+222: 			   int *stop_error)
+223: {
+224: 	int ret, cc, cv, first, second, control, preterm;
+225: 
+226: 	*stop_error = 0;
+227: 	if (!t->enable) {
+228: 		*stop_error = sm_stop(io);
+229: 		return *stop_error;
+230: 	}
+231: 	if (t->input_ua < 50000 || t->input_ua > SM_OEM_INPUT_MAX_UA ||
+232: 	    t->input_ua % 50000 || t->current_ua < 200000 ||
+233: 	    t->current_ua > 1100000 || t->current_ua % 50000 ||
+234: 	    t->cell_uv < 3712500 || t->cell_uv > 4500000 ||
+235: 	    (t->cell_uv - 3712500) % 12500) {
+236: 		ret = -EINVAL;
+237: 		goto fail;
+238: 	}
+239: 	ret = sm_preconditions(io);
+240: 	if (ret)
+241: 		goto fail;
+242: 	/* Do not toggle CHG_EN on every poll: it resets the hardware safety timer. */
+243: 	first = io->read(io->ctx, 0x00);
+244: 	second = io->read(io->ctx, 0x0f);
+245: 	cc = io->read(io->ctx, 0x02);
+246: 	cv = io->read(io->ctx, 0x04);
+247: 	control = io->read(io->ctx, 0x08);
+248: 	preterm = io->read(io->ctx, 0x03);
+249: 	if (first < 0 || second < 0 || cc < 0 || cv < 0 || control < 0 || preterm < 0) {
+250: 		ret = first < 0 ? first : second < 0 ? second : cc < 0 ? cc :
+251: 			cv < 0 ? cv : control < 0 ? control : preterm;
+252: 		goto fail;
+253: 	}
+254: 	if ((first & 0x7f) == t->input_ua / 50000 &&
+255: 	    (second & 0x7f) == t->input_ua / 50000 &&
+256: 	    (cc & 0x7f) == t->current_ua / 50000 &&
+257: 	    (cv & 0x7f) == (t->cell_uv - 3712500) / 12500 * 2 &&
+258: 	    preterm == 0x31 &&
+259: 	    (control & 0x18) == 0x10)
+260: 		return 0;
+261: 	ret = sm_stop(io);
+262: 	if (ret) goto fail;
+263: 	ret = sm_update(io, 0x0f, 0x7f, t->input_ua / 50000);
+264: 	if (ret) goto fail;
+265: 	ret = sm_update(io, 0x00, 0x7f, t->input_ua / 50000);
+266: 	if (ret) goto fail;
+267: 	ret = sm_update(io, 0x02, 0x7f, t->current_ua / 50000);
+268: 	if (ret) goto fail;
+269: 	/* MPS table (not the old OEM arithmetic): precharge code 3 = 180mA.
+270: 	 * OEM termination 110mA is rounded down to the 100mA hardware step.
+271: 	 */
+272: 	ret = sm_update(io, 0x03, 0xff, 0x31);
+273: 	if (ret) goto fail;
+274: 	/* OEM recharge offset 100mV/cell is encoded by bit 0 = 0. */
+275: 	ret = sm_update(io, 0x04, 0x7f, (t->cell_uv - 3712500) / 12500 * 2);
+276: 	if (ret) goto fail;
+277: 	ret = sm_update(io, 0x08, 0x18, 0x10);
+278: 	if (!ret) return 0;
+279: fail:
+280: 	*stop_error = sm_stop(io);
+281: 	return ret;
+--- retained source lines 284-342 ---
+284: /* Normal Full: never enable CHG even transiently, retain the input converter
+285:  * only after current source limits and all inherited configuration are proven.
+286:  * Unlike sm_stop(), stable normal Full is not an input-converter inhibit.
+287:  */
+288: static inline int sm_apply_charge_hold(const struct sm_io *io,
+289: 				       const struct sm_target *t, int *stop_error)
+290: {
+291: 	int ret, first, second, cc, cv, preterm, control;
+292: 
+293: 	*stop_error = 0;
+294: 	/* First hardware action clears CHG; do not call sm_apply() on this path. */
+295: 	ret = sm_update(io, 0x08, 0x10, 0);
+296: 	if (ret) goto fail;
+297: 	if (t->input_ua < 50000 || t->input_ua > SM_OEM_INPUT_MAX_UA ||
+298: 	    t->input_ua % 50000 || t->current_ua < 200000 ||
+299: 	    t->current_ua > 1100000 || t->current_ua % 50000 ||
+300: 	    t->cell_uv < 3712500 || t->cell_uv > 4500000 ||
+301: 	    (t->cell_uv - 3712500) % 12500) {
+302: 		ret = -EINVAL;
+303: 		goto fail;
+304: 	}
+305: 	ret = sm_preconditions(io);
+306: 	if (ret) goto fail;
+307: 	first = io->read(io->ctx, 0x00);
+308: 	second = io->read(io->ctx, 0x0f);
+309: 	cc = io->read(io->ctx, 0x02);
+310: 	cv = io->read(io->ctx, 0x04);
+311: 	control = io->read(io->ctx, 0x08);
+312: 	preterm = io->read(io->ctx, 0x03);
+313: 	if (first < 0 || second < 0 || cc < 0 || cv < 0 || control < 0 || preterm < 0) {
+314: 		ret = first < 0 ? first : second < 0 ? second : cc < 0 ? cc :
+315: 			cv < 0 ? cv : control < 0 ? control : preterm;
+316: 		goto fail;
+317: 	}
+318: 	if ((first & 0x7f) == t->input_ua / 50000 &&
+319: 	    (second & 0x7f) == t->input_ua / 50000 &&
+320: 	    (cc & 0x7f) == t->current_ua / 50000 &&
+321: 	    (cv & 0x7f) == (t->cell_uv - 3712500) / 12500 * 2 &&
+322: 	    preterm == 0x31 && !(control & 0x18))
+323: 		return 0;
+324: 	/* Any discrete limit/configuration change is made with input paused. */
+325: 	ret = sm_stop(io);
+326: 	if (ret) goto fail;
+327: 	ret = sm_update(io, 0x0f, 0x7f, t->input_ua / 50000);
+328: 	if (ret) goto fail;
+329: 	ret = sm_update(io, 0x00, 0x7f, t->input_ua / 50000);
+330: 	if (ret) goto fail;
+331: 	ret = sm_update(io, 0x02, 0x7f, t->current_ua / 50000);
+332: 	if (ret) goto fail;
+333: 	ret = sm_update(io, 0x03, 0xff, 0x31);
+334: 	if (ret) goto fail;
+335: 	ret = sm_update(io, 0x04, 0x7f, (t->cell_uv - 3712500) / 12500 * 2);
+336: 	if (ret) goto fail;
+337: 	/* Unpause only the input converter; CHG_EN stays zero. */
+338: 	ret = sm_update(io, 0x08, 0x18, 0);
+339: 	if (!ret) return 0;
+340: fail:
+341: 	*stop_error = sm_stop(io);
+342: 	return ret;
+### gauge-i2c.h SHA256 897a961d765f794af2358205b46998ac4889f4ad9e91db2265d99cd70d701e77
+--- retained source lines 22-36 ---
+22: 	unsigned char start = 0x3e;
+23: 	struct i2c_msg messages[] = {
+24: 		{ .addr = g->addr, .len = 1, .buf = &start },
+25: 		{ .addr = g->addr, .flags = I2C_M_RD, .len = 36, .buf = packet },
+26: 	};
+27: 	int ret;
+28: 
+29: 	if (sm_mac_data_size(command) < 0) return -EINVAL;
+30: 	ret = sm_gauge_word_locked(g, 0x3e, true, command);
+31: 	if (ret) return ret;
+32: 	usleep_range(1000, 1500); /* matched OEM query delay, no NVM transaction */
+33: 	ret = __i2c_transfer(g->adapter, messages, ARRAY_SIZE(messages));
+34: 	if (ret != ARRAY_SIZE(messages)) return ret < 0 ? ret : -EIO;
+35: 	return sm_mac_validate(packet, 36, command);
+36: }
+### oem-full-cycle.h SHA256 91554031a1ea454e1a70fa8bae89316bd8770686c19c5a33ec6a1dbb06bdfba4
+--- retained source lines 14-19 ---
+14: #define SM_FULL_TICK_NS (5ULL * 1000000000ULL)
+15: #define SM_FULL_OCA 0x8000U
+16: #define SM_FULL_TCA 0x4000U
+17: enum sm_full_cause { SM_FULL_NONE, SM_FULL_SOFTWARE, SM_FULL_VOLTAGE, SM_FULL_HARDWARE };
+18: enum sm_full_block { SM_FULL_OK, SM_FULL_NO_SOURCE, SM_FULL_BAD_SAMPLE,
+19: 	SM_FULL_HARD_FAULT, SM_FULL_TCA_HOLD, SM_FULL_BAD_CLOCK };
+--- retained source lines 105-162 ---
+105: static inline struct sm_oem_full_result sm_oem_full_step(struct sm_oem_full_state *s,
+106: 				 sm_full_ns now, const struct sm_oem_full_sample *in)
+107: {
+108: 	struct sm_oem_full_result out = { 0 };
+109: 	const struct sm_full_band *b;
+110: 	int band, current_qualifies, due, cv;
+111: 
+112: 	out.full = s->full;
+113: 	out.cause = s->cause;
+114: 	if (s->have_seen && now < s->last_seen_ns) {
+115: 		sm_oem_full_clear_streak(s);
+116: 		out.stop_all = 1;
+117: 		out.block = SM_FULL_BAD_CLOCK;
+118: 		return out;
+119: 	}
+120: 	/* Never backfill unobserved five-second samples after suspend/starvation.
+121: 	 * A missing >=2-period observation gap resets streaks. This explicit
+122: 	 * continuity choice permits normal 5.01s scheduling jitter, unlike a
+123: 	 * strict >5.000s reset which would make the OEM counts unreachable.
+124: 	 */
+125: 	if (s->have_seen && now - s->last_seen_ns >= 2 * SM_FULL_TICK_NS)
+126: 		sm_oem_full_clear_streak(s);
+127: 	s->last_seen_ns = now;
+128: 	s->have_seen = 1;
+129: 	if (!in->source_known) {
+130: 		out.stop_all = 1; out.block = SM_FULL_NO_SOURCE;
+131: 		goto blocked;
+132: 	}
+133: 	if (!in->online) {
+134: 		sm_oem_full_init(s);
+135: 		out = (struct sm_oem_full_result){ .stop_all = 1,
+136: 			.block = SM_FULL_NO_SOURCE };
+137: 		return out;
+138: 	}
+139: 	/* Legacy callers may use the raw lookup. The live driver supplies the
+140: 	 * same effective band used by its already validated policy target.
+141: 	 */
+142: 	band = in->policy_band_valid ? in->policy_band : sm_oem_full_band(in->temp_decic);
+143: 	if (!in->valid || !in->policy_good || !in->protection_good ||
+144: 	    sm_oem_full_band(in->temp_decic) < 0 || band < 0 || band >= 6 ||
+145: 	    in->max_cell_uv < 2000000 || in->max_cell_uv > 4600000 ||
+146: 	    in->gauge_current_ua < -32768000 || in->gauge_current_ua > 32767000 ||
+147: 	    in->cell_target_uv < 3712500 || in->cell_target_uv > 4500000) {
+148: 		out.stop_all = 1; out.block = SM_FULL_BAD_SAMPLE;
+149: 		goto blocked;
+150: 	}
+151: 	if (in->hard_latched || in->timeout || (in->gauge_flags & SM_FULL_OCA)) {
+152: 		out.stop_all = 1; out.block = SM_FULL_HARD_FAULT;
+153: 		goto blocked;
+154: 	}
+155: 	/* A normal SafetyStatus alone cannot distinguish TCA's TC condition
+156: 	 * from pre-trip SafetyAlert OCC/COV/OTC on this factory 2719 pack.
+157: 	 * TCA never authorizes Full/recharge, clears faults, or resets a timer.
+158: 	 */
+159: 	if (in->gauge_flags & SM_FULL_TCA) {
+160: 		out.stop_all = 1; out.block = SM_FULL_TCA_HOLD;
+161: 		goto blocked;
+162: 	}
+--- retained source lines 173-237 ---
+173: 	if (s->band != band) {
+174: 		sm_oem_full_clear_streak(s);
+175: 		s->band = band;
+176: 	}
+177: 	/* A fresh hardware termination is already an actual completion event,
+178: 	 * not a software counter sample. Handle it immediately, even between
+179: 	 * software 5s ticks, so a concurrent limit change cannot re-enable CHG.
+180: 	 */
+181: 	if (!s->full && in->hardware_full) {
+182: 		s->full = 1; s->cause = SM_FULL_HARDWARE;
+183: 		sm_oem_full_clear_streak(s);
+184: 		s->last_tick_ns = now; s->have_tick = 1;
+185: 		out.full = out.entered_full = out.hold_charge_only = 1;
+186: 		out.cause = s->cause;
+187: 		return out;
+188: 	}
+189: 	due = !s->have_tick || now - s->last_tick_ns >= SM_FULL_TICK_NS;
+190: 	if (s->full) {
+191: 		out.hold_charge_only = 1;
+192: 		/* Even a non-tick fresh sample above the threshold disproves a
+193: 		 * continuous low-voltage run. Short-c prohibition cannot leave an
+194: 		 * already accumulated ready-to-recharge count behind.
+195: 		 */
+196: 		if (in->max_cell_uv > out.recharge_threshold_uv || in->recharge_forbidden)
+197: 			s->recharge_count = 0;
+198: 		if (!due) return out;
+199: 		s->last_tick_ns = now; s->have_tick = 1; out.tick = 1;
+200: 		if (in->max_cell_uv <= out.recharge_threshold_uv && !in->recharge_forbidden)
+201: 			s->recharge_count++;
+202: 		if (s->recharge_count > 5) {
+203: 			s->full = 0; s->cause = SM_FULL_NONE;
+204: 			sm_oem_full_clear_streak(s);
+205: 			/* No second count at the same timestamp after a transition. */
+206: 			s->last_tick_ns = now; s->have_tick = 1;
+207: 			out.full = 0; out.hold_charge_only = 0;
+208: 			out.recharge = 1; out.cause = SM_FULL_NONE;
+209: 		}
+210: 		return out;
+211: 	}
+212: 	current_qualifies = in->gauge_current_ua <= 0 || in->gauge_current_ua <= 110000;
+213: 	if (in->max_cell_uv <= out.sw_threshold_uv || !current_qualifies)
+214: 		s->sw_count = 0;
+215: 	if (in->max_cell_uv < out.voltage_threshold_uv)
+216: 		s->voltage_count = 0;
+217: 	if (!due) return out;
+218: 	s->last_tick_ns = now; s->have_tick = 1; out.tick = 1;
+219: 	if (in->max_cell_uv > out.sw_threshold_uv && current_qualifies)
+220: 		s->sw_count++;
+221: 	if (in->max_cell_uv >= out.voltage_threshold_uv)
+222: 		s->voltage_count++;
+223: 	if (s->sw_count > (in->gauge_current_ua > 0 ? 5U : 10U))
+224: 		s->cause = SM_FULL_SOFTWARE;
+225: 	else if (s->voltage_count >= 4)
+226: 		s->cause = SM_FULL_VOLTAGE;
+227: 	if (s->cause != SM_FULL_NONE) {
+228: 		s->full = 1;
+229: 		sm_oem_full_clear_streak(s);
+230: 		s->last_tick_ns = now; s->have_tick = 1;
+231: 		out.full = out.entered_full = out.hold_charge_only = 1;
+232: 		out.cause = s->cause;
+233: 	}
+234: 	return out;
+235: blocked:
+236: 	sm_oem_full_clear_streak(s);
+237: 	return out;
+### charge-cycle.h SHA256 717e7ae2579cbf970f3802a21dcfa0fe0124e7fd236588661c613fcd3903e07b
+--- retained source lines 50-86 ---
+50: static inline unsigned int sm_cycle_update(struct sm_charge_cycle *c,
+51: 					  sm_cycle_ns now, int source, int full_good)
+52: {
+53: 	sm_cycle_ns elapsed;
+54: 
+55: 	/* No wall-clock/RTC rollback arithmetic; bad input must not underflow. */
+56: 	if (now < c->last_ns) {
+57: 		c->timed_out = 1;
+58: 		c->seconds = SM_CYCLE_LIMIT_SECONDS;
+59: 		return c->seconds;
+60: 	}
+61: 	c->last_ns = now;
+62: 	if (source == 0) {
+63: 		sm_cycle_init(c, now);
+64: 		return 0;
+65: 	}
+66: 	if (source == 1 && !c->attached) {
+67: 		c->attached = 1;
+68: 		c->anchor_ns = now;
+69: 	}
+70: 	if (!c->attached)
+71: 		return c->seconds;
+72: 	if (c->timed_out)
+73: 		return SM_CYCLE_LIMIT_SECONDS;
+74: 	if (source == 1 && full_good) {
+75: 		c->anchor_ns = now;
+76: 		c->seconds = 0;
+77: 		return 0;
+78: 	}
+79: 	elapsed = now - c->anchor_ns;
+80: 	if (elapsed >= SM_CYCLE_LIMIT_NS) {
+81: 		c->timed_out = 1;
+82: 		c->seconds = SM_CYCLE_LIMIT_SECONDS;
+83: 	} else {
+84: 		c->seconds = elapsed / 1000000000ULL;
+85: 	}
+86: 	return c->seconds;
+### oem_mp2650 SHA256 b6313a6592732597eee41c7171ca210a45f0ce05685447c3cb354a8df79d123e
+--- retained source lines 268-306 ---
+268: static int mp2650_config_interface(int RegNum, int val, int MASK)
+269: {
+270:     int mp2650_reg = 0;
+271:     int ret = -1;
+272:     int count = 0;
+273: 
+274:     mutex_lock(&mp2650_i2c_access);
+275:     while (count++ < 3 && ret != 0) {
+276:         ret = __mp2650_read_reg(RegNum, &mp2650_reg);
+277: 
+278:         if (ret != 0)
+279:             msleep(10);
+280:     }
+281:     if (ret != 0) {
+282:         mutex_unlock(&mp2650_i2c_access);
+283:         return ret;
+284:     }
+285:     //chg_err(" Reg[%x]=0x%x %d\n", RegNum, mp2650_reg, MASK);
+286: 
+287:     mp2650_reg &= ~MASK;
+288:     mp2650_reg |= val;
+289: 
+290:     //chg_err(" write Reg[%x]=0x%x %d\n", RegNum, mp2650_reg, val);
+291: 
+292:     count = 0;
+293:     ret = -1;
+294:     while (count++ < 3 && ret != 0) {
+295:         ret = __mp2650_write_reg(RegNum, mp2650_reg);
+296: 
+297:         if (ret != 0)
+298:             msleep(10);
+299:     }
+300:     //ret = __mp2650_read_reg(RegNum, &mp2650_reg);
+301: 
+302:     //chg_err(" Check Reg[%x]=0x%x\n", RegNum, mp2650_reg);
+303: 
+304:     mutex_unlock(&mp2650_i2c_access);
+305: 
+306:     return ret;
+--- retained source lines 504-524 ---
+504: 	i = 0; /* 500 */
+505:     	rc = mp2650_config_interface(REG00_MP2650_ADDRESS, REG00_MP2650_1ST_CURRENT_LIMIT_500MA, REG00_MP2650_1ST_CURRENT_LIMIT_MASK);
+506:     	rc = mp2650_config_interface(REG0F_MP2650_ADDRESS, REG00_MP2650_1ST_CURRENT_LIMIT_500MA, REG0F_MP2650_2ND_CURRENT_LIMIT_MASK);
+507:     	msleep(90);
+508: 	chg_vol = mp2650_get_charger_vol();
+509:     	if (chg_vol < sw_aicl_point) {
+510:         	chg_debug( "use 500 here\n");
+511:         	goto aicl_end;
+512:     	} else if (current_ma < 900)
+513:         	goto aicl_end;
+514: 
+515:     	i = 1; /* 900 */
+516:     	rc = mp2650_config_interface(REG00_MP2650_ADDRESS, REG00_MP2650_1ST_CURRENT_LIMIT_900MA, REG00_MP2650_1ST_CURRENT_LIMIT_MASK);
+517:     	rc = mp2650_config_interface(REG0F_MP2650_ADDRESS, REG00_MP2650_1ST_CURRENT_LIMIT_900MA, REG0F_MP2650_2ND_CURRENT_LIMIT_MASK);
+518:     	msleep(90);
+519:     	chg_vol = mp2650_get_charger_vol();
+520:    	if (chg_vol < sw_aicl_point) {
+521:         	i = i - 1;
+522:         	goto aicl_pre_step;
+523:     	} else if (current_ma < 1200)
+524:         	goto aicl_end;
+--- retained source lines 890-907 ---
+890: int mp2650_enable_charging(void)
+891: {
+892: 	int rc;
+893:     struct chip_mp2650 *chip = charger_ic;
+894: 
+895: 	if(atomic_read(&chip->charger_suspended) == 1) {
+896: 		return 0;
+897: 	}
+898: 
+899:     mp2650_otg_disable();
+900:     rc = mp2650_config_interface(REG08_MP2650_ADDRESS, 
+901: 		REG08_MP2650_CHG_EN_ENABLE, REG08_MP2650_CHG_EN_MASK);
+902:     if (rc < 0) {
+903: 		chg_err("Couldn'tmp2650_enable_charging rc = %d\n", rc);
+904: 	}
+905: 
+906: 	chg_err("mp2650_enable_charging \n");
+907: 	return rc;
+--- retained source lines 951-1000 ---
+951: 
+952: int mp2650_get_vbus_voltage(void)
+953: {
+954:     int vol_high = 0;
+955:     int vol_low = 0;
+956:     int vbus_vol = 0;
+957: 	int rc = 0;
+958: 
+959:     rc = mp2650_read_reg(REG1C1D_MP2650_ADDRESS, &vol_low);
+960:     if (rc) {
+961:         chg_err("Couldn't read REG1C1D_MP2650_ADDRESS rc = %d\n", rc);
+962:         return 0;
+963:     }
+964: 
+965:     rc = mp2650_read_reg((REG1C1D_MP2650_ADDRESS + 1), &vol_high);
+966:     if (rc) {
+967:         chg_err("Couldn't read REG1C1D_MP2650_ADDRESS rc = %d\n", rc);
+968:         return 0;
+969:     }
+970: 
+971:     vbus_vol = (vol_high * 100) + ((vol_low >> 6) * 25);
+972:     return vbus_vol;
+973: }
+974: 
+975: int mp2650_get_ibus_current(void)
+976: {
+977:     int cur_high = 0;
+978:     int cur_low = 0;
+979:     int ibus_curr = 0;
+980: 	int rc = 0;
+981: 
+982:     rc = mp2650_read_reg(REG1E1F_MP2650_ADDRESS, &cur_low);
+983:     if (rc) {
+984:         chg_err("Couldn't read REG1E1F_MP2650_ADDRESS rc = %d\n", rc);
+985:         return 0;
+986:     }
+987: 
+988:     rc = mp2650_read_reg((REG1E1F_MP2650_ADDRESS + 1), &cur_high);
+989:     if (rc) {
+990:         chg_err("Couldn't read REG1E1F_MP2650_ADDRESS + 1 rc = %d\n", rc);
+991:         return 0;
+992:     }
+993: 
+994:     ibus_curr = (cur_high * 25000) + ((cur_low >> 6) * 6250);
+995:     return ibus_curr;
+996: }
+997: 
+998: int mp2650_get_termchg_voltage(void)
+999: {
+1000:     int vol_data = 0;
+--- retained source lines 1060-1094 ---
+1060: int mp2650_suspend_charger(void)
+1061: {
+1062: 	int rc = 0;
+1063:     struct chip_mp2650 *chip = charger_ic;
+1064: 	
+1065: 	if (atomic_read(&chip->charger_suspended) == 1) {
+1066: 		return 0;
+1067: 	}
+1068: 	
+1069: 	mp2650_config_interface(REG08_MP2650_ADDRESS, REG08_MP2650_LEARN_EN_ENABLE, REG08_MP2650_LEARN_EN_MASK);
+1070: 	
+1071: 	chg_err( " rc = %d\n", rc);
+1072: 	if (rc < 0) {
+1073: 		chg_err("Couldn't mp2650_suspend_charger rc = %d\n", rc);
+1074: 	}
+1075: 	
+1076: 	return rc;
+1077: }
+1078: int mp2650_unsuspend_charger(void)
+1079: {
+1080: 	int rc = 0;
+1081:     struct chip_mp2650 *chip = charger_ic;
+1082: 
+1083: 	if(atomic_read(&chip->charger_suspended) == 1) {
+1084: 		return 0;
+1085: 	}
+1086: 
+1087:     mp2650_config_interface(REG08_MP2650_ADDRESS, REG08_MP2650_LEARN_EN_DISABLE, REG08_MP2650_LEARN_EN_MASK);
+1088:     
+1089:     chg_err( " rc = %d\n", rc);
+1090:     if (rc < 0) {
+1091: 		chg_err("Couldn't mp2650_unsuspend_charger rc = %d\n", rc);
+1092: 	}	
+1093: 	return rc;
+1094: }
+--- retained source lines 1635-1675 ---
+1635: int mp2650_input_current_limit_init(void)
+1636: {
+1637:     int rc = 0;
+1638:     struct chip_mp2650 *chip = charger_ic;
+1639: 
+1640:     if (atomic_read(&chip->charger_suspended) == 1) {
+1641:         chg_err("mp2650_input_current_limit_init: in suspended\n");
+1642:         return 0;
+1643:     }
+1644:     rc = mp2650_config_interface(REG00_MP2650_ADDRESS, REG00_MP2650_1ST_CURRENT_LIMIT_500MA, REG00_MP2650_1ST_CURRENT_LIMIT_MASK);
+1645:     rc = mp2650_config_interface(REG0F_MP2650_ADDRESS, REG00_MP2650_1ST_CURRENT_LIMIT_500MA, REG0F_MP2650_2ND_CURRENT_LIMIT_MASK);
+1646: 	
+1647:     if (rc < 0) {
+1648:         chg_err("Couldn't mp2650_input_current_limit_init rc = %d\n", rc);
+1649:     }
+1650: 
+1651:     return rc;
+1652: }
+1653: 
+1654: int mp2650_input_current_limit_without_aicl(int current_ma)
+1655: {
+1656:     int rc = 0;
+1657:     int reg_val = 0;
+1658:     struct chip_mp2650 *chip = charger_ic;
+1659: 
+1660:     if (atomic_read(&chip->charger_suspended) == 1) {
+1661:         chg_err("mp2650_input_current_limit_init: in suspended\n");
+1662:         return 0;
+1663:     }
+1664:     chip->pre_current_ma = current_ma;
+1665: 
+1666:     reg_val = current_ma / REG00_MP2650_1ST_CURRENT_LIMIT_STEP;
+1667:     chg_err(" reg_val current [%d]ma\n", current_ma);
+1668:     rc = mp2650_config_interface(REG00_MP2650_ADDRESS, reg_val, REG00_MP2650_1ST_CURRENT_LIMIT_MASK);
+1669:     rc = mp2650_config_interface(REG0F_MP2650_ADDRESS, reg_val, REG0F_MP2650_2ND_CURRENT_LIMIT_MASK);
+1670: 	
+1671:     if (rc < 0) {
+1672:         chg_err("Couldn't mp2650_input_current_limit_init rc = %d\n", rc);
+1673:     }
+1674: 
+1675:     return rc;
+--- retained source lines 1698-1754 ---
+1698: int mp2650_hardware_init(void)
+1699: {
+1700:     struct chip_mp2650 *chip = charger_ic;
+1701: 
+1702:     chg_err("init mp2650 hardware! \n");
+1703:     
+1704:     //must be before set_vindpm_vol and set_input_current
+1705:     chip->hw_aicl_point = 4440;
+1706:     chip->sw_aicl_point = 4500;
+1707:     
+1708:     mp2650_reset_charger();
+1709: 
+1710:     mp2650_disable_charging();
+1711: 
+1712:     mp2650_set_chging_term_disable();
+1713: 
+1714:     mp2650_input_current_limit_init();
+1715: 
+1716:     mp2650_float_voltage_write(WPC_TERMINATION_VOLTAGE);
+1717: 
+1718:     mp2650_otg_ilim_set(REG07_MP2650_OTG_CURRENT_LIMIT_1250MA);
+1719: 
+1720:     mp2650_set_enable_volatile_writes();
+1721:     
+1722:     mp2650_set_complete_charge_timeout(OVERTIME_DISABLED);
+1723: 
+1724:     mp2650_set_prechg_voltage_threshold();
+1725: 
+1726:     mp2650_set_prechg_current(WPC_PRECHARGE_CURRENT);
+1727: 
+1728:     mp2650_charging_current_write_fast(WPC_CHARGE_CURRENT_DEFAULT);
+1729: 
+1730:     //mp2650_set_topoff_timer(chip);
+1731:     
+1732:     mp2650_set_termchg_current(WPC_TERMINATION_CURRENT);
+1733: 
+1734:     mp2650_set_rechg_voltage(WPC_RECHARGE_VOLTAGE_OFFSET);
+1735: 
+1736:     mp2650_set_switching_frequency();
+1737:     
+1738:     mp2650_set_vindpm_vol(chip->hw_aicl_point);
+1739: 
+1740:     mp2650_set_mps_otg_current();
+1741:     
+1742:     mp2650_set_mps_otg_voltage(false);
+1743: 	mp2650_set_mps_second_otg_voltage(false);
+1744: 
+1745:     mp2650_set_mps_otg_enable();
+1746:     ///mp2650_set_mps_otg_disable();
+1747: 
+1748:     mp2650_other_registers_init();
+1749: 
+1750:     mp2650_unsuspend_charger();
+1751: 
+1752:     mp2650_enable_charging();
+1753: 
+1754:     mp2650_set_wdt_timer(REG09_MP2650_WTD_TIMER_40S);
+### oem_policy SHA256 6cfb97b4367afe25094f3f342db4c9cce7982a22708371bc08ac6ed8bc9aa2d4
+--- retained source lines 3996-4024 ---
+3996: void oplus_chg_turn_on_charging(struct oplus_chg_chip *chip)
+3997: {
+3998: 	if (!chip->authenticate) {
+3999: 		return;
+4000: 	}
+4001: 	if (!chip->mmi_chg) {
+4002: 		return;
+4003: 	}
+4004: 	if (oplus_vooc_get_allow_reading() == false) {
+4005: 		return;
+4006: 	}
+4007: 
+4008: 	chip->chg_ops->hardware_init();
+4009: 	if (chip->stop_chg == 0
+4010: 			&& (chip->charger_type == POWER_SUPPLY_TYPE_USB
+4011: 				|| chip->charger_type == POWER_SUPPLY_TYPE_USB_CDP)) {
+4012: 		chip->chg_ops->charger_suspend();
+4013: 	}
+4014: 	if (chip->check_batt_full_by_sw) {
+4015: 		chip->chg_ops->set_charging_term_disable();
+4016: 	}
+4017: 
+4018: 	oplus_chg_check_tbatt_status(chip);
+4019: 	oplus_chg_set_float_voltage(chip);
+4020: 	oplus_chg_set_charging_current(chip);
+4021: 	oplus_chg_set_input_current_limit(chip);
+4022: 
+4023: 	chip->chg_ops->term_current_set(chip->limits.iterm_ma);
+4024: }
+--- retained source lines 5328-5366 ---
+5328: 	if (chip->chg_ops->check_chrdet_status()) {
+5329: 		oplus_chg_set_awake(chip, true);
+5330: 		if (chip->wireless_support && oplus_wpc_get_fw_updating() == true) {
+5331: 			return;
+5332: 		}
+5333: 		if (chip->charger_type == POWER_SUPPLY_TYPE_UNKNOWN) {
+5334: 			noplug_temperature = chip->temperature;
+5335: 			noplug_batt_volt_max = chip->batt_volt_max;
+5336: 			noplug_batt_volt_min = chip->batt_volt_min;
+5337: 			oplus_chg_variables_reset(chip, true);
+5338: #ifdef CONFIG_OPLUS_CHARGER_MTK
+5339: 			if(is_meta_mode() == true){
+5340: 				chip->charger_type = POWER_SUPPLY_TYPE_USB;
+5341: 			} else {
+5342: 				chip->charger_type = chip->chg_ops->get_charger_type();
+5343: 			}
+5344: 			if((chip->chg_ops->usb_connect)
+5345: 					&& (chip->charger_type == POWER_SUPPLY_TYPE_USB
+5346: 					|| chip->charger_type == POWER_SUPPLY_TYPE_USB_CDP)) {
+5347: 				chip->chg_ops->usb_connect();
+5348: 				charger_flag = 1;
+5349: 			}
+5350: #else
+5351: 			chip->charger_type = chip->chg_ops->get_charger_type();
+5352: #endif
+5353: 			charger_xlog_printk(CHG_LOG_CRTI, "Charger in 1 charger_type=%d\n",
+5354: 				chip->charger_type);
+5355: 			if (oplus_vooc_get_fastchg_to_normal() == true
+5356: 					|| oplus_vooc_get_fastchg_to_warm() == true) {
+5357: 				charger_xlog_printk(CHG_LOG_CRTI,
+5358: 					"fast_to_normal or to_warm 1,don't turn on charge here\n");
+5359: 				if (oplus_vooc_get_reset_adapter_st()) {
+5360: 					oplus_chg_unsuspend_charger();
+5361: 				}
+5362: 			} else if (oplus_wireless_charge_start() == false) {
+5363: 				charger_xlog_printk(CHG_LOG_CRTI, "oplus_wireless_charge_start == false\n");
+5364: 				charger_resumed = chip->chg_ops->check_charger_resume();
+5365: 				oplus_chg_turn_on_charging(chip);
+5366: 			}
+--- retained source lines 7351-7378 ---
+7351: static void oplus_chg_update_work(struct work_struct *work)
+7352: {
+7353: 	struct delayed_work *dwork = to_delayed_work(work);
+7354: 	struct oplus_chg_chip *chip = container_of(dwork, struct oplus_chg_chip, update_work);
+7355: 	oplus_charger_detect_check(chip);
+7356: 	oplus_chg_get_battery_data(chip);
+7357: 	if (chip->charger_exist) {
+7358: 		oplus_chg_aicl_check(chip);
+7359: 		oplus_chg_protection_check(chip);
+7360: 		oplus_chg_check_tbatt_normal_status(chip);
+7361: 		oplus_chg_check_status_full(chip);
+7362: 		oplus_chg_battery_notify_check(chip);
+7363: 		oplus_chg_pd_config(chip);
+7364: 		oplus_chg_get_chargerid_voltage(chip);
+7365: 		oplus_chg_fast_switch_check(chip);
+7366: 		oplus_chg_chargerid_switch_check(chip);
+7367: 	}
+7368: 	oplus_chg_dual_charger_config(chip);
+7369: 	oplus_chg_qc_config(chip);
+7370: 	oplus_chg_pdqc_to_normal(chip);
+7371: 	oplus_chg_ibatt_check_and_set(chip);
+7372: 	/* oplus_chg_short_c_battery_check(chip); */
+7373: 	wake_up_process(chip->shortc_thread);
+7374: 	oplus_chg_battery_update_status(chip);
+7375: 	oplus_chg_kpoc_power_off_check(chip);
+7376: 	oplus_chg_other_thing(chip);
+7377: 	/* run again after interval */
+7378: 	schedule_delayed_work(&chip->update_work, OPLUS_CHG_UPDATE_INTERVAL);
+--- retained source lines 7389-7406 ---
+7389: void oplus_chg_restart_update_work(void)
+7390: {
+7391: 	if (!g_charger_chip) {
+7392: 		return;
+7393: 	}
+7394: 
+7395: 	schedule_delayed_work(&g_charger_chip->update_work, 0);
+7396: }
+7397: bool oplus_chg_wake_update_work(void)
+7398: {
+7399: 	int shedule_work = 0;
+7400: 
+7401: 	if (!g_charger_chip) {
+7402: 		chg_err(" g_charger_chip NULL,return\n");
+7403: 		return true;
+7404: 	}
+7405: 	shedule_work = mod_delayed_work(system_wq, &g_charger_chip->update_work, 0);
+7406: 	return true;

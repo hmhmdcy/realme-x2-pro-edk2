@@ -1,0 +1,35 @@
+{
+  "action": "start",
+  "camera_transaction_included": false,
+  "clock": "mono",
+  "creation_ring_limit_kib": 16384,
+  "evidence_dir": "/private/kernel459/k459-host-review",
+  "executed": false,
+  "filters": {
+    "irq:irq_handler_entry": "irq == 225",
+    "irq:irq_handler_exit": "irq == 225",
+    "v4l2:v4l2_dqbuf": "minor == 0",
+    "v4l2:v4l2_qbuf": "minor == 0",
+    "vb2:vb2_buf_done": "type == 9",
+    "vb2:vb2_buf_queue": "type == 9",
+    "vb2:vb2_dqbuf": "type == 9",
+    "vb2:vb2_qbuf": "type == 9"
+  },
+  "instance": "/sys/kernel/tracing/instances/k459-host-review",
+  "minimum_available_memory_kib": 524288,
+  "per_cpu_kib": 512,
+  "pid_filter_used": false,
+  "probed_creation_ring_kib": 11264,
+  "probed_online_cpu_count": 8,
+  "rendered": true,
+  "runtime_checks": [
+    "fresh caller-owned camera handoff outside this helper",
+    "root, tracefs mount, current online/possible CPUs, probe formats/node/IRQ",
+    "new instance only; actual total allocation <=8192KiB",
+    "identity and complete owned configuration match before stop/delete"
+  ],
+  "schema": "samurai-k459-trace-plan-v1",
+  "total_limit_kib": 8192,
+  "trace_export_max_bytes": 134217728,
+  "transport_included": false
+}

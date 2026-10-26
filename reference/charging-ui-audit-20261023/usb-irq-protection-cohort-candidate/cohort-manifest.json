@@ -1,0 +1,128 @@
+{
+  "schema": "samurai-usb-irq-protection-offline-cohort-v1",
+  "cohort_id": "usb-irq-protection-observer-01",
+  "status": "offline-materialized-not-installed",
+  "release": "7.3.0-rc6-rmx1931-samurai-k363+",
+  "old_manifest_sha256": "320316c3d93c1dbcaae29440f1f17d72c75e4994d656a9da9fcd5aeb93c10a1f",
+  "new_manifest_sha256": "5fca8e5a0795325bd780b7965579068c7edc35fa7da12bac357bb30bbde69417",
+  "changed_rootfs_files": [
+    "/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-gauge-protection.ko",
+    "/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-usb-input.ko",
+    "/usr/share/samurai-charging/manifest.json"
+  ],
+  "modules": {
+    "samurai-usb-input": {
+      "old": {
+        "sha256": "7d4e0f948b993a6e0cc9459bac4ade2db2fe7b88ce7b7d462ea34bcb933c4f70",
+        "bytes": 82584,
+        "name": "samurai_usb_input",
+        "intree": "Y",
+        "vermagic": "7.3.0-rc6-rmx1931-samurai-k363+ SMP preempt mod_unload aarch64",
+        "resident_note_sha256": "f0edb792d30ee1168ee1793e89707aa48b2085c845acde8f472f2c13a03804b0",
+        "resident_note_hex": "040000001400000003000000474e5500060101cc4906d7e2336676e38124ad6c7512c0da"
+      },
+      "new": {
+        "sha256": "7cbf10c0f74609effb415c30145e58b0fbe554511ef55a96baeeaf367c94ff5f",
+        "bytes": 87832,
+        "name": "samurai_usb_input",
+        "intree": "Y",
+        "vermagic": "7.3.0-rc6-rmx1931-samurai-k363+ SMP preempt mod_unload aarch64",
+        "resident_note_sha256": "a845cd08aa415ca01ad4791b8c66047a927577e76439e632c73b6b4e2cff8c6d",
+        "resident_note_hex": "040000001400000003000000474e5500000ad09cfe53578aad5ee11b8e9285de4bc1f10a"
+      }
+    },
+    "samurai-gauge-protection": {
+      "old": {
+        "sha256": "75b97e0d6b906ec600171ce68adec6f25a91556758f76bbf3d563cf831e783c7",
+        "bytes": 72320,
+        "name": "samurai_gauge_protection",
+        "intree": "Y",
+        "vermagic": "7.3.0-rc6-rmx1931-samurai-k363+ SMP preempt mod_unload aarch64",
+        "resident_note_sha256": "930e0e1f34e89e4e06a7632ca14a26181975f9f35e55a51209af71480b56fe76",
+        "resident_note_hex": "040000001400000003000000474e550069b935792a5ab84a58f9daacb5bd6b0d837fbaa4"
+      },
+      "new": {
+        "sha256": "7848cfab264dde1f7f02b24b8022b951d4f3a604eba120b313bac23d0f4a3044",
+        "bytes": 88856,
+        "name": "samurai_gauge_protection",
+        "intree": "Y",
+        "vermagic": "7.3.0-rc6-rmx1931-samurai-k363+ SMP preempt mod_unload aarch64",
+        "resident_note_sha256": "fc0d253d556b6ba656db263aaa50c37e3af2c7fe115b67e6b02641ae8b5733ec",
+        "resident_note_hex": "040000001400000003000000474e55000ecb5ed3d416bedd0654fdb7e44ad5841386e8e5"
+      }
+    }
+  },
+  "unchanged_charger_identity": {
+    "sha256": "10ec06fb9d798d72e08495617cfc04e7e49c77e536a12f205053e9cdbfa6297f",
+    "bytes": 155512,
+    "name": "samurai_mp2650",
+    "intree": "Y",
+    "vermagic": "7.3.0-rc6-rmx1931-samurai-k363+ SMP preempt mod_unload aarch64",
+    "resident_note_sha256": "f4d5768a4250b901ea956560d9c6b4b1dd32ac80893cbbd31609d9c032c4680d",
+    "resident_note_hex": "040000001400000003000000474e55001fefeea358a1bf457d0622325ec5e46eb635574c"
+  },
+  "required_carriers": {
+    "boot": {
+      "sha256": "eddadec33fcd1d114c45af76cb9fc6d6b5f1de2c81c0e9fada099c5b884f6e06",
+      "bytes": 100663296
+    },
+    "native_DTB": {
+      "sha256": "13d359c4a78ed423d52f1d5e09345c7dc7032811fabe786952ac11e868adee9f",
+      "bytes": 116124
+    },
+    "logdump": {
+      "sha256": "ace2e261bbfbd923fc3e631e857163f172d09bfb3489f7107782394fbf763ed1",
+      "bytes": 67108864
+    },
+    "rollback_boot": {
+      "sha256": "97811cc4ae13b36fec98b2eae7cd54a4f12bca988864df0f3d8f663a8c67f695",
+      "bytes": 100663296
+    }
+  },
+  "Image502_sha256": "085d03066983a82d1d1c74b74f69c85560698d6fc49f62d6db511a8799b25955",
+  "retained_files": {
+    "/usr/sbin/samurai-charging": "61451ffea87cca466dbbb2f1a2c6e7c05d0eee517479e8b019d43b1869355aa4",
+    "/etc/init.d/samurai-charging": "bfed48ebbcaced5f017110564045eef500a88f12fefe7ebff6d1e74cabfe570a",
+    "/usr/lib/samurai-charging/control-trial.py": "c33cb2eec24031e72a5f1dda9b94c05607615e0b12a14ba3cecd6db56c820761",
+    "/usr/lib/samurai-charging/live-session.py": "2199d7d413b2f4a5aeaa8270c20e967f5da711397c29e959e59463c1a5715f2b",
+    "/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-mp2650.ko": "10ec06fb9d798d72e08495617cfc04e7e49c77e536a12f205053e9cdbfa6297f",
+    "/usr/local/sbin/samurai-usb": "2a364e12d72229ef7b0ddfd7620d5ff434b97eaf93eb60899fd24a03b5b9a54a"
+  },
+  "caps": {
+    "requested_input_ua": 900000,
+    "requested_charge_ua": 250000,
+    "USB_descriptor_requested_ma": 500,
+    "source_budget_enforced": true,
+    "native_allowance": "observed host-authorized power-supply value; not forced by this cohort"
+  },
+  "transition": {
+    "stage_only_result": "staged/runtime_pending",
+    "resident_notes_before_next_boot": "old notes above, including USB still referenced by DWC3",
+    "old_manager_loaded_matches_new_file_before_reboot_valid": false,
+    "new_independent_guard_and_transaction_required": true,
+    "prepared_Image502_transaction_reusable": false,
+    "module_hot_unload_or_AUTO_issued": false,
+    "capture_issued": false
+  },
+  "acceptance_pending": [
+    "same native DT/provider probe and both named IRQ registrations",
+    "actual physical IRQ count/event changes with safe budgets/protection",
+    "new protection resident identity and ordinary Health checks",
+    "after matching the new adopted identity, root explicitly starts the already-authorized one-shot evidence capture; never default poll"
+  ],
+  "receipt_sha256": {
+    "protection_delivery": "de4b680cbc809b48ff6a8b48f6c3a0b0e3164b21a2d7ca78b24be95735835b40",
+    "protection_ko": "9626534ca5d7c91d2e4aad87ef462f76bf193899fd903c36be80950cbd796437",
+    "protection_identity": "3caa749b8e393509198740acfbbc8acf8586ac2dab6d47a7899a48c110798581",
+    "observer_source_delivery": "907fc1245576eee21b3d5231c25359f6d101e1f537ea8ff423ee21139392a304",
+    "observer_independent_review": "faaf494ae0abfbf96725822240c71b8abcd7863116732409a119206e49e20830",
+    "USB_ko": "c710bd53c9ed8188fa144d64985d948c3c66e73eae63c9c062260e88bfeadd31",
+    "DT_pair": "1d1e65c1e29a25694906f1c3004972e751209b5562e070bec885ced35bcafb16",
+    "DT_result": "a055ee096cc1bcb0f6082570be93518a1fd6cdf610315d93b7fa1d5e7e29b0e8",
+    "boot": "ea2ff2952a13eddd205ec9ec79e075a42c1a6060c8234f8f6765d03860d7faeb",
+    "boot_result": "2dc2d78151655970155d649589e1a1ec1a4dc215709e0e4a4b5cdca133ee34fd",
+    "logdump": "eb615331fcb75fbb4cfb21064cea5a8effeffe386ad5ce8839989c7c359420ce",
+    "logdump_result": "c08d98309b9c789f1f499d08b03ab53c1648c2d5e1efb39359dd7371570e6758"
+  },
+  "not_runtime_permission": true
+}

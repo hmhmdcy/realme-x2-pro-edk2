@@ -1,0 +1,46 @@
+{
+  "passed": true,
+  "case_count": 5,
+  "cases": [
+    "exact full-word set adds only the actually observed literal",
+    "observed full word arms without writes, callback writes literal0 once, exact zero readback succeeds, retry inert",
+    "approximate and other unknown whole words refuse arm and launch with zero writes",
+    "unknown near-word at callback is preserved and terminal without write or retry",
+    "every nonzero full readback fails even if known or low byte zero, and no callback retry writes"
+  ],
+  "flags": [
+    "-std=c11",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-Wno-unused-parameter",
+    "-fsanitize=address,undefined",
+    "-fno-omit-frame-pointer"
+  ],
+  "files": {
+    "PlatformBm.c.candidate": "c1ce63b3cc8df1c44b5351f53d15294505df919915fa8773636054305617cee8",
+    "eud-handoff-fragment.inc": "5247e848667b8d0473fd1ab30ca11f207d757c41f3335153243e193a197e27b9",
+    "direct-fifo.inc": "10d73a815d508463f6127c7bc2f0191415155e0ab5abf05e7668ecf7009bd347",
+    "launch.inc": "df1fdc5ab7a1a6e79044ca1a324eaf90ee57da5b96e77fe57c538fd90abcdba7",
+    "core-functions.inc": "e87a4a829154c19dd569ce84ca8f675c0e9a5d49a5f7ea99d7e940c49447239b",
+    "test-r2.c": "056219aa7b00a5b796a6a62ef894fc3799b622dbaf189cb75a2805c3fa96019e",
+    "test-delta.py": "4d062104d65ea076b6ee926372e66514d93568e6f9df6b4b24bb2989b25d8eeb",
+    "candidate-result.json": "ea0c7980b8ca78e0a49404890ddf2f1e6f7e8389983072608a0052d5a85eddcf",
+    "source-evidence.json": "c7f6d2b9ca6b9057708f47b8b9068ef15c37bab4ad90d8c07c48ba521dd6e98d",
+    "boot-policy.patch": "6cb22719b7c08664db8a8e687c242d3dbddd39f6120e7d49f0a2f40bcf169556",
+    "r1-to-r2.patch": "fda549901a31d48c429757cb98370d44577cf6356dea317361a67887a280c327"
+  },
+  "stdout": "ok: exact full-word set adds only the actually observed literal\nok: observed full word arms without writes, callback writes literal0 once, exact zero readback succeeds, retry inert\nok: approximate and other unknown whole words refuse arm and launch with zero writes\nok: unknown near-word at callback is preserved and terminal without write or retry\nok: every nonzero full readback fails even if known or low byte zero, and no callback retry writes\n",
+  "stderr": "",
+  "scope": "actual affected helper/launch paths with fake MMIO and BootServices boundary only",
+  "R1_12_case_receipt_reused_not_rerun": "0126f1da8228e1b5620d2eda2fa796c20768e3f83fed12802616d6e271d7a09b",
+  "R1_FDT_independent_receipt_reused_not_rerun": "b6a33408ca53c15f628ad5c241ebd9bf1fa10118a986997651b71f922c7f0f54",
+  "unchanged_code_proof": "R2 full PlatformBm source with only predicate text reverted is byte-identical to frozen R1",
+  "r1_files_unchanged": true,
+  "firmware_built": false,
+  "SDK_invoked": false,
+  "device_accessed": false,
+  "shared_tree_modified": false,
+  "hardware_CSR_zero_proven": false,
+  "hardware_write_executed": false
+}

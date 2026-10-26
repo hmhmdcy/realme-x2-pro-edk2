@@ -1,0 +1,774 @@
+diff --git a/drivers/media/platform/qcom/camss/camss-format.c b/drivers/media/platform/qcom/camss/camss-format.c
+index 52cb01306..dba202ca3 100644
+--- a/drivers/media/platform/qcom/camss/camss-format.c
++++ b/drivers/media/platform/qcom/camss/camss-format.c
+@@ -11,6 +11,7 @@
+ #include <linux/bug.h>
+ #include <linux/errno.h>
+ #include <linux/lcm.h>
++#include <linux/math.h>
+ 
+ #include "camss-format.h"
+ 
+@@ -103,3 +104,18 @@ int camss_format_find_format(u32 code, u32 pixelformat, const struct camss_forma
+ 
+ 	return -EINVAL;
+ }
++
++int camss_format_pd10_layout(u32 width, u32 height,
++			     struct camss_pd10_layout *layout)
++{
++	struct camss_pd10_layout result;
++
++	if (!layout || width < 2 || height < 2 || width > 2048 || height > 2048 ||
++	    ((width | height) & 1))
++		return -EINVAL;
++	result.stride = DIV_ROUND_UP(width * 4, 192) * 192;
++	result.slice_height = DIV_ROUND_UP(height, 8) * 4;
++	result.bytes = result.stride * result.slice_height;
++	*layout = result;
++	return 0;
++}
+diff --git a/drivers/media/platform/qcom/camss/camss-format.h b/drivers/media/platform/qcom/camss/camss-format.h
+index 4f87ac8c4..18cf962a9 100644
+--- a/drivers/media/platform/qcom/camss/camss-format.h
++++ b/drivers/media/platform/qcom/camss/camss-format.h
+@@ -49,6 +49,12 @@ struct camss_format_info {
+ 	unsigned int bpp[3];
+ };
+ 
++struct camss_pd10_layout {
++	u32 stride, slice_height, bytes;
++};
++int camss_format_pd10_layout(u32 width, u32 height,
++			     struct camss_pd10_layout *layout);
++
+ struct camss_formats {
+ 	unsigned int nformats;
+ 	const struct camss_format_info *formats;
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe-175-ds4.c b/drivers/media/platform/qcom/camss/camss-vfe-175-ds4.c
+index 59f19374c..f8d642fee 100644
+--- a/drivers/media/platform/qcom/camss/camss-vfe-175-ds4.c
++++ b/drivers/media/platform/qcom/camss/camss-vfe-175-ds4.c
+@@ -4,6 +4,13 @@
+ #include <linux/bits.h>
+ #include <linux/errno.h>
+ #include <linux/string.h>
++#include <linux/io.h>
++#include <linux/limits.h>
++#include <linux/media-bus-format.h>
++#include <linux/qcom-camss-config.h>
++#include "camss.h"
++#include "camss-format.h"
++#include "camss-vfe.h"
+ 
+ #include "camss-vfe-175-ds4.h"
+ 
+@@ -47,3 +54,194 @@ int vfe_175_ds4_encode(const struct vfe_175_ds4_config *config,
+ 	memcpy(registers, result, sizeof(result));
+ 	return 0;
+ }
++
++static const struct camss_format_info formats_ds4_175[] = {
++	{ MEDIA_BUS_FMT_UYYVYY10_0_5X30, 15, V4L2_PIX_FMT_QCOM_PD10_LOCAL, 1,
++	  PER_PLANE_DATA(0, 1, 1, 2, 1, 32) },
++};
++const struct camss_formats vfe_formats_ds4_175 = {
++	.nformats = ARRAY_SIZE(formats_ds4_175), .formats = formats_ds4_175,
++};
++const struct v4l2_frmsize_stepwise vfe_frame_sizes_ds4_175 = {
++	.min_width = 4, .max_width = 1024, .step_width = 2,
++	.min_height = 2, .max_height = 1024, .step_height = 2,
++};
++
++/* Runtime first-DS4 control and single-plane WM5 transport. */
++static bool ds4_supported(struct vfe_device *vfe)
++{
++	return vfe->camss->res->version == CAMSS_8150 && !vfe->res->is_lite;
++}
++
++static void ds4_update_bits(struct vfe_device *vfe, u32 offset, u32 mask, u32 value)
++{
++	u32 old = readl_relaxed(vfe->base + offset);
++
++	writel_relaxed((old & ~mask) | value, vfe->base + offset);
++}
++
++int vfe_175_ds4_validate(struct device *dev,
++		       const struct v4l2_isp_block_header *block)
++{
++	const struct camss_params_ife_ds4 *data =
++		container_of(block, struct camss_params_ife_ds4, header);
++	struct vfe_175_ds4_config config = { .input_height = 128 };
++	u32 previous[4] = {}, registers[4];
++
++	if (block->flags || data->reserved)
++		return -EINVAL;
++	memcpy(config.coefficient, data->coefficient, sizeof(config.coefficient));
++	return vfe_175_ds4_encode(&config, previous, registers);
++}
++
++int vfe_175_ds4_validate_line(struct vfe_line *line,
++			    const struct v4l2_isp_buffer *params)
++{
++	size_t offset = 0;
++
++	while (offset < params->data_size) {
++		const struct v4l2_isp_block_header *block =
++			(const void *)&params->data[offset];
++
++		/* Generic validation may accept header-only disable requests. DS4
++		 * coefficients are configuration; stream lifetime owns its enable. */
++		if (block->type == CAMSS_PARAMS_IFE_DS4 && block->flags)
++			return -EINVAL;
++		offset += block->size;
++	}
++	return 0;
++}
++
++static void ds4_write_filter(struct vfe_device *vfe, struct vfe_line *line)
++{
++	const struct v4l2_pix_format_mplane *full =
++		&line->output[0].video_out.active_fmt.fmt.pix_mp;
++	struct vfe_175_ds4_config config = { .input_height = full->height };
++	u32 previous[4], registers[4];
++	unsigned int i;
++
++	memcpy(config.coefficient, vfe->pixel175.ds4_coefficient,
++	       sizeof(config.coefficient));
++	for (i = 0; i < 4; i++)
++		previous[i] = readl_relaxed(vfe->base + 0xd60 + i * 4);
++	if (WARN_ON(vfe_175_ds4_encode(&config, previous, registers)))
++		return;
++	for (i = 0; i < 4; i++)
++		writel_relaxed(registers[i], vfe->base + 0xd60 + i * 4);
++}
++
++void vfe_175_ds4_params(struct vfe_device *vfe, struct vfe_line *line,
++			const struct v4l2_isp_block_header *block)
++{
++	const struct camss_params_ife_ds4 *data =
++		container_of(block, struct camss_params_ife_ds4, header);
++
++	memcpy(vfe->pixel175.ds4_coefficient, data->coefficient,
++	       sizeof(vfe->pixel175.ds4_coefficient));
++	vfe->pixel175.ds4_configured = true;
++	if (vfe->pixel175.ds4_running)
++		ds4_write_filter(vfe, line);
++}
++
++int vfe_175_ds4_validate_output(const struct vfe_output *output)
++{
++	const struct v4l2_pix_format_mplane *pix = &output->video_out.active_fmt.fmt.pix_mp;
++	const struct v4l2_pix_format_mplane *full =
++		&output->line->output[0].video_out.active_fmt.fmt.pix_mp;
++	struct camss_pd10_layout layout;
++	int ret;
++
++	if (!output->line->is_pix || output->pad != MSM_VFE_PAD_SRC_DS4 ||
++	    output->wm_num != 1 || output->wm[0].bus_client != 5 ||
++	    output->wm[0].plane || output->comp_group != 1 ||
++	    pix->pixelformat != V4L2_PIX_FMT_QCOM_PD10_LOCAL || pix->num_planes != 1 ||
++	    pix->width != (ALIGN(full->width, 8) / 4) ||
++	    pix->height != (ALIGN(full->height, 8) / 4))
++		return -EINVAL;
++	ret = camss_format_pd10_layout(pix->width, pix->height, &layout);
++	if (ret)
++		return ret;
++	return pix->plane_fmt[0].bytesperline == layout.stride &&
++	       pix->plane_fmt[0].sizeimage >= layout.bytes ? 0 : -EINVAL;
++}
++
++int vfe_175_ds4_validate_buffer(const struct vfe_output *output,
++			      const struct camss_buffer *buffer)
++{
++	const struct v4l2_pix_format_mplane *pix = &output->video_out.active_fmt.fmt.pix_mp;
++	u64 address = buffer->addr[0], size = pix->plane_fmt[0].sizeimage;
++	int ret = vfe_175_ds4_validate_output(output);
++
++	if (ret)
++		return ret;
++	if (address > U32_MAX || size - 1 > U32_MAX - address)
++		return -ERANGE;
++	return IS_ALIGNED(address, 16) ? 0 : -EINVAL;
++}
++
++void vfe_175_ds4_start(struct vfe_device *vfe, struct vfe_output *output)
++{
++	const struct v4l2_pix_format_mplane *pix = &output->video_out.active_fmt.fmt.pix_mp;
++	const struct v4l2_pix_format_mplane *full =
++		&output->line->output[0].video_out.active_fmt.fmt.pix_mp;
++	u32 height = pix->height / 2, stride = pix->plane_fmt[0].bytesperline;
++	struct camss_pd10_layout layout;
++	u32 value;
++
++	/* Buffer ownership is established before arming the address FIFO. */
++	if (WARN_ON(camss_format_pd10_layout(pix->width, pix->height, &layout)))
++		return;
++	ds4_write_filter(vfe, output->line);
++	ds4_update_bits(vfe, 0xd84, 0x3fff3fff, full->height - 1);
++	ds4_update_bits(vfe, 0xd88, 0x1fff1fff, full->width - 1);
++	ds4_update_bits(vfe, 0xda4, 0x3fff3fff, full->height / 2 - 1);
++	ds4_update_bits(vfe, 0xda8, 0x1fff1fff, full->width / 2 - 1);
++	ds4_update_bits(vfe, 0xd98, 0x3ff003ff, 1023U << 20);
++	ds4_update_bits(vfe, 0xd9c, 0x3f, 6);
++	ds4_update_bits(vfe, 0xdb8, 0x3ff003ff, 1023U << 20);
++	ds4_update_bits(vfe, 0xdbc, 0x3f, 7);
++	/* The node aggregator owns local crop, round and clamp enables. */
++	ds4_update_bits(vfe, 0xd8c, 0xe00, 0xe00);
++	ds4_update_bits(vfe, 0xdac, 0xe00, 0xe00);
++	ds4_update_bits(vfe, 0x200c, BIT(5), BIT(5));
++	ds4_update_bits(vfe, 0x2084, BIT(5), BIT(5));
++	/* Independent composite group: starving DS4 cannot hold up FULL. */
++	ds4_update_bits(vfe, 0x2014, BIT(5), BIT(5));
++	writel_relaxed(0, vfe->base + 0x2718);
++	writel_relaxed(ALIGN(pix->width * 4, 16), vfe->base + 0x271c);
++	writel_relaxed(height, vfe->base + 0x2720);
++	writel_relaxed(0, vfe->base + 0x2724);
++	writel_relaxed(stride, vfe->base + 0x2728);
++	writel_relaxed(layout.bytes, vfe->base + 0x2758);
++	writel_relaxed(0xf, vfe->base + 0x275c);
++	writel_relaxed(0, vfe->base + 0x2748);
++	writel_relaxed(1, vfe->base + 0x274c);
++	writel_relaxed(0, vfe->base + 0x2750);
++	writel_relaxed(1, vfe->base + 0x2754);
++	ds4_update_bits(vfe, 0x2744, BIT(0), 0);
++	wmb();
++	/* Disable unused DS4 postcrop enables, preserve FULL and DS16. */
++	value = readl_relaxed(vfe->base + 0x4c);
++	writel_relaxed((value & ~0xa0U) | 0x5500, vfe->base + 0x4c);
++	writel_relaxed(1, vfe->base + 0x2708);
++	vfe->pixel175.ds4_running = true;
++}
++
++void vfe_175_ds4_update(struct vfe_device *vfe, struct vfe_output *output,
++			const struct camss_buffer *buffer)
++{
++	writel_relaxed(buffer->addr[0], vfe->base + 0x2714);
++}
++
++void vfe_175_ds4_stop(struct vfe_device *vfe, struct vfe_output *output)
++{
++	if (!ds4_supported(vfe))
++		return;
++	writel_relaxed(0, vfe->base + 0x2708);
++	readl_relaxed(vfe->base + 0x2708);
++	ds4_update_bits(vfe, 0x2014, BIT(5), 0);
++	ds4_update_bits(vfe, 0x4c, 0x5500, 0);
++	ds4_update_bits(vfe, 0xd8c, 0xe00, 0);
++	ds4_update_bits(vfe, 0xdac, 0xe00, 0);
++	vfe->pixel175.ds4_running = false;
++}
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe-175-ds4.h b/drivers/media/platform/qcom/camss/camss-vfe-175-ds4.h
+index db9ecc349..392b5e910 100644
+--- a/drivers/media/platform/qcom/camss/camss-vfe-175-ds4.h
++++ b/drivers/media/platform/qcom/camss/camss-vfe-175-ds4.h
+@@ -15,4 +15,25 @@ struct vfe_175_ds4_config {
+ int vfe_175_ds4_encode(const struct vfe_175_ds4_config *config,
+ 		      const u32 previous[4], u32 registers[4]);
+ 
++struct device;
++struct vfe_device;
++struct vfe_line;
++struct vfe_output;
++struct camss_buffer;
++struct v4l2_isp_block_header;
++struct v4l2_isp_buffer;
++struct camss_formats;
++struct v4l2_frmsize_stepwise;
++extern const struct camss_formats vfe_formats_ds4_175;
++extern const struct v4l2_frmsize_stepwise vfe_frame_sizes_ds4_175;
++int vfe_175_ds4_validate(struct device *dev, const struct v4l2_isp_block_header *block);
++int vfe_175_ds4_validate_line(struct vfe_line *line, const struct v4l2_isp_buffer *params);
++void vfe_175_ds4_params(struct vfe_device *vfe, struct vfe_line *line,
++			const struct v4l2_isp_block_header *block);
++int vfe_175_ds4_validate_output(const struct vfe_output *output);
++int vfe_175_ds4_validate_buffer(const struct vfe_output *output, const struct camss_buffer *buffer);
++void vfe_175_ds4_start(struct vfe_device *vfe, struct vfe_output *output);
++void vfe_175_ds4_update(struct vfe_device *vfe, struct vfe_output *output, const struct camss_buffer *buffer);
++void vfe_175_ds4_stop(struct vfe_device *vfe, struct vfe_output *output);
++
+ #endif /* CAMSS_VFE_175_DS4_H */
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe-175-output.c b/drivers/media/platform/qcom/camss/camss-vfe-175-output.c
+index bcca8a59a..1d7a8e760 100644
+--- a/drivers/media/platform/qcom/camss/camss-vfe-175-output.c
++++ b/drivers/media/platform/qcom/camss/camss-vfe-175-output.c
+@@ -123,7 +123,8 @@ int vfe_175_validate_output(const struct vfe_output *output)
+ 
+ 		if (params->pad != MSM_VFE_PAD_SINK_PARAMS || params->wm_num)
+ 			return -EINVAL;
+-	} else if (output->line->num_outputs == 3) {
++	} else if (output->line->num_outputs == 3 ||
++		   output->line->num_outputs == 4) {
+ 		const struct vfe_output *params = &output->line->output[1];
+ 
+ 		if (params->pad != MSM_VFE_PAD_SINK_PARAMS || params->wm_num ||
+@@ -133,6 +134,13 @@ int vfe_175_validate_output(const struct vfe_output *output)
+ 		return -EINVAL;
+ 	}
+ 
++	if (output->line->num_outputs == 4) {
++		const struct vfe_output *ds4 = &output->line->output[3];
++
++		if (ds4->pad != MSM_VFE_PAD_SRC_DS4 || ds4->wm_num != 1 ||
++		    ds4->wm[0].bus_client != 5 || ds4->wm[0].plane || ds4->comp_group != 1)
++			return -EINVAL;
++	}
+ 	if (pix->pixelformat != V4L2_PIX_FMT_NV12 || pix->num_planes != 1 ||
+ 	    !pix->width || !pix->height || (pix->width & 1) || (pix->height & 1) ||
+ 	    pix->width > VFE_175_FULL_MAX_WIDTH ||
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe-175-pixel.c b/drivers/media/platform/qcom/camss/camss-vfe-175-pixel.c
+index 730d1199b..b6797e47b 100644
+--- a/drivers/media/platform/qcom/camss/camss-vfe-175-pixel.c
++++ b/drivers/media/platform/qcom/camss/camss-vfe-175-pixel.c
+@@ -16,6 +16,7 @@
+ #include "camss-vfe-175-ccm.h"
+ #include "camss-vfe-175-demux.h"
+ #include "camss-vfe-175-mnds.h"
++#include "camss-vfe-175-ds4.h"
+ 
+ #define VFE_175_LENS_ENABLE		0x040
+ #define VFE_175_BLC_ENABLE		BIT(11)
+@@ -145,11 +146,15 @@ static int vfe_175_params_unsupported(struct device *dev,
+ 	return -EINVAL;
+ }
+ 
+-const struct v4l2_isp_params_block_type_info vfe_175_params_info[8] = {
++const struct v4l2_isp_params_block_type_info vfe_175_params_info[9] = {
+ 	[0] = {
+ 		.size = sizeof(struct v4l2_isp_block_header),
+ 		.block_validate = vfe_175_params_unsupported,
+ 	},
++	[CAMSS_PARAMS_IFE_DS4] = {
++		.size = sizeof(struct camss_params_ife_ds4),
++		.block_validate = vfe_175_ds4_validate,
++	},
+ 	[CAMSS_PARAMS_WB_GAIN] = {
+ 		.size = sizeof(struct camss_params_wb_gain),
+ 		.block_validate = vfe_175_wb_validate,
+@@ -272,6 +277,11 @@ void vfe_175_params_apply(struct vfe_device *vfe, struct vfe_line *line,
+ 			(const void *)&params->data[offset];
+ 		const struct camss_params_wb_gain *wb;
+ 
++		if (block->type == CAMSS_PARAMS_IFE_DS4) {
++			vfe_175_ds4_params(vfe, line, block);
++			offset += block->size;
++			continue;
++		}
+ 		if (block->type == CAMSS_PARAMS_IFE_GAMMA) {
+ 			vfe_175_gamma_params(vfe, block);
+ 			offset += block->size;
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe-175-pixel.h b/drivers/media/platform/qcom/camss/camss-vfe-175-pixel.h
+index 2c01fb4f7..5e493da6e 100644
+--- a/drivers/media/platform/qcom/camss/camss-vfe-175-pixel.h
++++ b/drivers/media/platform/qcom/camss/camss-vfe-175-pixel.h
+@@ -19,12 +19,14 @@ struct vfe_175_pixel_state {
+ 	u16 black_level;
+ 	bool wb_enabled;
+ 	bool gamma_enabled;
++	bool ds4_configured, ds4_running;
++	u16 ds4_coefficient[3];
+ 	bool lsc_enabled;
+ 	u8 lsc_bank;
+ 	struct vfe_175_stats_state stats;
+ };
+ 
+-extern const struct v4l2_isp_params_block_type_info vfe_175_params_info[8];
++extern const struct v4l2_isp_params_block_type_info vfe_175_params_info[9];
+ int vfe_175_pixel_prepare(struct vfe_line *line);
+ void vfe_175_pixel_stop(struct vfe_device *vfe);
+ void vfe_175_params_apply(struct vfe_device *vfe, struct vfe_line *line,
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe-17x.c b/drivers/media/platform/qcom/camss/camss-vfe-17x.c
+index e7ffc13a6..cbe249e88 100644
+--- a/drivers/media/platform/qcom/camss/camss-vfe-17x.c
++++ b/drivers/media/platform/qcom/camss/camss-vfe-17x.c
+@@ -19,6 +19,7 @@
+ #include "camss-vfe-175-camif.h"
+ #include "camss-vfe-175-lsc.h"
+ #include "camss-vfe-175-output.h"
++#include "camss-vfe-175-ds4.h"
+ 
+ #define VFE_GLOBAL_RESET_CMD			(0x018)
+ #define		GLOBAL_RESET_CMD_CORE		BIT(0)
+@@ -363,6 +364,16 @@ static irqreturn_t vfe_isr(int irq, void *dev)
+ 	writel_relaxed(CMD_GLOBAL_CLEAR, vfe->base + VFE_IRQ_CMD);
+ 	writel_relaxed(1, vfe->base + VFE_BUS_IRQ_CLEAR_GLOBAL);
+ 
++	if (vfe->pixel175.ds4_running && (status0 & STATUS_0_CAMIF_SOF) &&
++	    vfe->line[VFE_LINE_PIX].output[0].sof_sequence < 4)
++		dev_info(vfe->camss->dev,
++			 "DS4 bringup irq top=%08x/%08x bus=%08x/%08x/%08x zoom=%08x wm=%08x/%08x/%08x\n",
++			 status0, status1, vfe_bus_status[0], vfe_bus_status[1],
++			 vfe_bus_status[2], readl_relaxed(vfe->base + 0x4c),
++			 readl_relaxed(vfe->base + 0x2508),
++			 readl_relaxed(vfe->base + 0x2608),
++			 readl_relaxed(vfe->base + 0x2708));
++
+ 	if (status0 & STATUS_0_RESET_ACK)
+ 		vfe->isr_ops.reset_ack(vfe);
+ 
+@@ -641,6 +652,8 @@ static int vfe_prepare_dma_175(struct camss_video *video,
+ 	if (!output->line->is_pix)
+ 		return 0;
+ 
++	if (output->pad == MSM_VFE_PAD_SRC_DS4)
++		return vfe_175_ds4_validate_buffer(output, buf);
+ 	return vfe_175_validate_buffer(output, buf);
+ }
+ 
+@@ -664,8 +677,8 @@ static void vfe_subdev_init_175(struct device *dev, struct vfe_device *vfe)
+ 		vfe_add_yuv(&pix->output[0], 3, 4, 0);
+ 		vfe_add_params(&pix->output[1], 0);
+ 		vfe_175_stats_init_output(&pix->output[2]);
+-		/* Keep shared pad indices; undeclared DS outputs reject formats. */
+-		vfe_set_pix(pix, 3);
++		vfe_add_ds(&pix->output[3], MSM_VFE_PAD_SRC_DS4, 5, 1);
++		vfe_set_pix(pix, 4);
+ 	}
+ }
+ 
+@@ -697,6 +710,10 @@ static int vfe_output_prepare_175(struct vfe_device *vfe,
+ 			return ret;
+ 		return s->width >= 4 && s->height >= 2 ? 0 : -EINVAL;
+ 	}
++	if (output->pad == MSM_VFE_PAD_SRC_DS4) {
++		ret = vfe_175_ds4_validate_output(output);
++		return ret ?: (vfe->pixel175.ds4_configured ? 0 : -ENODATA);
++	}
+ 	if (output->line->is_pix)
+ 		return vfe_175_validate_output(output);
+ 
+@@ -708,6 +725,8 @@ static void vfe_output_start_175(struct vfe_device *vfe,
+ {
+ 	if (output->pad == MSM_VFE_PAD_SRC_STATS)
+ 		vfe_175_stats_start(vfe, output);
++	else if (output->pad == MSM_VFE_PAD_SRC_DS4)
++		vfe_175_ds4_start(vfe, output);
+ 	else if (output->line->is_pix)
+ 		vfe_175_full_start(vfe, output);
+ 	else
+@@ -719,6 +738,8 @@ static void vfe_output_stop_175(struct vfe_device *vfe,
+ {
+ 	if (output->pad == MSM_VFE_PAD_SRC_STATS)
+ 		vfe_175_stats_stop(vfe, output);
++	else if (output->pad == MSM_VFE_PAD_SRC_DS4)
++		vfe_175_ds4_stop(vfe, output);
+ 	else if (output->line->is_pix) {
+ 		vfe_175_full_stop(vfe, output);
+ 		if (output->pad == MSM_VFE_PAD_SRC)
+@@ -733,6 +754,8 @@ static void vfe_output_update_175(struct vfe_device *vfe,
+ {
+ 	if (output->pad == MSM_VFE_PAD_SRC_STATS)
+ 		vfe_175_stats_update(vfe, output);
++	else if (output->pad == MSM_VFE_PAD_SRC_DS4)
++		vfe_175_ds4_update(vfe, output, buf);
+ 	else if (output->line->is_pix)
+ 		vfe_175_full_update(vfe, output, buf);
+ 	else
+@@ -740,11 +763,20 @@ static void vfe_output_update_175(struct vfe_device *vfe,
+ 			      output->line);
+ }
+ 
++static int vfe_175_validate_all_params(struct vfe_line *line,
++				       const struct v4l2_isp_buffer *params)
++{
++	int ret = vfe_175_params_validate_line(line, params);
++
++	return ret ?: vfe_175_ds4_validate_line(line, params);
++}
++
+ /* SM8150 full IFE: shared RDI transport, matched CAMIF and FULL DMA. */
+ const struct vfe_hw_ops vfe_ops_175 = {
+ 	.vfe_stats_fill = vfe_175_stats_fill,
+-	.params_max_payload = CAMSS_PARAMS_IFE_GAMMA_MAX_PAYLOAD,
+-	.params_validate = vfe_175_params_validate_line,
++	.params_max_payload = CAMSS_PARAMS_IFE_GAMMA_MAX_PAYLOAD +
++			      sizeof(struct camss_params_ife_ds4),
++	.params_validate = vfe_175_validate_all_params,
+ 	.params_info = vfe_175_params_info,
+ 	.params_num_types = ARRAY_SIZE(vfe_175_params_info),
+ 	.vfe_params_apply = vfe_175_params_apply,
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe.c b/drivers/media/platform/qcom/camss/camss-vfe.c
+index ff85a3ba7..9618d7059 100644
+--- a/drivers/media/platform/qcom/camss/camss-vfe.c
++++ b/drivers/media/platform/qcom/camss/camss-vfe.c
+@@ -26,6 +26,7 @@
+ #include <linux/qcom-camss-config.h>
+ 
+ #include "camss-vfe.h"
++#include "camss-vfe-175-ds4.h"
+ #include "camss.h"
+ 
+ #define MSM_VFE_NAME "msm_vfe"
+@@ -845,6 +846,10 @@ static struct camss_buffer *vfe_output_done(struct vfe_device *vfe,
+ 		ops->reg_update(vfe, line->id);
+ 	} else {
+ 		output->gen2.active_num--;
++		if (output->video_out.auxiliary && !output->gen2.active_num) {
++			ops->vfe_output_stop(vfe, output);
++			ops->reg_update(vfe, line->id);
++		}
+ 	}
+ 
+ 	return ready_buf;
+@@ -992,24 +997,37 @@ static int vfe_enable_one_output(struct vfe_line *line, struct vfe_output *outpu
+ 	output->wait_reg_update = 0;
+ 	reinit_completion(&output->reg_update);
+ 
+-	if (ops->vfe_output_start)
+-		ops->vfe_output_start(vfe, output);
+-	else
+-		ops->vfe_wm_start(vfe, output->wm[0].bus_client, line);
++	if (!output->video_out.auxiliary) {
++		if (ops->vfe_output_start)
++			ops->vfe_output_start(vfe, output);
++		else
++			ops->vfe_wm_start(vfe, output->wm[0].bus_client, line);
++	}
+ 
+ 	for (i = 0; i < CAMSS_INIT_BUF_COUNT; i++) {
+ 		output->buf[i] = vfe_buf_get_pending(output);
+ 		if (!output->buf[i])
+ 			break;
+ 		output->gen2.active_num++;
++	}
++
++	/* A disabled WM does not accept its address FIFO. Queue ownership is
++	 * established first; arm the WM, fill its FIFO, then commit once. */
++	if (output->video_out.auxiliary && output->gen2.active_num)
++		ops->vfe_output_start(vfe, output);
++
++	for (i = 0; i < output->gen2.active_num; i++) {
+ 		if (ops->vfe_output_update)
+ 			ops->vfe_output_update(vfe, output, output->buf[i]);
+ 		else
+ 			ops->vfe_wm_update(vfe, output->wm[0].bus_client,
+ 					   output->buf[i]->addr[0], line);
+-		ops->reg_update(vfe, line->id);
++		if (!output->video_out.auxiliary)
++			ops->reg_update(vfe, line->id);
+ 	}
+ 
++	if (output->video_out.auxiliary && output->gen2.active_num)
++		ops->reg_update(vfe, line->id);
+ 	return 0;
+ }
+ 
+@@ -1022,7 +1040,8 @@ int vfe_start_metadata_v2(struct camss_video *vid)
+ 	unsigned long flags;
+ 	int ret = 0;
+ 
+-	if (output->pad != MSM_VFE_PAD_SRC_STATS || !output->wm_num)
++	if ((!vid->auxiliary && output->pad != MSM_VFE_PAD_SRC_STATS) ||
++	    !output->wm_num)
+ 		return 0;
+ 
+ 	spin_lock_irqsave(&vfe->output_lock, flags);
+@@ -1047,7 +1066,8 @@ void vfe_stop_metadata_v2(struct camss_video *vid)
+ 	unsigned long flags;
+ 	unsigned int i;
+ 
+-	if (output->pad != MSM_VFE_PAD_SRC_STATS || !output->wm_num)
++	if ((!vid->auxiliary && output->pad != MSM_VFE_PAD_SRC_STATS) ||
++	    !output->wm_num)
+ 		return;
+ 
+ 	spin_lock_irqsave(&vfe->output_lock, flags);
+@@ -1144,6 +1164,8 @@ int vfe_queue_buffer_v2(struct camss_video *vid,
+ 	if (output->state == VFE_OUTPUT_ON &&
+ 	    output->gen2.active_num < 2) {
+ 		output->buf[output->gen2.active_num++] = buf;
++		if (vid->auxiliary && output->gen2.active_num == 1)
++			ops->vfe_output_start(vfe, output);
+ 		if (ops->vfe_output_update)
+ 			ops->vfe_output_update(vfe, output, buf);
+ 		else
+@@ -1391,7 +1413,8 @@ static void vfe_disable_output(struct vfe_line *line)
+ 			continue;
+ 
+ 		vfe_stop_one_output(line, output);
+-		if (o && output->video_out.type == V4L2_BUF_TYPE_META_CAPTURE)
++		if (o && (output->video_out.type == V4L2_BUF_TYPE_META_CAPTURE ||
++			  output->video_out.auxiliary))
+ 			vfe_requeue_active_buffers(output);
+ 		else
+ 			output->gen2.active_num = 0;
+@@ -2031,6 +2054,9 @@ static void vfe_try_format(struct vfe_line *line,
+ 			h = (h / 4) & ~1u;
+ 		}
+ 		*fmt = *src;
++		if (pad == MSM_VFE_PAD_SRC_DS4 &&
++		    to_vfe(line)->camss->res->version == CAMSS_8150)
++			fmt->code = MEDIA_BUS_FMT_UYYVYY10_0_5X30;
+ 		fmt->width = w;
+ 		fmt->height = h;
+ 
+@@ -2171,6 +2197,9 @@ static int vfe_enum_mbus_code(struct v4l2_subdev *sd,
+ 			return -EINVAL;
+ 		code->code = __vfe_get_format(line, sd_state, MSM_VFE_PAD_SRC,
+ 					      code->which)->code;
++		if (code->pad == MSM_VFE_PAD_SRC_DS4 &&
++		    to_vfe(line)->camss->res->version == CAMSS_8150)
++			code->code = MEDIA_BUS_FMT_UYYVYY10_0_5X30;
+ 		return 0;
+ 	case MSM_VFE_PAD_SRC_STATS:
+ 	case MSM_VFE_PAD_SINK_PARAMS:
+@@ -2970,6 +2999,15 @@ static int vfe_register_meta_nodes(struct vfe_device *vfe,
+ 				v4l2_isp_buffer_size(vfe->res->hw_ops->params_max_payload ?:
+ 					     CAMSS_PARAMS_IFE_MAX_PAYLOAD);
+ 			suffix = "params";
++		} else if (output->pad == MSM_VFE_PAD_SRC_DS4 &&
++			   vfe->res->hw_ops == &vfe_ops_175) {
++			video->type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
++			video->auxiliary = true;
++			video->formats = vfe_formats_ds4_175.formats;
++			video->nformats = vfe_formats_ds4_175.nformats;
++			video->frame_sizes = &vfe_frame_sizes_ds4_175;
++			video->bpl_alignment = 192;
++			suffix = "ds4";
+ 		} else {
+ 			continue;
+ 		}
+diff --git a/drivers/media/platform/qcom/camss/camss-video.c b/drivers/media/platform/qcom/camss/camss-video.c
+index 3e163982a..13990cbe7 100644
+--- a/drivers/media/platform/qcom/camss/camss-video.c
++++ b/drivers/media/platform/qcom/camss/camss-video.c
+@@ -10,6 +10,7 @@
+ #include <linux/dma-mapping.h>
+ #include <linux/module.h>
+ #include <linux/slab.h>
++#include <linux/qcom-camss-config.h>
+ #include <media/media-entity.h>
+ #include <media/v4l2-dev.h>
+ #include <media/v4l2-device.h>
+@@ -19,6 +20,7 @@
+ #include <media/videobuf2-vmalloc.h>
+ 
+ #include "camss-video.h"
++#include "camss-format.h"
+ #include "camss.h"
+ 
+ #define CAMSS_FRAME_MIN_WIDTH		1
+@@ -67,6 +69,16 @@ static int video_mbus_to_pix_mp(const struct v4l2_mbus_framefmt *mbus,
+ 				bytesperline;
+ 	}
+ 
++	if (pix->pixelformat == V4L2_PIX_FMT_QCOM_PD10_LOCAL) {
++		struct camss_pd10_layout layout;
++		int ret = camss_format_pd10_layout(pix->width, pix->height, &layout);
++
++		if (ret)
++			return ret;
++		pix->plane_fmt[0].bytesperline = layout.stride;
++		pix->plane_fmt[0].sizeimage = layout.bytes;
++	}
++
+ 	return 0;
+ }
+ 
+@@ -338,6 +350,16 @@ static int video_start_streaming(struct vb2_queue *q, unsigned int count)
+ 	struct v4l2_subdev *subdev;
+ 	int ret;
+ 
++	if (video->auxiliary) {
++		ret = video_check_format(video);
++		if (!ret)
++			ret = video->ops->start_metadata ?
++				video->ops->start_metadata(video) : -EINVAL;
++		if (ret)
++			video->ops->flush_buffers(video, VB2_BUF_STATE_QUEUED);
++		return ret;
++	}
++
+ 	ret = video_device_pipeline_alloc_start(vdev);
+ 	if (ret < 0) {
+ 		dev_err(video->camss->dev, "Failed to start media pipeline: %d\n", ret);
+@@ -398,6 +420,13 @@ static void video_stop_streaming(struct vb2_queue *q)
+ 	struct v4l2_subdev *subdev = pad && is_media_entity_v4l2_subdev(pad->entity)
+ 				   ? media_entity_to_v4l2_subdev(pad->entity) : NULL;
+ 
++	if (video->auxiliary) {
++		if (video->ops->stop_metadata)
++			video->ops->stop_metadata(video);
++		video->ops->flush_buffers(video, VB2_BUF_STATE_ERROR);
++		return;
++	}
++
+ 	if (subdev && v4l2_subdev_has_op(subdev, pad, disable_streams)) {
+ 		int ret = v4l2_subdev_disable_streams(subdev, pad->index, BIT_ULL(0));
+ 
+@@ -626,6 +655,9 @@ static int video_enum_fmt(struct file *file, void *fh, struct v4l2_fmtdesc *f)
+ 		return -EINVAL;
+ 
+ 	f->pixelformat = video->formats[i].pixelformat;
++	if (f->pixelformat == V4L2_PIX_FMT_QCOM_PD10_LOCAL)
++		strscpy(f->description, "Qualcomm PD10 (local)",
++			sizeof(f->description));
+ 
+ 	return 0;
+ }
+@@ -762,6 +794,16 @@ static int __video_try_fmt(struct camss_video *video, struct v4l2_format *f)
+ 				p->sizeimage = sizeimage[i];
+ 		}
+ 
++	if (pix_mp->pixelformat == V4L2_PIX_FMT_QCOM_PD10_LOCAL) {
++		struct camss_pd10_layout layout;
++		int ret = camss_format_pd10_layout(pix_mp->width, pix_mp->height, &layout);
++
++		if (ret)
++			return ret;
++		pix_mp->plane_fmt[0].bytesperline = layout.stride;
++		pix_mp->plane_fmt[0].sizeimage = layout.bytes;
++	}
++
+ 	return 0;
+ }
+ 
+diff --git a/drivers/media/platform/qcom/camss/camss-video.h b/drivers/media/platform/qcom/camss/camss-video.h
+index f0be4cdb0..23d6f5053 100644
+--- a/drivers/media/platform/qcom/camss/camss-video.h
++++ b/drivers/media/platform/qcom/camss/camss-video.h
+@@ -60,6 +60,8 @@ struct camss_video {
+ 	struct mutex q_lock;
+ 	unsigned int bpl_alignment;
+ 	unsigned int line_based;
++	/* Auxiliary image DMA follows the primary line without restarting it. */
++	bool auxiliary;
+ 	/* Optional per-output bounds and dimension steps; NULL keeps legacy limits. */
+ 	const struct v4l2_frmsize_stepwise *frame_sizes;
+ 	const struct camss_format_info *formats;
+diff --git a/include/uapi/linux/qcom-camss-config.h b/include/uapi/linux/qcom-camss-config.h
+index 0a8cf16ad..d134f0b9e 100644
+--- a/include/uapi/linux/qcom-camss-config.h
++++ b/include/uapi/linux/qcom-camss-config.h
+@@ -9,6 +9,7 @@
+ #define _UAPI_LINUX_QCOM_CAMSS_CONFIG_H
+ 
+ #include <linux/types.h>
++#include <linux/videodev2.h>
+ #include <linux/media/v4l2-isp.h>
+ 
+ /**
+@@ -39,8 +40,22 @@ enum camss_params_block_type {
+ 	CAMSS_PARAMS_AEC_BHIST = 5,
+ 	CAMSS_PARAMS_LSC = 6,
+ 	CAMSS_PARAMS_IFE_GAMMA = 7,
++	CAMSS_PARAMS_IFE_DS4 = 8,
+ };
+ 
++/* Local experimental identifier, not reserved upstream. Single-plane PD10:
++ * each 2x2 YUV420 block occupies eight bytes. SM8150 rows are aligned to
++ * 192 bytes and the packed row count to four; bpl describes packed rows. */
++#define V4L2_PIX_FMT_QCOM_PD10_LOCAL v4l2_fourcc('Q', 'P', '1', '0')
++
++/* DS4 configuration only. Flags and reserved must be zero. Stream lifetime
++ * controls the hardware enable; coefficients come from selected tuning. */
++struct camss_params_ife_ds4 {
++	struct v4l2_isp_block_header header;
++	__u16 coefficient[3];
++	__u16 reserved;
++} __attribute__((aligned(8)));
++
+ /* Number of entries in each gamma channel LUT. */
+ #define CAMSS_GAMMA_LUT_SIZE	256
+ 

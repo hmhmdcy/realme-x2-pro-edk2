@@ -1,0 +1,17 @@
+# PHY lifecycle候选：限定独立审查
+
+对冻结delivery `006ccd88790a8ca70f39d212cdaa2873e92cb217df43b44571f2cac954c7b807` 的新增范围，未发现阻断。此结论仅覆盖该离线组件的生命周期、锁和引用设计；不是硬件、完整APSD/PD或部署批准。
+
+只读全部交付文件/历史/基线哈希、实际新增源码、固定内核caller证据及作者已完成的9组函数测试/3对象收据。独立核对27个抽取函数与当前源，核对14个未变函数或主体。没有运行作者生成器、旧8/14组或新9组，没有编译、访问设备/SSH/USB/SDK/Git、调用存储guard或修改作者文件。独立脚本只读取缓存、比对字节/函数并写本审查结果。
+
+`phy-qcom-snps-femto-v2.c:871–920` 保留probe的noresume持有，单次enable后注册本地managed cleanup；PHY/provider创建与publication之后最后注册withdraw action。`phy-lifetime.inc:182–200` 的专用stop mutex使runtime disable只执行一次，随后旧位置cleanup仍执行dont-use-autosuspend而不增加第二次disable深度。remove/shutdown与最后devres action均先block新begin，再做runtime disable/barrier，之后才进入撤销/回收；这避免原managed PM action位于generic PHY devres之前、逆序释放时过晚禁用callback的问题。首次action分配失败仍通过add_action_or_reset运行对应清理。
+
+`phy-lifetime.inc:219–303` 在provider registry内标记revoking/blocked并取得真实client额外引用，然后释放registry；等已发出的complete、调用cancel_join、等inflight操作都在registry/PHY mutex之外。end在取消join期间允许恢复，join后closing拒绝新end、drain既有操作，最终在PHY mutex内标dead，再unpublish。没有拿provider registry或PHY mutex跨client join/PM barrier。专用PM stop mutex横跨disable是有意的串行门，runtime/client callback不取它。成功complete只清自己reason；失败保留join error，terminal后不能重发表。
+
+`window_operation_get:29–45` 先按registry中活provider比对旧phy指针值和provider/client/context身份，成功后计inflight；旧binding在remove/free/reprobe后不先解引用旧phy。terminal关闭end并等operation_done后才允许资源撤销；成功旧token不能跨新provider身份复用。失败restoration不伪称restored，最终强制撤销只drop已有PM引用、记录独立lifecycle错误，不在资源释放后重试MMIO。
+
+client注册持真实主kref，每个cancel/complete另持额外kref；put都在provider锁外。DWC unbind先join worker，再unregister。`client_unregister:88–118` 不等可能正在等待owner_registry的provider callback，因此DWC持owner_registry解绑时没有反向join；callback自己的额外kref保留context直到返回。实际 `owner_phy_cancel_join:169–193` 在同一owner_registry内重新核binding，并对remove/shutdown使用既有retiring join；解绑先清binding的并发分支只返回，不再借旧MMIO。失败token仍走原quarantine/tombstone，而不是释放未归还的owner。
+
+作者9组的新边界确实使用当前lifecycle include及实际新增DWC引用/回调函数；旧owner_join明确是fake边界，没有冒认其全部跨组件并发在本轮执行。作者W1/Werror三个私有对象与当前源码/receipt相符；私有future-builtin视图不等于CONFIG已更改或整Image链接成功。本审查复用这些收据，没有重跑。
+
+`owner_entry_gate:371–378` 对有效backend仍无条件EOPNOTSUPP，现有默认off/opt-in保留。真实路由、最终写入时物理代际lease、完整PD及1341许可仍缺，本次生命周期修复没有赋予这些能力。审查也不声称重设计所有无关generic PHY消费者或证明真实PM/USB时延。

@@ -1,0 +1,6 @@
+docs: handover 19.8 - the flash and EUD capture helper
+
+E:\eud-host\flash-and-capture-linux.ps1 flashes the LoadOptions image, polls for
+the EUD control device, brings the COM port up the moment it appears and records
+before the kernel starts printing - the timing race that produced a 0 byte log
+in section 12.  Smoke tested only on the "no device" path.

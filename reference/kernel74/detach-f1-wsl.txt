@@ -1,0 +1,46 @@
+[  3ffffff808190f000
+[  308.531332] Call trace:
+[  308.554379]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  308.602641]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  308.654118]  drm_fb_helper_damage_work+0x174/0x3a0
+[  308.699374]  process_one_work+0x188/0x2e4
+[  308.738034]  worker_thread+0x18c/0x300
+[  308.773683]  kthread+0x118/0x124
+[  308.803318]  ret_from_fork+0x10/0x20
+[  308.836166] ---[ end trace 0000000000000000 ]---
+[  308.967787] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  309.147471] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  310.079852] ------------[ cut here ]------------
+[  310.122424] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  310.196344] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  310.295882] Modules linked in:
+[  310.325145] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  310.427881] Tainted: [W]=WARN
+[  310.456933] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  310.527843] Workqueue: events drm_fb_helper_damage_work
+[  310.576525] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  310.641215] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  310.689481] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  310.737745] sp : ffffffc0828abc40
+[  310.769980] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  310.837468] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  310.904939] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  310.972422] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  311.039914] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  311.107379] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 0000000000000ec2
+[  311.174856] x11: ffffff8083a3ca40 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  311.242328] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 0000000000000ec3
+[  311.309812] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  311.377306] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  311.444783] Call trace:
+[  311.467826]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  311.516089]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  311.567519]  drm_fb_helper_damage_work+0x174/0x3a0
+[  311.612753]  process_one_work+0x188/0x2e4
+[  311.651379]  worker_thread+0x18c/0x300
+[  311.687002]  kthread+0x118/0x124
+[  311.716626]  ret_from_fork+0x10/0x20
+[  311.749447] ---[ end trace 0000000000000000 ]---
+[  311.792008] eud: RX46 F1 via=console irqs=1 fault=0
+[  311.837445] eud: reboot2 bootloader requested
+[  311.879282] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0

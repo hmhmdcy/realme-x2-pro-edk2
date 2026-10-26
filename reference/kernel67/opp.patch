@@ -1,0 +1,17 @@
+--- a/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
++++ b/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
+@@ -314,3 +314,14 @@
+ 	mode-bootloader = <0x02>;
+ 	mode-recovery   = <0x01>;
+ };
++
++/* SM8150-AC: this frequency is present in the firmware CPU7 LUT.
++ * Match the SM8150 high-frequency OPP used by the maintained SoC tree;
++ * voltage comes from the hardware LUT, not a fixed board voltage.
++ */
++&cpu7_opp_table {
++	cpu7_opp21: opp-2956800000 {
++		opp-hz = /bits/ 64 <2956800000>;
++		opp-peak-kBps = <8368000 51609600>;
++	};
++};

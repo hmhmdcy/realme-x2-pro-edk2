@@ -1,0 +1,55 @@
+{
+  "scope": "static source/FDT proof only; separate actual driver-function fixture/build receipts",
+  "source_sha256": "0fdafb8b3924e431efd67a888cbb88b8f5fe6de22dc400b009bf64cba34b7be5",
+  "baseline_sha256": "b712764fbd4ab24475ae1ba030ee4c26c7eb048a6038488a5435b44ef7eb7098",
+  "unchanged_actual_functions": {
+    "samurai_usb_read_status": "7e92bc6ba79f15e275392fec2ef96074ca7171fe470b3d33fdcf9486f43c7027",
+    "samurai_usb_get_budget": "44aeb5193e4c599cd38e02ec9371620e47c77ab5e38ca3c5a6ebae24f88e9101",
+    "samurai_usb_type": "3c7b77861fb41b1cdfcbf8cf5cdc88f16fc587e2567b6f7fc83c3e9f115cc03a",
+    "samurai_usb_get_property": "98f1f22bc62398cc1fec4f148f398c27b97ac538d4f0724f2bede686f8186afe",
+    "samurai_usb_set_property": "3f5f14010da693f7a48d590af98b478c584e974b341b256dfb1a00047e432eab",
+    "samurai_usb_poll": "df9fe43c8be410da5ef8c8e00daa9281d2c62f4c751c11978a208cd9ffabcc66",
+    "samurai_usb_stop": "1d60c09eddda0cd16e88d575e487e23c099005436babfd2c62944dff3d4ac1f3",
+    "samurai_usb_suspend": "d9c52f0c7a22bd29e3c95267e565bcd2fdc240c609e2ef150385fc0b918e474c",
+    "samurai_usb_resume": "87c6cafcde340f0a2d394e5a9063ce2af8e2d5d8a01f925d614629c1c112c492",
+    "samurai_usb_retain_for_native_consumer": "44d7b1a0f423eaf5ff9b868a855c1d49fc6bee1dfe06b04a4b672661a8513e4c",
+    "samurai_usb_parent_match": "063204a78916cd7abd9cd4188869438ff61a5433428f06cebf1343ea18415d7a",
+    "samurai_usb_exit": "c3b780a0eb555b366a6cec7fdb476b366929c85b6946b844377a1895ae6155fb"
+  },
+  "unchanged_actual_function_count": 12,
+  "probe_order_paused_request_publish_stop_action_unpause": true,
+  "devres_inverse_order": "stop/cancel -> power_supply_unregister -> free IRQ pair -> free input",
+  "normal_shutdown_existing_stop_registered": true,
+  "current_embedded_DTB": {
+    "path": "/mnt/e/edk2-samurai-out/charging-management-20261023/eud-boot-policy-private/samurai-eud-off-policy-private.dtb",
+    "sha256": "9271d9cc33b3701ad0675c6345d43e9a5c404aa6c192126edc3eb715b0914358",
+    "spmi_path": "/soc@0/spmi@c440000",
+    "pmic_path": "/soc@0/spmi@c440000/pmic@2",
+    "irq_cells": 4,
+    "controller_present": true,
+    "PMIC_SID": 2,
+    "PMIC_reg_cells": [
+      2,
+      0
+    ],
+    "TypeC_status": "disabled",
+    "PMIC_has_no_explicit_interrupt_parent": true
+  },
+  "source_references_sha256": {
+    "drivers--base--core.c": "52247f436f5328d0b174f3350cda7e6d3e9d929de3611b5acb546b502852de2c",
+    "drivers--base--platform.c": "8f979e2aa2af1a5460acd99db7c6f214f61a36fb9045805bd046bd49affa5e5e",
+    "drivers--mfd--qcom-spmi-pmic.c": "cba250364921bfff3e8cfe10372906631cf2cba70365b2d75eabb8822084b9bd",
+    "drivers--of--irq.c": "ed2c8c56f65c6175fc1ed81c394ae8f29e676f89162139ebae5aa9bd1571a926",
+    "drivers--spmi--spmi-pmic-arb.c": "320e71b64915eb4e32be90b49fd65f12da2241e877bf4f68f0c0c1eb4ab3e28d"
+  },
+  "parent_walk": "of_irq_find_parent climbs usb-input -> PMIC(no interrupt-parent/#interrupt-cells) -> SPMI(#interrupt-cells=4)",
+  "runtime_irq_lookup": "platform optional uses fwnode name -> OF name index -> of_irq_get -> real IRQ domain; not numeric Linux IRQ constants",
+  "limits": [
+    "DT fragment not applied or compiled here; no real IRQ delivery/latency measurement.",
+    "Both missing optional IRQ lookups preserve legacy poll fallback; resource discovery errors can map to ENXIO in platform core.",
+    "An enabled exact DT node prevents register_board software duplicate in the intended single-node board tree; not a multi-provider discovery framework.",
+    "No new wake IRQ policy, APSD/PD/role/config writes or budget authorization are introduced.",
+    "No full-probe hardware/devres-race execution claim follows from static order and fake boundary cases."
+  ],
+  "review_source_sha256": "805ac2eead9999fb805e857aaeb2e7e775baa18d1321f74db3850b3f2cd8e742"
+}

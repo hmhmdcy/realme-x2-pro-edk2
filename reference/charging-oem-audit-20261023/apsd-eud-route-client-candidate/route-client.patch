@@ -1,0 +1,317 @@
+--- a/drivers/usb/dwc3/samurai-apsd-owner.c
++++ b/drivers/usb/dwc3/samurai-apsd-owner.c
+@@ -1,8 +1,8 @@
+ // SPDX-License-Identifier: GPL-2.0-only
+ /* Optional, single-controller DWC lifetime consumer, default off.
+  * The separately opted-in PD5V client prepares real disabled-PD control only
+- * after physical off. PHY withdrawal is connected; route/final-transfer coverage is absent:
+- * every APSD window/1341 attempt is still refused, not every PD control I/O.
++ * after physical off. The explicit EUD-off route profile joins real supplier
++ * revocation and validates its original lease again at the final transfer.
+  */
+ #include <linux/module.h>
+ #include <linux/kref.h>
+@@ -21,7 +21,7 @@
+ #include "samurai-usb-input-decode.h"
+ #include "samurai-apsd-owner.h"
+ #include "samurai-apsd-once.h"
+-#include "eud-com-window.h"
++#include <linux/usb/samurai-eud-route.h>
+ #include "phy-qcom-snps-femto-v2-window.h"
+ 
+ enum owner_pd_phase {
+@@ -52,11 +52,13 @@
+  struct samurai_pd5v *attempt_pd;
+  u64 attempt_generation;
+  bool attempt_active;
+-	struct eud_com_window_result eud;
++	struct device *route_device;
++	struct samurai_eud_route_client *route_client;
++	struct samurai_eud_route_lease route_lease;
+ 	struct dwc3_gadget_window_result dwc_window;
+ 	struct qcom_snps_hsphy_window_result phy;
+ 	struct qcom_snps_hsphy_window_client *phy_client;
+-	int primary_error, phy_error, dwc_error, eud_error;
++	int primary_error, phy_error, dwc_error, route_error;
+ };
+ 
+ /* Public bind/unbind/bus registration and all lifecycle joins serialize here.
+@@ -80,6 +82,8 @@
+  struct samurai_apsd_owner *o = container_of(ref, struct samurai_apsd_owner, ref);
+  if (o->typec)
+   put_device(o->typec);
++ if (o->route_device)
++  put_device(o->route_device);
+  kfree(o);
+ }
+ static bool owner_pd_get(void *context)
+@@ -96,6 +100,99 @@
+ {
+  if (IS_ENABLED(CONFIG_USB_DWC3_SAMURAI_APSD_PD5V_CLIENT) && o->pd_lease.owner)
+   samurai_pd5v_release(&o->pd_lease);
++}
++
++/* Provider callbacks publish a permanent fence before lifecycle serialization.
++ * A route-only withdrawal may restore a live gadget normally. An already
++ * retiring UDC keeps its original cancel/shutdown sequence and quiet tokens.
++ */
++static void owner_route_fence(struct samurai_apsd_owner *o)
++{
++	unsigned long flags;
++
++	spin_lock_irqsave(&o->lock, flags);
++	o->blocked |= DWC3_APSD_ROUTE;
++	o->abort = true;
++	o->quarantined = true;
++	spin_unlock_irqrestore(&o->lock, flags);
++}
++
++static int owner_route_release(struct samurai_apsd_owner *o)
++{
++	int ret;
++
++	if (!o->route_client)
++		return 0;
++	ret = samurai_eud_route_client_unregister(o->route_client);
++	if (!ret)
++		o->route_client = NULL;
++	return ret;
++}
++
++static int owner_route_cancel_join(void *context)
++{
++	struct samurai_apsd_owner *o = context;
++	int ret;
++
++	owner_route_fence(o);
++	mutex_lock(&owner_registry);
++	if (o->dwc)
++		ret = owner_join(o, DWC3_APSD_ROUTE, READ_ONCE(o->retiring));
++	else {
++		cancel_delayed_work_sync(&o->work);
++		ret = (o->phy.cookie || o->dwc_window.cookie || o->route_lease.client || o->extra_pm) ? -ESHUTDOWN : 0;
++		if (!ret)
++			owner_pd_release(o);
++	}
++	/* A successful DWC cancel can still retain its shutdown-owned token.
++	 * Never acknowledge that as a fully joined/released route capability. */
++	if (!ret && (o->phy.cookie || o->dwc_window.cookie || o->route_lease.client || o->extra_pm))
++		ret = -EBUSY;
++	if (!ret)
++		ret = owner_route_release(o);
++	if (ret)
++		o->route_error = ret;
++	mutex_unlock(&owner_registry);
++	return ret;
++}
++
++static int owner_route_resolve(struct samurai_apsd_owner *o)
++{
++	static const struct samurai_eud_route_client_ops ops = {
++		.get_unless_zero = owner_pd_get,
++		.put = owner_pd_put,
++		.cancel_join = owner_route_cancel_join,
++	};
++	struct samurai_eud_route_status state;
++	struct device_node *node;
++	struct platform_device *pdev;
++	int ret;
++
++	if (!IS_ENABLED(CONFIG_USB_DWC3_SAMURAI_APSD_EUD_OFF_CLIENT))
++		return -EOPNOTSUPP;
++	if (!o->route_device) {
++		node = of_parse_phandle(o->dwc->dev->of_node, "samurai,apsd-eud-route", 0);
++		if (!node)
++			return -EINVAL;
++		pdev = of_find_device_by_node(node);
++		of_node_put(node);
++		if (!pdev)
++			return -EAGAIN;
++		o->route_device = &pdev->dev;
++	}
++	if (!o->route_client) {
++		ret = samurai_eud_route_client_register(o->route_device, o->dwc->dev, &ops, o, &o->route_client);
++		if (ret == -ENODEV)
++			return -EAGAIN;
++		if (ret)
++			return ret;
++	}
++	ret = samurai_eud_route_status(o->route_client, &state);
++	if (!ret && (state.revoked || !state.exclusive))
++		ret = -ESHUTDOWN;
++	if (ret == -ESHUTDOWN)
++		owner_route_fence(o);
++	return ret;
+ }
+ 
+ /* PHY withdrawal publishes its permanent fence before waiting on any DWC
+@@ -141,7 +238,7 @@
+ 		/* DWC unbind already joined us. Do not retry retained tokens through
+ 		 * removed DWC MMIO, even if the PHY storage has not gone away yet. */
+ 		cancel_delayed_work_sync(&o->work);
+-		if (o->phy.cookie || o->dwc_window.cookie || o->eud.cookie || o->extra_pm)
++		if (o->phy.cookie || o->dwc_window.cookie || o->route_lease.client || o->extra_pm)
+ 			ret = -ESHUTDOWN;
+ 		else
+ 			owner_pd_release(o);
+@@ -233,7 +330,7 @@
+  else {
+   /* Unbind already joined the worker. Never retry old MMIO via an orphan. */
+   cancel_delayed_work_sync(&o->work);
+-  if (!o->phy.cookie && !o->dwc_window.cookie && !o->eud.cookie && !o->extra_pm)
++  if (!o->phy.cookie && !o->dwc_window.cookie && !o->route_lease.client && !o->extra_pm)
+    owner_pd_release(o);
+  }
+  if (!ret) {
+@@ -390,17 +487,29 @@
+  return ret;
+ }
+ 
+-/* A real PD5V lease and bound PHY client are insufficient. Trusted EUD-off
+- * route and final-transfer revalidation remain unimplemented.
+- * Keep a concrete failure before all analog/window/command entry. */
++/* The explicit profile needs all actual providers, never a caller Boolean. */
+ static int owner_entry_gate(struct samurai_apsd_owner *o)
+ {
++	struct samurai_eud_route_status state;
++	int ret;
++
+ 	if (!o->bus || !o->bus->read_sample || !o->bus->rerun_once)
+ 		return -ENODEV;
+- /* Real PD acquisition is separate from these still-missing capabilities.
+-  * This unconditional refusal MUST remain: no EUD/DWC/PHY begin or1341 path
+-  * becomes reachable through the new PD bridge. */
+- return -EOPNOTSUPP; /* route capability absent */
++	if (!IS_ENABLED(CONFIG_USB_DWC3_SAMURAI_APSD_EUD_OFF_CLIENT) ||
++	    !o->route_client || !o->pd_bridge || !o->pd_prepared ||
++	    o->pd_phase != OWNER_PD_SINK_EPOCH || !o->pd_lease.owner)
++		return -EOPNOTSUPP;
++	if (owner_aborted(o))
++		return -ECANCELED;
++	ret = samurai_pd5v_validate(&o->pd_lease);
++	if (ret)
++		return ret;
++	ret = samurai_eud_route_status(o->route_client, &state);
++	if (ret)
++		return ret;
++	if (state.revoked || !state.exclusive)
++		return -ESHUTDOWN;
++	return o->route_lease.client ? samurai_eud_route_validate(&o->route_lease) : 0;
+ }
+ 
+ /* Only this worker or its joined lifecycle owner calls component functions.
+@@ -412,6 +521,10 @@
+ 	int ret;
+ 
+ 	if (o->phy.cookie) {
++		/* Independent supplier/UDC joins must not retry an already failed
++		 * restore or replace its original hardware error. */
++		if (o->phy_error)
++			return o->phy_error;
+ 		ret = qcom_snps_hsphy_window_end(o->phy_client,
+ 				o->phy.cookie, &o->phy);
+ 		o->phy_error = ret;
+@@ -436,12 +549,11 @@
+ 			return ret;
+ 		o->dwc_window.cookie = 0;
+ 	}
+-	if (o->eud.cookie) {
+-		ret = eud_com_quiet_end(o->eud.cookie, &o->eud);
+-		o->eud_error = ret;
++	if (o->route_lease.client) {
++		ret = samurai_eud_route_end(&o->route_lease);
++		o->route_error = ret;
+ 		if (ret)
+ 			return ret;
+-		o->eud.cookie = 0;
+ 	}
+ 	if (o->extra_pm) {
+ 		pm_runtime_put(o->dwc->dev);
+@@ -454,14 +566,14 @@
+ {
+ 	int ret;
+ 
+-	if (!o->phy_client)
++	if (!o->phy_client || !o->route_client)
+ 		return -ENODEV;
+ 
+ 	ret = pm_runtime_get_if_active(o->dwc->dev);
+ 	if (ret <= 0)
+ 		return ret < 0 ? ret : -EAGAIN;
+-	o->extra_pm = true; /* stays through EUD restore, beyond DWC end's put */
+-	ret = eud_com_quiet_begin(&o->eud);
++	o->extra_pm = true; /* stays through route release, beyond DWC end's put */
++	ret = samurai_eud_route_begin(o->route_client, &o->route_lease);
+ 	if (ret || owner_aborted(o))
+ 		return ret ? ret : -ECANCELED;
+ 	ret = dwc3_gadget_window_begin(o->dwc, &o->dwc_window);
+@@ -541,7 +653,7 @@
+ 	ret = samurai_pd5v_validate(&o->pd_lease);
+ 	if (ret)
+ 		return ret;
+-	if (!o->phy_client || !o->phy.cookie || !o->phy.high_z ||
++	if (!o->route_lease.client || !o->phy_client || !o->phy.cookie || !o->phy.high_z ||
+ 	    !o->dwc_window.cookie || !o->dwc_window.halted || !o->extra_pm)
+ 		return -ESTALE;
+ 	ret = qcom_snps_hsphy_window_status(o->phy_client, &phy);
+@@ -549,9 +661,7 @@
+ 		return ret;
+ 	if (phy.revoked || !phy.high_z || phy.cookie != o->phy.cookie)
+ 		return -ESHUTDOWN;
+-	/* Route capability is still absent. The actual entry gate continues to
+-	 * refuse every production attempt, including this last boundary.
+-	 */
++	/* Revalidate the exact live route lease after PD/PHY and fresh wire checks. */
+ 	ret = owner_entry_gate(o);
+ 	if (ret)
+ 		return ret;
+@@ -599,7 +709,9 @@
+ 
+ 	if (owner_aborted(o))
+ 		return;
+-	ret = owner_phy_resolve(o);
++	ret = owner_route_resolve(o);
++	if (!ret)
++		ret = owner_phy_resolve(o);
+ 	if (ret == -EAGAIN) {
+ 		owner_queue(o, msecs_to_jiffies(1000));
+ 		return;
+@@ -684,8 +796,8 @@
+   owner_pd_release(o);
+ 	if (ret) {
+ 		owner_quarantine(o);
+-		dev_err(o->dwc->dev, "APSD owner retained quiet: primary=%d phy=%d dwc=%d eud=%d\n",
+-			o->primary_error, o->phy_error, o->dwc_error, o->eud_error);
++		dev_err(o->dwc->dev, "APSD owner retained quiet: primary=%d phy=%d dwc=%d route=%d\n",
++			o->primary_error, o->phy_error, o->dwc_error, o->route_error);
+ 	}
+ 	return ret;
+ }
+@@ -859,13 +971,15 @@
+ 	cancel_delayed_work_sync(&o->work);
+ 	if (owner_phy_release(o))
+ 		owner_quarantine(o);
++	if (owner_route_release(o))
++		owner_quarantine(o);
+ 	protocol_history = o->once;
+  pd_history_binding = o->pd_binding;
+  pd_history_prepared = o->pd_prepared;
+-	/* A retained failed PHY/EUD token is orphaned, not auto-restored through
++	/* A retained failed PHY/route token is orphaned, not auto-restored through
+ 	 * removed MMIO. Keep the tombstone and refuse a replacement controller.
+ 	 */
+-	if (o->phy.cookie || o->eud.cookie || o->extra_pm) {
++	if (o->phy.cookie || o->route_lease.client || o->extra_pm) {
+ 		owner_quarantine(o);
+ 		o->dwc = NULL;
+ 		o->bus = NULL;
+--- a/drivers/usb/dwc3/samurai-apsd-owner.h
++++ b/drivers/usb/dwc3/samurai-apsd-owner.h
+@@ -11,6 +11,7 @@
+ 	DWC3_APSD_EXIT = 16,
+  DWC3_APSD_PD = 32,
+  DWC3_APSD_PHY = 64,
++ DWC3_APSD_ROUTE = 128,
+ };
+ #if IS_ENABLED(CONFIG_USB_DWC3_SAMURAI_APSD_OWNER)
+ void dwc3_apsd_owner_bind(struct dwc3 *dwc);

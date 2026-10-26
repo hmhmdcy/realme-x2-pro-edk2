@@ -1,0 +1,30 @@
+{
+  "schema": "samurai-tcpm-bc12-owner-design-v1",
+  "implemented": false,
+  "existing_complete_safe_hook": false,
+  "scope": "proposed real TCPM/qcom owner boundary; no stub consumer or runnable permission provider",
+  "binding": "actual qcom_pmic_typec device, its parent PMIC dev/regmap and TCPM port plus connector fwnode; same PMIC as input observer, no global first-port or string-only lookup",
+  "proposed_snapshot": {
+    "function": "tcpm_bc12_owner_snapshot",
+    "lock": "TCPM port->lock for protocol fields, short pd_event_lock/actual ingress generation for pending facts; return with no component lock held",
+    "fields": ["binding_generation", "physical_attach_epoch", "event_generation", "valid_mask", "owner_started", "attached", "power_role", "pd_capable", "explicit_contract", "pd_protocol_activity", "swap_pending", "AMS", "state", "delayed_state", "pending_PD_RX", "pending_CC_VBUS_FRS_reset", "last_TCPC_IO_error"],
+    "pd_state": "tri-state UNKNOWN/INACTIVE/ACTIVE or separate valid bit; never default false for missing owner, unsupported field, read failure or inherited boot state",
+    "positive_gate": "only actual started owner, established physical epoch after inherited state resolved, sink attached, explicitly known PD-inactive, no swap/reset/protocol work or ingress pending, no unknown/error; owner API alone is not analog-route or bus-write permission"
+  },
+  "proposed_cancel": {
+    "invalidate": "publish monotonic event generation/abort before queue/allocation/first controller action; no sleeping join under TCPM or qcom spin/vbus locks",
+    "join": "cancel publication then session cancel+join outside all component locks, before continuing a controller operation that needs DPDM ownership",
+    "ingress": [
+      "qcom PDPHY SIG_RX threaded IRQ before scheduling reset_work, and reset_work before reset_on/off",
+      "qcom PDPHY MSG_RX before buffer handling; TCPM pd_receive before allocation, even on allocation failure",
+      "CC/VBUS/FRS/error events, local PR/data/VCONN swaps, Type-C reconfiguration, timers/state transitions leaving eligible phase",
+      "tcpm_tcpc_reset before locking/init; qcom remove before pdphy_stop/port_stop and TCPM unregister; PM pre-cancel in actual session owner"
+    ],
+    "commit_check": "session must validate same binding/physical epoch/event generation immediately before its one real bus write; cancellation joins any already started operation and exact PHY restoration before conflicting owner action",
+    "failure": "keep unknown/error and no new APSD permission; do not fake cancellation completion, delay PD indefinitely or rearm on DWC rebind"
+  },
+  "errno_plan": {"missing_owner":"-ENODEV", "wrong_PMIC_or_binding":"-EXDEV", "unknown_pending_or_stale":"-EAGAIN", "source_PD_swap_reset_busy":"-EBUSY", "IO_error":"preserve actual errno and invalid facts"},
+  "not_provided": ["stable PMIC seven-field two-read bus owner", "0x1341 APSD rerun writer", "EUD analog route proof", "new Type-C DT regulator/connector policy", "control of PD high voltage/current", "automatic module/node enable"],
+  "current_candidate_compile": "no production patch exists because there is no safe existing hook; only extracted existing-function boundary test compiled",
+  "new_Image_or_SDK_or_device": false
+}

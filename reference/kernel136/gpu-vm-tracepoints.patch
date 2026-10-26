@@ -1,0 +1,131 @@
+--- a/drivers/gpu/drm/msm/msm_gpu_trace.h
++++ b/drivers/gpu/drm/msm/msm_gpu_trace.h
+@@ -7,6 +7,60 @@
+ #undef TRACE_SYSTEM
+ #define TRACE_SYSTEM drm_msm_gpu
+ #define TRACE_INCLUDE_FILE msm_gpu_trace
++
++/* Software mapping changes and queued page-table switches, disabled by default. */
++TRACE_EVENT(msm_gpu_vm_update,
++	TP_PROTO(pid_t pid, u64 ttbr, bool managed, const char *op,
++		 u64 iova, u64 range, int queue_id, int ret),
++	TP_ARGS(pid, ttbr, managed, op, iova, range, queue_id, ret),
++	TP_STRUCT__entry(
++		__field(pid_t, pid)
++		__field(u64, ttbr)
++		__field(bool, managed)
++		__string(op, op)
++		__field(u64, iova)
++		__field(u64, range)
++		__field(int, queue_id)
++		__field(int, ret)
++	),
++	TP_fast_assign(
++		__entry->pid = pid;
++		__entry->ttbr = ttbr;
++		__entry->managed = managed;
++		__assign_str(op);
++		__entry->iova = iova;
++		__entry->range = range;
++		__entry->queue_id = queue_id;
++		__entry->ret = ret;
++	),
++	TP_printk("pid=%d ttbr=%016llx managed=%d op=%s iova=%016llx range=%016llx queue=%d ret=%d",
++		__entry->pid, __entry->ttbr, __entry->managed, __get_str(op),
++		__entry->iova, __entry->range, __entry->queue_id, __entry->ret)
++);
++
++TRACE_EVENT(msm_gpu_vm_switch_enqueue,
++	TP_PROTO(pid_t pid, u32 ringid, u32 seqno, u32 old_ctx, u32 new_ctx, u64 ttbr),
++	TP_ARGS(pid, ringid, seqno, old_ctx, new_ctx, ttbr),
++	TP_STRUCT__entry(
++		__field(pid_t, pid)
++		__field(u32, ringid)
++		__field(u32, seqno)
++		__field(u32, old_ctx)
++		__field(u32, new_ctx)
++		__field(u64, ttbr)
++	),
++	TP_fast_assign(
++		__entry->pid = pid;
++		__entry->ringid = ringid;
++		__entry->seqno = seqno;
++		__entry->old_ctx = old_ctx;
++		__entry->new_ctx = new_ctx;
++		__entry->ttbr = ttbr;
++	),
++	TP_printk("pid=%d ring=%d seqno=%u old_ctx=%u new_ctx=%u ttbr=%016llx",
++		__entry->pid, __entry->ringid, __entry->seqno,
++		__entry->old_ctx, __entry->new_ctx, __entry->ttbr)
++);
+ 
+ TRACE_EVENT(msm_gpu_submit,
+ 	    TP_PROTO(pid_t pid, u32 ringid, u32 id, u32 nr_bos, u32 nr_cmds),
+--- a/drivers/gpu/drm/msm/msm_gem_vma.c
++++ b/drivers/gpu/drm/msm/msm_gem_vma.c
+@@ -13,6 +13,7 @@
+ #include "msm_gem.h"
+ #include "msm_gpu.h"
+ #include "msm_mmu.h"
++#include "msm_gpu_trace.h"
+ #include "msm_syncobj.h"
+ 
+ #define vm_dbg(fmt, ...) pr_debug("%s:%d: "fmt"\n", __func__, __LINE__, ##__VA_ARGS__)
+@@ -242,6 +243,21 @@
+ 	vm->log_idx = (vm->log_idx + 1) & ((1 << vm->log_shift) - 1);
+ }
+ 
++static void vm_trace_update(struct msm_gem_vm *vm, const char *op,
++			    u64 iova, u64 range, int queue_id, int ret)
++{
++	phys_addr_t ttbr;
++	u32 asid;
++
++	if (!trace_msm_gpu_vm_update_enabled())
++		return;
++	if (msm_iommu_pagetable_params(vm->mmu, &ttbr, &asid))
++		return;
++
++	trace_msm_gpu_vm_update(pid_nr(vm->pid), ttbr, vm->managed, op,
++			       iova, range, queue_id, ret);
++}
++
+ static void
+ vm_unmap_op(struct msm_gem_vm *vm, const struct msm_vm_unmap_op *op)
+ {
+@@ -253,15 +269,20 @@
+ 	vm_log(vm, reason, op->iova, op->range, op->queue_id);
+ 
+ 	vm->mmu->funcs->unmap(vm->mmu, op->iova, op->range);
++	vm_trace_update(vm, reason, op->iova, op->range, op->queue_id, 0);
+ }
+ 
+ static int
+ vm_map_op(struct msm_gem_vm *vm, const struct msm_vm_map_op *op)
+ {
++	int ret;
++
+ 	vm_log(vm, "map", op->iova, op->range, op->queue_id);
+ 
+-	return vm->mmu->funcs->map(vm->mmu, op->iova, op->sgt, op->offset,
+-				   op->range, op->prot);
++	ret = vm->mmu->funcs->map(vm->mmu, op->iova, op->sgt, op->offset,
++				op->range, op->prot);
++	vm_trace_update(vm, "map", op->iova, op->range, op->queue_id, ret);
++	return ret;
+ }
+ 
+ /* Actually unmap memory for the vma */
+--- a/drivers/gpu/drm/msm/adreno/a6xx_gpu.c
++++ b/drivers/gpu/drm/msm/adreno/a6xx_gpu.c
+@@ -293,6 +293,10 @@
+ 			OUT_RING(ring, 1);
+ 		}
+ 	}
++
++	trace_msm_gpu_vm_switch_enqueue(pid_nr(submit->pid), ring->id,
++				       submit->seqno, ring->cur_ctx_seqno,
++				       ctx->seqno, ttbr);
+ 
+ 	/* Execute the table update */
+ 	OUT_PKT7(ring, CP_SMMU_TABLE_UPDATE, 4);

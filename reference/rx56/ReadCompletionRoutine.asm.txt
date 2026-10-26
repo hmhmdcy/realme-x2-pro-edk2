@@ -1,0 +1,16 @@
+000253d0 40 53                    push     rbx
+000253d2 48 83 ec 20              sub      rsp, 0x20
+000253d6 49 8b d8                 mov      rbx, r8
+000253d9 33 d2                    xor      edx, edx
+000253db 45 33 c0                 xor      r8d, r8d
+000253de 48 8b 8b f0 05 00 00     mov      rcx, qword ptr [rbx + 0x5f0]
+000253e5 ff 15 05 2f 01 00        call     qword ptr [rip + 0x12f05]
+000253eb 41 b1 03                 mov      r9b, 3
+000253ee 45 33 c0                 xor      r8d, r8d
+000253f1 33 d2                    xor      edx, edx
+000253f3 48 8b cb                 mov      rcx, rbx
+000253f6 e8 4d be ff ff           call     0x21248 ; QCPWR_SetIdleTimer
+000253fb b8 16 00 00 c0           mov      eax, 0xc0000016
+00025400 48 83 c4 20              add      rsp, 0x20
+00025404 5b                       pop      rbx
+00025405 c3                       ret

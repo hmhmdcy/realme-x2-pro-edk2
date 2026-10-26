@@ -1,0 +1,61 @@
+{
+  "passed": true,
+  "scope": "incremental independent actual-function review with fake OS/MMIO/IRQ/work and pthread boundaries",
+  "compile_returncode": 0,
+  "compile_stderr": "",
+  "runtime_returncode": 0,
+  "runtime_stdout": "default shutdown drain and actual nbcon thread remain active\nbegin joins an actual running TTY worker; undequeued bytes pause\nbegin joins nbcon TX mutex; remaining thread and atomic FIFO access gate\nconsole kick after begin cancellation queues only inert quiet RX work\nend and ordinary remove serialize; old tokens cannot restore rebound endpoint\ngroups=5\n",
+  "runtime_stderr": "",
+  "flags": [
+    "-std=gnu11",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-Wno-unused-parameter",
+    "-Wno-unused-function",
+    "-fsanitize=address,undefined",
+    "-fno-omit-frame-pointer",
+    "-pthread"
+  ],
+  "source_candidate_sha256": "8cdd661b7834a7ccba46bd7577be84bd3bb81f6a00fb512d2b70e9d7c4c1231c",
+  "source_patch_sha256": "838cb462b1ff1535185b82fee980ef7f368585ba975aaf3f394e07f5e93f4929",
+  "original_receipt_sha256": "5da1994f7aa5c38a455b4836e3521fa99ad85f6ef3bb229db9357055520bea74",
+  "additional_actual_functions": [
+    {
+      "name": "eud_console_device_lock",
+      "line": 517,
+      "sha256": "adc44fe2c13ffd4d477c3be1ea7e3899afb1564ba5f420a662095a0b26897848"
+    },
+    {
+      "name": "eud_console_device_unlock",
+      "line": 524,
+      "sha256": "337ad9bfeaabd277716893f90e759997216c910a3640b8dad0494dbe6b881d87"
+    },
+    {
+      "name": "eud_console_write_thread",
+      "line": 530,
+      "sha256": "647b6f69d147d6f4af4650ccf821ca95813dcee67428cb59039e60376c9c663e"
+    },
+    {
+      "name": "eud_console_write_atomic",
+      "line": 582,
+      "sha256": "9cabfd25197bf03c6206a37b306915fc085c78250283b9716b4b60e57380a780"
+    }
+  ],
+  "files": {
+    "review.py": "f45591ec6fec7d8022ff6f428ef09e3e5da88932fab9ead247740d82f80fd13e",
+    "candidate-functions.inc": "5d95d9a17d6a3e986a7dfce82b444dc23aa9216f1e151a7c0b971a244d5c6937",
+    "nbcon-functions.inc": "11a8da484235b6d4688310c343cf85aba520e45028fd21525e5e7b398efe8dbf",
+    "fake-eud-os.h": "5c550c8e06c7da554a6ebf70fca835e3172296f17d11f98b2ada48fcd2847bea",
+    "test-review.c": "23deecb1fd376a27e42b17b232f1f30bc411789ce312250fee95a870c106ca2d"
+  },
+  "original_suites_rerun": false,
+  "author_files_unchanged": true,
+  "phone_accessed": false,
+  "ssh_executed": false,
+  "sdk_invoked": false,
+  "pd_current_sha256": "b31b31b10caa02477fb7be79b9c825e9aefc01b584a9424ec710e612ca13a65d",
+  "pd_bound_sha256": "b31b31b10caa02477fb7be79b9c825e9aefc01b584a9424ec710e612ca13a65d",
+  "pd_hash_matches": true,
+  "pd_observation_regenerated": false
+}

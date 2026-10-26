@@ -1,0 +1,123 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+#include <dt-bindings/sound/qcom,q6afe.h>
+#include <dt-bindings/sound/qcom,q6asm.h>
+
+&samurai_amp_left {
+	compatible = "realme,samurai-max98937", "maxim,max98937";
+	/delete-property/ maxim,interleave-mode;
+	vdd-supply = <&vreg_s4a_1p8>;
+	realme,pcm-channel = <0>;
+	sound-name-prefix = "Left";
+};
+&samurai_amp_right {
+	compatible = "realme,samurai-max98937", "maxim,max98937";
+	/delete-property/ maxim,interleave-mode;
+	vdd-supply = <&vreg_s4a_1p8>;
+	realme,pcm-channel = <1>;
+	sound-name-prefix = "Right";
+};
+
+&remoteproc_adsp {
+	glink-edge {
+		apr {
+			service@4 {
+				compatible = "qcom,q6afe";
+				reg = <4>;
+				qcom,protection-domain = "avs/audio", "msm/adsp/audio_pd";
+				samurai_q6afe: dais {
+					compatible = "qcom,q6afe-dais";
+					#address-cells = <1>;
+					#size-cells = <0>;
+					#sound-dai-cells = <1>;
+					pinctrl-names = "default", "sleep";
+					pinctrl-0 = <&samurai_quat_audio>;
+					pinctrl-1 = <&samurai_quat_sleep>;
+					dai@16 {
+						reg = <QUATERNARY_MI2S_RX>;
+						qcom,sd-lines = <0>;
+					};
+				};
+			};
+			service@7 {
+				compatible = "qcom,q6asm";
+				reg = <7>;
+				qcom,protection-domain = "avs/audio", "msm/adsp/audio_pd";
+				samurai_q6asm: dais {
+					compatible = "qcom,q6asm-dais";
+					#address-cells = <1>;
+					#size-cells = <0>;
+					#sound-dai-cells = <1>;
+					/* SM8150 upstream port, independently matched to OEM audio SID. */
+					iommus = <&apps_smmu 0x1b21 0>;
+					dai@0 { reg = <MSM_FRONTEND_DAI_MULTIMEDIA1>; direction = <Q6ASM_DAI_RX>; };
+					dai@1 { reg = <MSM_FRONTEND_DAI_MULTIMEDIA2>; direction = <Q6ASM_DAI_TX>; };
+				};
+			};
+			service@8 {
+				compatible = "qcom,q6adm";
+				reg = <8>;
+				qcom,protection-domain = "avs/audio", "msm/adsp/audio_pd";
+				samurai_q6routing: routing {
+					compatible = "qcom,q6adm-routing";
+					#sound-dai-cells = <0>;
+				};
+			};
+		};
+	};
+};
+
+&tlmm {
+	samurai_quat_audio: samurai-quat-audio-state {
+		pins = "gpio137", "gpio138", "gpio139";
+		function = "qua_mi2s";
+		drive-strength = <8>;
+		bias-disable;
+	};
+	samurai_quat_sleep: samurai-quat-sleep-state {
+		pins = "gpio137", "gpio138", "gpio139";
+		function = "gpio";
+		drive-strength = <2>;
+		bias-pull-down;
+		input-enable;
+	};
+};
+
+/ {
+	samurai_sound: sound {
+		compatible = "realme,samurai-audio";
+		model = "Realme X2 Pro";
+		widgets = "Speaker", "Left Speaker", "Speaker", "Right Speaker",
+			  "Headphone", "Headphone Jack", "Microphone", "Handset Mic";
+		audio-routing = "Left Speaker", "Left OUT", "Right Speaker", "Right OUT",
+				"Headphone Jack", "HPHL", "Headphone Jack", "HPHR",
+				"AMIC1", "Handset Mic", "Handset Mic", "MIC BIAS1";
+		pin-switches = "Left Speaker", "Right Speaker", "Headphone Jack", "Handset Mic";
+
+		playback-dai-link {
+			link-name = "MultiMedia1";
+			cpu { sound-dai = <&samurai_q6asm MSM_FRONTEND_DAI_MULTIMEDIA1>; };
+		};
+		capture-dai-link {
+			link-name = "MultiMedia2";
+			cpu { sound-dai = <&samurai_q6asm MSM_FRONTEND_DAI_MULTIMEDIA2>; };
+		};
+		speaker-dai-link {
+			link-name = "Quaternary MI2S";
+			cpu { sound-dai = <&samurai_q6afe QUATERNARY_MI2S_RX>; };
+			platform { sound-dai = <&samurai_q6routing>; };
+			codec { sound-dai = <&samurai_amp_left>, <&samurai_amp_right>; };
+		};
+		headphone-dai-link {
+			link-name = "SLIMBUS_0_RX";
+			cpu { sound-dai = <&samurai_q6afe SLIMBUS_0_RX>; };
+			platform { sound-dai = <&samurai_q6routing>; };
+			codec { sound-dai = <&samurai_wcd 0>; };
+		};
+		microphone-dai-link {
+			link-name = "SLIMBUS_0_TX";
+			cpu { sound-dai = <&samurai_q6afe SLIMBUS_0_TX>; };
+			platform { sound-dai = <&samurai_q6routing>; };
+			codec { sound-dai = <&samurai_wcd 1>; };
+		};
+	};
+};

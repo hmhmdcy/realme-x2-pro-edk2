@@ -1,0 +1,123 @@
+{
+  "schema": "samurai-vendor-name-and-selected-content-v1",
+  "passed": true,
+  "source_image_sha256": "905a0f0477b1edcd686fa059bfedc9aea79b6cc2107c472190d62f125abd7f0c",
+  "source_image_bytes": 1711276032,
+  "original_index_exec": 1079,
+  "original_index_exec_terminal0": true,
+  "private_index_sha256": "52d46e282f6a96445ff9e386b6894c5af2722cf64f4f838d52c6613ca4693aae",
+  "private_index_result_sha256": "046b47b25a919667014c799abe7aadd9b42428250fccaec207b802fb1f6e19f3",
+  "private_commands_sha256": "f98be0bc9ad0a3bb953aa2fd3ba137e406ba3e0a3ad49a756bd3405d07db9933",
+  "directories_including_root": 129,
+  "entries": 2884,
+  "kinds": {
+    "directory": 128,
+    "regular": 2511,
+    "symlink": 245
+  },
+  "all_129_original_debugfs_children_terminal0": true,
+  "unused_zero_inode_slots_skipped": 3,
+  "descriptor_suffixes": [
+    ".bqz",
+    ".bqfs",
+    ".df.fs",
+    ".srec"
+  ],
+  "descriptor_filename_matches": [],
+  "initial_name_candidates": [
+    "/etc/charger_fstab.qti",
+    "/etc/init/vendor.qti.hardware.charger_monitor@1.0-service.rc",
+    "/lib/libbatterylistener.so",
+    "/lib64/libbatterylistener.so"
+  ],
+  "symlinks_followed": false,
+  "embedded_or_compressed_contents_searched": false,
+  "first_failure_preserved": true,
+  "independent_name_review_sha256": "21f510d3f33cd207e2149068cf9af7b17265a9a4b92670bb4efbf01c113a4f88",
+  "selected_content_read": [
+    {
+      "path": "/etc/charger_fstab.qti",
+      "sha256": "a555d1b675e9a0b3695bb18b1e0a770d8657764df8ac56f2925b7582cc71a6f7",
+      "bytes": 652,
+      "child_pid": 797,
+      "terminal": true,
+      "returncode": 0
+    },
+    {
+      "path": "/etc/init/vendor.qti.hardware.charger_monitor@1.0-service.rc",
+      "sha256": "954cca62151064db4ec3b16548c378d8538736cc39adc1a1601edf39d336c7b4",
+      "bytes": 1281,
+      "child_pid": 810,
+      "terminal": true,
+      "returncode": 0
+    },
+    {
+      "path": "/lib/libbatterylistener.so",
+      "sha256": "29528036c7424edd4a55ed1a60f1309f7a7435086b0105f1bac779939528a55b",
+      "bytes": 22536,
+      "child_pid": 823,
+      "terminal": true,
+      "returncode": 0
+    },
+    {
+      "path": "/lib64/libbatterylistener.so",
+      "sha256": "5678f9585ef89e53f7500e121e993ee20514e632b665c090bc711e72530c4c97",
+      "bytes": 34776,
+      "child_pid": 836,
+      "terminal": true,
+      "returncode": 0
+    },
+    {
+      "path": "/build.prop",
+      "sha256": "db0985df74ee78d51f8c2daedc59b1947957e3a0190dab5c848b34f3a79c3841",
+      "bytes": 8011,
+      "child_pid": 849,
+      "terminal": true,
+      "returncode": 0
+    },
+    {
+      "path": "/bin/init.qti.chg_policy.sh",
+      "sha256": "79219f9279806d9456af00269c60cfe7e4356540553e5f5a2ddfa4b072e81262",
+      "bytes": 2217,
+      "child_pid": 783,
+      "terminal": true,
+      "returncode": 0
+    },
+    {
+      "path": "/bin/hvdcp_opti",
+      "sha256": "4b551da32589c8a792d41eee41ffacadfadafe6c8ec6c6e81f7b45ff3deb3b54",
+      "bytes": 253032,
+      "child_pid": 796,
+      "terminal": true,
+      "returncode": 0
+    }
+  ],
+  "selected_content_private_results_sha256": {
+    "gauge-2719-vendor-files-private-01": "dbedc5adba825db37dbd51e7b99bfc85b206ffa80b0e51323f4f71ad489518b6",
+    "gauge-2719-vendor-policy-private-01": "9a2e80770950d0322f1c0b675321475ad2c451f89a3d7865c2d4fbb5e5ad5437"
+  },
+  "original_content_exec_chunks_terminal0": [
+    "a7b441",
+    "a24ddb"
+  ],
+  "read_method": "debugfs -R cat, no -w; private exclusive ordinary output files; no extracted code execution",
+  "image_SHA_verified_before_index": true,
+  "post_read_image_metadata_unchanged": true,
+  "post_read_full_image_SHA_recomputed": false,
+  "content_conclusions": {
+    "charger_fstab": "persist mount configuration only; not executed",
+    "charger_monitor_rc": "references policy script and hvdcp_opti plus init/property triggers",
+    "policy_script": "SoC-specific ownership setup and service-start property; not a gauge descriptor or MP2650 budget table",
+    "hvdcp_binary": "PSY/IIO, USB type/current, thermal, uevent and QC/PD/charge-pump strings; no complete control-flow proof",
+    "batterylistener_libraries": "Android Health callback and audio_hw listener symbols/strings only",
+    "vendor_build": "Android 11, patch 2021-03-05, generic qti/msmnile; no precise pack identity"
+  },
+  "exact_2719_model_or_new_MAC_semantics_established": false,
+  "full_OTA_absence_claim": false,
+  "phone_SDK_mount_or_production_change": false,
+  "limits": [
+    "Seven selected file contents only; binary interpretation limited to symbols/strings.",
+    "No whole OTA hash/signature or exact pack provenance established.",
+    "Prepared502 remains the first physical step; no new reboot, flash, collector or query."
+  ]
+}

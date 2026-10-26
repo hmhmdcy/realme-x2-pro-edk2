@@ -1,0 +1,17 @@
+from pathlib import Path
+import hashlib,json,tarfile,host
+ref=Path(__file__).resolve().parent;out=host.PRIVATE;host.download('/var/lib/samurai/k196-export/export-summary.json',out/'native-export-summary-private.json');receipt=json.loads((out/'native-export-summary-private.json').read_text());host.download('/var/lib/samurai/k196-export/evidence-private.tar.gz',out/'native-evidence-private.tar.gz');archive=out/'native-evidence-private.tar.gz';assert hashlib.sha256(archive.read_bytes()).hexdigest()==receipt['archive_sha256']
+with tarfile.open(archive) as tar:
+ manifest=json.load(tar.extractfile('manifest-private.json'));assert len(manifest)==receipt['files']
+ for n,h in manifest.items():assert hashlib.sha256(tar.extractfile(n).read()).hexdigest()==h
+ def get(n):return json.load(tar.extractfile(n))
+ attempts=[]
+ for i,folder in enumerate(['k196-front-probe']+['k196-front-probe-r'+str(n) for n in range(2,7)],1):
+  r=get(folder+'/summary.json');assert r['pins_restored_exact'] and r['pmic_after_restore']==r['before']['pmic'] and all(v==0 for v in r['fault_delta'].values()) and all(a['returncode']==0 for a in r['attempts'])
+  attempts.append(dict(attempt=i,normal_driver_bound=bool(r.get('normal_driver_bound')),runtime_cycle_complete=bool(r.get('driver_probe_and_runtime_cycle_complete')),pins_and_pmic_restored=True,fault_delta=r['fault_delta']))
+ assert [a['normal_driver_bound'] for a in attempts]==[False,False,False,False,True,True] and attempts[-1]['runtime_cycle_complete']
+ final=get('k196-front-probe-r6/summary.json');health=get('k196-final-health/summary.json');genpd=tar.extractfile('k196-front-probe-r6/genpd-active-private.txt').read().decode();clocks=tar.extractfile('k196-front-probe-r6/clocks-active-private.txt').read().decode();assert any('titan_top_gdsc' in l and 'on' in l for l in genpd.splitlines());mclk=[l for l in clocks.splitlines() if 'cam_cc_mclk2_clk ' in l];assert len(mclk)==1 and '19200000' in mclk[0] and '7-0010' in mclk[0]
+ pm=final['pm_observations'];assert [r['sensor'] for r in pm]==['suspended','active','active','suspended'];assert all(r['state']=='enabled' and r['num_users']=='1' for r in pm[2]['regulators'].values()) and all(r['state']=='disabled' and r['num_users']=='0' for r in pm[-1]['regulators'].values())
+ native=dict(stage=196,attempts=attempts,normal_imx471_driver_accepted_chip_id=0x471,chip_id_assertion_follows_actual_driver_probe_code=True,independent_i2c_read_trace=False,one_runtime_power_cycle_passed=True,power_observations=pm,titan_domain_observed_on_with_sensor_active=True,mclk2_reported_enabled_19200000_with_sensor_consumer=True,cci_controller_may_be_suspended_while_shared_titan_remains_on=True,no_external_cci_pm_reference_held_during_sensor_probe=True,actual_gpio_ctl_addresses={str(r['pin']):r['ctl_address'] for r in final['before']['gpios']},three_actual_ctl_values_restored=True,old193_west_register_comparison_not_proof_of_north_gpio15=True,pmic_entire_sample_restored=True,all_diagnostic_resources_removed=True,physical_image_capture_proven=False)
+ (ref/'front-native-validation.json').write_text(json.dumps(native,indent=2)+'\n');(ref/'native-health-validation.json').write_text(json.dumps(health,indent=2)+'\n')
+receipt.update(host_archive_sha256_verified=True,all_member_hashes_verified=True,all_six_attempts_retained=True,private_raw_logs_and_identity_not_published=True);(ref/'evidence-export-validation.json').write_text(json.dumps(receipt,indent=2)+'\n');print(json.dumps(receipt))

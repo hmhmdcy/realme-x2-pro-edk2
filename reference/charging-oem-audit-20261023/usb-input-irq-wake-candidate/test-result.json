@@ -1,0 +1,59 @@
+{
+  "passed": true,
+  "groups": 10,
+  "actual_functions": [
+    "samurai_usb_changed",
+    "samurai_usb_set_property",
+    "samurai_usb_stop",
+    "samurai_usb_clear_wake",
+    "samurai_usb_arm_wake",
+    "samurai_usb_restart_work",
+    "samurai_usb_cleanup_wake",
+    "samurai_usb_suspend",
+    "samurai_usb_resume",
+    "samurai_usb_prepare",
+    "samurai_usb_complete",
+    "samurai_usb_event",
+    "samurai_usb_request_events",
+    "samurai_usb_shutdown"
+  ],
+  "source_sha256": "1ad0c168874448dabd6a38121a7a6b6b73384856798cbefdefaa4b759da9e2bc",
+  "devres_stop_then_wake_cleanup_then_PSY_then_IRQ_order": true,
+  "old_notification8_decoder_and_unmodified_functions_reused": true,
+  "modeled_OS_boundaries": true,
+  "phone_or_real_IRQ_API_accessed": false,
+  "physical_USB_wakeup_accepted": false,
+  "results": [
+    {
+      "argv": [
+        "cc",
+        "-std=c11",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-Wno-unused-parameter",
+        "-Wno-sign-compare",
+        "-I",
+        "/home/cy122/charging-management-20261023/usb-input-irq-wake-tests-01",
+        "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/usb-input-irq-wake-candidate/test-wake.c",
+        "-o",
+        "/home/cy122/charging-management-20261023/usb-input-irq-wake-tests-01/test-wake"
+      ],
+      "pid": 771,
+      "terminal": true,
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "/home/cy122/charging-management-20261023/usb-input-irq-wake-tests-01/test-wake"
+      ],
+      "pid": 778,
+      "terminal": true,
+      "returncode": 0,
+      "stdout": "10 IRQ-wake lifecycle groups passed (actual functions; modeled APIs)\n",
+      "stderr": ""
+    }
+  ]
+}

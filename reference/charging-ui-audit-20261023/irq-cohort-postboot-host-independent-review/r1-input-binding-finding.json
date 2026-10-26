@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "reviewed_delivery_sha256": "18fc4976d54ec199a141162aecaa801e51ac78402741e27982997be9bf04eaa5",
+  "reviewed_host_sha256": "971e6e267700bd34193661c0ba1fbb525f1a55cab5e8ce20f063b21bb0694a5a",
+  "status": "confirmed_source_input_receipt_gap",
+  "accepted_for_final_use": false,
+  "function": "saved_transport",
+  "observation": "The retained executed-device-source.py is compared with expected_payload, and the child/terminal PID, birth ticks, argv and stdout/stderr hashes are checked. Neither child nor terminal records the stdin payload digest. The exact expected file bytes therefore lack a receipt field binding them to this original Popen input.",
+  "scope": "Evidence-chain gap, not evidence that an incorrect script ran or that a device malfunction occurred.",
+  "minimal_resolution": "Preserve R1. Require child.stdin_sha256 and terminal.stdin_sha256 to equal sha256(expected_payload); the future real Popen owner must record that digest for the exact input before transmission and retain it through the same-child terminal receipt.",
+  "other_reviewed_boundaries": [
+    "frozen completed activation and pure stage proof are re-reviewed",
+    "collection stage identity is projected separately from raw activation transaction and hash",
+    "two probe identities must match the same new boot and differ from source boot",
+    "collection transport uses explicit execute/window/new-endpoint argv",
+    "saved raw is recomputed by frozen ten-check device audit; failure originals are not removed"
+  ],
+  "author_18_tests_or_old_suites_run_by_reviewer": false,
+  "author_entry_or_transport_executed_by_reviewer": false,
+  "device_build_SDK_Git_used": false
+}

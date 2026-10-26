@@ -1,0 +1,84 @@
+--- usb-quiesce.py
++++ r7-quiesce-review.py
+@@ -1,9 +1,49 @@
+-# Recovery only; source sequence: reference/kernel367/native-quiesce.py
+-"""Quiesce current297 hardware for a normal Linux reboot; retain camera providers."""
++# REVIEW CANDIDATE ONLY. New R7 transaction; same validated hardware quiesce.
++"""Explicit quiesce for one RESTART2 bootloader transition; not run by this audit."""
+ from pathlib import Path
+ import ctypes,dbus,json,os,signal,subprocess,time,traceback
+-os.umask(0o077);r=Path('/var/lib/samurai');o=r/'charging-20261023-usb-transition';assert not o.exists();o.mkdir(mode=0o700)
+-state=dict(work='charging-usb-dt',state='preflight',terminal=False,pid=os.getpid());error=None
++
++# NEW contract: root supplies a fresh, private R7 transaction guard. This is
++# deliberately incompatible with original-private.json / old terminal workers.
++import hashlib,re,sys
++assert len(sys.argv)==4 and sys.argv[1]=='--guard'
++guard_path=Path(sys.argv[2]);assert guard_path.is_absolute()
++assert guard_path.is_file() and not guard_path.is_symlink()
++assert guard_path.stat().st_uid==0 and not guard_path.stat().st_mode&0o022
++meta=json.loads(guard_path.read_text())
++assert meta['schema']=='samurai-r7-restart-review-v1'
++assert re.fullmatch(r'charging-r7-[a-z0-9-]{8,64}',meta['transaction_id'])
++assert meta['boot_id']==Path('/proc/sys/kernel/random/boot_id').read_text().strip()
++assert os.uname().machine=='aarch64'
++assert os.uname().release==meta['kernel_release']
++assert os.uname().version==meta['kernel_version']
++assert os.uname().version.startswith('#363 ')
++assert Path('/proc/sys/kernel/tainted').read_text().strip()=='0'
++assert hashlib.sha256(Path('/etc/samurai-rootfs-release').read_bytes()).hexdigest()==meta['rootfs_release_sha256']
++module_path='/lib/modules/'+meta['kernel_release']+'/extra/samurai-charging/samurai-usb-input.ko'
++manifest_path='/usr/share/samurai-charging/manifest.json'
++assert set(meta['disk_pair'])=={module_path,manifest_path}
++for name,digest in meta['disk_pair'].items():
++ p=Path(name);assert p.is_file() and not p.is_symlink()
++ assert p.stat().st_uid==0 and not p.stat().st_mode&0o022
++ assert re.fullmatch(r'[0-9a-f]{64}',digest)
++ assert hashlib.sha256(p.read_bytes()).hexdigest()==digest,name
++manifest=json.loads(Path(manifest_path).read_text())
++assert manifest['release']==meta['kernel_release']
++assert manifest['modules']['samurai-usb-input']['target']==module_path
++assert manifest['modules']['samurai-usb-input']['sha256']==meta['disk_pair'][module_path]
++assert manifest['installed_files'][module_path]==meta['disk_pair'][module_path]
++# The disk module is R7, while the current live native provider must still be
++# the old accepted R6 module. No unload or replacement is attempted here.
++assert hashlib.sha256(Path('/sys/module/samurai_usb_input/notes/.note.gnu.build-id').read_bytes()).hexdigest()==meta['old_loaded_usb_note_sha256']
++assert Path('/sys/module/samurai_usb_input/parameters/native_retained').read_text().strip()=='Y'
++r=Path('/var/lib/samurai');o=r/meta['transaction_id']
++phase=Path('/run')/(meta['transaction_id']+'-reboot-phase-private.json')
++assert not phase.exists()
++
++assert sys.argv[3]=='--commit-quiesce'
++os.umask(0o077);assert not o.exists();o.mkdir(mode=0o700)
++state=dict(work='charging-r7-restart',transaction_id=meta['transaction_id'],boot_id=meta['boot_id'],state='preflight',terminal=False,pid=os.getpid());error=None
+ def save():
+  p=o/'state-next-private.json';p.write_text(json.dumps(state,indent=2)+'\n');p.replace(o/'state-private.json')
+ def command(args,timeout=30):
+@@ -15,8 +55,8 @@
+  if x.returncode==0:command(['rc-service',name,'stop'])
+ save();before=subprocess.check_output(['dmesg']);(o/'dmesg-before-private.txt').write_bytes(before)
+ try:
+- boot=Path('/proc/sys/kernel/random/boot_id').read_bytes();assert boot==(json.loads(Path('/root/charging-management-20261023/original-private.json').read_text())['boot_id'] + '\n').encode() and os.uname().version.startswith('#363 ')
+- assert Path('/proc/sys/kernel/tainted').read_text().strip()=='0' and not Path('/run/charging-20261023-usb-reboot-phase-private.json').exists()
++ boot=Path('/proc/sys/kernel/random/boot_id').read_bytes();assert boot.decode().strip()==meta['boot_id']
++ assert Path('/proc/sys/kernel/tainted').read_text().strip()=='0' and not phase.exists()
+  assert (Path('/etc/samurai-rootfs-release')).is_file()
+  assert not json.loads((r/'gnss-assist/watch-state.json').read_text())['active']
+  if subprocess.run(['pgrep','-x','ModemManager'],capture_output=True).returncode==0:
+@@ -25,6 +65,7 @@
+   assert all(int(v['org.freedesktop.ModemManager1.Modem.Location']['Enabled'])==0 for v in objects.values() if 'org.freedesktop.ModemManager1.Modem.Location' in v)
+   bus.close()
+  (o/'boot-id-private.txt').write_bytes(boot);state.update(state='stopping_services');save()
++ command(['/usr/sbin/samurai-charging','stop'])
+  for name in ['samurai-charging','samurai-gnss-assist','bluetooth','greetd','chronyd','networkmanager','iio-sensor-proxy','samurai-ssc']:stop_service(name)
+  pids=subprocess.run(['pgrep','-u','10000'],capture_output=True).stdout.split()
+  for value in pids:
+@@ -83,7 +124,7 @@
+   time.sleep(1);text=Path('/sys/kernel/debug/dri/1/state').read_text();(o/('drm-idle-'+str(i)+'-private.txt')).write_text(text);assert 'active=1' not in text
+  command(['sha256sum','-c','/run/samurai-wifi/nv-source-hashes.txt'])
+  after=subprocess.check_output(['dmesg']);(o/'dmesg-after-private.txt').write_bytes(after);faults={k:after.count(v)-before.count(v) for k,v in dict(warning=b'WARNING:',oops=b'Oops:',gpu=b'gpu fault:',dsp_fatal=b'fatal error received').items()};assert not any(faults.values()) and Path('/proc/sys/kernel/tainted').read_text().strip()=='0'
+- report=dict(work='charging-usb-dt',all_remoteprocs_offline=True,display_inactive=True,audio_closed_and_muted=True,sensor_power_off=True,camera_providers_retained=True,wlan_driver_detached=True,source_nv_hashes_preserved=True,taint=0,fault_delta=faults,restart2_bootloader_expected=True)
++ report=dict(work='charging-r7-restart',transaction_id=meta['transaction_id'],boot_id=meta['boot_id'],all_remoteprocs_offline=True,display_inactive=True,audio_closed_and_muted=True,sensor_power_off=True,camera_providers_retained=True,wlan_driver_detached=True,source_nv_hashes_preserved=True,taint=0,fault_delta=faults,restart2_bootloader_expected=True)
+  (o/'summary.json').write_text(json.dumps(report,indent=2)+'\n');os.sync();state.update(state='terminal',terminal=True,exit_code=0);save()
+ except BaseException:
+  error=traceback.format_exc();(o/'failure-private.txt').write_text(error);state.update(state='failed',terminal=True,exit_code=1);save()

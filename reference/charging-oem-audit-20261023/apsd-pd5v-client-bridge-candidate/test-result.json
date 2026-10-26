@@ -1,0 +1,52 @@
+{
+  "passed": true,
+  "affected_groups": 14,
+  "groups": [
+    "1 default and builtin/config gates give zero PD/analog/APSD I/O",
+    "2 real off acquire precedes new sink epoch; remaining gate forbids every command/window",
+    "3 actual parent/regmap/phandle and deferred binding are checked before PD I/O",
+    "4 strict sink qualification and true detach reset are distinct from PD control history",
+    "5 PM release/reacquire preserves actual control and physical attempt histories",
+    "6 real PD quiesce invokes actual client join/release; complete only revalidates",
+    "7 UDC rebind cannot rearm; replaced PD binding requires another real off",
+    "8 backend withdrawal joins/releases; new serial cannot bypass physical history",
+    "9 partial/unknown control failure is retained, not retried after resume or detach",
+    "10 real quiesce pin survives concurrent DWC unbind and frees owner only after callback put",
+    "11 PD callback cannot clear another PM fence or enqueue after join",
+    "12 new actual metadata API is zero I/O, bound and error-preserving",
+    "13 cancellation before acquire gives zero PD I/O; a joined in-flight success retains its off history and releases",
+    "14 actual remove/reprobe between metadata and acquire cannot inherit the old binding history"
+  ],
+  "exit_code": 0,
+  "tested_files": {
+    "samurai-apsd-owner.c": "d05d4f81f8427cfbe7cd37c458b538d0ee60a2e9422c243cdf13fa6ba246d979",
+    "samurai-apsd-owner.h": "0259fb8439c115d5bed91b32df3999d2a814ccb643b3c28144ec26aeedd6336d",
+    "qcom_pmic_typec_5v.c": "b3b9a18e8c581a99f57083eeeadc9af9783c0e03b28cf60f1e796fd6d1558d52",
+    "qcom_pmic_typec_5v.h": "ebe245a0521729d2a240ee65ab8fa61721b9f50301f88b4c8bc2f03d90e81b96",
+    "bridge-functions.inc": "5ac035ae023fbd85b5f1ef019eb344344009715f3fbe4d20076a7e49147dc848",
+    "test-bridge.c": "d3a807075dd7de85308ad4d52b1b0900352e4266517b5054ec37ee4daeb94f1b",
+    "run-tests.py": "3e347c139e64f0eeeaaac8ed2ce4a0964c75a424df2d7719768f2e9d8f423d71",
+    "Kconfig.fragment": "c6234d4c7da7026ab04c46c677bda3a2e497feba05c01ace8db3fa084ba57fa0"
+  },
+  "actual_fixture_sha256": "ad98edba172990fee2774242a0b24efe6540f73da88267139436fb8327fe90fb",
+  "compile_command": [
+    "gcc",
+    "-std=gnu11",
+    "-g",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-Wno-unused-parameter",
+    "-fsanitize=address,undefined",
+    "-fno-omit-frame-pointer",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/apsd-pd5v-client-bridge-candidate/test-private/actual-bridge.c",
+    "-o",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/apsd-pd5v-client-bridge-candidate/test-private/test-bridge"
+  ],
+  "source_bodies": "whole actual owner and PD5V candidate C, unchanged once/decoder headers",
+  "original_owner_13_groups_rerun": false,
+  "original_PD_R2_8_groups_rerun": false,
+  "old_component_suites_rerun": false,
+  "boundaries": "fake kernel/OF/regmap/work scheduling; genuine heap owner lifetime under ASan/UBSan; deterministic interleave, not a full concurrency or hardware proof",
+  "device_accessed": false
+}

@@ -1,0 +1,3 @@
+from pathlib import Path
+import hashlib,json,host
+ref=Path(__file__).resolve().parent;r=json.loads((ref/'perf-helper-build-validation.json').read_text());p=host.PRIVATE/'samurai-camera-perf.ko';assert hashlib.sha256(p.read_bytes()).hexdigest()==r['module_sha256'];host.ssh('python3 -',input=b"from pathlib import Path\nassert Path('/proc/sys/kernel/random/boot_id').read_bytes()==Path('/var/lib/samurai/k199-baseline/boot-id-private.txt').read_bytes()\nPath('/var/lib/samurai/k199-modules').mkdir(mode=0o700)\n",timeout=20);host.upload(p,'/var/lib/samurai/k199-modules/samurai-camera-perf.ko');host.upload(ref/'perf-helper-build-validation.json','/var/lib/samurai/k199-modules/perf-helper-build-validation.json');print('Independent performance consumer staged')

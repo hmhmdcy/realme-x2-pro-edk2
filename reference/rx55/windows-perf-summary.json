@@ -1,0 +1,102 @@
+{
+  "raw_bytes": 10891,
+  "raw_frames": 1831,
+  "read_calls": 288,
+  "perf_samples": 6,
+  "first_received": 53667,
+  "last_received": 64558,
+  "received_delta": 10891,
+  "transmitted_delta": 277,
+  "submitted_wire_bytes": 277,
+  "all_drained_received_deltas_equal_raw": true,
+  "drained_deltas": [
+    {
+      "from_ms": 339,
+      "to_ms": 16334,
+      "received_delta": 309,
+      "raw_delta": 309
+    },
+    {
+      "from_ms": 16334,
+      "to_ms": 85338,
+      "received_delta": 2672,
+      "raw_delta": 2672
+    },
+    {
+      "from_ms": 85338,
+      "to_ms": 110720,
+      "received_delta": 6724,
+      "raw_delta": 6724
+    },
+    {
+      "from_ms": 110720,
+      "to_ms": 134300,
+      "received_delta": 1186,
+      "raw_delta": 1186
+    },
+    {
+      "from_ms": 134300,
+      "to_ms": 135433,
+      "received_delta": 0,
+      "raw_delta": 0
+    }
+  ],
+  "first_status_raw_bytes": 309,
+  "first_status_expected_wire_bytes": 315,
+  "first_status_received_delta": 309,
+  "missing_seq": 7376,
+  "missing_wire": "90 04 5b 20 31 36",
+  "missing_payload": "[ 16",
+  "missing_source": "console",
+  "journal_first": 7349,
+  "journal_last": 7860,
+  "journal_crc": "b7e6a803",
+  "journal_sha256": "56f787e1dbd94de5d33b5cc3f92e918bac656cf3aba1a241b63a9a064f1dd23c",
+  "previous_owner_direct_matches": 27,
+  "current_owner_direct_matches": 484,
+  "direct_matches": 511,
+  "startup_writes": 2,
+  "startup_receipts": 1,
+  "data_frames": 19,
+  "data_bytes": 233,
+  "data_retries": 0,
+  "commands": [
+    "P=/sys/class/tty/ttyEUD0/device;dd if=$P/tx_journal of=/tmp/R55J bs=3120 count=1",
+    "P=/sys/bus/platform/devices/88e0000.serial;dd if=$P/tx_journal of=/tmp/R55J bs=3120 count=1",
+    "base64 /tmp/R55J",
+    "cat $P/rx_stats $P/irq_watch $P/console_rx"
+  ],
+  "readonly_path_mistake_corrected_same_owner": true,
+  "zero_observed_queue_errors": true,
+  "zero_cumulative_perf_error_counts": true,
+  "closed": {
+    "queued_input": 0,
+    "retained_pending_perf": 0,
+    "audit": {
+      "error_samples": 0,
+      "max_decode_display_ms": 43,
+      "max_poll_gap_ms": 93,
+      "max_out_queue": 0,
+      "bytes": 10891,
+      "error_mask": 0,
+      "max_read_ms": 1,
+      "max_in_queue": 165,
+      "polls": 8442,
+      "reads": 288,
+      "error_events": 0,
+      "last_poll": 135433
+    },
+    "perf_probe_disposed": true,
+    "received_frames": 1831,
+    "ms": 135439,
+    "stray": 0,
+    "native_frames": 19,
+    "retries": 1,
+    "serial_is_open": false,
+    "buffered_bytes": 0,
+    "probe_detached": true,
+    "pending_input": false,
+    "event": "closed"
+  },
+  "limits": "The issued six-byte wire frame is absent from raw and the accepted-buffer cumulative delta. This excludes a loss solely after that counter (app read/decoder/display), not EUD/physical USB or early driver refusal. Error observers can clear flags; zero observations do not prove every upstream byte accepted. One startup Ctrl-U still lacks RX acceptance; only startup retries. This measurement is not a fix."
+}

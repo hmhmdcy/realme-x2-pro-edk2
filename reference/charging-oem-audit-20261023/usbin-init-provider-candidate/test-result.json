@@ -1,0 +1,49 @@
+{
+  "passed": true,
+  "group_count": 10,
+  "groups": [
+    "default disabled: no config IO, original source/native and 1000ms cadence",
+    "native lifecycle: actual retained ref required; absent wiring and preset parameter cannot authorize IO",
+    "probe already-zero and read-error/change: zero writes, immutable terminal history",
+    "unarmed wait survives ordinary PM, starts once only after new physical-off sample",
+    "actual worker integration: unchanged bits, one write, automatic zero-IO commit, persistent receipt",
+    "first-off anchor, every-field change and reconnect reset stable evidence",
+    "started transaction PM: cancel/join without held mutex, deadline retained, no resume rearm",
+    "deadline and fresh-prewrite gates survive blocking config, no new write after expiry",
+    "ignored/error writes, post-on/config-change/read-error remain unknown; wait read error is terminal",
+    "unknown-init history never changes SDP/FLOAT/CDP/native budget; getters/status cannot write or advance"
+  ],
+  "actual_functions": 17,
+  "asan_ubsan": true,
+  "flags": [
+    "-std=c11",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-Wno-unused-parameter",
+    "-fsanitize=address,undefined",
+    "-fno-omit-frame-pointer",
+    "-no-pie"
+  ],
+  "stdout": "ok: default disabled: no config IO, original source/native and 1000ms cadence\nok: native lifecycle: actual retained ref required; absent wiring and preset parameter cannot authorize IO\nok: probe already-zero and read-error/change: zero writes, immutable terminal history\nok: unarmed wait survives ordinary PM, starts once only after new physical-off sample\nok: actual worker integration: unchanged bits, one write, automatic zero-IO commit, persistent receipt\nok: first-off anchor, every-field change and reconnect reset stable evidence\nok: started transaction PM: cancel/join without held mutex, deadline retained, no resume rearm\nok: deadline and fresh-prewrite gates survive blocking config, no new write after expiry\nok: ignored/error writes, post-on/config-change/read-error remain unknown; wait read error is terminal\nok: unknown-init history never changes SDP/FLOAT/CDP/native budget; getters/status cannot write or advance\ngroups: 10\n",
+  "stderr": "",
+  "binary_private": "/home/cy122/charging-management-20261023/usbin-init-provider-candidate-tests/test-provider",
+  "binary_sha256": "d6e1c1f405c5078f3ffe5efc9634f38d16c57adcfa414b6f4c8e043fd3cb8ba9",
+  "files": {
+    "samurai-usb-input.c": "511359da962e840df1bb5757e209cfef1624296a91fa147fd0bc75a5676ec395",
+    "samurai-usb-input-decode.h": "a17caa2cbeb2352da249474e0265fa96745f544d96a29d0ebe8f14c656d548fd",
+    "usbin-init-core.h": "80aa42747f211884e838bc7508f746efe1a0800194dd80de51956f2b55f11dd9",
+    "prepare-tests.py": "4e84c37aab984bfa21837b724694a117465c523038330a9488d4879d03435dd0",
+    "test-provider.c": "0c468fffd6309473b16e6f8a034a0e535db96addec7fcd7cbe71310fbfebb69c",
+    "tested-functions.inc": "59f799f57391e9a9849fd57594b983cf554bb20268ba20a1ed7cd9cd91df3864",
+    "tested-struct.inc": "7c819c485693e60a90fbdf64a443bcfd140539634d5ea4f7a82f073c1e0978a3",
+    "function-manifest.json": "6e6a78d86c4225d9ca0a9405f039b286e19c79edce7553391ef0507722ede4ee",
+    "run-tests.py": "c956a1515d893bf17632f47447496887ab1f72e25be5cb60a87c76995badb12c"
+  },
+  "scope": "new actual provider initialization, PM, worker and unchanged source/native functions; fake regmap/kernel boundary",
+  "old_helper_tests_rerun": false,
+  "old_float_suite_rerun": false,
+  "physical_test": false,
+  "phone_accessed": false,
+  "sdk_invoked": false
+}

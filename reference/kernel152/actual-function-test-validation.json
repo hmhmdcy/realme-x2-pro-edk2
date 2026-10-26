@@ -1,0 +1,66 @@
+{
+  "stage": 152,
+  "actual_functions": [
+    "dsi_ctrl_disable",
+    "dsi_sw_reset",
+    "dsi_op_mode_config",
+    "dsi_err_worker",
+    "dsi_host_transfer",
+    "msm_dsi_host_disable_irq",
+    "msm_dsi_host_enable",
+    "msm_dsi_host_disable",
+    "msm_dsi_host_power_off"
+  ],
+  "results": [
+    {
+      "label": "baseline147",
+      "sanitizer": false,
+      "exit": 1,
+      "cases": 14,
+      "failures": [
+        "reset_serializes_mode_disable",
+        "disable_cannot_restore_old_enabled_ctrl",
+        "power_off_waits_for_reset",
+        "no_mmio_after_clock_disable",
+        "dma_transfer_waits_for_reset",
+        "late_off_worker_has_no_mmio",
+        "irq_disable_drains_pending_work"
+      ],
+      "source_sha256": "50d3ff181271d5fb7bc43f7138050446e95bccb12e80fd2c513622215ddd72d3"
+    },
+    {
+      "label": "baseline147",
+      "sanitizer": true,
+      "exit": 1,
+      "cases": 14,
+      "failures": [
+        "reset_serializes_mode_disable",
+        "disable_cannot_restore_old_enabled_ctrl",
+        "power_off_waits_for_reset",
+        "no_mmio_after_clock_disable",
+        "dma_transfer_waits_for_reset",
+        "late_off_worker_has_no_mmio",
+        "irq_disable_drains_pending_work"
+      ],
+      "source_sha256": "50d3ff181271d5fb7bc43f7138050446e95bccb12e80fd2c513622215ddd72d3"
+    },
+    {
+      "label": "candidate152",
+      "sanitizer": false,
+      "exit": 0,
+      "cases": 14,
+      "failures": [],
+      "source_sha256": "76ec0fae09661dd7a287dd67b7e71276f91c224c2c0896aae80b80c4a54fe9be"
+    },
+    {
+      "label": "candidate152",
+      "sanitizer": true,
+      "exit": 0,
+      "cases": 14,
+      "failures": [],
+      "source_sha256": "76ec0fae09661dd7a287dd67b7e71276f91c224c2c0896aae80b80c4a54fe9be"
+    }
+  ],
+  "mmio_and_irq_scheduler_are_stubs": true,
+  "hardware_timing_verified": false
+}

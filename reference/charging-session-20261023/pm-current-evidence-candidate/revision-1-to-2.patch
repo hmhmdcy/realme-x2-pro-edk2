@@ -1,0 +1,11 @@
+--- revision-1/worker.py
++++ revision-2/worker.py
+@@ -190,7 +190,7 @@
+               'trace_complete_callbacks_ordered': callbacks['passed'],
+               'trace_cleanup_safe': cleanup.get('passed') is True,
+               'post_evidence_collected': after is not None}
+-    functional = {'returned': checks['primitive_returned'],
++    functional = {'returned': primitive.get('mem_returned') is True,
+                   'estimated_residency_seconds': primitive.get('estimated_residency_seconds'),
+                   'planned_residency_observed': checks['planned_residency_observed'],
+                   'post_conditions': None,

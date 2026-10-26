@@ -1,0 +1,45 @@
+{
+  "date": "2026-10-10",
+  "purpose": "Connect the first-frame/reopen signature to exact installed-driver completion gates, rather than repeat passing echo captures.",
+  "queries": [
+    "site.learn.microsoft.com USB cancelled transfer partial bytes TransferBufferLength",
+    "site.learn.microsoft.com URB canceled bulk IN transfer data length STATUS_CANCELLED",
+    "\"qcusbser\" \"first\" \"lost\" serial data",
+    "site.github.com/David112x/qualcomm-usb-drivers \"STATUS_CANCELLED\" \"QCMRD\"",
+    "\"EUD\" \"COM\" \"lost\" USB Qualcomm",
+    "\"qcusbser\" \"ReadIrpCompletion\" \"Status\"",
+    "site.github.com/quic/eud COM reset USB data toggle",
+    "site.learn.microsoft.com USB reset pipe clear stall data toggle pending transfers"
+  ],
+  "sources": [
+    {
+      "url": "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/usb/ns-usb-_urb_bulk_or_interrupt_transfer",
+      "kind": "Microsoft primary API documentation",
+      "finding": "Returned TransferBufferLength describes transferred bytes; short-packet semantics depend on transfer flags. This does not establish validity of every positive length on every failure/cancellation.",
+      "use": "Require status/actual transfer evidence alongside length in the proposed capture. No blanket partial-on-error assumption."
+    },
+    {
+      "url": "https://raw.githubusercontent.com/microsoft/Windows-driver-samples/main/usb/usbsamp/sys/bulkrwr.c",
+      "kind": "Microsoft primary sample implementation",
+      "finding": "Both illustrated completion paths branch on failure before accumulating transferred bytes.",
+      "limit": "KMDF sample differs from the installed Qualcomm WDM driver; it does not prove a defect or provide an EUD patch."
+    },
+    {
+      "url": "https://github.com/libusb/libusb/blob/master/libusb/io.c",
+      "kind": "libusb upstream implementation/documentation",
+      "finding": "Cancellation can coexist with partial data. This generic possibility was already used in RX49; the new finding is the exact logger/status gate in our installed driver."
+    },
+    {
+      "url": "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/usb/ns-usb-_urb_header",
+      "kind": "Microsoft primary API documentation",
+      "finding": "Different reset/clear-stall URBs affect host/device toggle state differently. This is reused RX47/RX56 material, not a newly discovered mechanism.",
+      "limit": "RX56 maps the installed reset selector to 0x1e, so do not assume this path resets host DATA0/1. No physical PID measurement or new reset experiment."
+    },
+    {
+      "url": "https://learn.microsoft.com/en-us/windows-hardware/drivers/usbcon/how-to-recover-from-usb-pipe-errors",
+      "kind": "Microsoft primary recovery documentation",
+      "use": "Supports interpreting completion status and coordinating cancellation/recovery. The proposed observation does not introduce another reset or re-enumeration experiment."
+    }
+  ],
+  "result": "No ready EUD-specific COM fix found by these focused queries. No outside person contacted. First-frame association and precise status gates are new measured/static evidence; failure-time joint capture is still required."
+}

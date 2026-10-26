@@ -1,0 +1,158 @@
+Subject: [PATCH] media: camss: unwind failed starts and return active buffers once
+
+Adapt Hotdog0114 to the maintained fae1 source and Linux7.3 VB2 PM pairing.
+Keep prepare/unprepare, SOF pairing, IRQ masks and the SM8150 board profile.
+Only VFE170 resets the gen2 union member.
+
+---
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe.c b/drivers/media/platform/qcom/camss/camss-vfe.c
+--- a/drivers/media/platform/qcom/camss/camss-vfe.c
++++ b/drivers/media/platform/qcom/camss/camss-vfe.c
+@@ -789,8 +789,9 @@
+ 	struct camss_buffer *t;
+ 
+ 	list_for_each_entry_safe(buf, t, &output->pending_bufs, queue) {
+-		vb2_buffer_done(&buf->vb.vb2_buf, state);
+ 		list_del(&buf->queue);
++		if (buf->vb.vb2_buf.state == VB2_BUF_STATE_ACTIVE)
++			vb2_buffer_done(&buf->vb.vb2_buf, state);
+ 	}
+ }
+ 
+@@ -1187,24 +1188,32 @@
+ 	struct vfe_line *line = container_of(vid, struct vfe_line, video_out);
+ 	struct vfe_device *vfe = to_vfe(line);
+ 	struct vfe_output *output;
++	struct camss_buffer *buf0, *buf1, *last;
+ 	unsigned long flags;
+ 
+ 	output = &line->output;
+ 
+ 	spin_lock_irqsave(&vfe->output_lock, flags);
+ 
++	buf0 = output->buf[0];
++	buf1 = output->buf[1];
++	last = output->last_buffer;
++	output->buf[0] = NULL;
++	output->buf[1] = NULL;
++	output->last_buffer = NULL;
++	/* gen1 shares this union; only the VFE170 path uses active_num. */
++	if (vfe->res->hw_ops == &vfe_ops_170)
++		output->gen2.active_num = 0;
++
+ 	vfe_buf_flush_pending(output, state);
+-
+-	if (output->buf[0])
+-		vb2_buffer_done(&output->buf[0]->vb.vb2_buf, state);
+-
+-	if (output->buf[1])
+-		vb2_buffer_done(&output->buf[1]->vb.vb2_buf, state);
+-
+-	if (output->last_buffer) {
+-		vb2_buffer_done(&output->last_buffer->vb.vb2_buf, state);
+-		output->last_buffer = NULL;
+-	}
++	if (buf0 && buf0->vb.vb2_buf.state == VB2_BUF_STATE_ACTIVE)
++		vb2_buffer_done(&buf0->vb.vb2_buf, state);
++	if (buf1 && buf1 != buf0 &&
++	    buf1->vb.vb2_buf.state == VB2_BUF_STATE_ACTIVE)
++		vb2_buffer_done(&buf1->vb.vb2_buf, state);
++	if (last && last != buf0 && last != buf1 &&
++	    last->vb.vb2_buf.state == VB2_BUF_STATE_ACTIVE)
++		vb2_buffer_done(&last->vb.vb2_buf, state);
+ 
+ 	spin_unlock_irqrestore(&vfe->output_lock, flags);
+ 
+diff --git a/drivers/media/platform/qcom/camss/camss-video.c b/drivers/media/platform/qcom/camss/camss-video.c
+--- a/drivers/media/platform/qcom/camss/camss-video.c
++++ b/drivers/media/platform/qcom/camss/camss-video.c
+@@ -299,6 +299,33 @@
+ 	return ret;
+ }
+ 
++/* Stop successful downstream starts; the failing subdevice owns its unwind. */
++static void video_stop_subdevices(struct camss_video *video,
++				 struct media_entity *stop_at)
++{
++	struct media_entity *entity = &video->vdev.entity;
++	struct media_pad *pad;
++	struct v4l2_subdev *subdev;
++	int ret;
++
++	while (1) {
++		pad = &entity->pads[0];
++		if (!(pad->flags & MEDIA_PAD_FL_SINK))
++			break;
++		pad = media_pad_remote_pad_first(pad);
++		if (!pad || !is_media_entity_v4l2_subdev(pad->entity) ||
++		    pad->entity == stop_at)
++			break;
++		entity = pad->entity;
++		subdev = media_entity_to_v4l2_subdev(entity);
++		ret = v4l2_subdev_call(subdev, video, s_stream, 0);
++		if (ret < 0 && ret != -ENOIOCTLCMD)
++			dev_err(video->camss->dev,
++				"Video subdevice %s stop failed: %d\n",
++				subdev->name, ret);
++	}
++}
++
+ static int video_start_streaming(struct vb2_queue *q, unsigned int count)
+ {
+ 	struct camss_video *video = vb2_get_drv_priv(q);
+@@ -333,11 +360,13 @@
+ 
+ 		ret = v4l2_subdev_call(subdev, video, s_stream, 1);
+ 		if (ret < 0 && ret != -ENOIOCTLCMD)
+-			goto error;
+-	}
+-
+-	return 0;
+-
++			goto stop_subdevices;
++	}
++
++	return 0;
++
++stop_subdevices:
++	video_stop_subdevices(video, entity);
+ error:
+ 	video_device_pipeline_stop(vdev);
+ 
+@@ -351,34 +380,9 @@
+ {
+ 	struct camss_video *video = vb2_get_drv_priv(q);
+ 	struct video_device *vdev = &video->vdev;
+-	struct media_entity *entity;
+-	struct media_pad *pad;
+-	struct v4l2_subdev *subdev;
+-	int ret;
+-
+-	entity = &vdev->entity;
+-	while (1) {
+-		pad = &entity->pads[0];
+-		if (!(pad->flags & MEDIA_PAD_FL_SINK))
+-			break;
+-
+-		pad = media_pad_remote_pad_first(pad);
+-		if (!pad || !is_media_entity_v4l2_subdev(pad->entity))
+-			break;
+-
+-		entity = pad->entity;
+-		subdev = media_entity_to_v4l2_subdev(entity);
+-
+-		ret = v4l2_subdev_call(subdev, video, s_stream, 0);
+-
+-		if (ret) {
+-			dev_err(video->camss->dev, "Video pipeline stop failed: %d\n", ret);
+-			return;
+-		}
+-	}
+-
++
++	video_stop_subdevices(video, NULL);
+ 	video_device_pipeline_stop(vdev);
+-
+ 	video->ops->flush_buffers(video, VB2_BUF_STATE_ERROR);
+ }
+ 

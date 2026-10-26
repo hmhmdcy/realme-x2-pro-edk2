@@ -1,0 +1,122 @@
+--- a/tqftpserv.c
++++ b/tqftpserv.c
+@@ -77,6 +77,7 @@
+ 	size_t rw_buf_size;
+ 	size_t blk_offset;
+ 	uint16_t blk_expected;
++	bool read_eof;
+ };
+ 
+ static bool tftp_debug;
+@@ -202,18 +203,15 @@
+ 
+ 	p += len;
+ 
+-	/* If rsize was set, we should limit the data in the response to n bytes */
+-	if (response_size != 0) {
+-		/* Header (4 bytes) + data size */
++	if (client->rsize) {
++		size_t relative = offset - (size_t)client->seek;
++		size_t remaining = relative < client->rsize ? client->rsize - relative : 0;
++		response_size = remaining < (size_t)len ? remaining : (size_t)len;
+ 		send_len = 4 + response_size;
+-		if (send_len > p - buf) {
+-			log_err("requested data of %ld bytes but only read %ld bytes from file, rejecting\n",
+-				response_size, len);
+-			return -EINVAL;
+-		}
+ 	} else {
+ 		send_len = p - buf;
+ 	}
++	client->read_eof = send_len < client->blksize + 4;
+ 
+ 	log_debug("Sending %zd bytes of DATA to %d:%d\n", send_len, client->sq.sq_node, client->sq.sq_port);
+ 	return send(client->sock, buf, send_len, 0);
+@@ -268,7 +266,7 @@
+ 		*p++ = '\0';
+ 	}
+ 
+-	if (tsize && *tsize != -1) {
++	if (tsize && *tsize != (size_t)-1) {
+ 		if (p + 6 >= end)
+ 			return -1;
+ 		memcpy(p, "tsize", 6);
+@@ -500,6 +498,11 @@
+ 	log_debug("read request for %s (mode: %s, rsize: %d, seek: %d) from %d:%d\n",
+ 		  filename, mode, rsize, seek, sq->sq_node, sq->sq_port);
+ 
++	if (blksize < 8 || blksize > 65535 || !wsize || wsize > 128 || blksize * wsize > 1048576) {
++		tftp_send_error_to(sq, TFTP_ERROR_EACCESS, "Read transfer limits");
++		return;
++	}
++
+ 	sock = qrtr_open(0);
+ 	if (sock < 0) {
+ 		log_err("unable to create new qrtr socket, reject\n");
+@@ -659,14 +662,20 @@
+ 	}
+ 
+ 	log_debug("WRQ options: block=%zu window=%zu size=%zd seek=%lld\n", blksize, wsize, tsize, (long long)seek);
+-	if (blksize > 65535 || wsize > 128 || blksize * wsize > 1048576 || seek != 0 || tsize > 4096) {
+-		tftp_send_error_to(sq, TFTP_ERROR_EACCESS, "RAM probe limits");
+-		return;
+-	}
+-	fd = translate_open(filename, O_WRONLY | O_CREAT);
++	if (blksize < 8 || blksize > 65535 || !wsize || wsize > 128 || blksize * wsize > 1048576 || seek < 0 || seek > 8388608 || tsize > 8388608 - seek) {
++		tftp_send_error_to(sq, TFTP_ERROR_EACCESS, "RAM work-file limits");
++		return;
++	}
++	fd = translate_open(filename, O_WRONLY | O_CREAT | (seek == 0 ? O_TRUNC : 0));
+ 	if (fd < 0) {
+ 		log_debug("unable to open %s (%d), reject\n", filename, errno);
+ 		tftp_send_error_to(sq, TFTP_ERROR_EACCESS, "Access violation");
++		return;
++	}
++
++	if (lseek(fd, seek, SEEK_SET) < 0) {
++		close(fd);
++		tftp_send_error_to(sq, TFTP_ERROR_EACCESS, "Invalid work-file offset");
+ 		return;
+ 	}
+ 
+@@ -790,14 +799,14 @@
+ 	log_debug("Got ack for %d from %d:%d\n", last, sq.sq_node, sq.sq_port);
+ 
+ 	/* We've sent enough data for rsize already */
+-	if (last * client->blksize > client->rsize)
++	if (client->read_eof)
+ 		return 0;
+ 
+ 	for (block = last; block < last + client->wsize; block++) {
+ 		size_t offset = client->seek + block * client->blksize;
+ 		size_t response_size = 0;
+ 		/* Check if need to limit response size based for requested rsize */
+-		if ((block + 1) * client->blksize > client->rsize)
++		if (client->rsize && (block + 1) * client->blksize > client->rsize)
+ 			response_size = client->rsize % client->blksize;
+ 
+ 		n = tftp_send_data(client, block + 1,
+@@ -807,10 +816,10 @@
+ 			break;
+ 		}
+ 		log_debug("Sent block %d of %zd to %d:%d\n", block + 1, n, sq.sq_node, sq.sq_port);
+-		if (n == 0)
++		if (client->read_eof)
+ 			break;
+ 		/* We've sent enough data for rsize already */
+-		if ((block + 1) * client->blksize > client->rsize)
++		if (client->rsize && (block + 1) * client->blksize > client->rsize)
+ 			break;
+ 	}
+ 
+@@ -885,8 +894,8 @@
+ 	 * or received buffer that is less than blksize */
+ 	if ((block % client->wsize == 0) || (payload < client->blksize)) {
+ 		off_t pos = lseek(client->fd, 0, SEEK_CUR);
+-		if (pos < 0 || pos > 4096 || client->blk_offset > 4096 - (size_t)pos) {
+-			tftp_send_error(client->sock, TFTP_ERROR_ENOSPACE, "RAM probe limit");
++		if (pos < 0 || pos > 8388608 || client->blk_offset > 8388608 - (size_t)pos) {
++			tftp_send_error(client->sock, TFTP_ERROR_ENOSPACE, "RAM work-file limit");
+ 			return -1;
+ 		}
+ 		ret = write(client->fd, client->rw_buf, client->blk_offset);

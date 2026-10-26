@@ -1,0 +1,36 @@
+--- failed01/index-vendor.py
++++ fixed02/index-vendor.py
+@@ -24,13 +24,16 @@
+     diagnostic=stderr.decode('utf-8').splitlines()
+     require(diagnostic and diagnostic[0].startswith('debugfs 1.47.2 '),'unexpected debugfs identity')
+     require(not any(line.strip() for line in diagnostic[1:]),'debugfs reported an error')
+-    rows=[]
++    rows=[];unused_slots=0
+     for line in stdout.decode('utf-8').splitlines():
+         if not line.strip():continue
+         fields=line.split('/')
+         require(len(fields)==8 and fields[0]==fields[-1]=='','unrecognized debugfs listing: '+repr(line[:160]))
+         _,inode,mode,uid,gid,name,size,_=fields
+         require(inode.isdecimal() and re.fullmatch('[0-7]+',mode) and uid.isdecimal() and gid.isdecimal(),'invalid inode metadata')
++        if int(inode)==0:
++            require(int(mode,8)==0 and uid==gid=='0' and size=='0','unexpected unused inode metadata')
++            unused_slots+=1;continue
+         require(name and '/' not in name and '\x00' not in name,'invalid name')
+         if name in ['.','..']:continue
+         require(not size or size.isdecimal(),'invalid size')
+@@ -38,6 +41,7 @@
+         rows.append(dict(path=(PurePosixPath(path)/name).as_posix(),inode=int(inode),mode=mode,
+                          uid=int(uid),gid=int(gid),bytes=int(size) if size else None,kind=kind))
+     require(len({r['path'] for r in rows})==len(rows),'duplicate directory entry')
++    commands[-1]['unused_inode_zero_slots']=unused_slots
+     return rows
+ def main():
+     parser=argparse.ArgumentParser(description=__doc__)
+@@ -77,6 +81,7 @@
+             kinds=dict(collections.Counter(r['kind'] for r in entries)),descriptor_suffix_matches=descriptors,
+             candidate_names=candidates,index_sha256=sha_file(out/'vendor-name-index.json'),
+             image_metadata_unchanged=True,actual_debugfs_children=len(commands),all_children_terminal0=all(c['terminal'] and c['returncode']==0 for c in commands),
++            unused_inode_zero_slots=sum(c['unused_inode_zero_slots'] for c in commands),
+             exact2719_model_or_protocol_established=False,embedded_or_compressed_contents_searched=False)
+     except BaseException as error:report.update(passed=False,error=repr(error));raise
+     finally:

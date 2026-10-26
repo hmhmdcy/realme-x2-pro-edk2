@@ -1,0 +1,382 @@
+--- a/src/ipa/libipa/gamma_curve.h
++++ b/src/ipa/libipa/gamma_curve.h
+@@ -0,0 +1,13 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++#include <array>
++#include <cstdint>
++
++namespace libcamera::ipa {
++using GammaCurve = std::array<float, 65>;
++using GammaLut = std::array<uint32_t, 64>;
++
++/* Input/output are in the native 10-bit Gamma16 domain. The 65th sample
++ * supplies the final slope. This encoder does not upload or activate a LUT. */
++bool encodeGammaCurve(const GammaCurve &curve, GammaLut *lut);
++} /* namespace libcamera::ipa */
+--- a/src/ipa/libipa/gamma_curve.cpp
++++ b/src/ipa/libipa/gamma_curve.cpp
+@@ -0,0 +1,27 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#include "gamma_curve.h"
++#include <algorithm>
++#include <cmath>
++
++namespace libcamera::ipa {
++bool encodeGammaCurve(const GammaCurve &curve, GammaLut *lut)
++{
++ if (!lut)
++  return false;
++ for (float sample : curve)
++  if (!std::isfinite(sample) || sample < 0.0f || sample > 1024.0f)
++   return false;
++
++ GammaLut result;
++ for (unsigned int i = 0; i < result.size(); ++i) {
++  int base = std::min(static_cast<int>(std::round(curve[i])), 1023);
++  int next = std::min(static_cast<int>(std::round(curve[i + 1])),
++                      i + 1 == result.size() ? 1024 : 1023);
++  int delta = std::clamp(next - base, -512, 511);
++  result[i] = static_cast<uint32_t>(base) |
++              ((static_cast<uint32_t>(delta) & 0x3ff) << 10);
++ }
++ *lut = result;
++ return true;
++}
++} /* namespace libcamera::ipa */
+--- a/src/ipa/camss-vfe/gamma_profile.cpp
++++ b/src/ipa/camss-vfe/gamma_profile.cpp
+@@ -0,0 +1,57 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#include "gamma_profile.h"
++#include <array>
++#include <cerrno>
++#include "libcamera/internal/yaml_parser.h"
++#include "../libipa/gamma_curve.h"
++
++namespace libcamera::ipa::camss {
++int configureGammaProfile(const ValueNode &tuning,
++                          std::optional<camss_params_ife_gamma> *parameters)
++{
++ if (!parameters)
++  return -EINVAL;
++ parameters->reset();
++ if (tuning.isEmpty())
++  return 0;
++ if (!tuning.isDictionary())
++  return -EINVAL;
++ if (!tuning["enabled"].isEmpty()) {
++  auto enabled = tuning["enabled"].get<bool>();
++  if (!enabled)
++   return -EINVAL;
++  if (!*enabled)
++   return 0;
++ }
++ if (tuning["mode"].get<std::string>("static") != "static")
++  return -EINVAL;
++ const auto &curves = tuning["curves"];
++ if (!curves.isList() || curves.size() != 3)
++  return -EINVAL;
++ camss_params_ife_gamma result{};
++ result.header = {CAMSS_PARAMS_IFE_GAMMA, V4L2_ISP_PARAMS_FL_BLOCK_ENABLE,
++                  sizeof(result)};
++ for (unsigned int ch = 0; ch < 3; ++ch) {
++  const auto &values = curves[ch];
++  if (!values.isList() || values.size() != 65)
++   return -EINVAL;
++  GammaCurve curve;
++  for (unsigned int i = 0; i < curve.size(); ++i) {
++   auto sample = values[i].get<float>();
++   if (!sample)
++    return -EINVAL;
++   curve[i] = *sample;
++  }
++  GammaLut packed;
++  if (!encodeGammaCurve(curve, &packed))
++   return -EINVAL;
++  for (unsigned int i = 0; i < packed.size(); ++i) {
++   result.segments[ch][i].base = packed[i] & 1023;
++   unsigned int delta = (packed[i] >> 10) & 1023;
++   result.segments[ch][i].delta = delta >= 512 ? int(delta) - 1024 : int(delta);
++  }
++ }
++ *parameters = result;
++ return 0;
++}
++} /* namespace libcamera::ipa::camss */
+--- a/src/ipa/camss-vfe/gamma_profile.h
++++ b/src/ipa/camss-vfe/gamma_profile.h
+@@ -0,0 +1,12 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++#include <optional>
++#include <linux/qcom-camss-config.h>
++namespace libcamera {
++class ValueNode;
++namespace ipa::camss {
++/* An absent/disabled override retains the output format's transfer curve. */
++int configureGammaProfile(const ValueNode &tuning,
++                          std::optional<camss_params_ife_gamma> *parameters);
++} /* namespace ipa::camss */
++} /* namespace libcamera */
+--- a/include/linux/qcom-camss-config.h
++++ b/include/linux/qcom-camss-config.h
+@@ -26,6 +26,8 @@
+  * @CAMSS_PARAMS_GAMMA: per-channel gamma correction curves (CLC_GLUT),
+  *	&struct camss_params_gamma
+  * @CAMSS_PARAMS_LSC: regular lens shading mesh, &struct camss_params_lsc
++ * @CAMSS_PARAMS_IFE_GAMMA: segmented IFE RGB gamma,
++ *	&struct camss_params_ife_gamma
+  * @CAMSS_PARAMS_AEC_BHIST: region of the AEC Bayer histogram statistics,
+  *	&struct camss_params_aec_bhist
+  */
+@@ -36,6 +38,7 @@
+ 	CAMSS_PARAMS_GAMMA = 4,
+ 	CAMSS_PARAMS_AEC_BHIST = 5,
+ 	CAMSS_PARAMS_LSC = 6,
++	CAMSS_PARAMS_IFE_GAMMA = 7,
+ };
+ 
+ /* Number of entries in each gamma channel LUT. */
+@@ -152,7 +155,7 @@
+  *           a[0]=Out_G, a[1]=Out_B, a[2]=Out_R)
+  * @b:       B-input coefficients (12s)
+  * @c:       R-input coefficients (12s)
+- * @k:       per-output-channel offsets (typically 9s effective)
++ * @k:       per-output-channel offsets (VFE175 uses 11 signed bits)
+  * @qfactor: Q-format selector (2u):
+  *           0 = 12sQ7  (range ~-16.0 .. +15.992)
+  *           1 = 12sQ8  (range  ~-8.0 ..  +7.996)
+@@ -278,6 +281,46 @@
+ #define CAMSS_PARAMS_IFE_LSC_MAX_PAYLOAD \
+ 	(CAMSS_PARAMS_IFE_MAX_PAYLOAD + sizeof(struct camss_params_lsc))
+ 
++#define CAMSS_PARAMS_IFE_COLOR_MAX_PAYLOAD \
++	(CAMSS_PARAMS_IFE_LSC_MAX_PAYLOAD + sizeof(struct camss_params_color_correct))
++
++/* IFE Gamma uses uniformly spaced segments, unlike the OPE direct LUT. */
++#define CAMSS_IFE_GAMMA_CHANNELS 3
++#define CAMSS_IFE_GAMMA_SEGMENTS 64
++
++/**
++ * struct camss_ife_gamma_segment - one linear segment in a 10-bit output domain
++ * @base: output at the segment's lower endpoint, 0 through 1023
++ * @delta: signed output change over the segment, -512 through 511
++ *
++ * Each segment covers 1/64 of the full input range. The last delta describes
++ * the change toward the full-scale endpoint, which may reach 1024. Segments
++ * are independent: no continuity or monotonicity is imposed by this ABI.
++ */
++struct camss_ife_gamma_segment {
++	__u16 base;
++	__s16 delta;
++};
++
++/**
++ * struct camss_params_ife_gamma - segmented RGB gamma curves for IFE
++ * @header: block header; type is CAMSS_PARAMS_IFE_GAMMA
++ * @segments: 64 segments per channel, in R, G, B channel order
++ *
++ * ENABLE uploads and enables. With neither flag, upload retains the current
++ * enable state. DISABLE accepts a header-only block and leaves stored curves
++ * intact. Reopening a stream restores its format's initial transfer curve.
++ */
++struct camss_params_ife_gamma {
++	struct v4l2_isp_params_block_header header;
++	struct camss_ife_gamma_segment
++		segments[CAMSS_IFE_GAMMA_CHANNELS][CAMSS_IFE_GAMMA_SEGMENTS];
++} __attribute__((aligned(8)));
++
++#define CAMSS_PARAMS_IFE_GAMMA_MAX_PAYLOAD \
++	(CAMSS_PARAMS_IFE_COLOR_MAX_PAYLOAD + sizeof(struct camss_params_ife_gamma))
++
++
+ /**
+  * enum camss_stats_block_type - CAMSS ISP statistics block identifiers
+  *
+--- a/src/ipa/libipa/meson.build
++++ b/src/ipa/libipa/meson.build
+@@ -30,6 +30,7 @@
+     'awb_calibration.cpp',
+     'awb_colour_temperature.cpp',
+     'colour_correction.cpp',
++    'gamma_curve.cpp',
+     'aec_lux.cpp',
+     'aec_bayer_luma.cpp',
+     'lens_shading.cpp',
+--- a/src/ipa/camss-vfe/meson.build
++++ b/src/ipa/camss-vfe/meson.build
+@@ -1,6 +1,6 @@
+ # SPDX-License-Identifier: CC0-1.0
+ ipa_name = 'ipa_camss_vfe'
+-mod = shared_module(ipa_name, ['camss.cpp', 'parameter_encoder.cpp', 'hardware_agc.cpp', 'hardware_awb.cpp', 'lens_shading.cpp', 'white_balance_reference.cpp', 'colour_correction_profile.cpp', 'lux_profile.cpp', 'dynamic_lens_shading.cpp'],
++mod = shared_module(ipa_name, ['camss.cpp', 'parameter_encoder.cpp', 'hardware_agc.cpp', 'hardware_awb.cpp', 'lens_shading.cpp', 'white_balance_reference.cpp', 'colour_correction_profile.cpp', 'lux_profile.cpp', 'dynamic_lens_shading.cpp', 'gamma_profile.cpp'],
+     name_prefix : '',
+     include_directories : [ipa_includes],
+     dependencies : [libcamera_private, libipa_dep],
+--- a/src/ipa/camss-vfe/params.h
++++ b/src/ipa/camss-vfe/params.h
+@@ -26,6 +26,7 @@
+ 	ColorCorrect,
+ 	AecBhist,
+ 	LensShading,
++	IfeGamma,
+ };
+ 
+ namespace details {
+@@ -47,6 +48,7 @@
+ CAMSS_DEFINE_BLOCK_TYPE(ColorCorrect, color_correct, COLOR_CORRECT);
+ CAMSS_DEFINE_BLOCK_TYPE(AecBhist, aec_bhist, AEC_BHIST);
+ CAMSS_DEFINE_BLOCK_TYPE(LensShading, lsc, LSC);
++CAMSS_DEFINE_BLOCK_TYPE(IfeGamma, ife_gamma, IFE_GAMMA);
+ 
+ struct param_traits {
+ 	using id_type = CamssBlocks;
+--- a/src/ipa/camss-vfe/parameter_encoder.h
++++ b/src/ipa/camss-vfe/parameter_encoder.h
+@@ -24,6 +24,7 @@
+ 		     double redGain, double blueGain, const Size &input,
+ 		     const Rectangle &roi, size_t *bytesused,
+ 		     const camss_params_lsc *lsc = nullptr,
+-		     const camss_params_color_correct *ccm = nullptr);
++		     const camss_params_color_correct *ccm = nullptr,
++                     const camss_params_ife_gamma *gamma = nullptr);
+ 
+ } /* namespace libcamera::ipa::camss */
+--- a/src/ipa/camss-vfe/parameter_encoder.cpp
++++ b/src/ipa/camss-vfe/parameter_encoder.cpp
+@@ -44,7 +44,8 @@
+ int encodeParameters(Span<uint8_t> output, const ResidualBlackProfile &profile,
+ 		     double redGain, double blueGain, const Size &input,
+ 		     const Rectangle &roi, size_t *bytesused,
+-		     const camss_params_lsc *lsc, const camss_params_color_correct *ccm)
++		     const camss_params_lsc *lsc, const camss_params_color_correct *ccm,
++                     const camss_params_ife_gamma *gamma)
+ {
+ 	if (!bytesused)
+ 		return -EINVAL;
+@@ -52,7 +53,7 @@
+ 
+ 	const size_t required = sizeof(v4l2_isp_buffer) +
+ 				    sizeof(camss_params_wb_gain) +
+-				    sizeof(camss_params_aec_bhist) + (lsc ? sizeof(*lsc) : 0) + (ccm ? sizeof(*ccm) : 0);
++				    sizeof(camss_params_aec_bhist) + (lsc ? sizeof(*lsc) : 0) + (ccm ? sizeof(*ccm) : 0) + (gamma ? sizeof(*gamma) : 0);
+ 	if (output.size() < required)
+ 		return -ENOSPC;
+ 	if (!output.data() ||
+@@ -104,6 +105,11 @@
+   block.setEnabled(true);
+   std::memcpy(&block->a, &ccm->a, sizeof(*ccm) - sizeof(ccm->header));
+  }
++ if (gamma) {
++  auto block = params.block<CamssBlocks::IfeGamma>();
++  block.setEnabled(true);
++  std::memcpy(block->segments, gamma->segments, sizeof(gamma->segments));
++ }
+ 	*bytesused = params.bytesused();
+ 	return 0;
+ }
+--- a/src/ipa/camss-vfe/camss.cpp
++++ b/src/ipa/camss-vfe/camss.cpp
+@@ -24,6 +24,7 @@
+ #include "libcamera/internal/yaml_parser.h"
+ #include "parameter_encoder.h"
+ #include "lens_shading.h"
++#include "gamma_profile.h"
+ #include "dynamic_lens_shading.h"
+ #include "white_balance_reference.h"
+ #include "colour_correction_profile.h"
+@@ -71,7 +72,7 @@
+ 	bool awbEnabled_ = false;
+ 	uint32_t ispRevision_ = 0;
+ 	std::optional<AutoIspUpdate> pendingWhiteBalance_;
+-	struct ParameterContext { uint32_t revision; double red, blue; bool awbEnabled; double sourceRed, sourceBlue; std::optional<int32_t> colourTemperature, estimatedColourTemperature; std::optional<ColourCorrectionState> colourCorrection; std::optional<DynamicLscState> lensShading; };
++	struct ParameterContext { uint32_t revision; double red, blue; bool awbEnabled; double sourceRed, sourceBlue; std::optional<int32_t> colourTemperature, estimatedColourTemperature; std::optional<ColourCorrectionState> colourCorrection; std::optional<DynamicLscState> lensShading; bool gammaEnabled; };
+ 	std::map<uint32_t, ParameterContext> preparedParameters_, parameterHistory_;
+  bool automatic_ = false;
+  uint32_t revision_ = 0;
+@@ -88,6 +89,7 @@
+ 	};
+ 	std::map<uint32_t, Buffer> buffers_;
+ 	std::optional<camss_params_lsc> lensShading_;
++ std::optional<camss_params_ife_gamma> gamma_;
+  std::optional<WhiteBalanceReference> whiteBalance_;
+  std::optional<int32_t> colourTemperature_;
+  std::optional<ColourCorrectionProfile> colourCorrection_;
+@@ -208,7 +210,7 @@
+      input.width < 4 || input.height < 2 || ((input.width | input.height) & 1)) return -EINVAL;
+  int ret = describeSensor(info, sensorControls, ipaControls);
+  if (ret) return ret;
+- profile_ = { 0, 1.0 }; lensShading_.reset(); dynamicLensShading_.reset(); whiteBalance_.reset(); colourTemperature_.reset(); colourCorrection_.reset(); manualMatrix_.reset(); lux_.reset();
++ profile_ = { 0, 1.0 }; gamma_.reset(); lensShading_.reset(); dynamicLensShading_.reset(); whiteBalance_.reset(); colourTemperature_.reset(); colourCorrection_.reset(); manualMatrix_.reset(); lux_.reset();
+  afEnabled_=false;af_.cancel();frameLength_=info.minFrameLength;
+  if (!profilePath.empty()) {
+   File file(profilePath);
+@@ -235,6 +237,8 @@
+    if (!selected) return -ENOTSUP;
+   } else if (version!=1) return -EINVAL;
+   const ValueNode &tuning=*selected;
++  ret=configureGammaProfile(tuning["gamma"],&gamma_);
++  if(ret)return ret;
+   ret=DynamicLensShading::configure(tuning["lens_shading"],input,&dynamicLensShading_);
+   if(ret)return ret;
+   if(tuning["lens_shading"]["mode"].get<std::string>("static")!="dynamic")
+@@ -551,7 +555,7 @@
+ 			if (!mapped->isValid())
+ 				return mapped->error();
+ 			const size_t required = sizeof(v4l2_isp_buffer) + (output
+-				? sizeof(camss_params_wb_gain) + sizeof(camss_params_aec_bhist) : sizeof(camss_stats_bhist));
++				? sizeof(camss_params_wb_gain) + sizeof(camss_params_aec_bhist) + (gamma_?sizeof(*gamma_):0) : sizeof(camss_stats_bhist));
+ 			if (mapped->planes()[0].size() < required)
+ 				return -ENOSPC;
+ 			pending.emplace(buffer.id, Buffer{ output, std::move(mapped) });
+@@ -603,7 +607,7 @@
+   int status=whiteBalance_->gains(*temperature,&red,&blue);
+   if (status) return status;
+  }
+-	alignas(8) std::array<uint8_t, sizeof(v4l2_isp_buffer) + sizeof(camss_params_wb_gain) + sizeof(camss_params_aec_bhist) + sizeof(camss_params_lsc) + sizeof(camss_params_color_correct)> packet;
++	alignas(8) std::array<uint8_t, sizeof(v4l2_isp_buffer) + sizeof(camss_params_wb_gain) + sizeof(camss_params_aec_bhist) + sizeof(camss_params_lsc) + sizeof(camss_params_color_correct) + sizeof(camss_params_ife_gamma)> packet;
+  std::optional<ColourMatrix> manualMatrix;
+  if (!awbEnabled) if (auto requested=controls.get(libcamera::controls::ColourCorrectionMatrix)) {
+   ColourMatrix matrix;std::copy(requested->begin(),requested->end(),matrix.begin());manualMatrix=matrix;
+@@ -620,7 +624,7 @@
+   std::copy(params.c.begin(),params.c.end(),ccm.c);std::copy(params.k.begin(),params.k.end(),ccm.k);ccm.qfactor=params.qfactor;
+  }
+ 	size_t used;
+-	ret = encodeParameters(packet, profile_, red, blue, input_, Rectangle(input_), &used, selectedLsc?&selectedLsc->parameters:lensShading_?&*lensShading_:nullptr, selected ? &ccm : nullptr);
++	ret = encodeParameters(packet, profile_, red, blue, input_, Rectangle(input_), &used, selectedLsc?&selectedLsc->parameters:lensShading_?&*lensShading_:nullptr, selected ? &ccm : nullptr, gamma_?&*gamma_:nullptr);
+ 	if (ret)
+ 		return ret;
+  *sensorControls = initial;
+@@ -693,9 +697,9 @@
+   std::copy(params.c.begin(),params.c.end(),ccm.c);std::copy(params.k.begin(),params.k.end(),ccm.k);ccm.qfactor=params.qfactor;
+  }
+ 	size_t used;
+-	ret = encodeParameters(it->second.memory->planes()[0], profile_, red, blue, input_, Rectangle(input_), &used, uploadLsc, selected ? &ccm : nullptr);
++	ret = encodeParameters(it->second.memory->planes()[0], profile_, red, blue, input_, Rectangle(input_), &used, uploadLsc, selected ? &ccm : nullptr, revision==0&&gamma_?&*gamma_:nullptr);
+ 	if (!ret) {
+-		preparedParameters_[revision] = { revision, effectiveRed, effectiveBlue, awbEnabled_, red, blue, colourTemperature_, whiteBalance_ ? whiteBalance_->temperature(effectiveRed,effectiveBlue) : std::nullopt, selected, selectedLsc };
++		preparedParameters_[revision] = { revision, effectiveRed, effectiveBlue, awbEnabled_, red, blue, colourTemperature_, whiteBalance_ ? whiteBalance_->temperature(effectiveRed,effectiveBlue) : std::nullopt, selected, selectedLsc, bool(gamma_) };
+ 		*bytesused = used;
+ 	}
+ 	return ret;
+@@ -728,7 +732,9 @@
+    <<" aec-bits="<<std::bit_cast<uint32_t>(*ccm->aecValue)<<" kelvin="<<ccm->temperature.value_or(0);
+  }
+ 	while (parameterHistory_.size() > 64) parameterHistory_.erase(parameterHistory_.begin());
+-	LOG(IPACamss, Info) << "ISP applied epoch=" << epoch << " revision=" << revision << " first-sof=" << firstSof << " awb=" << parameterHistory_.at(firstSof).awbEnabled;
++ if (revision==0 && parameterHistory_.at(firstSof).gammaEnabled)
++  LOG(IPACamss,Info)<<"GAMMA_APPLIED epoch="<<epoch<<" revision="<<revision<<" first-sof="<<firstSof;
++	LOG(IPACamss, Info) << "ISP applied epoch=" << epoch << " revision=" << revision << " first-sof=" << firstSof << " awb=" << parameterHistory_.at(firstSof).awbEnabled << " gamma=" << parameterHistory_.at(firstSof).gammaEnabled;
+ }
+ 
+ void IPACamss::processStats(uint64_t epoch, uint32_t sof, uint32_t id, uint32_t bytesused, const SensorContext &sensorContext)
+@@ -794,7 +800,7 @@
+ 	}
+ 	LOG(IPACamss, Info) << "RGB epoch=" << epoch << " sof=" << sof << " present=" << result.rgbPresent
+ 		<< " regions=" << result.awbRegions << " revision=" << result.ispRevision
+-		<< " parameters-known=" << result.parametersKnown;
++		<< " parameters-known=" << result.parametersKnown << " gamma=" << (result.parametersKnown && context->second.gammaEnabled);
+  if (sensorContext.valid && sensorContext.exposureLines >= uint32_t(minLines_) &&
+      sensorContext.exposureLines <= uint32_t(maxLines_) && sensorContext.gainCode >= uint32_t(minGainCode_) &&
+      sensorContext.gainCode <= uint32_t(maxGainCode_)) {

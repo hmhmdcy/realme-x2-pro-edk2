@@ -1,0 +1,492 @@
+{
+  "passed": true,
+  "scope": "unpackaged undeployed R2 BDS candidate only",
+  "private_directory": "/mnt/e/edk2-samurai-out/charging-management-20261023/eud-bds-r2-private-01",
+  "candidate_source_sha256": "c1ce63b3cc8df1c44b5351f53d15294505df919915fa8773636054305617cee8",
+  "baseline_result_sha256": "534373bc829f384e817580e7f2a9dd8700f4366cf51560cece7206c7e8e27ad6",
+  "original_archive_members": [
+    {
+      "name": "/",
+      "bytes": 150,
+      "sha256": "0371d5ab7925cca74a7db2f5e35274f9937541b796955627fb142464e0405f0a"
+    },
+    {
+      "name": "PlatformBm.obj/",
+      "bytes": 125336,
+      "sha256": "dbd87c4cf6efc2381cfdc7c8eedd5ed19f97b9d2bef96aafd6bc5f38c08c25b5"
+    }
+  ],
+  "make_or_AutoGen_run": false,
+  "unrelated_libraries_compiled": false,
+  "firmware_or_FD_FV_boot_packed": false,
+  "device_SDK_Git_accessed": false,
+  "unshare_argv": [
+    "/usr/bin/unshare",
+    "--mount",
+    "--propagation",
+    "private",
+    "--fork",
+    "/usr/bin/python3",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/eud-bds-r2-build/run-r2.py",
+    "--child"
+  ],
+  "unshare_returncode": 0,
+  "child": {
+    "passed": true,
+    "commands": [
+      {
+        "stage": "compile",
+        "original_cached_rule": "\"$(CC)\" $(DEPS_FLAGS) $(CC_RESP) -c -o /home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/Platform/RenegadePkg/Library/PlatformBootManagerLib/PlatformBootManagerLib/OUTPUT/./PlatformBm.obj  /home/cy122/edk2-samurai/repo/Platform/RenegadePkg/Library/PlatformBootManagerLib/PlatformBm.c",
+        "argv": [
+          "/usr/bin/aarch64-linux-gnu-gcc",
+          "-MMD",
+          "-MF",
+          "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/Platform/RenegadePkg/Library/PlatformBootManagerLib/PlatformBootManagerLib/OUTPUT/PlatformBm.obj.deps",
+          "@/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/Platform/RenegadePkg/Library/PlatformBootManagerLib/PlatformBootManagerLib/OUTPUT/cc_resp.txt",
+          "-c",
+          "-o",
+          "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/Platform/RenegadePkg/Library/PlatformBootManagerLib/PlatformBootManagerLib/OUTPUT/./PlatformBm.obj",
+          "/home/cy122/edk2-samurai/repo/Platform/RenegadePkg/Library/PlatformBootManagerLib/PlatformBm.c"
+        ],
+        "cwd": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/Platform/RenegadePkg/Library/PlatformBootManagerLib/PlatformBootManagerLib",
+        "returncode": 0
+      },
+      {
+        "stage": "archive",
+        "original_cached_rule": "\"$(SLINK)\" cr /home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/Platform/RenegadePkg/Library/PlatformBootManagerLib/PlatformBootManagerLib/OUTPUT/PlatformBootManagerLib.lib $(SLINK_FLAGS) @$(OBJECT_FILES_LIST)",
+        "argv": [
+          "/usr/bin/aarch64-linux-gnu-gcc-ar",
+          "cr",
+          "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/Platform/RenegadePkg/Library/PlatformBootManagerLib/PlatformBootManagerLib/OUTPUT/PlatformBootManagerLib.lib",
+          "@/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/Platform/RenegadePkg/Library/PlatformBootManagerLib/PlatformBootManagerLib/OUTPUT/object_files.lst"
+        ],
+        "cwd": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/Platform/RenegadePkg/Library/PlatformBootManagerLib/PlatformBootManagerLib",
+        "returncode": 0
+      },
+      {
+        "stage": "link",
+        "original_cached_rule": "\"$(DLINK)\" -o /home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/MdeModulePkg/Universal/BdsDxe/BdsDxe/DEBUG/BdsDxe.dll $(DLINK_FLAGS) -Wl,--start-group,@$(STATIC_LIBRARY_FILES_LIST),--end-group $(CC_FLAGS) $(DLINK2_FLAGS)",
+        "argv": [
+          "/usr/bin/aarch64-linux-gnu-gcc",
+          "-o",
+          "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/MdeModulePkg/Universal/BdsDxe/BdsDxe/DEBUG/BdsDxe.dll",
+          "-Wl,--emit-relocs",
+          "-nostdlib",
+          "-Wl,--gc-sections",
+          "-u",
+          "_ModuleEntryPoint",
+          "-Wl,-e,_ModuleEntryPoint,-Map,/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/MdeModulePkg/Universal/BdsDxe/BdsDxe/DEBUG/BdsDxe.map",
+          "-z",
+          "common-page-size=0x20",
+          "-z",
+          "common-page-size=0x1000",
+          "-flto",
+          "-Os",
+          "-L/home/cy122/edk2-samurai/repo/Common/edk2/ArmPkg/Library/GccLto",
+          "-llto-aarch64",
+          "-Wl,-plugin-opt=-pass-through=-llto-aarch64",
+          "-Wno-lto-type-mismatch",
+          "-z",
+          "common-page-size=0x1000",
+          "-Wl,--start-group,@/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/MdeModulePkg/Universal/BdsDxe/BdsDxe/OUTPUT/static_library_files.lst,--end-group",
+          "-g",
+          "-Os",
+          "-fshort-wchar",
+          "-fno-builtin",
+          "-fno-strict-aliasing",
+          "-Wall",
+          "-Werror",
+          "-Wno-array-bounds",
+          "-include",
+          "AutoGen.h",
+          "-fno-common",
+          "-ffunction-sections",
+          "-fdata-sections",
+          "-DSTRING_ARRAY_NAME=BdsDxeStrings",
+          "-g",
+          "-Os",
+          "-fshort-wchar",
+          "-fno-builtin",
+          "-fno-strict-aliasing",
+          "-Wall",
+          "-Werror",
+          "-Wno-array-bounds",
+          "-include",
+          "AutoGen.h",
+          "-fno-common",
+          "-mlittle-endian",
+          "-fno-short-enums",
+          "-fverbose-asm",
+          "-funsigned-char",
+          "-ffunction-sections",
+          "-fdata-sections",
+          "-Wno-address",
+          "-fno-asynchronous-unwind-tables",
+          "-fno-unwind-tables",
+          "-fno-pic",
+          "-fno-pie",
+          "-ffixed-x18",
+          "-std=gnu17",
+          "-mcmodel=small",
+          "-flto",
+          "-Wno-unused-but-set-variable",
+          "-Wno-unused-const-variable",
+          "-O1",
+          "-DDEFAULT_DARK",
+          "-mtune=cortex-a53",
+          "-mcpu=cortex-a53",
+          "-fverbose-asm",
+          "-funsigned-char",
+          "-ffunction-sections",
+          "-fdata-sections",
+          "-fno-builtin",
+          "-fno-common",
+          "-Wno-unused-variable",
+          "-fshort-wchar",
+          "-fno-strict-aliasing",
+          "-mlittle-endian",
+          "-fno-short-enums",
+          "-fno-asynchronous-unwind-tables",
+          "-mcmodel=small",
+          "-ffixed-x18",
+          "-mstrict-align",
+          "-fstack-protector",
+          "-Wno-unaligned-access",
+          "-Wno-misleading-indentation",
+          "-DHAS_MLVM",
+          "-DENABLE_SIMPLE_INIT",
+          "-DENABLE_LINUX_SIMPLE_MASS_STORAGE",
+          "-DSAMURAI_ENABLE_EUD",
+          "-DSAMURAI_LINUX_KERNEL",
+          "-Wl,--script=/home/cy122/edk2-samurai/repo/Common/edk2/BaseTools/Scripts/GccBase.lds",
+          "-Wl,--defsym=PECOFF_HEADER_SIZE=0x228",
+          "-Wno-error"
+        ],
+        "cwd": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/MdeModulePkg/Universal/BdsDxe/BdsDxe",
+        "returncode": 0
+      },
+      {
+        "stage": "GenFw",
+        "original_cached_rule": "\"$(GENFW)\" -e $(MODULE_TYPE) -o /home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/MdeModulePkg/Universal/BdsDxe/BdsDxe/OUTPUT/BdsDxe.efi /home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/MdeModulePkg/Universal/BdsDxe/BdsDxe/DEBUG/BdsDxe.dll $(GENFW_FLAGS)",
+        "argv": [
+          "/home/cy122/edk2-samurai/repo/Common/edk2/BaseTools/Source/C/bin/GenFw",
+          "-e",
+          "DXE_DRIVER",
+          "-o",
+          "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/MdeModulePkg/Universal/BdsDxe/BdsDxe/OUTPUT/BdsDxe.efi",
+          "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/MdeModulePkg/Universal/BdsDxe/BdsDxe/DEBUG/BdsDxe.dll"
+        ],
+        "cwd": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/MdeModulePkg/Universal/BdsDxe/BdsDxe",
+        "returncode": 0
+      }
+    ],
+    "binds": [
+      {
+        "source": "/mnt/e/edk2-samurai-out/charging-management-20261023/eud-bds-r2-private-01/source",
+        "target": "/home/cy122/edk2-samurai/repo/Platform/RenegadePkg/Library/PlatformBootManagerLib",
+        "returncode": 0,
+        "stderr": ""
+      },
+      {
+        "source": "/mnt/e/edk2-samurai-out/charging-management-20261023/eud-bds-r2-private-01/PlatformBootManagerLib",
+        "target": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/Platform/RenegadePkg/Library/PlatformBootManagerLib/PlatformBootManagerLib",
+        "returncode": 0,
+        "stderr": ""
+      },
+      {
+        "source": "/mnt/e/edk2-samurai-out/charging-management-20261023/eud-bds-r2-private-01/BdsDxe",
+        "target": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/MdeModulePkg/Universal/BdsDxe/BdsDxe",
+        "returncode": 0,
+        "stderr": ""
+      }
+    ],
+    "namespace": "mnt:[4026532375]",
+    "parent_namespace": "mnt:[4026532211]",
+    "all_mounts_private_before_bind": true,
+    "source_sha256": "c1ce63b3cc8df1c44b5351f53d15294505df919915fa8773636054305617cee8",
+    "archive_members": [
+      {
+        "name": "/",
+        "bytes": 150,
+        "sha256": "0371d5ab7925cca74a7db2f5e35274f9937541b796955627fb142464e0405f0a"
+      },
+      {
+        "name": "PlatformBm.obj/",
+        "bytes": 131944,
+        "sha256": "7f86d1ccab2100fcf836e15b768f22cba40460a98984d1f5a4884c2bc99d7b0e"
+      }
+    ],
+    "libraries_after": [
+      {
+        "path": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/MdeModulePkg/Universal/BdsDxe/BdsDxe/OUTPUT/BdsDxe.lib",
+        "sha256": "23e3e3300e73850c8c46d3b06a76ae5222a8943baebf29a5815e6630adfb09b7"
+      },
+      {
+        "path": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/MdePkg/Library/DxePcdLib/DxePcdLib/OUTPUT/DxePcdLib.lib",
+        "sha256": "b4eb4cc50337baa0e28708158ea530402177c5f219f6d44fc2d1c200f2c9e90a"
+      },
+      {
+        "path": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/MdePkg/Library/BaseMemoryLib/BaseMemoryLib/OUTPUT/BaseMemoryLib.lib",
+        "sha256": "4c36b86c4ff7a9e0bf49e07670225d6d7dea8907dd8fc4d5f38675ca0c3c8e19"
+      },
+      {
+        "path": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/BaseLib.lib",
+        "sha256": "0583577462ac14ae3c757940632b3f16a8219e3dfd196424925a72e4121bc199"
+      },
+      {
+        "path": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/MdePkg/Library/BaseSynchronizationLib/BaseSynchronizationLib/OUTPUT/BaseSynchronizationLib.lib",
+        "sha256": "2769858bf5b467cf1b52341a259e7ed0df206e72062b6da167916e196fa9c24b"
+      },
+      {
+        "path": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/MdePkg/Library/BaseDebugPrintErrorLevelLib/BaseDebugPrintErrorLevelLib/OUTPUT/BaseDebugPrintErrorLevelLib.lib",
+        "sha256": "87c2b3e67a884f900d2e177c6e2b842eea4402f969a2e156b4ab1ff1c7bc3b99"
+      },
+      {
+        "path": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/Platform/Realme/sm8150/Library/EudSerialPortLib/EudSerialPortLib/OUTPUT/EudSerialPortLib.lib",
+        "sha256": "2af81b58e5cc2605b3de321d5ae79b9025236b718e94e152a8c7e6c18ae55866"
+      },
+      {
+        "path": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/MdePkg/Library/BasePrintLib/BasePrintLib/OUTPUT/BasePrintLib.lib",
+        "sha256": "6989236f395d839889baba67ba83044d07c2d42128650625136e7c667ea507ee"
+      },
+      {
+        "path": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/MdePkg/Library/BaseDebugLibSerialPort/BaseDebugLibSerialPort/OUTPUT/BaseDebugLibSerialPort.lib",
+        "sha256": "5f9fc075939c84bb0515ea84f35eb7654cf60fadaab8a1bef64ef74b92c09afd"
+      },
+      {
+        "path": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/ArmPkg/Library/ArmLib/ArmBaseLib/OUTPUT/ArmBaseLib.lib",
+        "sha256": "ad90f707e343564c5514e4452bd4ecab996f9105bb7905c237810c33c9cfadfe"
+      },
+      {
+        "path": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/ArmPkg/Library/ArmGenericTimerPhyCounterLib/ArmGenericTimerPhyCounterLib/OUTPUT/ArmGenericTimerPhyCounterLib.lib",
+        "sha256": "f073229d5f9aedb6e9bf5de1f386175f92032a52961b8e0b02c2e3ecc8ce67c0"
+      },
+      {
+        "path": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/ArmPkg/Library/ArmArchTimerLib/ArmArchTimerLib/OUTPUT/ArmArchTimerLib.lib",
+        "sha256": "240d2a155035e1d05b905c39f9fb80be71984e54fa441457be0ec3aa829a572d"
+      },
+      {
+        "path": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/MdePkg/Library/UefiBootServicesTableLib/UefiBootServicesTableLib/OUTPUT/UefiBootServicesTableLib.lib",
+        "sha256": "ffb13a5accdd13d123a1857256519f106d9bcfbd816e39317335feb7b4046358"
+      },
+      {
+        "path": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/MdePkg/Library/UefiMemoryAllocationLib/UefiMemoryAllocationLib/OUTPUT/UefiMemoryAllocationLib.lib",
+        "sha256": "8a47d018b5c2bdab0c3a9e4f3774cba7d6c22d5efd62f0d962b94910aa24617d"
+      },
+      {
+        "path": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/MdePkg/Library/RegisterFilterLibNull/RegisterFilterLibNull/OUTPUT/FilterLibNull.lib",
+        "sha256": "0eba4aac15bcbb89978589b1541349c20c254716eb7b797e3727f4df936d3036"
+      },
+      {
+        "path": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/MdePkg/Library/UefiRuntimeServicesTableLib/UefiRuntimeServicesTableLib/OUTPUT/UefiRuntimeServicesTableLib.lib",
+        "sha256": "e0016e00ea5b0be9b19e599dee6342b72bbc4fa015515c3d4fcdc363f1d53635"
+      },
+      {
+        "path": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/MdePkg/Library/UefiDevicePathLib/UefiDevicePathLib/OUTPUT/UefiDevicePathLib.lib",
+        "sha256": "88a4c3176ddd6f34830fc74a14dd3e37fffc81a4fbf4d2e04836911912c10127"
+      },
+      {
+        "path": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/Silicon/Qualcomm/sm8150/Library/PlatformMemoryMapLib/PlatformMemoryMapLib/OUTPUT/PlatformMemoryMapLib.lib",
+        "sha256": "cc8f84e0d8c9324c48c5d8d4ec1ef301c10535242f20e7b082eb19b8e33a370e"
+      },
+      {
+        "path": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/MdePkg/Library/BaseIoLibIntrinsic/BaseIoLibIntrinsic/OUTPUT/BaseIoLibIntrinsic.lib",
+        "sha256": "809a148264af1339fb40582fc2dc2af63f533e52313429a81e4fc59dd9f4cc54"
+      },
+      {
+        "path": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/MdePkg/Library/UefiLib/UefiLib/OUTPUT/UefiLib.lib",
+        "sha256": "b00c6ff83ac6880080c9b518e0ff2f512f2dd58f8e8330413c031796c36bcbdc"
+      },
+      {
+        "path": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/Silicon/Qualcomm/QcomPkg/Library/MemoryMapHelperLib/MemoryMapHelperLib/OUTPUT/MemoryMapHelperLib.lib",
+        "sha256": "51998490dfe0af9a979669f62fd84daea12ffb6dd3cf5da8a20af6efff3ea72e"
+      },
+      {
+        "path": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/MdeModulePkg/Library/UefiHiiServicesLib/UefiHiiServicesLib/OUTPUT/UefiHiiServicesLib.lib",
+        "sha256": "2436967848a7d261160aec087c9a5001cb331d30a977894f62d421ec3c998510"
+      },
+      {
+        "path": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/Silicon/Qualcomm/QcomPkg/Library/DxeAslUpdateLib/DxeAslUpdateLib/OUTPUT/DxeAslUpdateLib.lib",
+        "sha256": "beaf76a891d9ef7033e4b8bfed83ee45f58f61b571c9e90fbe923615a738b514"
+      },
+      {
+        "path": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/Silicon/Qualcomm/sm8150/Library/RFSProtectionLib/RFSProtectionLib/OUTPUT/RFSProtectionLib.lib",
+        "sha256": "ce70d4b66d43473920ff9d4c6c23fe728a773ab6bd034d8b787bfc89528a6f27"
+      },
+      {
+        "path": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/MdeModulePkg/Library/UefiSortLib/UefiSortLib/OUTPUT/UefiSortLib.lib",
+        "sha256": "6fb1ed51979d7ff89d7e880f52b6e9dc8cea31046e701cf5a281e11849906427"
+      },
+      {
+        "path": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/MdeModulePkg/Library/UefiHiiLib/UefiHiiLib/OUTPUT/UefiHiiLib.lib",
+        "sha256": "6f107a788cb33b5d89758fa0c05b74c2532bac5006e0a68022fc4756c7c76ea5"
+      },
+      {
+        "path": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/MdePkg/Library/DxeServicesTableLib/DxeServicesTableLib/OUTPUT/DxeServicesTableLib.lib",
+        "sha256": "7b46c070f037dc651ac93d74a423a2dae8efb6d95a40352278457567ed9ea6ac"
+      },
+      {
+        "path": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/MdePkg/Library/BasePeCoffGetEntryPointLib/BasePeCoffGetEntryPointLib/OUTPUT/BasePeCoffGetEntryPointLib.lib",
+        "sha256": "7536cc2db4a80238cd03be4ae99b1595f65a0a343489b98f594886460e301d8f"
+      },
+      {
+        "path": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/MdeModulePkg/Library/DxePerformanceLib/DxePerformanceLib/OUTPUT/DxePerformanceLib.lib",
+        "sha256": "0168b35824bce1848988fddfee4cd3188d4c0b7add00a364ae3408724727a5c5"
+      },
+      {
+        "path": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/MdePkg/Library/DxeHobLib/DxeHobLib/OUTPUT/DxeHobLib.lib",
+        "sha256": "c9c49c4a396c081e0fb984afa72fae9d78e5c82238d137829fe2373298594bcf"
+      },
+      {
+        "path": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/MdePkg/Library/DxeServicesLib/DxeServicesLib/OUTPUT/DxeServicesLib.lib",
+        "sha256": "fad7b30db863e75ea40c9f2373d243384eac85776707fd786d716a8e63177148"
+      },
+      {
+        "path": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/MdeModulePkg/Library/VariablePolicyHelperLib/VariablePolicyHelperLib/OUTPUT/VariablePolicyHelperLib.lib",
+        "sha256": "ef10487b9c13addbc0f82401297df780a16c89b7f70c99a72919da8463aaee78"
+      },
+      {
+        "path": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/MdeModulePkg/Library/DxeReportStatusCodeLib/DxeReportStatusCodeLib/OUTPUT/DxeReportStatusCodeLib.lib",
+        "sha256": "c634ecaa423d4603436e45f9f8c2b079e6f333b7c97e226b50908e747507bce3"
+      },
+      {
+        "path": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/Silicon/Qualcomm/sm8150/Library/MsPlatformDevicesLib/MsPlatformDevicesLib/OUTPUT/MsPlatformDevicesLib.lib",
+        "sha256": "aaba54c68d31ca0b4a7235dfc503dab60dcd9f066e8f52d1e09b2dbeabefdb20"
+      },
+      {
+        "path": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/MdeModulePkg/Library/DxeCapsuleLibNull/DxeCapsuleLibNull/OUTPUT/DxeCapsuleLibNull.lib",
+        "sha256": "f7ec0a10fa2e832019d15cf16856f6f9e05d4afd458b55347b310853f3c05df1"
+      },
+      {
+        "path": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/MdeModulePkg/Library/BootLogoLib/BootLogoLib/OUTPUT/BootLogoLib.lib",
+        "sha256": "70616f5e33a04e7835acf9e5ade0caa330327eb7aac81c0ecaedbf89eaa2a79c"
+      },
+      {
+        "path": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/MdeModulePkg/Library/UefiBootManagerLib/UefiBootManagerLib/OUTPUT/UefiBootManagerLib.lib",
+        "sha256": "721700ac2b1320d230f1d23fb42025fce1485d57457d1b90fed0209020afc7c2"
+      },
+      {
+        "path": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/MdePkg/Library/UefiDriverEntryPoint/UefiDriverEntryPoint/OUTPUT/UefiDriverEntryPoint.lib",
+        "sha256": "396799aaff9bc8e24f56bf1c559f3ee1e511248af873a081db0eafffeacaa7b3"
+      },
+      {
+        "path": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/Platform/RenegadePkg/Library/PlatformBootManagerLib/PlatformBootManagerLib/OUTPUT/PlatformBootManagerLib.lib",
+        "sha256": "89062b2351a516a3c0c7e66d32b7f4fae7b16686c047f90a34acab3837e5670c"
+      },
+      {
+        "path": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/ArmPkg/Library/CompilerIntrinsicsLib/CompilerIntrinsicsLib/OUTPUT/CompilerIntrinsicsLib.lib",
+        "sha256": "3517848bb50dfd331a5dd36f22dff728e55fb54a9ae1aa449874d68508dfdcf9"
+      },
+      {
+        "path": "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/MdePkg/Library/BaseStackCheckLib/BaseStackCheckLib/OUTPUT/BaseStackCheckLib.lib",
+        "sha256": "11a6226ebe5e188463231a36094c85128961a3c1d00a2058d8db0c2fea1c88bb"
+      }
+    ],
+    "changed_library_paths": [
+      "/home/cy122/edk2-samurai/repo/workspace/Build/samurai/RELEASE_GCC5/AARCH64/Platform/RenegadePkg/Library/PlatformBootManagerLib/PlatformBootManagerLib/OUTPUT/PlatformBootManagerLib.lib"
+    ]
+  },
+  "PE32_plus": {
+    "machine": "0xaa64",
+    "optional_magic": "0x20b",
+    "subsystem": 11,
+    "entry_rva": 31080,
+    "image_size": 110592,
+    "headers_size": 4096,
+    "sections": [
+      {
+        "name": ".text",
+        "rva": 4096,
+        "virtual_size": 90112,
+        "raw_offset": 4096,
+        "raw_size": 90112,
+        "flags": 1610612768
+      },
+      {
+        "name": ".data",
+        "rva": 94208,
+        "virtual_size": 12288,
+        "raw_offset": 94208,
+        "raw_size": 12288,
+        "flags": 3221225536
+      },
+      {
+        "name": ".reloc",
+        "rva": 106496,
+        "virtual_size": 4096,
+        "raw_offset": 106496,
+        "raw_size": 4096,
+        "flags": 1107296320
+      }
+    ],
+    "relocation_directory": {
+      "rva": 106496,
+      "bytes": 4096
+    },
+    "R2_debug_marker_present": true,
+    "original_ELF_path_present": true
+  },
+  "artifacts": {
+    "/mnt/e/edk2-samurai-out/charging-management-20261023/eud-bds-r2-private-01/BdsDxe/DEBUG/BdsDxe.dll": {
+      "sha256": "556296de2d5f2882ff766b8a08fe40eb59c8ff8f06c2b340a8fb7d471fc66ed0",
+      "bytes": 1712712,
+      "mtime_ns": 1792759824411048300
+    },
+    "/mnt/e/edk2-samurai-out/charging-management-20261023/eud-bds-r2-private-01/BdsDxe/OUTPUT/BdsDxe.efi": {
+      "sha256": "a0e30c69b91f5605c07136f3f0c6900434f99d72159c5c61ac01db47fc061768",
+      "bytes": 110592,
+      "mtime_ns": 1792759824722532800
+    },
+    "/mnt/e/edk2-samurai-out/charging-management-20261023/eud-bds-r2-private-01/PlatformBootManagerLib/OUTPUT/PlatformBm.obj": {
+      "sha256": "7f86d1ccab2100fcf836e15b768f22cba40460a98984d1f5a4884c2bc99d7b0e",
+      "bytes": 131944,
+      "mtime_ns": 1792759812280438600
+    },
+    "/mnt/e/edk2-samurai-out/charging-management-20261023/eud-bds-r2-private-01/PlatformBootManagerLib/OUTPUT/PlatformBootManagerLib.lib": {
+      "sha256": "89062b2351a516a3c0c7e66d32b7f4fae7b16686c047f90a34acab3837e5670c",
+      "bytes": 132222,
+      "mtime_ns": 1792759812384670700
+    },
+    "/mnt/e/edk2-samurai-out/charging-management-20261023/eud-bds-r2-private-01/original/BdsDxe.dll": {
+      "sha256": "7bb467d07b4d3a013f36677f90d58b18a435ad48edb48e7b35e05aa809e27341",
+      "bytes": 1711056,
+      "mtime_ns": 1792300058000000000
+    },
+    "/mnt/e/edk2-samurai-out/charging-management-20261023/eud-bds-r2-private-01/original/BdsDxe.efi": {
+      "sha256": "8d72c4a69a64ab1f8e5f0b139daf34dfb0dbfe22113eb66ceac8ca839e71697e",
+      "bytes": 114688,
+      "mtime_ns": 1792300058000000000
+    },
+    "/mnt/e/edk2-samurai-out/charging-management-20261023/eud-bds-r2-private-01/original/PlatformBm.obj": {
+      "sha256": "dbd87c4cf6efc2381cfdc7c8eedd5ed19f97b9d2bef96aafd6bc5f38c08c25b5",
+      "bytes": 125336,
+      "mtime_ns": 1791952266000000000
+    },
+    "/mnt/e/edk2-samurai-out/charging-management-20261023/eud-bds-r2-private-01/original/PlatformBootManagerLib.lib": {
+      "sha256": "ae1e30c0ca4d3fa339021d55cff61000370b206f9b34265e05745361a9809c7b",
+      "bytes": 125614,
+      "mtime_ns": 1791952266000000000
+    }
+  },
+  "parent_file_count": 191,
+  "parent_files_unchanged": true,
+  "parent_mount_state_unchanged": true,
+  "evidence": {
+    "archive.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "archive.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "child-receipt.json": "36e784fb0787e48787700de4771bc1f179e32442e6b03b2e9e732ccb91bbf271",
+    "compile.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "GenFw.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "GenFw.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "link.stderr": "1871f59791bf8f9a7de2b54564f8a5e998177647d76ba44ad8b651228015cf1e",
+    "link.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "mountinfo-after-bind.txt": "df6e9cdcc37caed48dd8a2055025310fb711c046a28a60ac5b44f37ca2df7750",
+    "mountinfo-before-bind.txt": "c55b0c9b693c54f30207cbf98c635ad59852e62b7393c241c4aa5f4f8e2aa440",
+    "parent-after.json": "b18c8bc64cffc094794b8c1308c4de3197eeb3a4123e663dcfdf4942aa3c18d7",
+    "parent-before.json": "b18c8bc64cffc094794b8c1308c4de3197eeb3a4123e663dcfdf4942aa3c18d7",
+    "request.json": "0c1c077ca998dcaefb28d0eb37e403a3482218e87c36e3b7af6747171984cce4",
+    "unshare.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "unshare.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

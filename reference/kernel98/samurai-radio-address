@@ -1,0 +1,88 @@
+#!/bin/sh
+# Same-handset read-only DMS identity, independently cached per radio in RAM.
+set -eu
+umask 077
+base=/run/samurai-radio-address
+tr '\0' '\n' < /proc/device-tree/compatible | grep -qx realme,samurai
+[ "$(id -u)" = 0 ]
+test ! -L "$base"
+mkdir -p "$base"
+chmod 700 "$base"
+stamp() { echo "$1 uptime=$(cut -d ' ' -f1 /proc/uptime)"; }
+private_file()
+{
+    test -f "$1" && test ! -L "$1" && [ "$(stat -c '%u:%a' "$1")" = 0:600 ]
+}
+cache()
+{
+    private_file "$base/current-$kind" || return 1
+    query=$(cat "$base/current-$kind")
+    suffix=${query#"$base/query."}
+    [ "$query" = "$base/query.$suffix" ] && [ "${#suffix}" = 6 ] || return 1
+    case "$suffix" in *[!a-zA-Z0-9]*) return 1;; esac
+    test -d "$query" && test ! -L "$query" || return 1
+    [ "$(stat -c '%u:%a' "$query")" = 0:700 ] || return 1
+    private_file "$query/boot-id" || return 1
+    [ "$(cat "$query/boot-id")" = "$(cat /proc/sys/kernel/random/boot_id)" ] || return 1
+    private_file "$query/$kind-mac-le.bin" || return 1
+    [ "$(wc -c < "$query/$kind-mac-le.bin")" = 6 ] || return 1
+}
+refresh()
+{
+    if cache; then stamp "RADIO_ADDRESS_CACHE_READY kind=$kind"; return 0; fi
+    [ "$(cat /sys/class/remoteproc/remoteproc0/state)" = running ] || return 1
+    query=$(mktemp -d "$base/query.XXXXXX")
+    cat /proc/sys/kernel/random/boot_id > "$query/boot-id"
+    # A failure is retained in its private query directory and cannot publish
+    # either radio's pointer or consume the other radio's lifecycle lock.
+    /usr/sbin/samurai-dms-mac-read "$kind" "$query" > "$query/$kind-query.log" 2>&1 || return "$?"
+    private_file "$query/$kind-mac-le.bin" || return 1
+    [ "$(wc -c < "$query/$kind-mac-le.bin")" = 6 ] || return 1
+    pointer=$(mktemp "$base/current-$kind.XXXXXX")
+    printf '%s\n' "$query" > "$pointer"
+    mv "$pointer" "$base/current-$kind"
+    stamp "RADIO_ADDRESS_QUERY_VERIFIED kind=$kind"
+}
+load()
+{
+    if ! cache; then refresh || return "$?"; fi
+    cache
+}
+wlan()
+{
+    load
+    test -d /sys/class/net/wlan0
+    mac=$(od -An -tx1 -v "$query/wlan-mac-le.bin" | awk '{printf "%s:%s:%s:%s:%s:%s",$6,$5,$4,$3,$2,$1}')
+    current=$(cat /sys/class/net/wlan0/address)
+    if [ "$current" != "$mac" ]; then
+        flags=$(cat /sys/class/net/wlan0/flags)
+        [ "$((flags & 1))" = 0 ]
+        printf '%s\n' "$current" > "$query/wlan-before.txt"
+        ip link set dev wlan0 address "$mac"
+    fi
+    [ "$(cat /sys/class/net/wlan0/address)" = "$mac" ]
+    unset mac current
+    stamp WLAN_ADDRESS_VERIFIED
+}
+bt()
+{
+    load
+    /usr/sbin/samurai-bt-address "$query/bt-mac-le.bin"
+}
+case "${1:-}" in
+    status)
+        [ "$#" = 1 ]
+        for kind in wlan bt; do
+            if cache; then echo "${kind}_cache=verified-this-boot"; else echo "${kind}_cache=unavailable"; fi
+        done
+        exit 0 ;;
+    refresh)
+        [ "$#" = 2 ]
+        case "$2" in wlan|bt) kind=$2;; *) exit 2;; esac
+        action=refresh ;;
+    wlan|bt) [ "$#" = 1 ]; kind=$1; action=$1 ;;
+    *) echo 'Use wlan, bt, refresh wlan|bt or status' >&2; exit 2 ;;
+esac
+mkdir "$base/request-$kind.lock" || { echo "RADIO_ADDRESS_BUSY kind=$kind" >&2; exit 1; }
+trap 'rmdir "$base/request-$kind.lock"' EXIT
+"$action"

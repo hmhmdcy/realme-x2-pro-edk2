@@ -1,0 +1,201 @@
+{
+  "stage": 142,
+  "kernel_build": 140,
+  "trace_loss_free": true,
+  "cpu0_largest_event_gap_ms": 69.943,
+  "gap_begin_before_timeout_ms": -69.968,
+  "gap_end_before_timeout_ms": -0.025,
+  "last_event_name": "irq_handler_exit",
+  "first_event_name": "irq_handler_entry",
+  "other_cpus_event_counts_during_gap": {
+    "0": 0,
+    "1": 6,
+    "2": 18,
+    "3": 24,
+    "4": 4,
+    "5": 30,
+    "6": 221,
+    "7": 4
+  },
+  "whole_machine_frozen_proven": false,
+  "interrupts_disabled_region_proven": false,
+  "physical_irq_arrival_timestamp_recorded": false,
+  "goal_complete": false,
+  "gap_boundary_trace_context": [
+    {
+      "relative_to_timeout_ms": -70.014,
+      "task_name": "<idle>",
+      "flags": "d..1.",
+      "event": "cpu_idle",
+      "body": "state=4294967295 cpu_id=0"
+    },
+    {
+      "relative_to_timeout_ms": -70.001,
+      "task_name": "<idle>",
+      "flags": "d.h1.",
+      "event": "irq_handler_entry",
+      "body": "irq=17 name=smp2p-mpss"
+    },
+    {
+      "relative_to_timeout_ms": -69.999,
+      "task_name": "<idle>",
+      "flags": "d.h1.",
+      "event": "irq_handler_exit",
+      "body": "irq=17 ret=handled"
+    },
+    {
+      "relative_to_timeout_ms": -69.976,
+      "task_name": "<idle>",
+      "flags": "dNh1.",
+      "event": "irq_handler_entry",
+      "body": "irq=6 name=IPI"
+    },
+    {
+      "relative_to_timeout_ms": -69.968,
+      "task_name": "<idle>",
+      "flags": "dNh1.",
+      "event": "irq_handler_exit",
+      "body": "irq=6 ret=handled"
+    },
+    {
+      "relative_to_timeout_ms": -0.025,
+      "task_name": "irq/17-smp2p-mp",
+      "flags": "d.h1.",
+      "event": "irq_handler_entry",
+      "body": "irq=13 name=apps_rsc"
+    },
+    {
+      "relative_to_timeout_ms": -0.015,
+      "task_name": "irq/17-smp2p-mp",
+      "flags": "d.h1.",
+      "event": "irq_handler_exit",
+      "body": "irq=13 ret=handled"
+    },
+    {
+      "relative_to_timeout_ms": -0.012,
+      "task_name": "irq/17-smp2p-mp",
+      "flags": "d.h1.",
+      "event": "irq_handler_entry",
+      "body": "irq=11 name=arch_timer"
+    },
+    {
+      "relative_to_timeout_ms": -0.003,
+      "task_name": "irq/17-smp2p-mp",
+      "flags": "d.h1.",
+      "event": "irq_handler_exit",
+      "body": "irq=11 ret=handled"
+    },
+    {
+      "relative_to_timeout_ms": 0.001,
+      "task_name": "irq/17-smp2p-mp",
+      "flags": "d.H1.",
+      "event": "irq_handler_entry",
+      "body": "irq=208 name=dsi_isr"
+    },
+    {
+      "relative_to_timeout_ms": 0.005,
+      "task_name": "irq/17-smp2p-mp",
+      "flags": "d.H1.",
+      "event": "irq_handler_exit",
+      "body": "irq=208 ret=handled"
+    },
+    {
+      "relative_to_timeout_ms": 0.006,
+      "task_name": "irq/17-smp2p-mp",
+      "flags": "d.H1.",
+      "event": "irq_handler_entry",
+      "body": "irq=207 name=msm"
+    },
+    {
+      "relative_to_timeout_ms": 0.012,
+      "task_name": "irq/17-smp2p-mp",
+      "flags": "d.H3.",
+      "event": "dpu_enc_frame_done_cb",
+      "body": "id=35, idx=0, frame_busy_mask=1"
+    },
+    {
+      "relative_to_timeout_ms": 0.015,
+      "task_name": "irq/17-smp2p-mp",
+      "flags": "d.H3.",
+      "event": "dpu_enc_frame_watchdog",
+      "body": "id=35 action=complete busy=0 now=4294905743 deadline=0 timeout_ms=0"
+    },
+    {
+      "relative_to_timeout_ms": 0.017,
+      "task_name": "irq/17-smp2p-mp",
+      "flags": "d.H2.",
+      "event": "dpu_enc_rc",
+      "body": "begin: id:35, sw_event:2, idle_pc_supported:true, rc_state:2"
+    },
+    {
+      "relative_to_timeout_ms": 0.02,
+      "task_name": "irq/17-smp2p-mp",
+      "flags": "d.H2.",
+      "event": "dpu_enc_rc",
+      "body": "frame done: id:35, sw_event:2, idle_pc_supported:true, rc_state:2"
+    },
+    {
+      "relative_to_timeout_ms": 0.021,
+      "task_name": "irq/17-smp2p-mp",
+      "flags": "d.H2.",
+      "event": "dpu_enc_rc",
+      "body": "end: id:35, sw_event:2, idle_pc_supported:true, rc_state:2"
+    },
+    {
+      "relative_to_timeout_ms": 0.023,
+      "task_name": "irq/17-smp2p-mp",
+      "flags": "d.H2.",
+      "event": "dpu_crtc_frame_event_cb",
+      "body": "id=91, event=1"
+    },
+    {
+      "relative_to_timeout_ms": 0.026,
+      "task_name": "irq/17-smp2p-mp",
+      "flags": "d.H2.",
+      "event": "dpu_enc_phys_cmd_pp_tx_done",
+      "body": "id=35, pp=0, new_count=1, event=1"
+    },
+    {
+      "relative_to_timeout_ms": 0.047,
+      "task_name": "irq/17-smp2p-mp",
+      "flags": "d.H3.",
+      "event": "dpu_crtc_vblank_cb",
+      "body": "id=91"
+    },
+    {
+      "relative_to_timeout_ms": 0.051,
+      "task_name": "irq/17-smp2p-mp",
+      "flags": "d.H1.",
+      "event": "irq_handler_exit",
+      "body": "irq=207 ret=handled"
+    },
+    {
+      "relative_to_timeout_ms": 0.053,
+      "task_name": "irq/17-smp2p-mp",
+      "flags": "..s1.",
+      "event": "softirq_entry",
+      "body": "vec=7 [action=SCHED]"
+    },
+    {
+      "relative_to_timeout_ms": 0.057,
+      "task_name": "irq/17-smp2p-mp",
+      "flags": "..s1.",
+      "event": "softirq_exit",
+      "body": "vec=7 [action=SCHED]"
+    },
+    {
+      "relative_to_timeout_ms": 0.058,
+      "task_name": "irq/17-smp2p-mp",
+      "flags": "..s1.",
+      "event": "softirq_entry",
+      "body": "vec=9 [action=RCU]"
+    },
+    {
+      "relative_to_timeout_ms": 0.06,
+      "task_name": "irq/17-smp2p-mp",
+      "flags": "..s1.",
+      "event": "softirq_exit",
+      "body": "vec=9 [action=RCU]"
+    }
+  ]
+}

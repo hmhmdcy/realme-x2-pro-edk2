@@ -1,0 +1,78 @@
+--- a/control-stepper.c
++++ b/control-stepper.c
+@@ -37,6 +37,23 @@
+  }
+  globfree(&names);return ret;
+ }
++/* Strict mode2 checks after configure and again at SOF0. Read-only only. */
++static int verify_mode2(int fd) {
++ struct v4l2_subdev_format f={.which=V4L2_SUBDEV_FORMAT_ACTIVE};
++ struct v4l2_subdev_selection crop={.which=V4L2_SUBDEV_FORMAT_ACTIVE,.target=V4L2_SEL_TGT_CROP};
++ struct v4l2_control h={.id=V4L2_CID_HBLANK},v={.id=V4L2_CID_VBLANK},p={.id=V4L2_CID_TEST_PATTERN};
++ struct v4l2_ext_control rate={.id=V4L2_CID_PIXEL_RATE};
++ struct v4l2_ext_controls rates={.count=1,.controls=&rate};
++ if(call(fd,VIDIOC_SUBDEV_G_FMT,&f)||call(fd,VIDIOC_SUBDEV_G_SELECTION,&crop)||
++    call(fd,VIDIOC_G_CTRL,&h)||call(fd,VIDIOC_G_CTRL,&v)||call(fd,VIDIOC_G_CTRL,&p)||
++    call(fd,VIDIOC_G_EXT_CTRLS,&rates))return -1;
++ if(f.format.width!=4208||f.format.height!=2368||crop.r.left!=0||crop.r.top!=376||
++    crop.r.width!=4208||crop.r.height!=2368||h.value!=640||v.value!=944||
++    rate.value64!=INT64_C(481930000)||p.value)return -1;
++ printf("STEPPER_MODE width=%u height=%u code=%u crop=0,376,4208,2368 hblank=%d vblank=%d pixel_rate=%" PRId64 " test_pattern=%d\n",
++  f.format.width,f.format.height,f.format.code,h.value,v.value,(int64_t)rate.value64,p.value);
++ return 0;
++}
+ struct change {uint32_t sof,id;int32_t value;};
+ static const struct change changes[]={
+  {12,V4L2_CID_EXPOSURE,1200},{36,V4L2_CID_EXPOSURE,500},{60,V4L2_CID_EXPOSURE,1200},
+@@ -46,7 +63,11 @@
+ };
+ int main(int argc,char **argv) {
+  if(argc!=2)return 2;
+- struct utsname identity;if(uname(&identity)||strcmp(identity.release,"7.3.0-rc6-rmx1931-samurai-k298+")||strncmp(identity.version,"#298 ",5))return 3;
++ /* Required inputs come from the frozen outer preflight, never self-uname. */
++ const char *expected_release=getenv("MEASURE_KERNEL_RELEASE");
++ const char *expected_version=getenv("MEASURE_KERNEL_VERSION");
++ if(!expected_release||!*expected_release||!expected_version||!*expected_version)return 2;
++ struct utsname identity;if(uname(&identity)||strcmp(identity.release,expected_release)||strcmp(identity.version,expected_version))return 3;
+  char *end;long ready=strtol(argv[1],&end,10);if(*end||ready<3||ready>1024)return 2;
+  signal(SIGINT,stop_signal);signal(SIGTERM,stop_signal);setvbuf(stdout,NULL,_IOLBF,0);
+  int media=open("/dev/media0",O_RDWR|O_CLOEXEC),sensor=-1,pix=-1,result=1;unsigned applied=0,events=0;
+@@ -62,6 +83,7 @@
+  if(!s.id||!v.id)goto done;
+  char sp[128],vp[128];if(path_for(&s,sp,sizeof(sp))||path_for(&v,vp,sizeof(vp)))goto done;
+  sensor=open(sp,O_RDWR|O_CLOEXEC);pix=open(vp,O_RDWR|O_CLOEXEC|O_NONBLOCK);if(sensor<0||pix<0)goto done;
++ if(verify_mode2(sensor))goto done;
+  struct v4l2_queryctrl exposure={.id=V4L2_CID_EXPOSURE},gain={.id=V4L2_CID_ANALOGUE_GAIN};
+  if(call(sensor,VIDIOC_QUERYCTRL,&exposure)||call(sensor,VIDIOC_QUERYCTRL,&gain)||exposure.minimum>500||exposure.maximum<1200||gain.minimum>64||gain.maximum<128)goto done;
+  if(call(sensor,VIDIOC_G_CTRL,&original[0])||call(sensor,VIDIOC_G_CTRL,&original[1]))goto done;
+@@ -80,6 +102,7 @@
+   printf("STEPPER_SOF sequence=%u pending=%u event_ns=%" PRId64 " observed_ns=%" PRId64 "\n",sof,event.pending,event_ns,ns());
+   if((have&&sof<=previous)||(!have&&sof!=0))goto done;previous=sof;have=true;events++;
+   if(sof==0){
++   if(verify_mode2(sensor))goto done;
+    struct v4l2_control x={.id=V4L2_CID_EXPOSURE},g={.id=V4L2_CID_ANALOGUE_GAIN};
+    if(call(sensor,VIDIOC_G_CTRL,&x)||call(sensor,VIDIOC_G_CTRL,&g)||x.value!=500||g.value!=64)goto done;
+    printf("STEPPER_INITIAL_READBACK exposure=%d gain_code=%d\n",x.value,g.value);
+--- a/delay-capture.cpp
++++ b/delay-capture.cpp
+@@ -189,12 +189,19 @@
+ 		std::cout << "APPLICATION_FAILURE stage=generate" << std::endl;
+ 		return 5;
+ 	}
+-	config->at(0).size = Size(320, 240);
++	/* Keep the small output; pin the physical sensor mode independently. */
++	config->at(0).size = Size(320, 180);
++	SensorConfiguration sensorConfig;
++	sensorConfig.bitDepth = 10;
++	sensorConfig.outputSize = Size(4208, 2368);
++	config->sensorConfig = sensorConfig;
+ 	config->at(0).pixelFormat = formats::NV12;
+ 	if (config->validate() == CameraConfiguration::Invalid) {
+ 		std::cout << "APPLICATION_FAILURE stage=validate" << std::endl;
+ 		return 6;
+ 	}
++	if (config->at(0).size != Size(320, 180) || config->at(0).pixelFormat != formats::NV12)
++		return 6;
+ 	int configured = camera->configure(config.get());
+ 	if (configured) {
+ 		std::cout << "APPLICATION_FAILURE stage=configure error=" << configured << std::endl;

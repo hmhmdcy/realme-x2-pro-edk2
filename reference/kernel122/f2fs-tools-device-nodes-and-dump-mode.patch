@@ -1,0 +1,125 @@
+--- a/fsck/f2fs.h
++++ b/fsck/f2fs.h
+@@ -229,6 +229,7 @@
+ 	nid_t ino;
+ 	nid_t pino;
+ 	u64 from_devino;
++	u32 encoded_rdev;
+ };
+ 
+ /* different from dnode_of_data in kernel */
+--- a/fsck/sload.c
++++ b/fsck/sload.c
+@@ -12,6 +12,7 @@
+  * published by the Free Software Foundation.
+  */
+ #define _GNU_SOURCE
++#include <sys/sysmacros.h>
+ #include "fsck.h"
+ #include <libgen.h>
+ #include <dirent.h>
+@@ -56,6 +57,9 @@
+ 			ret = f2fs_create(sbi, de + i);
+ 		else if (de[i].file_type == F2FS_FT_SYMLINK)
+ 			ret = f2fs_symlink(sbi, de + i);
++		else if (de[i].file_type == F2FS_FT_CHRDEV ||
++			 de[i].file_type == F2FS_FT_BLKDEV)
++			ret = f2fs_create(sbi, de + i);
+ 
+ 		if (ret)
+ 			break;
+@@ -182,6 +186,13 @@
+ 		ASSERT(0);
+ 	}
+ 
++	if (S_ISCHR(stat.st_mode) || S_ISBLK(stat.st_mode)) {
++		u32 maj = major(stat.st_rdev), min = minor(stat.st_rdev);
++		ASSERT(maj <= 0xfff && min <= 0xfffff);
++		/* Linux new_encode_dev(), consumed by F2FS addr[1]. */
++		de->encoded_rdev = (min & 0xff) | (maj << 8) |
++				  ((min & ~0xffU) << 12);
++	}
+ 	de->size = stat.st_size;
+ 	de->mode = stat.st_mode &
+ 			(S_IFMT|S_ISUID|S_ISGID|S_ISVTX|S_IRWXU|S_IRWXG|S_IRWXO);
+@@ -271,6 +282,9 @@
+ 			 * It is already done in f2fs_make_directory
+ 			 * f2fs_make_symlink(sbi, dir_ino, &dentries[i]);
+ 			 */
++		} else if (dentries[i].file_type == F2FS_FT_CHRDEV ||
++			   dentries[i].file_type == F2FS_FT_BLKDEV) {
++			/* Device inode was created without data blocks. */
+ 		} else {
+ 			MSG(1, "Error unknown file type\n");
+ 		}
+--- a/fsck/dir.c
++++ b/fsck/dir.c
+@@ -522,6 +522,9 @@
+ 		size = strlen(de->link);
+ 		if (size + 1 > MAX_INLINE_DATA(node_blk))
+ 			blocks++;
++	} else if (de->file_type == F2FS_FT_CHRDEV ||
++		   de->file_type == F2FS_FT_BLKDEV) {
++		size = 0;
+ 	} else {
+ 		ASSERT(0);
+ 	}
+@@ -557,6 +560,12 @@
+ 		node_blk->i.i_extra_isize = cpu_to_le16(calc_extra_isize());
+ 	}
+ 
++	if (S_ISCHR(mode) || S_ISBLK(mode)) {
++		unsigned int ofs = get_extra_isize(node_blk);
++		node_blk->i.i_addr[ofs] = 0;
++		node_blk->i.i_addr[ofs + 1] = cpu_to_le32(de->encoded_rdev);
++	}
++
+ 	set_file_temperature(sbi, node_blk, de->name);
+ 
+ 	F2FS_NODE_FOOTER(node_blk)->ino = cpu_to_le32(de->ino);
+--- a/fsck/dump.c
++++ b/fsck/dump.c
+@@ -9,6 +9,7 @@
+  * published by the Free Software Foundation.
+  */
+ #include <inttypes.h>
++#include <sys/sysmacros.h>
+ 
+ #include "node.h"
+ #include "fsck.h"
+@@ -664,7 +665,8 @@
+ 		return -1;
+ 	}
+ 
+-	if ((!S_ISREG(imode) && !S_ISLNK(imode) && !(S_ISDIR(imode) && allow_folder))) {
++	if ((!S_ISREG(imode) && !S_ISLNK(imode) && !S_ISCHR(imode) &&
++	     !S_ISBLK(imode) && !(S_ISDIR(imode) && allow_folder))) {
+ 		MSG(force, "Not a valid file type\n\n");
+ 		return -1;
+ 	}
+@@ -723,6 +725,13 @@
+ 			dump_file(sbi, ni, node_blk, name);
+ 		} else if (S_ISDIR(imode)) {
+ 			dump_folder(sbi, ni, node_blk, name, is_root);
++		} else if (S_ISCHR(imode) || S_ISBLK(imode)) {
++			unsigned int ofs = get_extra_isize(node_blk);
++			u32 old = le32_to_cpu(inode->i_addr[ofs]);
++			u32 enc = le32_to_cpu(inode->i_addr[ofs + 1]);
++			u32 maj = old ? (old >> 8) & 0xff : (enc >> 8) & 0xfff;
++			u32 min = old ? old & 0xff : (enc & 0xff) | ((enc >> 12) & 0xfff00);
++			ASSERT(mknod(name, imode, makedev(maj, min)) == 0);
+ 		} else {
+ 			dump_link(sbi, ni, node_blk, name);
+ 		}
+@@ -734,9 +743,10 @@
+ 				name = i_name;
+ 				strncpy(name, ".", 2);
+ 			}
++			/* chown clears setuid/setgid: restore the encoded mode last. */
++			ASSERT(lchown(name, inode->i_uid, inode->i_gid) == 0);
+ 			if (!S_ISLNK(imode))
+ 				ASSERT(chmod(name, imode) == 0);
+-			ASSERT(lchown(name, inode->i_uid, inode->i_gid) == 0);
+ 		}
+ #endif
+ 		if (is_base)

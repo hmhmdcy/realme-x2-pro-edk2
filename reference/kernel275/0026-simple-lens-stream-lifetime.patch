@@ -1,0 +1,100 @@
+Subject: [PATCH] libcamera: simple: scope lens device ownership to streaming
+
+A lens subdevice opened during discovery may keep its regulator enabled for
+the entire CameraManager lifetime. Give CameraLens explicit descriptor lifetime
+operations and release the descriptor after Simple camera discovery. Reopen it
+after sensor streaming has established shared I/O power and close it on every
+normal or failed start/stop path. Existing pipeline handlers retain their
+previous lifetime until they explicitly opt in.
+
+This does not implement an autofocus algorithm or map lens codes to dioptres.
+---
+--- a/include/libcamera/internal/camera_lens.h
++++ b/include/libcamera/internal/camera_lens.h
+@@ -27,6 +27,8 @@
+ 	~CameraLens();
+ 
+ 	int init();
++	int open();
++	void close();
+ 	int setFocusPosition(int32_t position);
+ 
+ 	const std::string &model() const { return model_; }
+--- a/src/libcamera/camera_lens.cpp
++++ b/src/libcamera/camera_lens.cpp
+@@ -77,6 +77,28 @@
+ }
+ 
+ /**
++ * \brief Open the lens subdevice for camera operation
++ *
++ * Opening an already open lens succeeds without acquiring another descriptor.
++ * \return 0 on success or a negative error code otherwise
++ */
++int CameraLens::open()
++{
++	return subdev_->isOpen() ? 0 : subdev_->open();
++}
++
++/**
++ * \brief Close the lens subdevice when camera operation ends
++ *
++ * This permits the kernel lens driver to release its power reference while the
++ * CameraLens instance and its model information remain available.
++ */
++void CameraLens::close()
++{
++	subdev_->close();
++}
++
++/**
+  * \brief This function sets the focal point of the lens to a specific position.
+  * \param[in] position The focal point of the lens
+  *
+--- a/src/libcamera/pipeline/simple/simple.cpp
++++ b/src/libcamera/pipeline/simple/simple.cpp
+@@ -34,6 +34,7 @@
+ 
+ #include "libcamera/internal/camera.h"
+ #include "libcamera/internal/camera_manager.h"
++#include "libcamera/internal/camera_lens.h"
+ #include "libcamera/internal/camera_sensor.h"
+ #include "libcamera/internal/camera_sensor_properties.h"
+ #include "libcamera/internal/converter.h"
+@@ -603,6 +604,10 @@
+ {
+ 	SimplePipelineHandler *pipe = SimpleCameraData::pipe();
+ 	int ret;
++
++	/* Keep discovery separate from the operational lens power lifetime. */
++	if (CameraLens *lens = sensor_->focusLens())
++		lens->close();
+ 
+ 	/* Open the converter, if any. */
+ 	std::shared_ptr<MediaDevice> converter = pipe->converter();
+@@ -1730,6 +1735,15 @@
+ 		return ret;
+ 	}
+ 
++	/* Sensor streaming establishes shared camera I/O supplies first. */
++	if (CameraLens *lens = data->sensor_->focusLens()) {
++		ret = lens->open();
++		if (ret) {
++			stop(camera);
++			return ret;
++		}
++	}
++
+ 	if (data->useConversion_) {
+ 		if (data->converter_)
+ 			ret = data->converter_->start();
+@@ -1777,6 +1791,9 @@
+ 
+ 	data->clearIncompleteRequests();
+ 	data->conversionBuffers_.clear();
++
++	if (CameraLens *lens = data->sensor_->focusLens())
++		lens->close();
+ 
+ 	releasePipeline(data);
+ }

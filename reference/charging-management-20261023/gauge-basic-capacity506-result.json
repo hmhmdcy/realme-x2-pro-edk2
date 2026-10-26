@@ -1,0 +1,109 @@
+{
+  "schema": "samurai-gauge-basic-capacity-word-correspondence-v1",
+  "passed": true,
+  "scope": "Three normal capacity properties: OEM register mapping, actual raw I2C words and Linux units in two real discharging states.",
+  "device_bus": 5,
+  "device_address": 85,
+  "OEM_commit": "23172a1571bd91156032cc9fef16284a82b63d2c",
+  "OEM_C_sha256": "0c4640c85570f1a83ea8db3e82a63d75d9fc2650c71fbbb8c247e471c10b7a87",
+  "OEM_H_sha256": "58c68c362fc031eb73884a59e121ba25918e6728b37572df4116f8e1277e270e",
+  "OEM_source_lines": {
+    "FCC": [
+      306,
+      331
+    ],
+    "remaining_capacity": [
+      1140,
+      1162
+    ],
+    "SOC": [
+      1172,
+      1205
+    ],
+    "register_selection": [
+      1408,
+      1414
+    ]
+  },
+  "properties": {
+    "charge_now": {
+      "register": 16,
+      "raw_unit": "mAh",
+      "Linux_unit": "uAh",
+      "scale": 1000
+    },
+    "charge_full": {
+      "register": 18,
+      "raw_unit": "mAh",
+      "Linux_unit": "uAh",
+      "scale": 1000
+    },
+    "capacity": {
+      "register": 44,
+      "raw_unit": "percent",
+      "Linux_unit": "percent",
+      "scale": 1
+    }
+  },
+  "evidence": [
+    {
+      "capture_sha256": "031dfd9036e64d11ce5d7758cd7de450fb47b721dc9a04044da7187103a47d13",
+      "boottime": 3589.303590118,
+      "raw_words": {
+        "10": {
+          "raw": "5105",
+          "word_le": 1361
+        },
+        "12": {
+          "raw": "5105",
+          "word_le": 1361
+        },
+        "2c": {
+          "raw": "6400",
+          "word_le": 100
+        }
+      },
+      "properties": {
+        "capacity": "100",
+        "charge_now": "1361000",
+        "charge_full": "1361000",
+        "status": "Discharging",
+        "current_now": "-258000"
+      }
+    },
+    {
+      "capture_sha256": "67d7a0a8e9ccdf131c0b80cb2c16304a4f8669531fa1a6d75a8c1943764e026c",
+      "boottime": 5186.004069931,
+      "raw_words": {
+        "10": {
+          "raw": "3b05",
+          "word_le": 1339
+        },
+        "12": {
+          "raw": "5105",
+          "word_le": 1361
+        },
+        "2c": {
+          "raw": "6300",
+          "word_le": 99
+        }
+      },
+      "properties": {
+        "capacity": "99",
+        "charge_now": "1339000",
+        "charge_full": "1361000",
+        "status": "Discharging",
+        "current_now": "-277000"
+      }
+    }
+  ],
+  "initial_RC_equals_FCC_and_native_SOC100": true,
+  "later_RC1339_FCC1361_and_native_SOC99": true,
+  "Linux_values_match_actual_wire": true,
+  "production_or_desktop_changed": false,
+  "new_MAC_diagnostic_commands": false,
+  "calibration_accuracy_verified": false,
+  "exact_2719_status_bit_semantics_verified": false,
+  "physical_precharge_verified": false,
+  "limit": "No percentage derived from voltage or RC/FCC ratio. This verifies register/API correspondence and response, not absolute capacity calibration, all gauge commands or the unfinished precharge test."
+}

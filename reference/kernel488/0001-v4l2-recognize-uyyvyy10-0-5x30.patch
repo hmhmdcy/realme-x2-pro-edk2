@@ -1,0 +1,16 @@
+--- a/src/libcamera/v4l2_subdevice.cpp
++++ b/src/libcamera/v4l2_subdevice.cpp
+@@ -403,6 +403,13 @@
+ 		.code = MEDIA_BUS_FMT_YUV10_1X30,
+ 		.type = MediaBusFormatInfo::Type::Image,
+ 		.bitsPerPixel = 30,
++		.colourEncoding = PixelFormatInfo::ColourEncodingYUV,
++	} },
++	{ MEDIA_BUS_FMT_UYYVYY10_0_5X30, {
++		.name = "UYYVYY10_0_5X30",
++		.code = MEDIA_BUS_FMT_UYYVYY10_0_5X30,
++		.type = MediaBusFormatInfo::Type::Image,
++		.bitsPerPixel = 15,
+ 		.colourEncoding = PixelFormatInfo::ColourEncodingYUV,
+ 	} },
+ 	{ MEDIA_BUS_FMT_AYUV8_1X32, {

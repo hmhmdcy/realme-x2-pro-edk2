@@ -1,0 +1,29 @@
+{
+  "base_path": "reference/charging-session-20261023/thermal-bands-candidate/samurai-mp2650.c",
+  "base_sha256": "ed2e1d4d96ea4f2d55b514288b0e8da1d731864d385944d02a105d41b03a144c",
+  "candidate_sha256": "1c088829ff827cb8015cccafc1a7fc1cad5b519d5a91ba08abdebd1adeb5b4b1",
+  "reverse_four_replacements_exact_base": true,
+  "changes": [
+    {
+      "old": "#include \"charging-notify.h\"\n",
+      "new": "#include \"charging-notify.h\"\n#include \"reattach-observation.h\"\n"
+    },
+    {
+      "old": "\tstruct delayed_work work;\n",
+      "new": "\tstruct delayed_work work;\n\tstruct sm_reattach_observation reattach;\n"
+    },
+    {
+      "old": "\tsource = c->sample.online ? 1 : !ret && c->sample.valid ? 0 : -1;\n",
+      "new": "\tsource = c->sample.online ? 1 : !ret && c->sample.valid ? 0 : -1;\n\tsm_reattach_source(&c->reattach, now, source);\n"
+    },
+    {
+      "old": "\tschedule_delayed_work(&c->work, msecs_to_jiffies(1000));\n",
+      "new": "\tschedule_delayed_work(&c->work, msecs_to_jiffies(\n\t\tsm_reattach_delay_ms(&c->reattach, ktime_get_boottime_ns())));\n"
+    }
+  ],
+  "headers_not_copied": "reuse exact thermal-bands build receipt/R8-source-integration siblings",
+  "notifier_unchanged": true,
+  "sysfs_step_scheduling_unchanged": true,
+  "paused_stop_suspend_resume_remove_unchanged": true,
+  "policy_full_and_hardware_transactions_unchanged": true
+}

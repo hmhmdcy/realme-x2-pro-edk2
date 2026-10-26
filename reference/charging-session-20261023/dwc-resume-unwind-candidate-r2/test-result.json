@@ -1,0 +1,68 @@
+{
+  "passed": true,
+  "summary": {
+    "passed": true,
+    "cases": 7,
+    "safe_gadget_failure_unwind_proved": false,
+    "deployable_patch": false
+  },
+  "phases": [
+    {
+      "phase": "compile",
+      "argv": [
+        "gcc",
+        "-std=c11",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-Wno-unused-function",
+        "-Wno-unused-parameter",
+        "-g",
+        "-O1",
+        "-fsanitize=address,undefined",
+        "-fno-omit-frame-pointer",
+        "-fno-pie",
+        "-no-pie",
+        "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/dwc-resume-unwind-candidate-r2/test-combinations.c",
+        "-o",
+        "/home/cy122/charging-management-20261023/dwc-resume-unwind-r2-test-01/test-combinations"
+      ],
+      "pid": 762,
+      "terminal": true,
+      "returncode": 0,
+      "seconds": 1.1206786969999953,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "phase": "run",
+      "argv": [
+        "/home/cy122/charging-management-20261023/dwc-resume-unwind-r2-test-01/test-combinations"
+      ],
+      "pid": 773,
+      "terminal": true,
+      "returncode": 0,
+      "seconds": 0.02716551700000025,
+      "stdout_sha256": "b1e3e2aac7ef75bd5e48a0186e7934925ff8ee579e337d6928ca3fc43cb17870",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "private_output": "/home/cy122/charging-management-20261023/dwc-resume-unwind-r2-test-01",
+  "original_frozen_sources_unchanged": true,
+  "actual_functions": 17,
+  "new_combined_cases": 7,
+  "safe_gadget_failure_unwind_proved": false,
+  "deployable_patch_generated": false,
+  "boundaries": "fake MMIO/PHY/init/endpoint/IRQ/work/PM APIs; exact extracted gadget/core caller and control bodies",
+  "runtime_PM_status_failure_transition": "explicit adapter from cached actual runtime.c, not whole runtime engine simulation",
+  "old_13_20_24_126_suites_rerun": false,
+  "storage_guard_object_Image_SDK_device_Git_used": false,
+  "files": {
+    "extract.py": "6f11b6490936c061b0db31ef77b4c95e76f2f4829f5e336c98b08cda2d87c17b",
+    "source-result.json": "26cf63b4842b2484d88f8a5f1dd80edd4277722ed3b425c95b63e0c8fda57eb5",
+    "actual-functions.inc": "e18e57c2683a6db3e7b9d6be3cdb0f4df1a65dc7d0e52ee81f7cd60085d1e290",
+    "rejected-diagnostic-functions.inc": "9c33fc254711e41d1e9b473ddfe0725a591b671a84ff121feb41e38f28ae62ab",
+    "test-combinations.c": "7c45795838294ec5403c2dc413506f087973a3409d0e3d217623fe6672e26879",
+    "test-combinations.py": "07abbd3f12c36ffa3d0fa56e52417c9ef03af5939db65d8c1c4ba14f8a943543"
+  }
+}

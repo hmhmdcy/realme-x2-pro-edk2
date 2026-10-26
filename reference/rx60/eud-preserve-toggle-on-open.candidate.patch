@@ -1,0 +1,89 @@
+--- a/src/windows/wdfserial/QCPNP.c
++++ b/src/windows/wdfserial/QCPNP.c
+@@ -1059,12 +1059,47 @@
+     return status;
+ }
+ 
++/* Experimental, opt-in EUD COM quirk. Ordinary file opens must not change
++ * endpoint data toggles if CLEAR_FEATURE does not reset the EUD side.
++ * Device preparation and all recovery resets retain their existing behavior.
++ * This is a candidate for hardware validation, not a measured repair.
++ */
++static BOOLEAN QCPNP_EudPreserveToggleOnOpen(PDEVICE_CONTEXT pDevContext)
++{
++    USB_DEVICE_DESCRIPTOR descriptor;
++    WDFKEY key;
++    ULONG enabled = 0;
++    NTSTATUS status;
++    DECLARE_CONST_UNICODE_STRING(valueName, L"QCEudPreserveToggleOnOpen");
++
++    if (pDevContext->UsbDevice == NULL)
++    {
++        return FALSE;
++    }
++    WdfUsbTargetDeviceGetDeviceDescriptor(pDevContext->UsbDevice, &descriptor);
++    if (descriptor.idVendor != 0x05c6 || descriptor.idProduct != 0x9505)
++    {
++        return FALSE;
++    }
++    status = WdfDeviceOpenRegistryKey(pDevContext->Device,
++                                    PLUGPLAY_REGKEY_DRIVER, KEY_QUERY_VALUE,
++                                    WDF_NO_OBJECT_ATTRIBUTES, &key);
++    if (!NT_SUCCESS(status))
++    {
++        return FALSE;
++    }
++    status = WdfRegistryQueryULong(key, &valueName, &enabled);
++    WdfRegistryClose(key);
++    return NT_SUCCESS(status) && enabled == 1;
++}
++
+ /****************************************************************************
+  *
+  * function: QCPNP_EvtFileCreate
+  *
+- * purpose:  WDF callback for file create requests. Resets the bulk USB
+- *           pipes, clears DTR/RTS, and signals the read thread to start.
++ * purpose:  WDF callback for file create requests. Normally resets bulk USB
++ *           pipes; an opt-in EUD COM quirk preserves data toggles. Clears
++ *           DTR/RTS and signals the read thread to start.
+  *
+  * arguments:Device     = handle to the WDF device object.
+  *           Request    = handle to the file create request.
+@@ -1082,6 +1117,7 @@
+ {
+     PDEVICE_CONTEXT pDevContext = QCDevGetContext(Device);
+     NTSTATUS        status = STATUS_SUCCESS;
++    BOOLEAN         preserveToggle = FALSE;
+ 
+     QCSER_DbgPrint
+     (
+@@ -1101,7 +1137,18 @@
+     status = WdfDeviceStopIdle(pDevContext->Device, TRUE);     // unblocking call, return immediately
+     if (status == STATUS_PENDING || status == STATUS_SUCCESS)   // otherwise, the device may fails
+     {
+-        for (int i = 0; i < QCSER_RESET_RETRIES; i++)
++        preserveToggle = QCPNP_EudPreserveToggleOnOpen(pDevContext);
++        if (preserveToggle)
++        {
++            status = STATUS_SUCCESS;
++            QCSER_DbgPrint
++            (
++                QCSER_DBG_MASK_CIRP,
++                QCSER_DBG_LEVEL_TRACE,
++                ("<%ws> QCPNP_EvtFileCreate preserving EUD COM data toggles\n", pDevContext->PortName)
++            );
++        }
++        for (int i = 0; !preserveToggle && i < QCSER_RESET_RETRIES; i++)
+         {
+             status = QCPNP_ResetUsbPipe(pDevContext, pDevContext->BulkIN, 500);
+             if (!NT_SUCCESS(status))
+@@ -1128,7 +1175,7 @@
+                 break;
+             }
+         }
+-        for (int i = 0; i < QCSER_RESET_RETRIES; i++)
++        for (int i = 0; !preserveToggle && i < QCSER_RESET_RETRIES; i++)
+         {
+             status = QCPNP_ResetUsbPipe(pDevContext, pDevContext->BulkOUT, 500);
+             if (!NT_SUCCESS(status))

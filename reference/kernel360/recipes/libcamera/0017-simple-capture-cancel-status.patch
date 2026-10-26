@@ -1,0 +1,31 @@
+Subject: [PATCH] simple: propagate capture cancellation to output buffers
+
+When stream-off cancels an internal capture buffer, its unprocessed user
+outputs must be cancelled too. Preserve the capture error/cancellation
+status when completing them so a stopped request is not reported as a
+successful frame without metadata or processed pixels.
+
+---
+diff --git a/src/libcamera/pipeline/simple/simple.cpp b/src/libcamera/pipeline/simple/simple.cpp
+--- a/src/libcamera/pipeline/simple/simple.cpp
++++ b/src/libcamera/pipeline/simple/simple.cpp
+@@ -40,6 +40,7 @@
+ #include "libcamera/internal/delayed_controls.h"
+ #include "libcamera/internal/device_enumerator.h"
+ #include "libcamera/internal/formats.h"
++#include "libcamera/internal/framebuffer.h"
+ #include "libcamera/internal/global_configuration.h"
+ #include "libcamera/internal/media_device.h"
+ #include "libcamera/internal/pipeline_handler.h"
+@@ -913,8 +914,10 @@
+ 			return;
+ 
+ 		const RequestOutputs &outputs = conversionQueue_.front();
+-		for (auto &[stream, buf] : outputs.outputs)
++		for (auto &[stream, buf] : outputs.outputs) {
++			buf->_d()->metadata().status = buffer->metadata().status;
+ 			pipe->completeBuffer(outputs.request, buf);
++		}
+ 		SimpleFrameInfo *info = frameInfo_.find(outputs.request->sequence());
+ 		if (info)
+ 			info->metadataRequired = false;

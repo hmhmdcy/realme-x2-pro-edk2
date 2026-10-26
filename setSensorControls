@@ -1,0 +1,224 @@
+627-	 * Instantiate Soft ISP if this is enabled for the given driver and no converter is used.
+628-	 */
+629-	if (!converter_ && pipe->swIspEnabled()) {
+630-		swIsp_ = std::make_unique<SoftwareIsp>(pipe, sensor_.get(), &controlInfo_);
+631:		if (!swIsp_->isValid()) {
+632-			LOG(SimplePipeline, Warning)
+633-				<< "Failed to create software ISP, disabling software debayering";
+634-			swIsp_.reset();
+635-		} else {
+636:			swIsp_->inputBufferReady.connect(this, &SimpleCameraData::conversionInputDone);
+637:			swIsp_->outputBufferReady.connect(this, &SimpleCameraData::conversionOutputDone);
+638:			swIsp_->ispStatsReady.connect(this, &SimpleCameraData::ispStatsReady);
+639:			swIsp_->metadataReady.connect(this, &SimpleCameraData::metadataReady);
+640:			swIsp_->setSensorControls.connect(this, &SimpleCameraData::setSensorControls);
+641-		}
+642-	}
+643-
+644-	video_ = pipe->video(entities_.back().entity);
+645-	ASSERT(video_);
+646-
+647-	/*
+648-	 * Setup links first as some subdev drivers take active links into
+649-	 * account to propagate TRY formats. Such is life :-(
+650-	 */
+651-	ret = setupLinks();
+652-	if (ret < 0)
+--
+753-		if (converter_) {
+754-			config.outputFormats = converter_->formats(pixelFormat);
+755-			config.outputSizes = converter_->sizes(format.size);
+756-		} else if (swIsp_) {
+757:			config.outputFormats = swIsp_->formats(pixelFormat);
+758:			config.outputSizes = swIsp_->sizes(pixelFormat, format.size);
+759-			if (config.outputFormats.empty()) {
+760-				/* Do not use swIsp for unsupported pixelFormat's. */
+761-				config.outputFormats = { pixelFormat };
+762-				config.outputSizes = config.captureSize;
+763-			}
+764-		} else {
+765-			config.outputFormats = { pixelFormat };
+766-			config.outputSizes = config.captureSize;
+767-		}
+768-
+769-		configs_.push_back(config);
+770-	}
+--
+982-				<< " from sequence " << buffer->metadata().sequence
+983-				<< ", control sequence " << sequence;
+984-
+985-			/* The software ISP frame context remains keyed by request. */
+986:			swIsp_->queueBuffers(request->sequence(), buffer,
+987-					     conversionQueue_.front().outputs);
+988-		}
+989-
+990-		conversionQueue_.pop();
+991-		return;
+992-	}
+993-
+994-	/* Otherwise simply complete the request. */
+995-	pipe->completeBuffer(request, buffer);
+996-	tryCompleteRequest(request);
+997-}
+998-
+--
+1059-	if (!info)
+1060-		return;
+1061-
+1062-	ASSERT(info->sensorControls.has_value());
+1063:	swIsp_->processStats(frame, bufferId, *info->sensorControls, info->sensorControlSource);
+1064-}
+1065-
+1066-void SimpleCameraData::metadataReady(uint32_t frame, const ControlList &metadata)
+1067-{
+1068-	SimpleFrameInfo *info = frameInfo_.find(frame);
+1069-	if (!info)
+1070-		return;
+1071-
+1072-	info->request->_d()->metadata().merge(metadata);
+1073-	info->metadataProcessed = true;
+1074-	tryCompleteRequest(info->request);
+1075-}
+--
+1394-			std::tie(cfg.stride, cfg.frameSize) =
+1395-				data_->converter_
+1396-					? data_->converter_->strideAndFrameSize(cfg.pixelFormat,
+1397-										cfg.size)
+1398:					: data_->swIsp_->strideAndFrameSize(cfg.pixelFormat,
+1399-									    cfg.size);
+1400-			if (cfg.stride == 0)
+1401-				return Invalid;
+1402-		} else {
+1403-			V4L2DeviceFormat format;
+1404-			format.fourcc = data_->video_->toV4L2PixelFormat(cfg.pixelFormat);
+1405-			format.size = cfg.size;
+1406-
+1407-			int ret = data_->video_->tryFormat(&format);
+1408-			if (ret < 0)
+1409-				return Invalid;
+1410-
+--
+1576-	captureFormat.size = pipeConfig->captureSize;
+1577-
+1578-	uint32_t requested_bpl = 0;
+1579-	if (data->swIsp_)
+1580:		requested_bpl = data->swIsp_->preferredInputStride(videoFormat.toPixelFormat(), pipeConfig->captureSize);
+1581-	captureFormat.planes[0].bpl = requested_bpl;
+1582-
+1583-	ret = video->setFormat(&captureFormat);
+1584-	if (ret)
+1585-		return ret;
+1586-
+1587-	if (captureFormat.planesCount != 1) {
+1588-		LOG(SimplePipeline, Error)
+1589-			<< "Planar formats using non-contiguous memory not supported";
+1590-		return -EINVAL;
+1591-	}
+1592-
+--
+1625-	}
+1626-
+1627-	if (outputCfgs.empty()) {
+1628-		if (!data->rawStream_ || !data->swIsp_ ||
+1629:		    !data->swIsp_->supportsInputStatsOnly())
+1630-			return 0;
+1631-		data->useConversion_ = true;
+1632-	}
+1633-
+1634-	StreamConfiguration inputCfg;
+1635-	inputCfg.pixelFormat = videoFormat.toPixelFormat();
+1636-	inputCfg.size = pipeConfig->captureSize;
+1637-	inputCfg.stride = captureFormat.planes[0].bpl;
+1638-	inputCfg.bufferCount = kNumInternalBuffers;
+1639-
+1640-	if (data->converter_) {
+1641-		return data->converter_->configure(inputCfg, outputCfgs);
+--
+1644-		ret = data->sensor_->sensorInfo(&configInfo.sensorInfo);
+1645-		if (ret)
+1646-			return ret;
+1647-		configInfo.sensorControls = data->sensor_->controls();
+1648:		return data->swIsp_->configure(inputCfg, outputCfgs, configInfo, &data->controlInfo_);
+1649-	}
+1650-}
+1651-
+1652-int SimplePipelineHandler::exportFrameBuffers(Camera *camera, Stream *stream,
+1653-					      std::vector<std::unique_ptr<FrameBuffer>> *buffers)
+1654-{
+1655-	SimpleCameraData *data = cameraData(camera);
+1656-	unsigned int count = stream->configuration().bufferCount;
+1657-
+1658-	/*
+1659-	 * Export buffers on the converter or capture video node, depending on
+1660-	 * whether the converter is used or not.
+1661-	 */
+1662-	if (data->useConversion_ && stream != data->rawStream_)
+1663-		return data->converter_
+1664-			       ? data->converter_->exportBuffers(stream, count, buffers)
+1665:			       : data->swIsp_->exportBuffers(stream, count, buffers);
+1666-	else
+1667-		return data->video_->exportBuffers(count, buffers);
+1668-}
+1669-
+1670-int SimplePipelineHandler::start(Camera *camera, const ControlList *controls)
+1671-{
+1672-	SimpleCameraData *data = cameraData(camera);
+1673-	V4L2VideoDevice *video = data->video_;
+1674-	V4L2Subdevice *frameStartEmitter = data->frameStartEmitter_;
+1675-	int ret;
+1676-
+1677-	const MediaPad *pad = acquirePipeline(data);
+--
+1707-	uint32_t initialSource = 0;
+1708-	if (data->useConversion_ && data->swIsp_) {
+1709-		ControlList sensorControls;
+1710-		ControlList emptyControls(libcamera::controls::controls);
+1711:		ret = data->swIsp_->start(controls ? *controls : emptyControls,
+1712-					&sensorControls, &initialSource);
+1713-		if (!ret)
+1714-			ret = data->sensor_->setControls(&sensorControls);
+1715-		if (ret) {
+1716-			stop(camera);
+1717-			return ret < 0 ? ret : -EINVAL;
+1718-		}
+1719-	}
+1720-	/* Seed both values and their source before the first SOF can arrive. */
+1721-	data->delayedCtrls_->reset(initialSource);
+1722-	if (frameStartEmitter) {
+1723-		ret = frameStartEmitter->setFrameStartEnabled(true);
+--
+1780-	if (data->useConversion_) {
+1781-		if (data->converter_)
+1782-			data->converter_->stop();
+1783-		else if (data->swIsp_)
+1784:			data->swIsp_->stop();
+1785-	}
+1786-
+1787-	video->streamOff();
+1788-	video->releaseBuffers();
+1789-
+1790-	video->bufferReady.disconnect(data, &SimpleCameraData::imageBufferReady);
+1791-
+1792-	data->clearIncompleteRequests();
+1793-	data->conversionBuffers_.clear();
+1794-
+1795-	if (CameraLens *lens = data->sensor_->focusLens())
+1796-		lens->close();
+--
+1825-	data->frameInfo_.create(request, metadataRequired);
+1826-	if (data->useConversion_) {
+1827-		data->conversionQueue_.push({ request, std::move(buffers) });
+1828-		if (data->swIsp_)
+1829:			data->swIsp_->queueRequest(request->sequence(), request->controls());
+1830-	}
+1831-
+1832-	return 0;
+1833-}
+1834-
+1835-/* -----------------------------------------------------------------------------
+1836- * Match and Setup
+1837- */
+1838-
+1839-std::vector<MediaEntity *>
+1840-SimplePipelineHandler::locateSensors(MediaDevice *media)
+1841-{

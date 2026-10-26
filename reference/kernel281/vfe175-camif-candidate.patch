@@ -1,0 +1,355 @@
+diff --git a/drivers/media/platform/qcom/camss/Makefile b/drivers/media/platform/qcom/camss/Makefile
+index 5ee653cc3..337e171a9 100644
+--- a/drivers/media/platform/qcom/camss/Makefile
++++ b/drivers/media/platform/qcom/camss/Makefile
+@@ -23,6 +23,7 @@ qcom-camss-objs += \
+ 		camss-vfe-4-7.o \
+ 		camss-vfe-4-8.o \
+ 		camss-vfe-17x.o \
++		camss-vfe-175-camif.o \
+ 		camss-vfe-340.o \
+ 		camss-vfe-480.o \
+ 		camss-vfe-680.o \
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe-175-camif.c b/drivers/media/platform/qcom/camss/camss-vfe-175-camif.c
+new file mode 100644
+index 000000000..636eb9c3f
+--- /dev/null
++++ b/drivers/media/platform/qcom/camss/camss-vfe-175-camif.c
+@@ -0,0 +1,114 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/* Qualcomm SM8150 full VFE175 CAMIF pixel input configuration. */
++
++#include <linux/bitfield.h>
++#include <linux/io.h>
++#include <linux/media-bus-format.h>
++
++#include "camss.h"
++#include "camss-vfe.h"
++#include "camss-vfe-175-camif.h"
++
++#define VFE_175_CORE_CFG                     0x050
++#define VFE_175_CORE_PIXEL_PATTERN           GENMASK(2, 0)
++#define VFE_175_CORE_DSP_ENABLE              BIT(3)
++#define VFE_175_CORE_EXTERNAL_UPDATE         BIT(4)
++#define VFE_175_CORE_INPUT_MUX               GENMASK(6, 5)
++#define VFE_175_CORE_DSP_MODE                BIT(23)
++
++#define VFE_175_CAMIF_CMD                    0x478
++#define VFE_175_CAMIF_CLEAR_STATUS           BIT(2)
++#define VFE_175_CAMIF_CONFIG                 0x47c
++#define VFE_175_CAMIF_VFE_OUTPUT             BIT(6)
++#define VFE_175_CAMIF_BUS_OUTPUT             BIT(7)
++#define VFE_175_CAMIF_RAW_CROP               BIT(22)
++#define VFE_175_CAMIF_LINE_SKIP              0x488
++#define VFE_175_CAMIF_PIXEL_SKIP             0x48c
++#define VFE_175_CAMIF_SKIP_PERIOD            0x490
++#define VFE_175_CAMIF_IRQ_SUBSAMPLE           0x49c
++#define VFE_175_CAMIF_EPOCH                  0x4a0
++#define VFE_175_RAW_CROP_WIDTH               0xce4
++#define VFE_175_RAW_CROP_HEIGHT              0xce8
++#define VFE_175_RAW_CROP_LAST                GENMASK(13, 0)
++
++/* The full IFE accepts decoded Bayer samples, not the packed RDI payload. */
++static int vfe_175_bayer_pattern(u32 code)
++{
++	switch (code) {
++	case MEDIA_BUS_FMT_SRGGB8_1X8:
++	case MEDIA_BUS_FMT_SRGGB10_1X10:
++	case MEDIA_BUS_FMT_SRGGB12_1X12:
++	case MEDIA_BUS_FMT_SRGGB14_1X14:
++		return 0;
++	case MEDIA_BUS_FMT_SGRBG8_1X8:
++	case MEDIA_BUS_FMT_SGRBG10_1X10:
++	case MEDIA_BUS_FMT_SGRBG12_1X12:
++	case MEDIA_BUS_FMT_SGRBG14_1X14:
++		return 1;
++	case MEDIA_BUS_FMT_SBGGR8_1X8:
++	case MEDIA_BUS_FMT_SBGGR10_1X10:
++	case MEDIA_BUS_FMT_SBGGR12_1X12:
++	case MEDIA_BUS_FMT_SBGGR14_1X14:
++		return 2;
++	case MEDIA_BUS_FMT_SGBRG8_1X8:
++	case MEDIA_BUS_FMT_SGBRG10_1X10:
++	case MEDIA_BUS_FMT_SGBRG12_1X12:
++	case MEDIA_BUS_FMT_SGBRG14_1X14:
++		return 3;
++	default:
++		return -EINVAL;
++	}
++}
++
++int vfe_175_camif_prepare(struct vfe_line *line)
++{
++	struct vfe_device *vfe = to_vfe(line);
++	const struct v4l2_mbus_framefmt *input = &line->fmt[MSM_VFE_PAD_SINK];
++	u32 core, last_pixel, last_line;
++	int pattern;
++
++	/* RDI register programming remains entirely in the shared 17x backend. */
++	if (!line->is_pix)
++		return 0;
++	if (vfe->res->is_lite || vfe->camss->res->version != CAMSS_8150)
++		return -EINVAL;
++
++	pattern = vfe_175_bayer_pattern(input->code);
++	if (pattern < 0)
++		return pattern;
++	if (!input->width || !input->height ||
++	    input->width - 1 > FIELD_MAX(VFE_175_RAW_CROP_LAST) ||
++	    input->height - 1 > FIELD_MAX(VFE_175_RAW_CROP_LAST))
++		return -EINVAL;
++
++	last_pixel = input->width - 1;
++	last_line = input->height - 1;
++
++	/* Single-IFE CSID input; preserve core fields owned by other paths. */
++	core = readl_relaxed(vfe->base + VFE_175_CORE_CFG);
++	core &= ~(VFE_175_CORE_PIXEL_PATTERN | VFE_175_CORE_DSP_ENABLE |
++		  VFE_175_CORE_EXTERNAL_UPDATE | VFE_175_CORE_INPUT_MUX |
++		  VFE_175_CORE_DSP_MODE);
++	core |= FIELD_PREP(VFE_175_CORE_PIXEL_PATTERN, pattern);
++	writel_relaxed(core, vfe->base + VFE_175_CORE_CFG);
++
++	writel_relaxed(VFE_175_CAMIF_CLEAR_STATUS,
++		       vfe->base + VFE_175_CAMIF_CMD);
++	writel_relaxed(VFE_175_CAMIF_VFE_OUTPUT | VFE_175_CAMIF_BUS_OUTPUT |
++		       VFE_175_CAMIF_RAW_CROP, vfe->base + VFE_175_CAMIF_CONFIG);
++
++	/* Sixteen accepted lines/pixels, no dropped frames or IRQ subsampling. */
++	writel_relaxed(0xffff, vfe->base + VFE_175_CAMIF_LINE_SKIP);
++	writel_relaxed(0xffff, vfe->base + VFE_175_CAMIF_PIXEL_SKIP);
++	writel_relaxed(0x0f0f, vfe->base + VFE_175_CAMIF_SKIP_PERIOD);
++	writel_relaxed(1, vfe->base + VFE_175_CAMIF_IRQ_SUBSAMPLE);
++
++	/* Full decoded frame; output crop/scaling belongs to the pixel modules. */
++	writel_relaxed(last_pixel, vfe->base + VFE_175_RAW_CROP_WIDTH);
++	writel_relaxed(last_line, vfe->base + VFE_175_RAW_CROP_HEIGHT);
++	writel_relaxed((last_line / 2) << 16 | min_t(u32, last_line, 20),
++		       vfe->base + VFE_175_CAMIF_EPOCH);
++
++	/* The caller must arm processing/outputs before issuing PIX reg update. */
++	return 0;
++}
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe-175-camif.h b/drivers/media/platform/qcom/camss/camss-vfe-175-camif.h
+new file mode 100644
+index 000000000..a657faae9
+--- /dev/null
++++ b/drivers/media/platform/qcom/camss/camss-vfe-175-camif.h
+@@ -0,0 +1,9 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++#ifndef CAMSS_VFE_175_CAMIF_H
++#define CAMSS_VFE_175_CAMIF_H
++
++struct vfe_line;
++
++int vfe_175_camif_prepare(struct vfe_line *line);
++
++#endif /* CAMSS_VFE_175_CAMIF_H */
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe-17x.c b/drivers/media/platform/qcom/camss/camss-vfe-17x.c
+index 6844c24a9..f28eb08b1 100644
+--- a/drivers/media/platform/qcom/camss/camss-vfe-17x.c
++++ b/drivers/media/platform/qcom/camss/camss-vfe-17x.c
+@@ -15,6 +15,7 @@
+ 
+ #include "camss.h"
+ #include "camss-vfe.h"
++#include "camss-vfe-175-camif.h"
+ 
+ #define VFE_GLOBAL_RESET_CMD			(0x018)
+ #define		GLOBAL_RESET_CMD_CORE		BIT(0)
+@@ -64,6 +65,7 @@
+ 
+ #define VFE_IRQ_STATUS_0				(0x06c)
+ #define		STATUS_0_CAMIF_SOF			BIT(0)
++#define		STATUS_0_CAMIF_REG_UPDATE		BIT(4)
+ #define		STATUS_0_RDI_REG_UPDATE(n)		BIT((n) + 5)
+ #define		STATUS_0_IMAGE_MASTER_PING_PONG(n)	BIT((n) + 8)
+ #define		STATUS_0_IMAGE_COMPOSITE_DONE(n)	BIT((n) + 25)
+@@ -266,9 +268,15 @@ static void vfe_wm_update(struct vfe_device *vfe, u8 wm, u32 addr,
+ 	writel_relaxed(stride * pix->height, vfe->base + VFE_BUS_WM_FRAME_INC(wm));
+ }
+ 
++static u32 vfe_reg_update_mask(struct vfe_device *vfe,
++			       enum vfe_line_id line_id)
++{
++	return vfe->line[line_id].is_pix ? BIT(0) : REG_UPDATE_RDI(line_id);
++}
++
+ static void vfe_reg_update(struct vfe_device *vfe, enum vfe_line_id line_id)
+ {
+-	vfe->reg_update |= REG_UPDATE_RDI(line_id);
++	vfe->reg_update |= vfe_reg_update_mask(vfe, line_id);
+ 
+ 	/* Enforce ordering between previous reg writes and reg update */
+ 	wmb();
+@@ -282,7 +290,7 @@ static void vfe_reg_update(struct vfe_device *vfe, enum vfe_line_id line_id)
+ static inline void vfe_reg_update_clear(struct vfe_device *vfe,
+ 					enum vfe_line_id line_id)
+ {
+-	vfe->reg_update &= ~REG_UPDATE_RDI(line_id);
++	vfe->reg_update &= ~vfe_reg_update_mask(vfe, line_id);
+ }
+ 
+ static void vfe_enable_irq_common(struct vfe_device *vfe)
+@@ -353,13 +361,17 @@ static irqreturn_t vfe_isr(int irq, void *dev)
+ 	if (status0 & STATUS_0_RESET_ACK)
+ 		vfe->isr_ops.reset_ack(vfe);
+ 
+-	for (i = VFE_LINE_RDI0; i < vfe->res->line_num; i++)
+-		if (status0 & STATUS_0_RDI_REG_UPDATE(i))
+-			vfe->isr_ops.reg_update(vfe, i);
++	for (i = VFE_LINE_RDI0; i < vfe->res->line_num; i++) {
++		u32 update = vfe->line[i].is_pix ? STATUS_0_CAMIF_REG_UPDATE :
++						STATUS_0_RDI_REG_UPDATE(i);
++		u32 sof = vfe->line[i].is_pix ? STATUS_0_CAMIF_SOF :
++					     STATUS_1_RDI_SOF(i);
+ 
+-	for (i = VFE_LINE_RDI0; i < vfe->res->line_num; i++)
+-		if (status0 & STATUS_1_RDI_SOF(i))
++		if (status0 & update)
++			vfe->isr_ops.reg_update(vfe, i);
++		if (status0 & sof)
+ 			vfe->isr_ops.sof(vfe, i);
++	}
+ 
+ 	for (i = 0; i < MSM_VFE_COMPOSITE_IRQ_NUM; i++)
+ 		if (vfe_bus_status[0] & STATUS0_COMP_BUF_DONE(i))
+@@ -410,6 +422,12 @@ static int vfe_enable(struct vfe_line *line)
+ 	if (ret < 0)
+ 		goto error_get_output;
+ 
++	if (vfe->res->hw_ops->vfe_line_prepare) {
++		ret = vfe->res->hw_ops->vfe_line_prepare(line);
++		if (ret)
++			goto error_enable_output;
++	}
++
+ 	ret = vfe_enable_output_v2(line);
+ 	if (ret < 0)
+ 		goto error_enable_output;
+@@ -596,3 +614,24 @@ const struct vfe_hw_ops vfe_ops_170 = {
+ 	.vfe_wm_stop = vfe_wm_stop,
+ 	.vfe_wm_update = vfe_wm_update,
+ };
++
++/* SM8150 full IFE: shared RDI transport, matched CAMIF preparation. */
++const struct vfe_hw_ops vfe_ops_175 = {
++	.vfe_line_prepare = vfe_175_camif_prepare,
++	.global_reset = vfe_global_reset,
++	.hw_version = vfe_hw_version,
++	.isr_read = vfe_isr_read,
++	.isr = vfe_isr,
++	.pm_domain_off = vfe_pm_domain_off,
++	.pm_domain_on = vfe_pm_domain_on,
++	.reg_update_clear = vfe_reg_update_clear,
++	.reg_update = vfe_reg_update,
++	.subdev_init = vfe_subdev_init,
++	.vfe_disable = vfe_disable,
++	.vfe_enable = vfe_enable,
++	.vfe_halt = vfe_halt,
++	.violation_read = vfe_violation_read,
++	.vfe_wm_start = vfe_wm_start,
++	.vfe_wm_stop = vfe_wm_stop,
++	.vfe_wm_update = vfe_wm_update,
++};
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe-780.c b/drivers/media/platform/qcom/camss/camss-vfe-780.c
+index 0f05532f2..3111c9996 100644
+--- a/drivers/media/platform/qcom/camss/camss-vfe-780.c
++++ b/drivers/media/platform/qcom/camss/camss-vfe-780.c
+@@ -236,12 +236,14 @@ static inline void vfe_reg_update_clear(struct vfe_device *vfe,
+  * Program the pixel pipe outside output_lock, before the write masters and
+  * the IPP reg update that latches both.
+  */
+-static void vfe_line_prepare(struct vfe_line *line)
++static int vfe_line_prepare(struct vfe_line *line)
+ {
+ 	struct v4l2_pix_format_mplane *pix = &line->output[0].video_out.active_fmt.fmt.pix_mp;
+ 
+ 	if (line->is_pix && pix->pixelformat == V4L2_PIX_FMT_NV12)
+ 		vfe_880_setup_pixel_pipe(to_vfe(line), pix->width, pix->height);
++
++	return 0;
+ }
+ 
+ static const struct camss_video_ops vfe_video_ops_780 = {
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe.c b/drivers/media/platform/qcom/camss/camss-vfe.c
+index 044ab64b5..fd5f96789 100644
+--- a/drivers/media/platform/qcom/camss/camss-vfe.c
++++ b/drivers/media/platform/qcom/camss/camss-vfe.c
+@@ -1044,8 +1044,11 @@ int vfe_enable_v2(struct vfe_line *line)
+ 	if (ret < 0)
+ 		goto error_get_output;
+ 
+-	if (ops->vfe_line_prepare)
+-		ops->vfe_line_prepare(line);
++	if (ops->vfe_line_prepare) {
++		ret = ops->vfe_line_prepare(line);
++		if (ret)
++			goto error_enable_output;
++	}
+ 
+ 	/* queued parameters override the defaults the line starts with */
+ 	if (line->is_pix)
+@@ -2502,7 +2505,8 @@ static int vfe_subscribe_event(struct v4l2_subdev *sd, struct v4l2_fh *fh,
+ 	struct vfe_device *vfe = to_vfe(line);
+ 
+ 	if (vfe->camss->res->version != CAMSS_8150 ||
+-	    vfe->res->hw_ops != &vfe_ops_170 ||
++	    (vfe->res->hw_ops != &vfe_ops_170 &&
++	     vfe->res->hw_ops != &vfe_ops_175) ||
+ 	    sub->type != V4L2_EVENT_FRAME_SYNC || sub->id)
+ 		return -EINVAL;
+ 
+@@ -2733,7 +2737,8 @@ int msm_vfe_register_entities(struct vfe_device *vfe,
+ 		sd->internal_ops = &vfe_v4l2_internal_ops;
+ 		sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
+ 		if (vfe->camss->res->version == CAMSS_8150 &&
+-		    vfe->res->hw_ops == &vfe_ops_170)
++		    (vfe->res->hw_ops == &vfe_ops_170 ||
++		     vfe->res->hw_ops == &vfe_ops_175))
+ 			sd->flags |= V4L2_SUBDEV_FL_HAS_EVENTS;
+ 		if (vfe->line[i].is_pix)
+ 			snprintf(sd->name, ARRAY_SIZE(sd->name), "%s%d_%s",
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe.h b/drivers/media/platform/qcom/camss/camss-vfe.h
+index ba1cb121e..a2d5d2c18 100644
+--- a/drivers/media/platform/qcom/camss/camss-vfe.h
++++ b/drivers/media/platform/qcom/camss/camss-vfe.h
+@@ -205,7 +205,7 @@ struct vfe_hw_ops {
+ 	 * reserved, outside output_lock. Runs before vfe_wm_start() and the
+ 	 * reg update that latches it.
+ 	 */
+-	void (*vfe_line_prepare)(struct vfe_line *line);
++	int (*vfe_line_prepare)(struct vfe_line *line);
+ 
+ 	/*
+ 	 * Optional: the parameters blocks the pixel line accepts, indexed by
+@@ -349,6 +349,7 @@ extern const struct vfe_hw_ops vfe_ops_4_1;
+ extern const struct vfe_hw_ops vfe_ops_4_7;
+ extern const struct vfe_hw_ops vfe_ops_4_8;
+ extern const struct vfe_hw_ops vfe_ops_170;
++extern const struct vfe_hw_ops vfe_ops_175;
+ extern const struct vfe_hw_ops vfe_ops_340;
+ extern const struct vfe_hw_ops vfe_ops_480;
+ extern const struct vfe_hw_ops vfe_ops_680;
+diff --git a/drivers/media/platform/qcom/camss/camss.c b/drivers/media/platform/qcom/camss/camss.c
+index c114b84a7..4b08b977c 100644
+--- a/drivers/media/platform/qcom/camss/camss.c
++++ b/drivers/media/platform/qcom/camss/camss.c
+@@ -2123,7 +2123,7 @@ static const struct camss_subdev_resources vfe_res_8150[] = {
+ 			.line_num = 3,
+ 			.pd_name = "ife0",
+ 			.has_pd = true,
+-			.hw_ops = &vfe_ops_170,
++			.hw_ops = &vfe_ops_175,
+ 			.formats_rdi = &vfe_formats_rdi_845,
+ 			.formats_pix = &vfe_formats_rdi_845
+ 		}
+@@ -2152,7 +2152,7 @@ static const struct camss_subdev_resources vfe_res_8150[] = {
+ 			.line_num = 3,
+ 			.pd_name = "ife1",
+ 			.has_pd = true,
+-			.hw_ops = &vfe_ops_170,
++			.hw_ops = &vfe_ops_175,
+ 			.formats_rdi = &vfe_formats_rdi_845,
+ 			.formats_pix = &vfe_formats_rdi_845
+ 		}

@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: CC0-1.0
+# Device/module data; this is an initial contrast-AF profile, not distance calibration.
+%YAML 1.1
+---
+version: 1
+autofocus:
+  lens: lc898219xi
+  # OEM tuned initial code208 + region extent718; checked against driver limits.
+  minimumCode: 208
+  maximumCode: 926
+  coarseStep: 96
+  fineStep: 16
+  samples: 3
+  settleMs: 100
+  timeoutMs: 120000
+  minimumPeak: 100
+  peakRatio: 1.15
+  verifyRatio: 0.75
+algorithms:
+  - BlackLevel:
+  - Awb:
+  - Adjust:
+  - Agc:
+...

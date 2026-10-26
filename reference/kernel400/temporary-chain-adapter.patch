@@ -1,0 +1,58 @@
+--- a/drivers/media/platform/qcom/camss/camss-icp-a5-m2m.c
++++ b/drivers/media/platform/qcom/camss/camss-icp-a5-m2m.c
+@@ -20,6 +20,43 @@
+ #include "camss-icp-a5-m2m.h"
+ 
+ #define IPE_IMAGE_MAX (64U * 1024U * 1024U)
++
++#ifdef CAMSS_A5_TEST_CHAIN
++#include "test-chain-fixture.h"
++static unsigned int test_chain_mode;
++module_param(test_chain_mode, uint, 0600);
++MODULE_PARM_DESC(test_chain_mode, "Temporary fixed conversion/CC modes 0..7");
++static int test_chain_run(struct camss_a5 *a5, struct camss_a5_session *session,
++			  const struct camss_a5_ipe_job *job,
++			  enum camss_a5_ipe_result *result)
++{
++	struct camss_a5_ipe_colour colour = fixed_chain;
++	u32 mode = READ_ONCE(test_chain_mode);
++
++	if (!mode)
++		return camss_a5_ipe_run_status(a5, session, job, result);
++	if (mode > 7)
++		return -EINVAL;
++	if (mode >= 2) {
++		colour.modules |= CAMSS_A5_IPE_COLOUR_CC;
++		if (mode != 3)
++			colour.cc.matrix[0] = colour.cc.matrix[4] =
++				colour.cc.matrix[8] = mode == 4 ? 64 : 128;
++	}
++	if (mode == 5) {
++		colour.cc.matrix[0] = colour.cc.matrix[8] = 0;
++		colour.cc.matrix[2] = colour.cc.matrix[6] = 128;
++	}
++	if (mode >= 6) {
++		colour.cc.offset[0] = mode == 6 ? -64 : 64;
++		colour.cc.offset[1] = mode == 6 ? 32 : -32;
++		colour.cc.offset[2] = mode == 6 ? 96 : -96;
++	}
++	dev_info(a5->dev, "CHAIN_TEST mode=%u request=%u\n", mode, job->request_id);
++	return camss_a5_ipe_run_colour_chain_status(a5, session, job, &colour, result);
++}
++#endif
++
+ 
+ struct ipe_context {
+ 	struct v4l2_fh fh;
+@@ -243,7 +280,11 @@
+ 	if (ret)
+ 		goto hw_fail;
+ 	job.request_id = ctx->sequence + 1;
++	#ifdef CAMSS_A5_TEST_CHAIN
++	ret = test_chain_run(dev->a5, &ctx->session, &job, &result);
++#else
+ 	ret = camss_a5_ipe_run_status(dev->a5, &ctx->session, &job, &result);
++#endif
+ 	/* A proven local rejection errors this queue, not the shared engine. */
+ 	if (!ret || result == CAMSS_A5_IPE_REJECTED)
+ 		goto finish;

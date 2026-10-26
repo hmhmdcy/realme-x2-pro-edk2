@@ -1,0 +1,42 @@
+{
+  "stage": 209,
+  "read_only_source_inventory": true,
+  "files": {
+    "arch/arm64/boot/dts/qcom/sm8150-samurai.dts": {
+      "exists": true,
+      "sha256": "439db9439d065cc87f0d34ca35c02e6c8e25ed787957946ebc986096ef8fa9ff"
+    },
+    "drivers/media/i2c/imx471.c": {
+      "exists": true,
+      "sha256": "110977b81694bac72d9c87aec45367747b72526f9ea309863c0964c1af9f84d8"
+    },
+    "drivers/mfd/qcom-pm8008.c": {
+      "exists": true,
+      "sha256": "057ccd62dda51d63de77e78495887de60561a42510926c2f37cf9d14b77d97d6"
+    },
+    "drivers/i2c/busses/i2c-qcom-cci.c": {
+      "exists": true,
+      "sha256": "9b189c25a295b6093041f659047cf7120d67030e657ba08183e4b3d7fcadc41d"
+    }
+  },
+  "configuration": {
+    "CONFIG_VIDEO_IMX471": "not_enabled",
+    "CONFIG_V4L2_CCI": "not_enabled",
+    "CONFIG_V4L2_CCI_I2C": "not_enabled",
+    "CONFIG_MFD_QCOM_PM8008": "m",
+    "CONFIG_REGULATOR_QCOM_PM8008": "m",
+    "CONFIG_I2C_QCOM_CCI": "m",
+    "CONFIG_OF_OVERLAY": "y",
+    "CONFIG_ARM_CCI": "y",
+    "CONFIG_ARM_CCI400_COMMON": "y",
+    "CONFIG_ARM_CCI_PMU": "m",
+    "CONFIG_ARM_CCI400_PMU": "y",
+    "CONFIG_CRC_CCITT": "m"
+  },
+  "board_declares_imx471": false,
+  "board_declares_pm8008": false,
+  "modules_order_contains_imx471": false,
+  "camera_makefile_lines": [
+    "obj-$(CONFIG_VIDEO_IMX471) += imx471.o"
+  ]
+}

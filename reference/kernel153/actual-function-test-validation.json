@@ -1,0 +1,37 @@
+{
+  "stage": 153,
+  "actual_function_extraction": true,
+  "probe_gpio_fragment_from_actual_source": true,
+  "results": [
+    {
+      "label": "baseline147",
+      "sanitizer": false,
+      "exit": 1,
+      "output": "CASE probe_preserves_reset_and_power FAIL\nCASE probe_does_not_cut_running_frame FAIL\nCASE normal_prepare PASS\nCASE normal_teardown PASS\nCASE gpio_direction_failure_1_has_no_regulator_refs FAIL\nCASE gpio_direction_failure_2_has_no_regulator_refs FAIL\nCASE gpio_direction_failure_3_has_no_regulator_refs FAIL\nCASE regulator_failure_1_unwinds PASS\nCASE regulator_failure_2_unwinds PASS\nCASE dcs_failure_powers_off PASS\nCASE cold_boot_configures_output_directions PASS\nFAILURES 5\n",
+      "source_sha256": "d22086b7244174dfae2c433788a964a1fa19d5a040697c2964ad4d1ba17866eb"
+    },
+    {
+      "label": "baseline147",
+      "sanitizer": true,
+      "exit": 1,
+      "output": "CASE probe_preserves_reset_and_power FAIL\nCASE probe_does_not_cut_running_frame FAIL\nCASE normal_prepare PASS\nCASE normal_teardown PASS\nCASE gpio_direction_failure_1_has_no_regulator_refs FAIL\nCASE gpio_direction_failure_2_has_no_regulator_refs FAIL\nCASE gpio_direction_failure_3_has_no_regulator_refs FAIL\nCASE regulator_failure_1_unwinds PASS\nCASE regulator_failure_2_unwinds PASS\nCASE dcs_failure_powers_off PASS\nCASE cold_boot_configures_output_directions PASS\nFAILURES 5\n",
+      "source_sha256": "d22086b7244174dfae2c433788a964a1fa19d5a040697c2964ad4d1ba17866eb"
+    },
+    {
+      "label": "candidate153",
+      "sanitizer": false,
+      "exit": 0,
+      "output": "CASE probe_preserves_reset_and_power PASS\nCASE probe_does_not_cut_running_frame PASS\nCASE normal_prepare PASS\nCASE normal_teardown PASS\nCASE gpio_direction_failure_1_has_no_regulator_refs PASS\nCASE gpio_direction_failure_2_has_no_regulator_refs PASS\nCASE gpio_direction_failure_3_has_no_regulator_refs PASS\nCASE regulator_failure_1_unwinds PASS\nCASE regulator_failure_2_unwinds PASS\nCASE dcs_failure_powers_off PASS\nCASE cold_boot_configures_output_directions PASS\nFAILURES 0\n",
+      "source_sha256": "641b4a8e13230f28c095255ee9374ea746e8e55e9bba3c56b46b1d7886466cb3"
+    },
+    {
+      "label": "candidate153",
+      "sanitizer": true,
+      "exit": 0,
+      "output": "CASE probe_preserves_reset_and_power PASS\nCASE probe_does_not_cut_running_frame PASS\nCASE normal_prepare PASS\nCASE normal_teardown PASS\nCASE gpio_direction_failure_1_has_no_regulator_refs PASS\nCASE gpio_direction_failure_2_has_no_regulator_refs PASS\nCASE gpio_direction_failure_3_has_no_regulator_refs PASS\nCASE regulator_failure_1_unwinds PASS\nCASE regulator_failure_2_unwinds PASS\nCASE dcs_failure_powers_off PASS\nCASE cold_boot_configures_output_directions PASS\nFAILURES 0\n",
+      "source_sha256": "641b4a8e13230f28c095255ee9374ea746e8e55e9bba3c56b46b1d7886466cb3"
+    }
+  ],
+  "hardware_and_attachments_are_stubs": true,
+  "hardware_first_boot_verified": false
+}

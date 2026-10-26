@@ -1,0 +1,82 @@
+--- a/utils/codegen/ipc/generators/libcamera_templates/proxy_functions.tmpl
++++ b/utils/codegen/ipc/generators/libcamera_templates/proxy_functions.tmpl
+@@ -50,7 +50,7 @@
+  #
+  # \todo Avoid intermediate vectors
+  #}
+-{%- macro serialize_call(params, buf, fds) %}
++{%- macro serialize_call(params, buf, fds, camss_byte_vector = false) %}
+ {%- for param in params %}
+ 	std::vector<uint8_t> {{param.mojom_name}}Buf;
+ {%- if param|has_fd %}
+@@ -59,9 +59,13 @@
+ {%- else %}
+ 	std::tie({{param.mojom_name}}Buf, std::ignore) =
+ {%- endif %}
++{%- if camss_byte_vector and param.mojom_name == "parameters" and param|name_full == "std::vector<uint8_t>" %}
++		camssSerializeByteVector({{param.mojom_name}});
++{%- else %}
+ 		IPADataSerializer<{{param|name_full}}>::serialize({{param.mojom_name}}
+ {{- ", &controlSerializer_" if param|needs_control_serializer -}}
+ );
++{%- endif %}
+ {%- endfor %}
+ 
+ {%- if params|length > 1 %}
+--- a/utils/codegen/ipc/generators/libcamera_templates/module_ipa_proxy_worker.cpp.tmpl
++++ b/utils/codegen/ipc/generators/libcamera_templates/module_ipa_proxy_worker.cpp.tmpl
+@@ -34,6 +34,9 @@
+ #include "libcamera/internal/camera_sensor.h"
+ #include "libcamera/internal/control_serializer.h"
+ #include "libcamera/internal/ipa_data_serializer.h"
++{%- if module_name == "camss" %}
++#include "libcamera/internal/camss_byte_serializer.h"
++{%- endif %}
+ #include "libcamera/internal/ipa_module.h"
+ #include "libcamera/internal/ipa_proxy.h"
+ #include "libcamera/internal/ipc_pipe.h"
+@@ -107,7 +110,7 @@
+ 				IPADataSerializer<{{method|method_return_value}}>::serialize(_callRet);
+ 			_response.data().insert(_response.data().end(), _callRetBuf.cbegin(), _callRetBuf.cend());
+ {%- endif %}
+-		{{proxy_funcs.serialize_call(method|method_param_outputs, "_response.data()", "_response.fds()")|indent(16, true)}}
++		{{proxy_funcs.serialize_call(method|method_param_outputs, "_response.data()", "_response.fds()", camss_byte_vector = (module_name == "camss" and method.mojom_name in ["prepareFocusedIpe", "prepareIpeParameters"]))|indent(16, true)}}
+ 			int _ret = socket_.send(_response.payload());
+ 			if (_ret < 0) {
+ 				LOG({{proxy_worker_name}}, Error)
+--- /dev/null
++++ b/include/libcamera/internal/camss_byte_serializer.h
+@@ -0,0 +1,33 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++
++#include <cstdint>
++#include <cstring>
++#include <limits>
++#include <tuple>
++#include <utility>
++#include <vector>
++#include <libcamera/base/log.h>
++#include <libcamera/base/shared_fd.h>
++
++namespace libcamera {
++
++/* Camss tone returns only: retain the existing vector<uint8_t> wire bytes.
++ * This is not a global IPADataSerializer specialization. */
++inline std::tuple<std::vector<uint8_t>, std::vector<SharedFD>>
++camssSerializeByteVector(const std::vector<uint8_t> &input)
++{
++    ASSERT(input.size() <= (std::numeric_limits<uint32_t>::max() - 4) / 9);
++    std::vector<uint8_t> result(4 + input.size() * 9);
++    const uint32_t count = input.size(), one = 1, zero = 0;
++    std::memcpy(result.data(), &count, sizeof count);
++    for (size_t i = 0; i < input.size(); ++i) {
++        uint8_t *at = result.data() + 4 + i * 9;
++        std::memcpy(at, &one, sizeof one);
++        std::memcpy(at + 4, &zero, sizeof zero);
++        at[8] = input[i];
++    }
++    return std::make_tuple(std::move(result), std::vector<SharedFD>{});
++}
++
++} /* namespace libcamera */

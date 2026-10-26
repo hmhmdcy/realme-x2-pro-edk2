@@ -1,0 +1,32 @@
+{
+  "status": "changes-required",
+  "new_counterexamples": 2,
+  "control": 1,
+  "compile_stderr": "",
+  "stdout": "reproduced: legacy runtime child returns failure with PHY/core initialized and no unwind\nreproduced: legacy system caller marks runtime suspended while PHY/core remain initialized\ncontrol: original core-init failure runs clock/reset unwind before suspended result\n",
+  "runtime_stderr": "",
+  "flags": [
+    "-std=c11",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-Wno-unused-parameter",
+    "-fsanitize=address,undefined",
+    "-fno-omit-frame-pointer"
+  ],
+  "actual_function_fixture": "actual-functions.inc",
+  "files": {
+    "actual-functions.inc": "f1e0a573958a17389b0198cd31470b3f2db294899245a79d4bdc6490995884f5",
+    "test-unwind.c": "82a75beed11a7fe092ed2b7a4dbf79938fda7599ee6eff0a26c9adbd22736713",
+    "prepare-repro.py": "259ae67af5e1ce507d9bc2e10aed8600105fdd9c624bdbf1ad54176b80179f20",
+    "run-repro.py": "dcaf35601e8fc8304ff295e84fa70995b54d495b41805574efb721d0ca74e7ef",
+    "source-manifest.json": "9604a413a435487fa2adb952660c114d9a1220501e2cf820208052efb2d5b76d",
+    "extraction-result.json": "0bc89013201d357968b20c736d4e97624b249d22eabc48376d273e5fd32326da"
+  },
+  "root_8_or_other_old_suites_rerun": false,
+  "root_candidate_modified": false,
+  "complete_runtime_pm_simulated": false,
+  "hardware_resource_boundary": "fake clocks/reset/core-PHY init and MMIO; actual caller/control/exit bodies",
+  "phone_ssh_usb_sdk_accessed": false,
+  "shared_sources_modified": false
+}

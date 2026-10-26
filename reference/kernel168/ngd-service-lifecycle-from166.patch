@@ -1,0 +1,95 @@
+--- a/drivers/slimbus/qcom-ngd-ctrl.c
++++ b/drivers/slimbus/qcom-ngd-ctrl.c
+@@ -168,6 +168,7 @@
+ 	void *notifier;
+ 	struct pdr_handle *pdr;
+ 	enum qcom_slim_ngd_state state;
++	bool registered;
+ 	dma_addr_t rx_phys_base;
+ 	dma_addr_t tx_phys_base;
+ 	void *rx_base;
+@@ -1337,8 +1338,6 @@
+ 			dev_err(ctrl->dev, "unexpected state:%d\n",
+ 						ctrl->state);
+ 
+-		if (ctrl->state == QCOM_SLIM_NGD_CTRL_DOWN)
+-			qcom_slim_ngd_notify_slaves(ctrl);
+ 
+ 	} else if (ret == -EIO) {
+ 		dev_err(ctrl->dev, "capability message NACKed, retrying\n");
+@@ -1390,7 +1389,11 @@
+ static int qcom_slim_ngd_enable(struct qcom_slim_ngd_ctrl *ctrl, bool enable)
+ {
+ 	if (enable) {
+-		int ret = qcom_slim_qmi_init(ctrl, false);
++		int ret;
++
++		if (ctrl->registered)
++			return 0;
++		ret = qcom_slim_qmi_init(ctrl, false);
+ 
+ 		if (ret) {
+ 			dev_err(ctrl->dev, "qmi init fail, ret:%d, state:%d\n",
+@@ -1423,10 +1426,16 @@
+ 			return ret;
+ 		}
+ 
++		ctrl->registered = true;
++		/* Client callbacks require an initialized, registered controller. */
++		qcom_slim_ngd_notify_slaves(ctrl);
+ 		dev_info(ctrl->dev, "SLIM controller Registered\n");
+ 	} else {
+ 		qcom_slim_qmi_exit(ctrl);
+-		slim_unregister_controller(&ctrl->ctrl);
++		if (ctrl->registered) {
++			slim_unregister_controller(&ctrl->ctrl);
++			ctrl->registered = false;
++		}
+ 	}
+ 
+ 	return 0;
+@@ -1444,7 +1453,7 @@
+ 	qmi->svc_info.sq_node = service->node;
+ 	qmi->svc_info.sq_port = service->port;
+ 
+-	complete(&ctrl->qmi_up);
++	complete_all(&ctrl->qmi_up);
+ 
+ 	return 0;
+ }
+@@ -1512,9 +1521,21 @@
+ static void qcom_slim_ngd_down(struct qcom_slim_ngd_ctrl *ctrl)
+ {
+ 	mutex_lock(&ctrl->ssr_lock);
++	if (ctrl->state == QCOM_SLIM_NGD_CTRL_DOWN && !ctrl->registered)
++		goto unlock;
++
++	pm_runtime_get_noresume(ctrl->ctrl.dev);
++	ctrl->state = QCOM_SLIM_NGD_CTRL_DOWN;
++	qcom_slim_qmi_exit(ctrl);
++	/* Drain master work before removing any device it could reference. */
++	cancel_work_sync(&ctrl->m_work);
+ 	device_for_each_child(ctrl->ctrl.dev, NULL,
+ 			      qcom_slim_ngd_update_device_status);
+ 	qcom_slim_ngd_enable(ctrl, false);
++	mutex_lock(&ctrl->tx_lock);
++	qcom_slim_ngd_exit_dma(ctrl);
++	mutex_unlock(&ctrl->tx_lock);
++unlock:
+ 	mutex_unlock(&ctrl->ssr_lock);
+ }
+ 
+@@ -1542,12 +1563,7 @@
+ 	switch (action) {
+ 	case QCOM_SSR_BEFORE_SHUTDOWN:
+ 	case SERVREG_SERVICE_STATE_DOWN:
+-		if (ctrl->state != QCOM_SLIM_NGD_CTRL_DOWN) {
+-			pm_runtime_get_noresume(ctrl->ctrl.dev);
+-			ctrl->state = QCOM_SLIM_NGD_CTRL_DOWN;
+-			qcom_slim_ngd_down(ctrl);
+-			qcom_slim_ngd_exit_dma(ctrl);
+-		}
++		qcom_slim_ngd_down(ctrl);
+ 		break;
+ 	case QCOM_SSR_AFTER_POWERUP:
+ 	case SERVREG_SERVICE_STATE_UP:

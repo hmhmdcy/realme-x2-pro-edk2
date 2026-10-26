@@ -1,0 +1,49 @@
+{
+  "schema": "samurai-apsd-lifecycle-offline-review-v1",
+  "source_commit": "9668fcdc6ec15be7a10d66f7b93c347829e0fdb6",
+  "source_restoration_complete": true,
+  "restored_functions": 25,
+  "original_register_definitions": 31,
+  "focused_oem_function_groups_passed": 7,
+  "current_observation_authority": "root report only; this agent did not access device",
+  "root_reported_transition": {
+    "boot": "CDP 1500000uA",
+    "physical_reconnect": "SDP native 100000uA",
+    "apsd_status": 17,
+    "apsd_result": 1
+  },
+  "new_confirmed_differences": [
+    "VENDOR_EDIT source IRQ once-only rerun covers Type-C SDP/CDP, not merely micro-USB",
+    "physical VBUS detach clears per-session rerun flag and releases DPDM",
+    "19781 DPDM supply is USB2 SNPS FEMTO high-Z mode interface shared with USB controller",
+    "PD active disables APSD; plugin/role/fake insertion/PR swap affect lifecycle",
+    "original IRQF_ONESHOT and PHY mutex are not a full source/plugin/PD transaction lock",
+    "original rerun errors can consume attempt marker without completed redetection"
+  ],
+  "candidate_stage": "source-recovery-and-integration-boundary-only",
+  "deployable_hardware_patch": false,
+  "missing_prerequisites": [
+    "controlled R7 PHY byte snapshot and DPDM owner API",
+    "DWC/EUD data-path quiesce and restoration handshake",
+    "independent PD/role/PR-swap/hard-reset owner",
+    "serialized per-attach one-shot state and explicit failure completion"
+  ],
+  "eud_caused_sdp_proven": false,
+  "sdp_misdetection_proven": false,
+  "rerun_would_restore_cdp_proven": false,
+  "hardware_budget_increase_authorized": false,
+  "phone_accessed": false,
+  "ssh_executed": false,
+  "sdk_invoked": false,
+  "shared_source_modified": false,
+  "old_float_suite_repeated": false,
+  "hashes": {
+    "README.md": "ecaefa725f78401de29b811d3be92839e71c503aa6e4e0969c711fd3b0d49846",
+    "source-manifest.json": "ecc3c5bb515ea5cf2d535783bb1e9616dfeb2f9c9c6bb174f62efbfc11245105",
+    "oem-functions.inc": "78b87c814f6f343a78d63d79ce977f10927b3bf91c1dd40d9f2050140f9e5511",
+    "oem-registers.inc": "5d73671b1689107c7601d188a20916a16b92a027052d69b0bd0cdeb23a043b34",
+    "test-result.json": "0ccb9b6329ad25a75cc98ca981f001b24c437ac420915e344f20844bb8cc718f",
+    "test-oem-lifecycle.c": "d342d7d6ec5bc659d3219aa97ac0d26e0423b9548d655d895fe6b88a551d7280",
+    "primary-comparison-manifest.json": "c2085b2bca335ce4b11dda3a09c4d1ddbb15b41c1e5a896f15079df127de5061"
+  }
+}

@@ -1,0 +1,20 @@
+--- r2/device.py
++++ r3/device.py
+@@ -339,14 +339,16 @@
+  assert fields[:3]==(0x474f4c45,0x10000,len(raw)-32) and ((fields[3]-fields[4])&0xffffffff)<=fields[2]
+  head,size=fields[3],fields[2];count=min(head,size);oldest=head-count;data=raw[32:]
+  history=bytes(data[(oldest+i)%size] for i in range(count))
++ prefix_records=[line for line in history.splitlines() if b'[SAMURAI-EUD-OFF' in line]
+  receipts=[line.decode('ascii') for line in history.splitlines() if re.fullmatch(rb'\[SAMURAI-EUD-OFF\] attempted=[01] write=[01] arm=[0-9a-fA-F]{8} before=[0-9a-fA-F]{8} after=[0-9a-fA-F]{8} status=[A-Za-z0-9 _-]{1,64}',line)]
+  parsed=[]
+  for line in receipts:
+   x=re.fullmatch(r'\[SAMURAI-EUD-OFF\] attempted=([01]) write=([01]) arm=([0-9a-fA-F]{8}) before=([0-9a-fA-F]{8}) after=([0-9a-fA-F]{8}) status=([A-Za-z0-9 _-]{1,64})',line)
+   parsed.append(dict(attempted=int(x[1]),write=int(x[2]),arm=int(x[3],16),before=int(x[4],16),after=int(x[5],16),status=x[6]))
+  # A bounded retained history is not a proof of Head never wrapping or marker age.
+- valid=len(parsed)==1 and parsed[0]['attempted']==1 and parsed[0]['arm'] in [0,1,0x01010101] and parsed[0]['before'] in [0,1,0x01010101] and parsed[0]['after']==0 and parsed[0]['status']=='Success' and parsed[0]['write']==int(parsed[0]['before']!=0)
++ valid=len(prefix_records)==1 and len(parsed)==1 and parsed[0]['attempted']==1 and parsed[0]['arm'] in [0,1,0x01010101] and parsed[0]['before'] in [0,1,0x01010101] and parsed[0]['after']==0 and parsed[0]['status']=='Success' and parsed[0]['write']==int(parsed[0]['before']!=0)
+  return {'ready':valid,'marker_state':'one_well_formed_off_report' if valid else 'missing_ambiguous_or_failure_receipt',
++   'marker_prefix_count':len(prefix_records),
+    'receipts':receipts,'parsed':parsed,'raw_sha256':sha(raw),'header':list(fields),
+    'history_assumption':'No 32-bit Head wrap proven; count=min(Head,Size) is bounded decode only.',
+    'receipt_absence_is_not_callback_failure':True,'callback_success_independently_proven':False,

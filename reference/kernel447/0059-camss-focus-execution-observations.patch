@@ -1,0 +1,69 @@
+--- a/src/libcamera/pipeline/camss-vfe/hardware_focus.h
++++ b/src/libcamera/pipeline/camss-vfe/hardware_focus.h
+@@ -9,6 +9,9 @@
+ #include <vector>
+ #include <linux/dma-buf.h>
+ #include <sys/ioctl.h>
++#include <sys/resource.h>
++#include <sched.h>
++#include <time.h>
+ #include <libcamera/stream.h>
+ #include "libcamera/internal/mapped_framebuffer.h"
+ #include "libcamera/internal/software_isp/focus_stats.h"
+@@ -85,8 +88,23 @@
+  return result;
+ }
+ 
++struct FocusExecutionSnapshot {
++ int64_t cpuNs=0;long minor=0,major=0,voluntary=0,involuntary=0;int cpu=-1;bool valid=false;
++};
++inline FocusExecutionSnapshot focusExecutionSnapshot()
++{
++ FocusExecutionSnapshot result;timespec cpu{};rusage usage{};
++ if(clock_gettime(CLOCK_THREAD_CPUTIME_ID,&cpu) || getrusage(RUSAGE_THREAD,&usage))return result;
++ result.cpuNs=int64_t(cpu.tv_sec)*1000000000+cpu.tv_nsec;
++ result.minor=usage.ru_minflt;result.major=usage.ru_majflt;
++ result.voluntary=usage.ru_nvcsw;result.involuntary=usage.ru_nivcsw;
++ result.cpu=sched_getcpu();result.valid=result.cpu>=0;return result;
++}
++
+ struct FocusMeasurementTiming {
+  int64_t syncStartUs=0,mapUs=0,sampleUs=0,scoreUs=0,unmapUs=0,syncEndUs=0;
++ int64_t sampleCpuUs=0;long sampleMinor=0,sampleMajor=0,sampleVoluntary=0,sampleInvoluntary=0;
++ int sampleCpuBefore=-1,sampleCpuAfter=-1;bool sampleExecutionValid=false;
+ };
+ 
+ inline std::optional<int32_t> measureFrameFocus(FrameBuffer *buffer,const StreamConfiguration &configuration,
+@@ -106,9 +124,18 @@
+   MappedFrameBuffer mapped(buffer,MappedFrameBuffer::MapFlag::Read);
+   measured.mapUs=elapsed();
+   if (mapped.isValid() && !mapped.planes().empty()) {
++   const auto usageBefore=focusExecutionSnapshot();
+    const auto statistics=measureLumaFocus(mapped.planes()[0].data(),std::min<size_t>(mapped.planes()[0].size(),buffer->metadata().planes()[0].bytesused),
+                                          configuration.size.width,configuration.size.height,configuration.stride,workspace);
++   const auto usageAfter=focusExecutionSnapshot();
+    measured.sampleUs=elapsed();
++   measured.sampleExecutionValid=usageBefore.valid && usageAfter.valid && usageAfter.cpuNs>=usageBefore.cpuNs;
++   if(measured.sampleExecutionValid){
++    measured.sampleCpuUs=(usageAfter.cpuNs-usageBefore.cpuNs)/1000;
++    measured.sampleMinor=usageAfter.minor-usageBefore.minor;measured.sampleMajor=usageAfter.major-usageBefore.major;
++    measured.sampleVoluntary=usageAfter.voluntary-usageBefore.voluntary;measured.sampleInvoluntary=usageAfter.involuntary-usageBefore.involuntary;
++    measured.sampleCpuBefore=usageBefore.cpu;measured.sampleCpuAfter=usageAfter.cpu;
++   }
+    score=statistics.figureOfMerit();measured.scoreUs=elapsed();
+   }
+  }
+--- a/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
++++ b/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
+@@ -1356,6 +1356,11 @@
+    <<" sync-start-us="<<focusTiming.syncStartUs<<" map-us="<<focusTiming.mapUs
+    <<" sample-us="<<focusTiming.sampleUs<<" score-us="<<focusTiming.scoreUs
+    <<" unmap-us="<<focusTiming.unmapUs<<" sync-end-us="<<focusTiming.syncEndUs;
++  LOG(CamssVfe,Debug)<<"FOCUS_EXECUTION epoch="<<frameEpoch<<" sof="<<sequence<<" valid="<<focusTiming.sampleExecutionValid
++   <<" sample-wall-us="<<focusTiming.sampleUs<<" sample-cpu-us="<<focusTiming.sampleCpuUs
++   <<" minor="<<focusTiming.sampleMinor<<" major="<<focusTiming.sampleMajor
++   <<" voluntary="<<focusTiming.sampleVoluntary<<" involuntary="<<focusTiming.sampleInvoluntary
++   <<" cpu-before="<<focusTiming.sampleCpuBefore<<" cpu-after="<<focusTiming.sampleCpuAfter;
+   const auto focusMeasured=std::chrono::steady_clock::now();
+   const auto found=sensorContexts_.find(sequence);
+   const ipa::camss::SensorContext context=found==sensorContexts_.end()?ipa::camss::SensorContext{}:found->second;

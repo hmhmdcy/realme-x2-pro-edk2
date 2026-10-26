@@ -1,0 +1,424 @@
+{
+  "stage": 457,
+  "source_head": "5b0e7a9ac5b311a4c4fe17cf48b7ed4fc9a7b91d",
+  "modules441": {
+    "qcom-camss-icp-a5-core": "5f2659c51847adc00e5836166399df9a8addea1a4ac758a9079f83cf51290c3e",
+    "qcom-camss": "b7edf58ebba8a252c01e17dedaf893cbd16790e284ed83727b9ea72a7dc37f20",
+    "camss-icp-a5-m2m": "6054060184aeebca566702711d5e682e92e5a28b95db262f8411e56616e4ac64"
+  },
+  "original363_config_sha256": "23e088a90736bbbc442c672d82b35c11bf04f7dc489f1c6afb1b03dc0d8f30ed",
+  "selected_tracing_config": [
+    "CONFIG_BPF=y",
+    "CONFIG_BPF_SYSCALL=y",
+    "CONFIG_BPF_JIT=y",
+    "# CONFIG_BPF_JIT_ALWAYS_ON is not set",
+    "CONFIG_BPF_JIT_DEFAULT_ON=y",
+    "CONFIG_BPF_UNPRIV_DEFAULT_OFF=y",
+    "# CONFIG_BPF_PRELOAD is not set",
+    "# CONFIG_BPF_LSM is not set",
+    "CONFIG_PERF_EVENTS=y",
+    "CONFIG_TRACEPOINTS=y",
+    "# CONFIG_KPROBES is not set",
+    "CONFIG_UPROBES=y",
+    "CONFIG_TRACE_IRQFLAGS_SUPPORT=y",
+    "CONFIG_TRACE_IRQFLAGS_NMI_SUPPORT=y",
+    "# CONFIG_BPF_STREAM_PARSER is not set",
+    "CONFIG_TRACE_GPU_MEM=y",
+    "# CONFIG_TRACE_MMIO_ACCESS is not set",
+    "CONFIG_DEBUG_FS=y",
+    "CONFIG_DEBUG_FS_ALLOW_ALL=y",
+    "# CONFIG_DEBUG_FS_ALLOW_NONE is not set",
+    "CONFIG_HAVE_SYSCALL_TRACEPOINTS=y",
+    "CONFIG_TRACE_CLOCK=y",
+    "CONFIG_EVENT_TRACING=y",
+    "CONFIG_TRACING=y",
+    "CONFIG_TRACING_SUPPORT=y",
+    "CONFIG_FTRACE=y",
+    "CONFIG_TRACEFS_AUTOMOUNT_DEPRECATED=y",
+    "# CONFIG_FUNCTION_TRACER is not set",
+    "# CONFIG_FTRACE_SYSCALLS is not set",
+    "CONFIG_TRACER_SNAPSHOT=y",
+    "# CONFIG_TRACER_SNAPSHOT_PER_CPU_SWAP is not set",
+    "CONFIG_UPROBE_EVENTS=y",
+    "CONFIG_BPF_EVENTS=y",
+    "CONFIG_TRACING_MAP=y",
+    "# CONFIG_TRACE_EVENT_INJECT is not set",
+    "# CONFIG_TRACEPOINT_BENCHMARK is not set",
+    "# CONFIG_TRACE_EVAL_MAP_FILE is not set",
+    "# CONFIG_TRACE_REMOTE_TEST is not set"
+  ],
+  "exact_v4l2_trace_calls": [
+    "5b0e7a9ac5b311a4c4fe17cf48b7ed4fc9a7b91d:drivers/media/v4l2-core/v4l2-ioctl.c:3487:\t\t\ttrace_v4l2_dqbuf(video_devdata(file)->minor, parg);",
+    "5b0e7a9ac5b311a4c4fe17cf48b7ed4fc9a7b91d:drivers/media/v4l2-core/v4l2-ioctl.c:3489:\t\t\ttrace_v4l2_qbuf(video_devdata(file)->minor, parg);"
+  ],
+  "vb2_v4l2_events_declared_and_exported_but_no_callers": true,
+  "userspace452_clock_sources": [
+    {
+      "path": "src/libcamera/v4l2_videodevice.cpp",
+      "sha256": "13e311b7c79e35c351c2e722b581c863066075dad8692bccc4a9d0a329e3064c",
+      "lines": 2261,
+      "checked_against_frozen_source_state": false
+    },
+    {
+      "path": "src/libcamera/v4l2_subdevice.cpp",
+      "sha256": "a536f05a787786ede08d1163ad047b8f767a7a5674157dfa62c66ca0b5ab6c35",
+      "lines": 1853,
+      "checked_against_frozen_source_state": false
+    },
+    {
+      "path": "src/libcamera/pipeline/camss-vfe/camss_vfe.cpp",
+      "sha256": "69cc15e0c192ef9cf16b0b20c7d4e14af127b03bda4ac9db626edce472e1d831",
+      "lines": 1659,
+      "checked_against_frozen_source_state": true
+    },
+    {
+      "path": "src/libcamera/pipeline/camss-vfe/full_ownership_trace.h",
+      "sha256": "4a53838f810ba8812cfa803575b2f9ada35ee879094b0a6aaec93d283d6bc35b",
+      "lines": 201,
+      "checked_against_frozen_source_state": true
+    }
+  ],
+  "files": [
+    {
+      "path": "drivers/media/common/videobuf2/vb2-trace.c",
+      "sha256": "b4090d68e22446b9ceb935e17a03ae76289352016bf3b6221cab9e6f49873f54",
+      "exists_in_original363": true,
+      "same_as_original363": true,
+      "lines": 10
+    },
+    {
+      "path": "drivers/media/common/videobuf2/videobuf2-core.c",
+      "sha256": "86222aaa61047a3ac9ecefec2f1ed4a9c3392026120009c59e862767c4618228",
+      "exists_in_original363": true,
+      "same_as_original363": true,
+      "lines": 3308
+    },
+    {
+      "path": "drivers/media/common/videobuf2/videobuf2-v4l2.c",
+      "sha256": "a9ee446494b83b777a227d3bb401c47d39689ee9cd4e05b5dd0df002ff820e6d",
+      "exists_in_original363": true,
+      "same_as_original363": true,
+      "lines": 1345
+    },
+    {
+      "path": "drivers/media/platform/qcom/camss/Makefile",
+      "sha256": "7bac5311e60d96a2b89eef9ca4c713b99d9e765563a470c7829d71f0247ae199",
+      "exists_in_original363": true,
+      "same_as_original363": false,
+      "lines": 68
+    },
+    {
+      "path": "drivers/media/platform/qcom/camss/camss-csid-gen2.c",
+      "sha256": "8e7c22b0994e3da4ba26284aa69eae5a4f39a88894e3a1d6327537a03783724a",
+      "exists_in_original363": true,
+      "same_as_original363": true,
+      "lines": 667
+    },
+    {
+      "path": "drivers/media/platform/qcom/camss/camss-csid.c",
+      "sha256": "fedad2949093f37b80a22b04c48fdc0a30792ea869590b316b8804b38d4ba7ca",
+      "exists_in_original363": true,
+      "same_as_original363": true,
+      "lines": 1973
+    },
+    {
+      "path": "drivers/media/platform/qcom/camss/camss-vfe-175-camif.c",
+      "sha256": "2c73be4fc401e1a4b8532953072bbed02011ad008a707ef3184b84d813e1c3cd",
+      "exists_in_original363": true,
+      "same_as_original363": true,
+      "lines": 114
+    },
+    {
+      "path": "drivers/media/platform/qcom/camss/camss-vfe-175-ccm.c",
+      "sha256": "614f06d3366bea3b8eee544d27e351adde161a28a99a18d17d6e2802bac35308",
+      "exists_in_original363": true,
+      "same_as_original363": true,
+      "lines": 102
+    },
+    {
+      "path": "drivers/media/platform/qcom/camss/camss-vfe-175-cst.c",
+      "sha256": "e05c64828334d31ec0795ae08496d9534071044dd87cb648843f54aae5b49d20",
+      "exists_in_original363": true,
+      "same_as_original363": true,
+      "lines": 135
+    },
+    {
+      "path": "drivers/media/platform/qcom/camss/camss-vfe-175-demosaic.c",
+      "sha256": "d83be57f0eff8a922df7b36393952cbf7590280c73d7fac6afe36c0c89909b8f",
+      "exists_in_original363": true,
+      "same_as_original363": true,
+      "lines": 114
+    },
+    {
+      "path": "drivers/media/platform/qcom/camss/camss-vfe-175-demux.c",
+      "sha256": "87376632a21c8dd56e0369a0f99b97bba480325094ad1ae3a8da699309e8759f",
+      "exists_in_original363": true,
+      "same_as_original363": true,
+      "lines": 106
+    },
+    {
+      "path": "drivers/media/platform/qcom/camss/camss-vfe-175-ds4.c",
+      "sha256": "7f94ae1ea0634585e1a91f0e33d1c7cf1001c33e254b7cd3f58f17663bd0b1d2",
+      "exists_in_original363": false,
+      "same_as_original363": false,
+      "lines": 248
+    },
+    {
+      "path": "drivers/media/platform/qcom/camss/camss-vfe-175-gamma.c",
+      "sha256": "83b01906a5420a2930e2853c6002857c07b3459d4bb69e1c9b2b8ffeb65a1ce2",
+      "exists_in_original363": true,
+      "same_as_original363": true,
+      "lines": 243
+    },
+    {
+      "path": "drivers/media/platform/qcom/camss/camss-vfe-175-gtm.c",
+      "sha256": "c1b25f09259e9686b2daab5c787f211535dacb4eadd9ee2101257a16e9842758",
+      "exists_in_original363": false,
+      "same_as_original363": false,
+      "lines": 198
+    },
+    {
+      "path": "drivers/media/platform/qcom/camss/camss-vfe-175-lsc.c",
+      "sha256": "2cb8dd2cfdf9d2747aa3ace84d0b3280644e615a305cd6d2e5d117cd1d127c71",
+      "exists_in_original363": true,
+      "same_as_original363": true,
+      "lines": 195
+    },
+    {
+      "path": "drivers/media/platform/qcom/camss/camss-vfe-175-mnds.c",
+      "sha256": "2672bde09e145d33644ab834165a20b990f1bebc0f62f1de765488a4e8629ab1",
+      "exists_in_original363": true,
+      "same_as_original363": true,
+      "lines": 187
+    },
+    {
+      "path": "drivers/media/platform/qcom/camss/camss-vfe-175-output.c",
+      "sha256": "4ad16831c5b5a7515ba6c2c355c226be0254c6a51c771c0c93ab1bf3e09ba56e",
+      "exists_in_original363": true,
+      "same_as_original363": false,
+      "lines": 248
+    },
+    {
+      "path": "drivers/media/platform/qcom/camss/camss-vfe-175-pixel.c",
+      "sha256": "dbdc97fcacd73f6ee9b729d8527ebff4e0fc323278793a9ba1c3ea8763d2b14a",
+      "exists_in_original363": true,
+      "same_as_original363": false,
+      "lines": 330
+    },
+    {
+      "path": "drivers/media/platform/qcom/camss/camss-vfe-175-round.c",
+      "sha256": "ff53a3a7574dbff5e488553d236f0c464633b3d63f2259ccd96cf40b03224b91",
+      "exists_in_original363": true,
+      "same_as_original363": true,
+      "lines": 108
+    },
+    {
+      "path": "drivers/media/platform/qcom/camss/camss-vfe-175-stats.c",
+      "sha256": "c965a5eedd568fa988c9c639ab08b6ed7e0c50fc4746cfa580b17058bc6bf859",
+      "exists_in_original363": true,
+      "same_as_original363": true,
+      "lines": 384
+    },
+    {
+      "path": "drivers/media/platform/qcom/camss/camss-vfe-17x.c",
+      "sha256": "f1f5244e56822229b08990d196e37b713b467ed68a1c546649af6e32dd82eccc",
+      "exists_in_original363": true,
+      "same_as_original363": false,
+      "lines": 835
+    },
+    {
+      "path": "drivers/media/platform/qcom/camss/camss-vfe-340.c",
+      "sha256": "e1e2e212f9180fa16b139545ac11539e43513c7955df50ace9bdc444f8b157c7",
+      "exists_in_original363": true,
+      "same_as_original363": true,
+      "lines": 388
+    },
+    {
+      "path": "drivers/media/platform/qcom/camss/camss-vfe-4-1.c",
+      "sha256": "f6e21f4aaf2561b45e20ad560b74855db42d5e86fd9a2831b3f348d486c09422",
+      "exists_in_original363": true,
+      "same_as_original363": true,
+      "lines": 1020
+    },
+    {
+      "path": "drivers/media/platform/qcom/camss/camss-vfe-4-7.c",
+      "sha256": "59fdf45200de4e25b8a7489850956e43f6c78c8805b7fd4181e171f65ea73c18",
+      "exists_in_original363": true,
+      "same_as_original363": true,
+      "lines": 1160
+    },
+    {
+      "path": "drivers/media/platform/qcom/camss/camss-vfe-4-8.c",
+      "sha256": "ccc9c79e7c11a2da0ca08ebcb26890aa3034bc0b76cd1911b578a35421485561",
+      "exists_in_original363": true,
+      "same_as_original363": true,
+      "lines": 1150
+    },
+    {
+      "path": "drivers/media/platform/qcom/camss/camss-vfe-480.c",
+      "sha256": "e63a2bf7fd0a6cc6bcabe95f606a6d5ccb990647a2540bfe185d8fe0186842e2",
+      "exists_in_original363": true,
+      "same_as_original363": true,
+      "lines": 302
+    },
+    {
+      "path": "drivers/media/platform/qcom/camss/camss-vfe-680.c",
+      "sha256": "ac316835ce1af153e1fc9fe778bb896faa457bbb4b7056b1b5ab42237c335dc2",
+      "exists_in_original363": true,
+      "same_as_original363": true,
+      "lines": 244
+    },
+    {
+      "path": "drivers/media/platform/qcom/camss/camss-vfe-690.c",
+      "sha256": "092324f3a384c35a642c9848a03fe0bdf303726a973274cf1acecc27a17edcf9",
+      "exists_in_original363": true,
+      "same_as_original363": true,
+      "lines": 168
+    },
+    {
+      "path": "drivers/media/platform/qcom/camss/camss-vfe-780.c",
+      "sha256": "af4b65a87cb6d2d4eb5817ca11ef2573d65c58dee2342a158b86c333d5e9ba35",
+      "exists_in_original363": true,
+      "same_as_original363": true,
+      "lines": 433
+    },
+    {
+      "path": "drivers/media/platform/qcom/camss/camss-vfe-880-pp.c",
+      "sha256": "fa4915504717577678c8f2dcc04681b9baa60a584bc84af58f8fdaf21a3455b3",
+      "exists_in_original363": true,
+      "same_as_original363": true,
+      "lines": 641
+    },
+    {
+      "path": "drivers/media/platform/qcom/camss/camss-vfe-gen1.c",
+      "sha256": "51542c5f40b8fd0d437af5d080d9186517c488539c6f82f06cc0417d4abe2ebf",
+      "exists_in_original363": true,
+      "same_as_original363": true,
+      "lines": 741
+    },
+    {
+      "path": "drivers/media/platform/qcom/camss/camss-vfe-vbif.c",
+      "sha256": "f11e75cb2e52d9afa6ee374d6dda30d50857a0daea68aab3926943318d7aada8",
+      "exists_in_original363": true,
+      "same_as_original363": true,
+      "lines": 31
+    },
+    {
+      "path": "drivers/media/platform/qcom/camss/camss-vfe.c",
+      "sha256": "42a8d6ff74228bb8847adc60b4354e19ba803c88a0b2ceef8c163748c7835bdc",
+      "exists_in_original363": true,
+      "same_as_original363": false,
+      "lines": 3328
+    },
+    {
+      "path": "drivers/media/platform/qcom/camss/camss-vfe.h",
+      "sha256": "3b80c8e53debd06d01851b89d8e4a0c9feb095d429e142ad3908b406e6daa20b",
+      "exists_in_original363": true,
+      "same_as_original363": false,
+      "lines": 480
+    },
+    {
+      "path": "drivers/media/platform/qcom/camss/camss-video.c",
+      "sha256": "634935241ff9016594f1af3cc2238ecf3768a17c36b23390eca6120c979e587c",
+      "exists_in_original363": true,
+      "same_as_original363": false,
+      "lines": 1154
+    },
+    {
+      "path": "drivers/media/platform/qcom/camss/camss-video.h",
+      "sha256": "3b286c459436c09ec9f1bbf1b24944875aebc6785376ac6587de7bffe980d465",
+      "exists_in_original363": true,
+      "same_as_original363": false,
+      "lines": 79
+    },
+    {
+      "path": "drivers/media/platform/qcom/camss/camss.c",
+      "sha256": "6006d049d943a54c0c64bda593c82809ad29d1677d21b9e72b3244441b13620f",
+      "exists_in_original363": true,
+      "same_as_original363": false,
+      "lines": 6178
+    },
+    {
+      "path": "drivers/media/v4l2-core/v4l2-event.c",
+      "sha256": "711270683dcde6942e965f7b16faab5d0ed0720eebd67b409d61f06d95635d55",
+      "exists_in_original363": true,
+      "same_as_original363": true,
+      "lines": 373
+    },
+    {
+      "path": "drivers/media/v4l2-core/v4l2-ioctl.c",
+      "sha256": "2bb300594c37070d9e5597347593cc689c99d14597c9495a5762cbd6da571c77",
+      "exists_in_original363": true,
+      "same_as_original363": true,
+      "lines": 3538
+    },
+    {
+      "path": "drivers/media/v4l2-core/v4l2-trace.c",
+      "sha256": "6b3881a8df223f6af92f817f4e6ac30a86f32af6d0b5fa0f97a9ebb47dd9671a",
+      "exists_in_original363": true,
+      "same_as_original363": true,
+      "lines": 12
+    },
+    {
+      "path": "include/media/videobuf2-core.h",
+      "sha256": "c27776121417c2cee5a24d58e51c8ebadfde1bb79e81ee76f1cc154150f26d2f",
+      "exists_in_original363": true,
+      "same_as_original363": true,
+      "lines": 1335
+    },
+    {
+      "path": "include/media/videobuf2-v4l2.h",
+      "sha256": "f191f55f9951515163d8e32630ce59376faa3c266dd602e9ca96a7b42b5cd2c1",
+      "exists_in_original363": true,
+      "same_as_original363": true,
+      "lines": 387
+    },
+    {
+      "path": "include/trace/events/irq.h",
+      "sha256": "4a20524a7be37c89183409611c3e50a3618f1fbb404c3586049cc8c07c72e865",
+      "exists_in_original363": true,
+      "same_as_original363": true,
+      "lines": 213
+    },
+    {
+      "path": "include/trace/events/v4l2.h",
+      "sha256": "5e7be85028b4a030f891ea5e4d0232357f5e8ea0bca8bd92c98cfa018d3e0f57",
+      "exists_in_original363": true,
+      "same_as_original363": true,
+      "lines": 268
+    },
+    {
+      "path": "include/trace/events/vb2.h",
+      "sha256": "5d45a84ea4524f4ebfb695233a54f6f6c5dae003345b8c6035a87762e98b9a37",
+      "exists_in_original363": true,
+      "same_as_original363": true,
+      "lines": 69
+    },
+    {
+      "path": "kernel/trace/trace_events.c",
+      "sha256": "0d6b0c538a22dfe764747233f9ea7f401f797821e2eba831dcb7e2c3bd9dee10",
+      "exists_in_original363": true,
+      "same_as_original363": true,
+      "lines": 5245
+    },
+    {
+      "path": "kernel/trace/trace_events_hist.c",
+      "sha256": "e412cfd15e04ceef6cc1e9ec65bf1fad6c467bd98b75fef66677ace5f209709b",
+      "exists_in_original363": true,
+      "same_as_original363": true,
+      "lines": 7094
+    },
+    {
+      "path": "kernel/trace/trace_kprobe.c",
+      "sha256": "841dab327ff5c63aea010d32e8b432279e09c416e16aa95b545b9b2e90ba8675",
+      "exists_in_original363": true,
+      "same_as_original363": true,
+      "lines": 2224
+    }
+  ],
+  "free_ext4_bytes": 7450660864,
+  "source_shared_index_unchanged": true,
+  "compiled": false,
+  "phone_or_sdk_accessed": false,
+  "passed": true
+}

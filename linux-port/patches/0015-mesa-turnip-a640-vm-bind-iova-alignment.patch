@@ -1,0 +1,51 @@
+Subject: [PATCH] freedreno/turnip: align automatic A640 VM_BIND allocations to 64 KiB
+
+Mesa 26.2.4 on RMX1931 / A640 can fault on a CCU read before a
+page-aligned UBWC color BO during a GMEM resolve. A Vulkan regression
+that frees the preceding small allocations reproduces the fault in its
+first draw. The fault is 8 KiB before the color mapping, at its base
+rounded down to 64 KiB; the page-table entry is zero. Leaving preceding
+mappings present or selecting sysmem avoids the fault.
+
+Match the existing A640 kernel-managed VM alignment for automatically
+allocated userspace VM_BIND addresses. Keep mapping lengths, explicit
+capture/replay addresses, sparse offsets, legacy allocation and other
+GPU models unchanged.
+
+The same-build baseline and the installed Mesa library both reproduce
+the failure. The aligned candidate passes hole, MSAA and format/size
+pixel regressions. See reference/kernel149 for deployment and receipts.
+
+diff --git a/src/freedreno/vulkan/tu_knl_drm.cc b/src/freedreno/vulkan/tu_knl_drm.cc
+--- a/src/freedreno/vulkan/tu_knl_drm.cc
++++ b/src/freedreno/vulkan/tu_knl_drm.cc
+@@ -23,6 +23,15 @@
+ {
+    *iova = 0;
+ 
++   /* Match the A640 kernel-managed address alignment for automatic VM_BIND
++    * allocations. Mapping sizes and explicit capture/replay addresses retain
++    * their original granularity.
++    */
++   uint64_t alignment = os_page_size;
++   if (dev->physical_device->has_vm_bind &&
++       dev->physical_device->dev_id.gpu_id == 640)
++      alignment = MAX2(alignment, UINT64_C(0x10000));
++
+    if (flags & TU_BO_ALLOC_REPLAYABLE) {
+       if (client_iova) {
+          if (util_vma_heap_alloc_addr(&dev->vma, client_iova, size)) {
+@@ -36,11 +45,11 @@
+           * them from the other end of the address space.
+           */
+          dev->vma.alloc_high = true;
+-         *iova = util_vma_heap_alloc(&dev->vma, size, os_page_size);
++         *iova = util_vma_heap_alloc(&dev->vma, size, alignment);
+       }
+    } else {
+       dev->vma.alloc_high = false;
+-      *iova = util_vma_heap_alloc(&dev->vma, size, os_page_size);
++      *iova = util_vma_heap_alloc(&dev->vma, size, alignment);
+    }
+ 
+    if (!*iova)

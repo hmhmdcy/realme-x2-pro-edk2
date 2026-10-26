@@ -1,0 +1,22 @@
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_dsc.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_dsc.c
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_dsc.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_dsc.c
+@@ -206,6 +206,18 @@
+ 	c->idx = cfg->id;
+ 	c->caps = cfg;
+ 
++	if (mdss_ver->core_major_ver == 5)
++		pr_info("boot DSC%u: mode=%#x enc=%#x pic=%#x slice=%#x chunk=%#x delay=%#x flat=%#x mux=%#x\n",
++			cfg->id - DSC_0,
++			DPU_REG_READ(&c->hw, DSC_COMMON_MODE),
++			DPU_REG_READ(&c->hw, DSC_ENC),
++			DPU_REG_READ(&c->hw, DSC_PICTURE),
++			DPU_REG_READ(&c->hw, DSC_SLICE),
++			DPU_REG_READ(&c->hw, DSC_CHUNK_SIZE),
++			DPU_REG_READ(&c->hw, DSC_DELAY),
++			DPU_REG_READ(&c->hw, DSC_FLATNESS),
++			DPU_REG_READ(&c->hw, DSC_CTL(c->idx)));
++
+ 	c->ops.dsc_disable = dpu_hw_dsc_disable;
+ 	c->ops.dsc_config = dpu_hw_dsc_config;
+ 	c->ops.dsc_config_thresh = dpu_hw_dsc_config_thresh;

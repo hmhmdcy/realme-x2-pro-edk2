@@ -1,0 +1,63 @@
+{
+  "schema": "samurai-charger-reattach-update-v1",
+  "transaction_pattern": "charger-reattach-update-[a-z0-9-]{8,48}",
+  "request_keys": [
+    "schema",
+    "transaction_id",
+    "worker_sha256",
+    "identity",
+    "adoption",
+    "lease_token",
+    "old_manifest_sha256",
+    "new_manifest_sha256",
+    "payload_sha256",
+    "payload_base64"
+  ],
+  "identity_keys": [
+    "boot_id",
+    "version",
+    "serial_sha256",
+    "compatible_sha256",
+    "rootfs_sha256"
+  ],
+  "adoption_keys": [
+    "transaction_id",
+    "guard_path",
+    "guard_sha256"
+  ],
+  "version": "#502 SMP PREEMPT Tue Oct 20 03:03:47 UTC 2026",
+  "old_manifest_sha256": "5fca8e5a0795325bd780b7965579068c7edc35fa7da12bac357bb30bbde69417",
+  "new_manifest_sha256": "18e8a1049a2c497fbc47ace50f8319aefccd63a9cd1ce5a7e9ef06916773b4e5",
+  "payload_sha256": "0870e32b1c6f5a927a1480a4cd523c2804dc7f44fe1796e8adb2b0100ffc71ea",
+  "payload_bytes": 52491,
+  "worker_argv": [
+    "python3",
+    "-B",
+    "/root/charging-management-20261023/<transaction_id>/stage-worker.py",
+    "--execute-stage"
+  ],
+  "worker_output_relative": "device-update",
+  "preflight_flag": "--preflight",
+  "preflight_api": "preflight(request, Device(request_raw), request_raw)",
+  "preflight_schema": "samurai-charger-reattach-preflight-v1",
+  "result_schema": "samurai-charger-reattach-update-result-v1",
+  "lease_path": "/run/<transaction_id>-window-private.json",
+  "lease_seconds_max": 120,
+  "lease_keys": [
+    "transaction_id",
+    "boot_id",
+    "token",
+    "owner",
+    "exclusive",
+    "camera_released",
+    "bluetooth_released",
+    "issued_boottime_s",
+    "expires_boottime_s"
+  ],
+  "supervisor_sha256": "b29ab985159ecc911571514cdc5fa72a1a44886037e35ff024dfa6fe623440cc",
+  "actual_request_or_lease_created": false,
+  "transport_implemented_here": false,
+  "Full_healthy_but_update_eligible": false,
+  "mac_evidence_required_sha256": "02c98143301bb5db896c6f535f490495428df8b8c6fd6ab3cdc69ca507a545a8",
+  "ordinary_protection_or_MAC_queries_added": false
+}

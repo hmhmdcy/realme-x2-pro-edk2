@@ -1,0 +1,132 @@
+{
+  "passed": true,
+  "scope": "source-effect and probe-order evidence, not online write validation",
+  "oem_commit": "9668fcdc6ec15be7a10d66f7b93c347829e0fdb6",
+  "oem_sources": [
+    {
+      "path": "drivers/power/supply/qcom/qpnp-smb5.c",
+      "bytes": 175199,
+      "sha256": "f0d9e00b3b03bee11478162cb2eec01d4ec1900cdfeadc1b89b38a91d3374511",
+      "url": "https://github.com/realme-kernel-opensource/realmeX2Pro-kernel-source/blob/9668fcdc6ec15be7a10d66f7b93c347829e0fdb6/drivers/power/supply/qcom/qpnp-smb5.c"
+    },
+    {
+      "path": "drivers/power/supply/qcom/smb5-lib.c",
+      "bytes": 205880,
+      "sha256": "5203488026f12fddc65ca899f16c8eb461e0da08dc151c4c5be18501204342a8",
+      "url": "https://github.com/realme-kernel-opensource/realmeX2Pro-kernel-source/blob/9668fcdc6ec15be7a10d66f7b93c347829e0fdb6/drivers/power/supply/qcom/smb5-lib.c"
+    },
+    {
+      "path": "drivers/power/supply/qcom/smb5-reg.h",
+      "bytes": 20095,
+      "sha256": "d8b7ac8b704f8c7be4399249296f0c7acc156e5b44db20c71f406142a179e508",
+      "url": "https://github.com/realme-kernel-opensource/realmeX2Pro-kernel-source/blob/9668fcdc6ec15be7a10d66f7b93c347829e0fdb6/drivers/power/supply/qcom/smb5-reg.h"
+    }
+  ],
+  "actual_functions": [
+    {
+      "function": "smb5_probe",
+      "path": "drivers/power/supply/qcom/qpnp-smb5.c",
+      "line": 5902,
+      "end_line": 6243,
+      "sha256": "f5dca2aabbf3b45c364160f6c4dd3aa7b4c50766be2ff6cd5653f7c6140d8fd1"
+    },
+    {
+      "function": "smb5_init_hw",
+      "path": "drivers/power/supply/qcom/qpnp-smb5.c",
+      "line": 3696,
+      "end_line": 4196,
+      "sha256": "f86581f2a87df07ba9f0c9601bde78761860f7550ccff1e4d115d78ff59a3764"
+    },
+    {
+      "function": "smb5_configure_typec",
+      "path": "drivers/power/supply/qcom/qpnp-smb5.c",
+      "line": 3285,
+      "end_line": 3409,
+      "sha256": "6ed9954f4d3516ca41be32ec0e40078c3bfb7d2f374319a7302abcf915b0b5be"
+    },
+    {
+      "function": "smb5_determine_initial_status",
+      "path": "drivers/power/supply/qcom/qpnp-smb5.c",
+      "line": 4256,
+      "end_line": 4290,
+      "sha256": "893fbb2a7100c935523c18e3e52b1450c640b1a0200feaa02c66781ec9feb1f2"
+    },
+    {
+      "function": "smblib_masked_write",
+      "path": "drivers/power/supply/qcom/smb5-lib.c",
+      "line": 144,
+      "end_line": 147,
+      "sha256": "6f6933343ae658da8874ba2b51ffc8b195654db3370446a1dc2ae4229485666d"
+    },
+    {
+      "function": "smblib_init",
+      "path": "drivers/power/supply/qcom/smb5-lib.c",
+      "line": 7551,
+      "end_line": 7699,
+      "sha256": "1b3f045d5ddb613bdee8071c98ed39521920e916a7f37278840dc7d987281477"
+    },
+    {
+      "function": "usb_plugin_irq_handler",
+      "path": "drivers/power/supply/qcom/smb5-lib.c",
+      "line": 5255,
+      "end_line": 5273,
+      "sha256": "4f70f9c6bf66dcb4dd0692c3c98618fc994c9411bc02e9107f8d25fd611272c8"
+    },
+    {
+      "function": "smblib_usb_plugin_locked",
+      "path": "drivers/power/supply/qcom/smb5-lib.c",
+      "line": 5080,
+      "end_line": 5253,
+      "sha256": "55e169341ed77fa5b31ee349807400c65892f32bd17b24196980f21fb473e2b9"
+    },
+    {
+      "function": "typec_disable_cmd_work",
+      "path": "drivers/power/supply/qcom/smb5-lib.c",
+      "line": 7172,
+      "end_line": 7206,
+      "sha256": "280d49c83f6d722532483690c3874f5980cea6925044d933fe226b5599abea04"
+    }
+  ],
+  "v4": {
+    "url": "https://lists.openwall.net/linux-kernel/2026/08/20/748",
+    "message_id": "20260820-submit-qcom-smbx-send-v1-v4-2-818dabb2771e@snyders.xyz",
+    "base_commit": "99b38cda3f4c486cfbc40f3c8ede1703594e9f13",
+    "html_sha256": "695d810663f59a1ffe31ed86ac78e07b3a9b013f890f8243c684300d9a1da6e4"
+  },
+  "exact_operation": {
+    "address": "0x1358",
+    "mask": "0x80",
+    "value": "0x00",
+    "mechanism": "regmap_update_bits",
+    "writes_applies_to": "USBIN BC1.2 start-on-CC configuration",
+    "example_old": "0xc0",
+    "example_new": "0x40",
+    "other_bits_preserved": true
+  },
+  "conclusions": {
+    "standalone_init_write_supported_by_source": true,
+    "full_dwc_eud_phy_tokens_required_by_source_for_this_bit": false,
+    "explicit_cmd_apsd_write_in_exact_operation": false,
+    "role_or_pd_write_in_exact_operation": false,
+    "phy_or_dpdm_operation_in_exact_operation": false,
+    "budget_or_charger_limit_write_in_exact_operation": false,
+    "oem_enable_detection_precedes_clear": true,
+    "oem_explicit_initial_plugin_dpdm_follows_init_clear": true,
+    "upstream_clear_precedes_detection_enable": true,
+    "upstream_probe_suspends_input_before_init": true,
+    "online_clear_has_no_indirect_auto_trigger_proven": false,
+    "online_clear_safe_proven": false,
+    "sdp_to_cdp_change_guaranteed": false,
+    "bootloader_analog_or_pd_state_inactive_proven": false
+  },
+  "old_suites_repeated": false,
+  "phone_accessed": false,
+  "ssh_executed": false,
+  "sdk_invoked": false,
+  "hardware_writes": 0,
+  "files": {
+    "audit-scope.py": "b95cdf9dc2e686749c2427e7d80553fa1ab6a31ed575f6acf8490878f3956208",
+    "oem-scope-functions.inc": "bede71b8d8a079575e4139de58b7f890ea87a054e4222c4e3b1119577a591ad8",
+    "v4-scope-excerpts.txt": "a1473d94ea8c59e99a6ebd1fd3191993a4aa4004b4daed889e19ced739e3f1af"
+  }
+}

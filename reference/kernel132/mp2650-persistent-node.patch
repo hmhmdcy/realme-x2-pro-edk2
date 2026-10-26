@@ -1,0 +1,15 @@
+--- a/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
++++ b/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
+@@ -416,6 +416,12 @@
+ &i2c1 {
+ 	clock-frequency = <400000>;
+ 	status = "okay";
++
++	/* QUP1 / 0x5c, verified MP2650: read-only power_supply observation. */
++	charger@5c {
++		compatible = "mps,mp2650";
++		reg = <0x5c>;
++	};
+ };
+ 
+ /* Stock BQ28Z610 at QUP15: standard read-only battery monitoring. */

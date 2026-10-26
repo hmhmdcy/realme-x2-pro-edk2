@@ -1,0 +1,67 @@
+[    0.000000] Booting Linux on physical CPU 0x0000000000 [0x51df805e]
+[    0.000000] Linux version 7.3.0-rc6-rmx1931-samurai+ (cy122@DESKTOP-A0HU3DG) (aarch64-linux-gnu-gcc (Ubuntu 15.2.0-16ubuntu1) 15.2.0, GNU ld (GNU Binutils for Ubuntu) 2.46) #56 SMP PREEMPT Sat Oct 10 00:33:03 CST 2026
+[    0.000000] KASLR disabled due to lack of seed
+[    0.000000] Machine model: Realme X2 Pro (RMX1931CN)
+[    0.000000] ------------[ cut here ]------------
+[    0.000000] WARNING: mm/ioremap.c:23 at generic_ioremap_prot+0xf8/0x104, CPU#0: swapper/0
+[    0.000000] Modules linked in:
+[    0.000000] CPU: 0 UID: 0 PID: 0 Comm: swapper Not tainted 7.3.0-rc6-rmx1931-samurai+ #56 PREEMPT 
+[    0.000000] Hardware name: Realme X2 Pro (RMX1931CN) (DT)
+[    0.000000] pstate: 800003c5 (Nzcv DAIF -PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[    0.000000] pc : generic_ioremap_prot+0xf8/0x104
+[    0.000000] lr : generic_ioremap_prot+0x28/0x104
+[    0.000000] sp : ffffffc081903b80
+[    0.000000] x29: ffffffc081903b80 x28: 000000000000005f x27: ffffffc08178c000
+[    0.000000] x26: 0000000000000002 x25: ffffffc08178de80 x24: 0000000000000001
+[    0.000000] x23: 0000000000000000 x22: 0068000000000713 x21: ffffffc08004acf4
+[    0.000000] x20: ffffffffff5fd000 x19: 00000000088e1014 x18: 0000000000000038
+[    0.000000] x17: 000000040044ffff x16: ffffffffff615fff x15: fffffffffffe0190
+[    0.000000] x14: 0000000000000000 x13: 0000000000000005 x12: 0000000000000000
+[    0.000000] x11: 0101010101010101 x10: 0000000000000000 x9 : 0fffffffffffffff
+[    0.000000] x8 : 0101010101010101 x7 : 0000000000000018 x6 : ffffffc081d02bd0
+[    0.000000] x5 : ffffffc081d02bd0 x4 : 0000000000000000 x3 : 00000000088e1014
+[    0.000000] x2 : 0068000000000713 x1 : 0000000000000004 x0 : 0000000000000000
+[    0.000000] Call trace:
+[    0.000000]  generic_ioremap_prot+0xf8/0x104 (P)
+[    0.000000]  __ioremap_prot+0x54/0xc0
+[    0.000000]  eud_setup+0x4c/0x84
+[    0.000000]  setup_earlycon+0x230/0x2d0
+[    0.000000]  param_setup_earlycon+0x14/0x34
+[    0.000000]  do_early_param+0x58/0x8c
+[    0.000000]  parse_args+0x140/0x3ac
+[    0.000000]  parse_early_options+0x38/0x44
+[    0.000000]  parse_early_param+0x38/0x58
+[    0.000000]  setup_arch+0x150/0x53c
+[    0.000000]  start_kernel+0x74/0x7b4
+[    0.000000]  __primary_switched+0x88/0x90
+[    0.000000] ---[ end trace 0000000000000000 ]---
+[    0.000000] earlycon: eud0 MMIO:0x00000000088e0000 (options '')
+[    0.000000] printk: legacy bootconsole [eud0] enabled
+[    0.000000] printk: debug: ignoring loglevel setting.
+[    0.000000] efi: EFI v2.7 by Renegade Project
+[    0.000000] efi: ACPI 2.0=0x13cfd0018 SMBIOS=0xfffe0000 SMBIOS 3.0=0x13fee0000 MEMRESERVE=0x13ce00f18 
+[    0.000000] OF: reserved mem: 0x0000000085700000..0x0000000085cfffff (6144 KiB) nomap non-reusable memory@85700000
+[    0.000000] OF: reserved mem: 0x0000000085f20000..0x0000000085f3ffff (128 KiB) nomap non-reusable memory@85f20000
+[    0.000000] OF: reserved mem: 0x0000000086000000..0x00000000861fffff (2048 KiB) nomap non-reusable memory@86000000
+[    0.000000] OF: reserved mem: 0x0000000086200000..0x000000008d6fffff (119808 KiB) nomap non-reusable memory@86200000
+[    0.000000] OF: reserved mem: 0x0000000085e00000..0x0000000085f1ffff (1152 KiB) nomap non-reusable memory@85e00000
+[    0.000000] OF: reserved mem: 0x000000008dc00000..0x0000000097bfffff (163840 KiB) nomap non-reusable memory@8dc00000
+[    0.000000] OF: reserved mem: 0x0000000097c00000..0x00000000980fffff (5120 KiB) nomap non-reusable memory@97c00000
+[    0.000000] OF: reserved mem: 0x0000000098100000..0x00000000994fffff (20480 KiB) nomap non-reusable memory@98100000
+[   11.561188] qcom_eud_com 88e0000.serial: RX46 IRQ requested virq=19 hwirq=524 route=legacy-SPI492, deferred enable
+[   13.792167] simple-framebuffer simple-framebuffer.0: [drm] could not acquire memory region [mem 0x9d000000-0x9d9e3fff flags 0x200]
+[   15.389909] Warning: unable to open an initial console.
+[   20.745877] qcom-rpmh-regulator 18200000.rsc:regulators-2: ldo2: could not find RPMh address for resource ldof2
+[   25.204781] platform c440000.spmi:pmic@0:temp-alarm@2400: deferred probe pending: (reason unknown)
+[   25.362918] platform c440000.spmi:pmic@2:temp-alarm@2400: deferred probe pending: (reason unknown)
+[   25.522358] platform c440000.spmi:pmic@4:temp-alarm@2400: deferred probe pending: (reason unknown)
+[   25.522360] platform 1d84000.ufshc: deferred probe pending: platform: wait for supplier /soc@0/rsc@18200000/regulators-0/ldo9
+[   25.636996] platform 18323000.cpufreq: deferred probe pending: qcom-cpufreq-hw: Failed to find icc paths
+[   25.636998] platform 88e8000.phy: deferred probe pending: platform: wait for supplier /soc@0/rsc@18200000/regulators-0/ldo5
+[   25.636999] platform 1d87000.phy: deferred probe pending: platform: wait for supplier /soc@0/rsc@18200000/regulators-0/ldo5
+[   25.637000] platform af00000.clock-controller: deferred probe pending: platform: supplier 88e8000.phy not ready
+[   25.637002] platform a600000.usb: deferred probe pending: dwc3: failed to initialize core
+[   30.100269] ufshcd-qcom 1d84000.ufshc: ufshcd_populate_vreg: Unable to find vdd-hba-supply regulator, assuming enabled
+[   30.440814] aux_bridge.aux_bridge aux_bridge.aux_bridge.0: error -ENODEV: failed to acquire drm_bridge
+[   30.551884] ufshcd-qcom 1d84000.ufshc: ufshcd_populate_vreg: Unable to find vdd-hba-supply regulator, assuming enabled
+[   31.842135] tail: write error: Invalid argument

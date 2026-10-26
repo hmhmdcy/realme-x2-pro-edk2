@@ -1,0 +1,116 @@
+{
+  "device_state_not_queried": true,
+  "external_ownership": [
+    "charging-management",
+    "camera-kernel45x",
+    "NEXT-SESSION.md"
+  ],
+  "files": [
+    {
+      "bytes": 2764,
+      "evidence": "reference/kernel234/collect-baseline.py",
+      "mode": 493,
+      "package": "samurai-platform",
+      "sha256": "104159825484fafc3ab5cacac368a9b7a8a38bc209c509207e73d1be00102319",
+      "source": "linux-port/packages/samurai-platform/usr_sbin_samurai-bluetooth",
+      "target": "usr/sbin/samurai-bluetooth"
+    },
+    {
+      "bytes": 3225,
+      "evidence": "linux-port/packages/samurai-platform/APKBUILD",
+      "mode": 493,
+      "package": "samurai-platform",
+      "sha256": "3421ee681da7714678f4c64e62d060997e585e93857ae02d8fd5d050e417ef0d",
+      "source": "linux-port/packages/samurai-platform/usr_sbin_samurai-radio-address",
+      "target": "usr/sbin/samurai-radio-address"
+    },
+    {
+      "bytes": 6999,
+      "evidence": "reference/kernel173/current-source-validation.json",
+      "mode": 493,
+      "package": "samurai-platform",
+      "sha256": "818f63a18cc24b2fd5fd23b950f05db0f386b6e0e19075fd943faa3eedb98e2b",
+      "source": "linux-port/packages/samurai-platform/usr_libexec_samurai-audio-route",
+      "target": "usr/libexec/samurai-audio-route"
+    },
+    {
+      "bytes": 1972,
+      "evidence": "reference/kernel173/current-source-validation.json",
+      "mode": 420,
+      "package": "samurai-platform",
+      "sha256": "a3a9916090364434dbbc4e4aa607973ecc587b2894a094dece9f51a48ffb9c2e",
+      "source": "linux-port/packages/samurai-platform/usr_share_alsa_ucm2_conf.d_Realme_X2_Pro_HiFi.conf",
+      "target": "usr/share/alsa/ucm2/conf.d/Realme_X2_Pro/HiFi.conf"
+    },
+    {
+      "bytes": 180,
+      "evidence": "reference/kernel173/current-source-validation.json",
+      "mode": 420,
+      "package": "samurai-platform",
+      "sha256": "2712a658e7989b290b9d26eddd3a27588a679fe3b38ae01a6f180fb266b13387",
+      "source": "linux-port/packages/samurai-platform/usr_share_alsa_ucm2_conf.d_Realme_X2_Pro_Realme_X2_Pro.conf",
+      "target": "usr/share/alsa/ucm2/conf.d/Realme_X2_Pro/Realme_X2_Pro.conf"
+    },
+    {
+      "bytes": 36,
+      "evidence": "linux-port/packages/samurai-desktop/APKBUILD",
+      "mode": 420,
+      "package": "samurai-desktop",
+      "sha256": "a452b66bf5c567e560783d5d19994cc2267c8a8b3444626e15b079292ea95ac9",
+      "source": "linux-port/packages/samurai-desktop/samurai-bluetooth.conf",
+      "target": "etc/bluetooth/samurai.conf"
+    }
+  ],
+  "historical_repair": {
+    "old_k132_payload_not_installable_on_k363": true,
+    "patch": "reference/kernel185/qca-power-pulse-rx.patch",
+    "patch_sha256": "20ae32834ee9e209c7146d54670afa0b553489a65ed1807c0cdbd67843a5faad",
+    "source_after_sha256": "645ded4980918a2d0a22dd2d56327bbc69c08e3689e9d313158f0d263e291d90",
+    "stage": 185
+  },
+  "kernel_commit": "ba61a62293e0f6bc5838c06f2e85e033e3d702a8",
+  "module_archive_basename": "modules-k363-private.tar.gz",
+  "module_evidence": [
+    "reference/kernel363/boot-candidate-build-validation.json",
+    "reference/kernel363/postboot-validation.json"
+  ],
+  "modules": [
+    {
+      "bytes": 27512,
+      "depends": [],
+      "mode": 420,
+      "name": "btbcm",
+      "sha256": "44fc100ade582005645266845ae07f80ce2d850c904c8b1792f0a08e93cd81cf",
+      "target": "usr/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/kernel/drivers/bluetooth/btbcm.ko"
+    },
+    {
+      "bytes": 25128,
+      "depends": [],
+      "mode": 420,
+      "name": "btqca",
+      "sha256": "7f00e03615422e72c293536a6dc80d19b010458c6c6c023dc64f4ad205064a93",
+      "target": "usr/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/kernel/drivers/bluetooth/btqca.ko"
+    },
+    {
+      "bytes": 139672,
+      "depends": [
+        "btbcm",
+        "btqca"
+      ],
+      "mode": 420,
+      "name": "hci_uart",
+      "sha256": "71b7a2b84f0cfc4f682390633598e9c5b6fcf1ebcb027220a191201ccba0d358",
+      "target": "usr/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/kernel/drivers/bluetooth/hci_uart.ko"
+    }
+  ],
+  "package": {
+    "arch": "aarch64",
+    "name": "samurai-bluetooth-k363",
+    "source_date_epoch": 1792713600,
+    "version": "0.1.0-r0"
+  },
+  "release": "7.3.0-rc6-rmx1931-samurai-k363+",
+  "schema": 1,
+  "scope": "Current k363 Bluetooth module package and existing platform/audio source audit",
+  "vermagic": "7.3.0-rc6-rmx1931-samurai-k363+ SMP preempt mod_unload aarch64"
+}

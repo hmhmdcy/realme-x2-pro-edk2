@@ -1,0 +1,83 @@
+{
+  "captures_verified": 22,
+  "baseline_smmu_faults": 10,
+  "failed_candidates_preserved": [
+    "#65 warm reboot DSI/vblank",
+    "#66 no-start SMMU/DSI",
+    "#67 DSI until first full reprepare"
+  ],
+  "tests": {
+    "drain-display-tests": {
+      "boot_id": "904ec7b8-c9ef-4a00-8eda-be5535002262",
+      "crc_aba_repetitions": 3,
+      "crc_samples": 72,
+      "display_off_on_cycles": 9,
+      "vblank_elapsed_seconds": [
+        0.986245,
+        0.997061,
+        0.994688,
+        0.993365,
+        0.996204,
+        0.993215,
+        0.992121,
+        0.997374,
+        0.987654
+      ]
+    },
+    "drain-reboot-display-tests": {
+      "boot_id": "2412cbe2-9f1d-4ea4-9c0b-8a19d4ff6568",
+      "crc_aba_repetitions": 3,
+      "crc_samples": 72,
+      "display_off_on_cycles": 9,
+      "vblank_elapsed_seconds": [
+        0.987354,
+        0.994652,
+        0.992158,
+        0.985487,
+        0.99696,
+        0.994421,
+        0.995463,
+        0.998328,
+        0.985866
+      ]
+    }
+  },
+  "logs": {
+    "drain-boot-dmesg": {
+      "smmu_faults": 0,
+      "dsi_errors": 0,
+      "warnings": 0,
+      "panel_power_reads": 1
+    },
+    "drain-tested-dmesg": {
+      "smmu_faults": 0,
+      "dsi_errors": 0,
+      "warnings": 0,
+      "panel_power_reads": 10
+    },
+    "drain-reboot-boot-dmesg": {
+      "smmu_faults": 0,
+      "dsi_errors": 0,
+      "warnings": 0,
+      "panel_power_reads": 1
+    },
+    "final-dmesg": {
+      "smmu_faults": 0,
+      "dsi_errors": 0,
+      "warnings": 0,
+      "panel_power_reads": 10
+    }
+  },
+  "final_boot_id": "2412cbe2-9f1d-4ea4-9c0b-8a19d4ff6568",
+  "taint": 0,
+  "final_partition_hashes_pass": true,
+  "only_logdump_written": true,
+  "eud_echo_and_six_f1_pass": true,
+  "preserved_cpu_touch_ufs_usb": true,
+  "native_boot_handoff_verified": true,
+  "gpu_rendering_verified": false,
+  "refresh90_verified": false,
+  "optical_output_verified": false,
+  "brightness_hardware_readback_verified": false,
+  "suspend_resume_verified": false
+}

@@ -1,0 +1,34 @@
+{
+  "differential_cases": 52,
+  "passed": true,
+  "tested_files": {
+    "oem-full-cycle.h": "6a0e04d0359a53db335e22ff938839b46e7d01a0337c40c9de153eadb7546ce8",
+    "test-oem-differential.c": "e35829bf3283440478dbbc0927a24fcbb89074fad2e1d148a15a3ce98bd925e2"
+  },
+  "oracle_files": {
+    "reference-functions.c": "c5ad0e1f7402f8ec32c510d15a616a5eb0caea967c981e8ecbb4ab192701e5fb",
+    "test-reference.c": "cf65459afaccc6516121449547c30a7da07f7fae5febce2df87f6f633e56b26c",
+    "reference-result.json": "799bd5dc87cfcb73a1e3c359db1c23e6020386dab076a58242748e73f0ca6af1"
+  },
+  "sanitizers": [
+    "ASan",
+    "UBSan"
+  ],
+  "command": [
+    "gcc",
+    "-std=c11",
+    "-g",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-fsanitize=address,undefined",
+    "-fno-omit-frame-pointer",
+    "-I/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/test-oem-differential.c",
+    "-o",
+    "/home/cy122/charging-session-20261023/test-oem-differential"
+  ],
+  "scope": "Exact OEM predicates/counters at nominal OEM targets; excludes explicit safer continuity/CV/TCA adaptations",
+  "phone_accessed": false,
+  "shared_kernel_or_sdk_modified": false
+}

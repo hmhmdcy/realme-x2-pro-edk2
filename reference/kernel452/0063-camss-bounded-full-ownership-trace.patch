@@ -1,0 +1,470 @@
+--- a/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
++++ b/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
+@@ -8,6 +8,7 @@
+ #include <time.h>
+ #include "hardware_focus.h"
+ #include "thread_capacity.h"
++#include "full_ownership_trace.h"
+ #include "camss_ipe.h"
+ #include "camss_pd10.h"
+ #include "tone_trace.h"
+@@ -95,7 +96,31 @@
+  };
+  std::map<Request *, PendingFrame> requests_;
+  Request *ipeActive_ = nullptr;
+- bool toneTraceSaved_ = false;
++  bool toneTraceSaved_ = false;
++  camss_diag::Capture fullTrace_;
++  void traceFull(camss_diag::EventType type, Request *request = nullptr,
++                 FrameBuffer *buffer = nullptr, uint32_t sof = camss_diag::Unknown,
++                 uint64_t hardwareNs = 0, int32_t status = 0)
++  {
++   if (!fullTrace_.active()) return;
++   camss_diag::Event e{};
++   e.type=uint16_t(type);e.request=reinterpret_cast<uintptr_t>(request);
++   e.buffer=reinterpret_cast<uintptr_t>(buffer);e.hardwareNs=hardwareNs;e.sof=sof;
++   e.requestSequence=request?request->sequence():camss_diag::Unknown;
++   e.lastSof=lastSof_.value_or(camss_diag::Unknown);
++   e.activeRequest=reinterpret_cast<uintptr_t>(ipeActive_);
++   e.freeFull=freeImages_.size();e.requests=requests_.size();e.waitingFull=images_.size();
++   e.coarse=coarseImages_.size();e.histograms=histograms_.size();
++   e.statistics=pendingStats_.size();e.associations=internalRequests_.size();e.status=status;
++   e.flags=(running_?uint32_t(camss_diag::Running):0u)|
++           (ipeActive_?uint32_t(camss_diag::IpeActive):0u)|
++           (parameterBusy_?uint32_t(camss_diag::ParameterBusy):0u);
++   if(buffer) {
++    if(buffer->metadata().status==FrameMetadata::FrameSuccess)e.flags|=camss_diag::BufferSuccess;
++    if(buffer->_d()->timestampMonotonic())e.flags|=camss_diag::BufferTimestampMonotonic;
++   }
++   fullTrace_.record(e);
++  }
+  std::map<FrameBuffer *, Request *> internalRequests_;
+  std::vector<std::unique_ptr<FrameBuffer>> internalImages_;
+  LumaFocusWorkspace focusWorkspace_;
+@@ -664,7 +689,12 @@
+   configured_ = d;
+  }
+  active_ = d;
+- ++d->epoch_;
++  ++d->epoch_;
++  {
++   const int status=d->fullTrace_.start(utils::secure_getenv("LIBCAMERA_CAMSS_FULL_TRACE_DIR"),d->epoch_);
++   if(status)LOG(CamssVfe,Warning)<<"FULL ownership diagnostic disabled status="<<status;
++   d->traceFull(camss_diag::EventType::Start);
++  }
+  d->paramsApplied_ = false;
+  d->coarseImages_.clear();d->consumedCoarseSof_.reset();
+  d->images_.clear(); d->imageArrival_.clear(); d->histograms_.clear(); d->histogramOrder_.clear(); d->pendingStats_.clear();
+@@ -682,8 +712,9 @@
+   if (ret >= int(count)) {for(auto &buffer:d->internalImages_) d->freeImages_.push(buffer.get());ret=0;}
+   else ret=ret<0?ret:-ENOMEM;
+  }
+- if (ret) goto error;
+- if(d->coarseEnabled_) {
++  if (ret) goto error;
++  d->traceFull(camss_diag::EventType::PoolReady);
++  if(d->coarseEnabled_) {
+   const unsigned count=d->stream_.configuration().bufferCount+4;
+   ret=d->coarse_->allocateBuffers(count,&d->coarseBuffers_);
+   if(ret<int(count)){ret=ret<0?ret:-ENOMEM;goto error;}
+@@ -795,6 +826,7 @@
+ void CamssVfePipeline::stopDevice(Camera *camera)
+ {
+ 	auto *d = data(camera);
++ d->traceFull(camss_diag::EventType::StopBegin);
+ 	d->running_ = false;
+ 	d->deadline_.stop();
+ 	d->sensorContextHealthy_ = false;
+@@ -857,18 +889,29 @@
+ 		active_ = nullptr;
+ 	if (configured_ == d)
+ 		configured_ = nullptr;
++ d->traceFull(camss_diag::EventType::StopEnd);
++ if(d->fullTrace_.active()) {
++  const int result=d->fullTrace_.stop();
++  LOG(CamssVfe,Info)<<"FULL_OWNERSHIP_TRACE epoch="<<d->epoch_<<" file="<<d->fullTrace_.filename()
++   <<" total="<<d->fullTrace_.lastTotal()<<" retained="<<d->fullTrace_.lastRetained()
++   <<" overwritten="<<d->fullTrace_.lastOverwritten()<<" result="<<result;
++ }
+ }
+ 
+ int CamssVfePipeline::queueRequestDevice(Camera *camera, Request *request)
+ {
+- auto *d = data(camera);
+- FrameBuffer *buffer = request->findBuffer(&d->stream_);
++  auto *d = data(camera);
++  d->traceFull(camss_diag::EventType::RequestEnter,request);
++  FrameBuffer *buffer = request->findBuffer(&d->stream_);
+ 
+  FrameBuffer *raw = request->findBuffer(&d->rawStream_);
+  if ((d->processedEnabled_ && !buffer) || (d->rawEnabled_ && !raw)) return -EINVAL;
+  const bool internal = !d->processedEnabled_ || bool(d->ipe_);
+  FrameBuffer *ife = buffer;
+- if (internal) {if(d->freeImages_.empty())return -ENOBUFS;ife=d->freeImages_.front();}
++  if (internal) {
++   if(d->freeImages_.empty()){d->traceFull(camss_diag::EventType::NoFreeFull,request);return -ENOBUFS;}
++   ife=d->freeImages_.front();
++  }
+  if (!buffer) buffer=ife;
+  ControlList sensorControls(d->sensor_->controls());
+  if (!request->controls().empty()) {
+@@ -881,11 +924,19 @@
+  if ((!sensorControls.empty() && d->sensorUpdates_.size() >= 8) || (isp && d->ispControls_.size() >= 8)) return -ENOSPC;
+ 
+  d->requests_.emplace(request,CamssVfeData::PendingFrame{buffer,raw,ife,nullptr,false,!raw,false});
+- if (internal) {d->freeImages_.pop();d->internalRequests_[ife]=request;}
+- int ret = d->image_->queueBuffer(ife);
++  if (internal) {
++   d->freeImages_.pop();d->internalRequests_[ife]=request;
++   d->traceFull(camss_diag::EventType::InternalTake,request,ife);
++  }
++  d->traceFull(camss_diag::EventType::FullQbufBegin,request,ife);
++  int ret = d->image_->queueBuffer(ife);
++  d->traceFull(camss_diag::EventType::FullQbufResult,request,ife,camss_diag::Unknown,0,ret);
+  if (ret) {
+   d->requests_.erase(request);
+-  if(internal){d->internalRequests_.erase(ife);d->freeImages_.push(ife);}
++   if(internal){
++    d->internalRequests_.erase(ife);d->freeImages_.push(ife);
++    d->traceFull(camss_diag::EventType::InternalReturn,request,ife,camss_diag::Unknown,0,ret);
++   }
+   return ret;
+  }
+  if (raw) {
+@@ -897,7 +948,8 @@
+   if (!sensorControls.empty()) d->sensorUpdates_.push_back({ std::move(sensorControls), request->sequence() });
+   if (isp) { d->ispControls_.push_back({ request->controls(), request->sequence() }); d->submitStatistics(); }
+  }
+- return 0;
++  d->traceFull(camss_diag::EventType::RequestAccepted,request,ife);
++  return 0;
+ }
+ 
+ 
+@@ -909,8 +961,9 @@
+ 
+ void CamssVfeData::pixFrameStart(uint32_t sequence,uint64_t timestamp)
+ {
+- if(!running_)return;
+- if(previousPixStart_ && timestamp>previousPixStart_)framePeriod_=timestamp-previousPixStart_;
++  if(!running_)return;
++  traceFull(camss_diag::EventType::PixSof,nullptr,nullptr,sequence,timestamp);
++  if(previousPixStart_ && timestamp>previousPixStart_)framePeriod_=timestamp-previousPixStart_;
+  previousPixStart_=timestamp;
+  pixStarts_[sequence]=timestamp;
+  while(pixStarts_.size()>128)pixStarts_.erase(pixStarts_.begin());
+@@ -977,7 +1030,13 @@
+   if(ipeToken)ipa_->frameProcessed(epoch_,ipeSof,ipeToken,ipeSuccess);
+   if(ipeActive_==request)ipeActive_=nullptr;
+   /* Release the internal association before any application completion. */
+- if(internalRequests_.erase(ife))freeImages_.push(ife);
++  if(internalRequests_.erase(ife)) {
++   freeImages_.push(ife);
++   traceFull(camss_diag::EventType::InternalReturn,request,ife);
++  }
++  traceFull(camss_diag::EventType::RequestComplete,request,ife,
++            ife->metadata().status==FrameMetadata::FrameSuccess?ife->_d()->kernelSequence():camss_diag::Unknown,
++            image->metadata().timestamp,int32_t(image->metadata().status));
+  if(processedEnabled_)handler()->completeBuffer(request,image);
+  if(raw)handler()->completeBuffer(request,raw);
+  handler()->completeRequest(request);
+@@ -1089,6 +1148,9 @@
+ 
+ void CamssVfeData::imageReady(FrameBuffer *buffer)
+ {
++ traceFull(camss_diag::EventType::FullDq,imageRequest(buffer),buffer,
++           buffer->metadata().status==FrameMetadata::FrameSuccess?buffer->_d()->kernelSequence():camss_diag::Unknown,
++           buffer->metadata().timestamp,int32_t(buffer->metadata().status));
+  Request *request=imageRequest(buffer);
+  if(!request || !requests_.count(request)) return;
+ 	if (!running_ || buffer->metadata().status != FrameMetadata::FrameSuccess) {
+@@ -1123,7 +1185,9 @@
+ 
+ void CamssVfeData::coarseReady(FrameBuffer *buffer)
+ {
+- if(!running_)return;
++  if(!running_)return;
++  traceFull(camss_diag::EventType::Pd10Dq,nullptr,buffer,buffer->_d()->kernelSequence(),
++            buffer->metadata().timestamp,int32_t(buffer->metadata().status));
+  const uint32_t sof=buffer->_d()->kernelSequence();
+  if(buffer->metadata().status!=FrameMetadata::FrameSuccess ||
+     (consumedCoarseSof_ && sof<=*consumedCoarseSof_) || coarseImages_.count(sof)) {
+@@ -1149,7 +1213,9 @@
+ 
+ void CamssVfeData::statsReady(FrameBuffer *buffer)
+ {
+- if (!running_) return;
++  if (!running_) return;
++  traceFull(camss_diag::EventType::StatsDq,nullptr,buffer,buffer->_d()->kernelSequence(),
++            buffer->metadata().timestamp,int32_t(buffer->metadata().status));
+  if (buffer->metadata().status != FrameMetadata::FrameSuccess) {
+   int ret = stats_->queueBuffer(buffer);
+   if (ret) LOG(CamssVfe, Error) << "Requeue error statistics failed: " << ret;
+@@ -1239,8 +1305,9 @@
+  const ipa::camss::Statistics &statistics, const ControlList &metadata)
+ {
+  if (!running_ || epoch != epoch_) return;
+- auto it = pendingStats_.find(id);
+- if (it == pendingStats_.end() || !it->second.submitted || it->second.sof != sof) return;
++  traceFull(camss_diag::EventType::StatsDone,nullptr,nullptr,sof,0,statistics.status);
++  auto it = pendingStats_.find(id);
++  if (it == pendingStats_.end() || !it->second.submitted || it->second.sof != sof) return;
+  FrameBuffer *buffer = it->second.buffer;
+  const auto &update = statistics.automaticUpdate;
+  if (update.valid && automatic_ && sensorContextHealthy_) {
+@@ -1327,14 +1394,18 @@
+     };
+     /* A later statistics callback must not bypass an older waiting FULL.
+      * Both successful numerical history and PD10 retirement follow SOF. */
+-    if(running_ && ipe_ && processedEnabled_ && sequence!=images_.begin()->first)return;
++    if(running_ && ipe_ && processedEnabled_ && sequence!=images_.begin()->first) {
++     traceFull(camss_diag::EventType::WaitOlder,request,buffer,sequence);return;
++    }
+     if(running_ && ipe_ && processedEnabled_ && ipeActive_) {
++     traceFull(camss_diag::EventType::WaitIpe,request,buffer,sequence);
+         if(!deadline_.isRunning())deadline_.start(std::chrono::milliseconds(250));
+         return;
+     }
+     if(coarseEnabled_ && running_ && buffer->metadata().status==FrameMetadata::FrameSuccess) {
+         auto found=coarseImages_.find(sequence);
+         if(found==coarseImages_.end() && !force) {
++         traceFull(camss_diag::EventType::WaitPd10,request,buffer,sequence);
+             if(!deadline_.isRunning())deadline_.start(std::chrono::milliseconds(250));
+             return;
+         }
+@@ -1342,7 +1413,9 @@
+         if(found==coarseImages_.end())buffer->_d()->metadata().status=FrameMetadata::FrameError;
+         else {requests_.at(request).coarse=found->second;coarseImages_.erase(found);}
+     }
+-    if(running_ && ipe_ && processedEnabled_)ipeActive_=request;
++    if(running_ && ipe_ && processedEnabled_) {
++     ipeActive_=request;traceFull(camss_diag::EventType::IpeClaim,request,buffer,sequence);
++    }
+     images_.erase(it);imageArrival_.erase(sequence);
+ 	if (paired) {
+ 		const Histogram &h = histograms_.at(sequence);
+@@ -1459,7 +1532,8 @@
+    }
+   }
+   if(!ret)ret=ipe_->queue(buffer,output,tone.empty()?nullptr:&packet,requests_.at(request).coarse);
+-  LOG(CamssVfe,Info)<<"IPE_TONE_QUEUE epoch="<<toneEpoch<<" sof="<<sequence<<" token="<<toneToken
++   traceFull(camss_diag::EventType::IpeQueue,request,buffer,sequence,buffer->metadata().timestamp,ret);
++   LOG(CamssVfe,Info)<<"IPE_TONE_QUEUE epoch="<<toneEpoch<<" sof="<<sequence<<" token="<<toneToken
+    <<" revision="<<toneRevision<<" fresh="<<toneFresh<<" bytes="<<tone.size()<<" pd10="<<coarseEnabled_<<" result="<<ret;
+   if (ret) imageProcessed(buffer,output,false);
+  } else imageProcessed(buffer,output,buffer->metadata().status==FrameMetadata::FrameSuccess);
+@@ -1470,7 +1544,9 @@
+ {
+  Request *request=imageRequest(input);
+  auto it=requests_.find(request);
+- if(it==requests_.end() || it->second.ifeImage!=input || it->second.image!=output)return;
++  if(it==requests_.end() || it->second.ifeImage!=input || it->second.image!=output)return;
++  traceFull(camss_diag::EventType::ImageProcessed,request,input,input->_d()->kernelSequence(),
++            input->metadata().timestamp,success?0:-EIO);
+  if(input!=output) {
+   output->_d()->metadata()=input->metadata();
+   output->_d()->setKernelSequence(input->_d()->kernelSequence());
+--- /dev/null
++++ b/src/libcamera/pipeline/camss-vfe/full_ownership_trace.h
+@@ -0,0 +1,201 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++
++#include <array>
++#include <cerrno>
++#include <cstdint>
++#include <cstdio>
++#include <fcntl.h>
++#include <memory>
++#include <new>
++#include <time.h>
++#include <unistd.h>
++
++namespace libcamera::camss_diag {
++
++enum class EventType : uint16_t {
++    Start, PoolReady, RequestEnter, NoFreeFull, InternalTake, FullQbufBegin,
++    FullQbufResult, FullDq, PixSof, Pd10Dq, StatsDq, StatsDone, WaitOlder,
++    WaitIpe, WaitPd10, IpeClaim, IpeQueue, ImageProcessed, InternalReturn,
++    RequestComplete, RequestAccepted, StopBegin, StopEnd, Count
++};
++constexpr uint32_t Unknown = UINT32_MAX;
++enum Flags : uint32_t {
++    Running = 1, IpeActive = 2, ParameterBusy = 4,
++    BufferSuccess = 8, BufferTimestampMonotonic = 16
++};
++struct Event {
++    uint64_t number, monoNs, epoch, request, buffer, hardwareNs, activeRequest;
++    uint32_t sof, requestSequence, lastSof;
++    uint32_t freeFull, requests, waitingFull, coarse, histograms, statistics, associations, flags;
++    int32_t status, outstandingFull;
++    uint16_t type, reserved;
++};
++static_assert(sizeof(Event) == 112);
++
++/* Single CameraManager thread only. Nested IPC dispatch is sequential; push()
++ * finishes before any call-out. No callbacks, allocation or I/O inside push(). */
++template<size_t Capacity>
++class Ring
++{
++    static_assert(Capacity > 0);
++public:
++    bool prepare()
++    {
++        reset();
++        events_.reset(new (std::nothrow) Event[Capacity]);
++        if (!events_)
++            return false;
++        /* calloc/value-init can leave demand-zero pages untouched. */
++        volatile unsigned char *bytes =
++            reinterpret_cast<volatile unsigned char *>(events_.get());
++        for (size_t i = 0; i < sizeof(Event) * Capacity; i += 4096)
++            bytes[i] = 0;
++        bytes[sizeof(Event) * Capacity - 1] = 0;
++        return true;
++    }
++    bool active() const { return bool(events_); }
++    void push(Event event)
++    {
++        if (!active())
++            return;
++        const auto kind = EventType(event.type);
++        if (kind >= EventType::Count)
++            return;
++        ++totals_[event.type];
++        if (kind == EventType::FullQbufResult && !event.status)
++            ++outstanding_;
++        if (kind == EventType::FullDq) {
++            if (outstanding_ > 0)
++                --outstanding_;
++            else
++                ++underflows_;
++        }
++        event.number = ++total_;
++        event.outstandingFull = outstanding_;
++        events_[(total_ - 1) % Capacity] = event;
++    }
++    size_t retained() const { return total_ < Capacity ? total_ : Capacity; }
++    uint64_t total() const { return total_; }
++    uint64_t overwritten() const { return total_ - retained(); }
++    uint64_t firstNumber() const { return total_ ? total_ - retained() + 1 : 0; }
++    uint64_t underflows() const { return underflows_; }
++    uint64_t count(EventType type) const { return totals_[uint16_t(type)]; }
++    const Event &at(size_t chronologicalIndex) const
++    {
++        return events_[(firstNumber() - 1 + chronologicalIndex) % Capacity];
++    }
++    void reset()
++    {
++        events_.reset();
++        total_ = 0; outstanding_ = 0; underflows_ = 0; totals_.fill(0);
++    }
++private:
++    std::unique_ptr<Event[]> events_;
++    std::array<uint64_t, size_t(EventType::Count)> totals_{};
++    uint64_t total_ = 0, underflows_ = 0;
++    int32_t outstanding_ = 0;
++};
++
++class Capture
++{
++public:
++    static constexpr size_t Capacity = 8192;
++    ~Capture() { reset(); }
++    int start(const char *directory, uint64_t epoch)
++    {
++        reset(); lastTotal_ = lastRetained_ = lastOverwritten_ = 0;
++        if (!directory || !*directory)
++            return 0;
++        directory_ = open(directory, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
++        if (directory_ < 0)
++            return -errno;
++        if (!ring_.prepare()) {
++            reset();
++            return -ENOMEM;
++        }
++        epoch_ = epoch;
++        std::snprintf(filename_, sizeof filename_, "full-%ld-e%llu-%llu.csv",
++                      long(getpid()), (unsigned long long)epoch,
++                      (unsigned long long)now());
++        return 0;
++    }
++    bool active() const { return directory_ >= 0 && ring_.active(); }
++    void record(Event event)
++    {
++        if (!active())
++            return;
++        event.monoNs = now();
++        event.epoch = epoch_;
++        ring_.push(event);
++    }
++    const char *filename() const { return filename_; }
++    uint64_t lastTotal() const { return lastTotal_; }
++    uint64_t lastRetained() const { return lastRetained_; }
++    uint64_t lastOverwritten() const { return lastOverwritten_; }
++    int stop()
++    {
++        if (!active())
++            return 0;
++        lastTotal_ = ring_.total(); lastRetained_ = ring_.retained();
++        lastOverwritten_ = ring_.overwritten();
++        const int fd = openat(directory_, filename_,
++                              O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW, 0600);
++        if (fd < 0) {
++            const int error = -errno; reset(); return error;
++        }
++        FILE *file = fdopen(fd, "w");
++        if (!file) {
++            const int error = -errno; close(fd); reset(); return error;
++        }
++        std::fprintf(file, "# full-trace,version=1,capacity=%zu,total=%llu,retained=%llu,overwritten=%llu,first=%llu,clock-errors=%llu,q-underflows=%llu\n",
++                     Capacity, (unsigned long long)ring_.total(),
++                     (unsigned long long)ring_.retained(), (unsigned long long)ring_.overwritten(),
++                     (unsigned long long)ring_.firstNumber(), (unsigned long long)clockErrors_,
++                     (unsigned long long)ring_.underflows());
++        for (uint16_t i = 0; i < uint16_t(EventType::Count); ++i)
++            std::fprintf(file, "# total,%u,%llu\n", i, (unsigned long long)ring_.count(EventType(i)));
++        std::fprintf(file, "number,mono_ns,epoch,request,buffer,hardware_ns,active_request,type,sof,request_sequence,last_sof,free_full,requests,waiting_full,coarse,histograms,statistics,associations,flags,status,outstanding_full\n");
++        for (size_t i = 0; i < ring_.retained(); ++i) {
++            const Event &e = ring_.at(i);
++            const uint64_t values[] = {
++                e.number, e.monoNs, e.epoch, e.request, e.buffer, e.hardwareNs, e.activeRequest,
++                e.type, e.sof, e.requestSequence, e.lastSof, e.freeFull, e.requests,
++                e.waitingFull, e.coarse, e.histograms, e.statistics, e.associations, e.flags
++            };
++            for (uint64_t value : values)
++                std::fprintf(file, "%llu,", (unsigned long long)value);
++            std::fprintf(file, "%d,%d\n", e.status, e.outstandingFull);
++        }
++        std::fprintf(file, "# end,records=%llu\n", (unsigned long long)ring_.retained());
++        int result = std::ferror(file) ? -EIO : 0;
++        if (std::fclose(file) && !result)
++            result = -errno;
++        reset();
++        return result;
++    }
++private:
++    uint64_t now()
++    {
++        timespec value{};
++        if (clock_gettime(CLOCK_MONOTONIC, &value)) {
++            ++clockErrors_;
++            return 0;
++        }
++        return uint64_t(value.tv_sec) * 1000000000 + value.tv_nsec;
++    }
++    void reset()
++    {
++        if (directory_ >= 0)
++            close(directory_);
++        directory_ = -1;
++        ring_.reset(); epoch_ = 0; clockErrors_ = 0;
++    }
++    Ring<Capacity> ring_;
++    int directory_ = -1;
++    uint64_t epoch_ = 0, clockErrors_ = 0;
++    uint64_t lastTotal_ = 0, lastRetained_ = 0, lastOverwritten_ = 0;
++    char filename_[96]{};
++};
++
++} /* namespace libcamera::camss_diag */

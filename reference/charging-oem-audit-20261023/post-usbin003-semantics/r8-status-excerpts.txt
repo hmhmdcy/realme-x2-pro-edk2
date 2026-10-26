@@ -1,0 +1,102 @@
+286: /* Called after the safety step, with c->lock held and no I2C bus lock held.
+287:  * bq27xxx STATUS reads its own signed current/FC flags; do not infer net battery
+288:  * charging from CHG_EN or the charger's switching state.
+289:  */
+290: static bool sm_notification_locked(struct sm_charger *c)
+291: {
+292: 	struct sm_notify_state state = {
+293: 		.health = c->last_error || c->latched || c->stop_error ?
+294: 			POWER_SUPPLY_HEALTH_UNSPEC_FAILURE : POWER_SUPPLY_HEALTH_GOOD,
+295: 		.error = c->last_error,
+296: 		.stop_error = c->stop_error,
+297: 		.latched = c->latched,
+298: 		.source_inhibit = c->source_inhibit,
+299: 		.auto_requested = c->auto_requested,
+300: 		.valid = c->sample.valid,
+301: 		.online = c->sample.online,
+302: 		.protection_ok = c->sample.protection_ok,
+303: 		.fault = c->sample.fault,
+304: 		.target_enable = c->target.enable,
+305: 		.input_ua = c->target.input_ua,
+306: 		.current_ua = c->target.current_ua,
+307: 		.cell_uv = c->target.cell_uv,
+308: 		.logical_full = c->full_state.full,
+309: 		.full_holding = c->full_holding,
+310: 		.hold_requested = c->hold_requested,
+311: 		.gauge_charge_stop = c->gauge_charge_stop,
+312: 	};
+313: 	bool changed;
+314: 	int reg;
+315: 
+316: 	/* Sample after sm_step_locked() has completed any hardware writes. */
+317: 	reg = sm_read(c, 0x13);
+318: 	if (reg < 0)
+319: 		state.charger_error = reg;
+320: 	else
+321: 		state.charger_status = reg & 0x0e; /* ONLINE and CHG_STAT only */
+322: 	state.battery_error = sm_psy_int(c->battery, POWER_SUPPLY_PROP_STATUS,
+323: 				       &state.battery_status);
+324: 	changed = !c->notified_valid || sm_notify_changed(&c->notified, &state);
+325: 	c->notified = state;
+326: 	c->notified_valid = true;
+327: 	return changed;
+424: 	case POWER_SUPPLY_PROP_ONLINE:
+425: 	case POWER_SUPPLY_PROP_STATUS:
+426: 		value = sm_read(c, 0x13);
+427: 		if (value < 0) { ret = value; break; }
+428: 		if (prop == POWER_SUPPLY_PROP_ONLINE) {
+429: 			v->intval = !!(value & 2);
+430: 			break;
+431: 		}
+432: 		v->intval = POWER_SUPPLY_STATUS_NOT_CHARGING;
+433: 		if (value & 2) {
+434: 			if ((value & 0x0c) == 0x0c)
+435: 				v->intval = POWER_SUPPLY_STATUS_FULL;
+436: 			else if (value & 0x0c)
+437: 				v->intval = POWER_SUPPLY_STATUS_CHARGING;
+438: 		}
+439: 		break;
+440: 	default:
+441: 		ret = -EINVAL;
+442: 	}
+443: 	mutex_unlock(&c->lock);
+444: 	return ret;
+501: static const enum power_supply_property sm_properties[] = {
+502: 	POWER_SUPPLY_PROP_ONLINE, POWER_SUPPLY_PROP_STATUS, POWER_SUPPLY_PROP_HEALTH,
+503: 	POWER_SUPPLY_PROP_CHARGE_BEHAVIOUR, POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT,
+504: 	POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT,
+505: 	POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE,
+506: 	POWER_SUPPLY_PROP_VOLTAGE_NOW, POWER_SUPPLY_PROP_CURRENT_NOW,
+507: 	POWER_SUPPLY_PROP_MODEL_NAME,
+508: };
+509: 
+510: static const struct power_supply_desc sm_desc = {
+511: 	.name = "mp2650-input", .type = POWER_SUPPLY_TYPE_USB,
+512: 	.properties = sm_properties, .num_properties = ARRAY_SIZE(sm_properties),
+513: 	.charge_behaviours = BIT(POWER_SUPPLY_CHARGE_BEHAVIOUR_AUTO) |
+514: 		BIT(POWER_SUPPLY_CHARGE_BEHAVIOUR_INHIBIT_CHARGE),
+515: 	.get_property = sm_get_property, .set_property = sm_set_property,
+516: 	.property_is_writeable = sm_writeable,
+517: };
+683: 	/* Route external-power changes to the existing gauge's standard callback.
+684: 	 * Without this supplier relation bq27xxx can wait for its 360s poll, while
+685: 	 * the desktop continues to display the previous charging state. Match the
+686: 	 * actual gauge parent, never a guessed global battery name.
+687: 	 */
+688: 	ret = power_supply_for_each_psy(c, sm_battery_notify_target);
+689: 	if (ret)
+690: 		return ret;
+691: 	if (!c->battery_name)
+692: 		return -EPROBE_DEFER;
+693: 	c->battery = power_supply_get_by_name(c->battery_name);
+694: 	if (!c->battery)
+695: 		return -EPROBE_DEFER;
+696: 	ret = devm_add_action_or_reset(dev, sm_put_supply, c->battery);
+697: 	if (ret)
+698: 		return ret;
+699: 	if (c->battery->desc->type != POWER_SUPPLY_TYPE_BATTERY ||
+700: 	    c->battery->dev.parent != &c->gauge->dev)
+701: 		return -ENODEV;
+702: 	config.supplied_to = &c->battery_name;
+703: 	config.num_supplicants = 1;
+704: 	c->psy = devm_power_supply_register(dev, &sm_desc, &config);

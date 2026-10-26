@@ -1,0 +1,24 @@
+{
+  "read_only_source_audit": true,
+  "identity_path": "/sys/devices/soc0/serial_number",
+  "sources": {
+    "drivers/soc/qcom/socinfo.c": {
+      "source": "/mnt/samurai-full282/source354/drivers/soc/qcom/socinfo.c",
+      "sha256": "01a1c080b3eff14f37ccc1548fdd375ae59f7d59b8d84d74906c5a055d5811f3"
+    },
+    "drivers/base/soc.c": {
+      "source": "/mnt/samurai-full282/source354/drivers/base/soc.c",
+      "sha256": "e2abdfc3bf83b13d44fb6babe22e19ebe65d12c5f7ab4efd7e1ac487c7b38d45"
+    }
+  },
+  "source_chain": [
+    "qcom_socinfo_probe reads SMEM_HW_SW_BUILD_ID through qcom_smem_get",
+    "item_size guard covers serial_num; little-endian uint32 formatted as unsigned decimal",
+    "soc_device_register exports the populated serial_number attribute",
+    "soc_info_show returns sysfs_emit with trailing newline"
+  ],
+  "no_dt_or_other_fallback": true,
+  "individual_serial_or_digest_recorded": false,
+  "phone_accessed_by_this_agent": false,
+  "shared_source_or_sdk_modified": false
+}

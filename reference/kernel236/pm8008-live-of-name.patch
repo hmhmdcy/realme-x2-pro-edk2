@@ -1,0 +1,18 @@
+--- a/drivers/regulator/qcom-pm8008-imx319-lab.c
++++ b/drivers/regulator/qcom-pm8008-imx319-lab.c
+@@ -455,6 +455,15 @@
+ 		for_each_property_of_node(node, property) {
+ 			const char *name = property->name;
+ 
++			/* OF unflatten adds this standard metadata to every LDO. */
++			if (!strcmp(name, "name")) {
++				const char *expected = index == 0 ? "ldo1" : "ldo4";
++
++				if (property->length != 5 || !property->value ||
++				    memcmp(property->value, expected, 5))
++					goto put_child;
++				continue;
++			}
+ 			if (strcmp(name, "regulator-name") && strcmp(name, "regulator-min-microvolt") &&
+ 			    strcmp(name, "regulator-max-microvolt") && strcmp(name, "phandle") &&
+ 			    strcmp(name, "linux,phandle"))

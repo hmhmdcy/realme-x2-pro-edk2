@@ -1,0 +1,46 @@
+--- a/src/ipa/simple/soft_simple.cpp
++++ b/src/ipa/simple/soft_simple.cpp
+@@ -468,8 +468,10 @@
+ 				trigger = initialAfTrigger_;
+ 			initialAfPending_ = false;
+ 		}
+-		if (frameContext.afCancel || (trigger && *trigger == controls::AfTriggerCancel))
++		if (frameContext.afCancel)
+ 			af_.cancel();
++		else if (trigger && *trigger == controls::AfTriggerCancel)
++			af_.cancelScan();
+ 		else if (trigger && *trigger == controls::AfTriggerStart)
+ 			af_.trigger(now);
+ 		/* WM-done timestamps can trail exposure: exclude exposure plus readout. */
+--- a/src/ipa/libipa/contrast_af.h
++++ b/src/ipa/libipa/contrast_af.h
+@@ -73,6 +73,11 @@
+ 		points_.clear();
+ 		scores_.clear();
+ 	}
++	void cancelScan()
++	{
++		if (state_ == State::Scanning)
++			cancel();
++	}
+ 
+ 	State state() const { return state_; }
+ 	std::optional<int32_t> selectedPosition() const
+@@ -84,7 +89,7 @@
+ 	{
+ 		if (state_ != State::Scanning || !needMove_)
+ 			return std::nullopt;
+-		if (now > deadline_ || serial_ == std::numeric_limits<uint32_t>::max()) {
++		if (!now || now > deadline_ || serial_ == std::numeric_limits<uint32_t>::max()) {
+ 			fail();
+ 			return std::nullopt;
+ 		}
+@@ -113,7 +118,7 @@
+ 	{
+ 		if (state_ != State::Scanning)
+ 			return;
+-		if (!captured || now > deadline_) {
++		if (!now || !captured || captured > now || now > deadline_) {
+ 			fail();
+ 			return;
+ 		}

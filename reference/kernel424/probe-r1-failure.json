@@ -1,0 +1,9 @@
+{
+  "stage": 424,
+  "scope": "host coarse-pass oracle output-tail check",
+  "reason": "ctypes.create_string_buffer added a trailing NUL beyond the declared 32768-byte serializer capacity; the check accidentally compared that byte too.",
+  "correction": "Create an exactly sized output buffer and check only the declared output capacity.",
+  "native_code_changed": false,
+  "phone_accessed": false,
+  "passed": false
+}

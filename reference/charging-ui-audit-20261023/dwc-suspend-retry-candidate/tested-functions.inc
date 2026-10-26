@@ -1,0 +1,472 @@
+static int dwc3_gadget_run_stop(struct dwc3 *dwc, int is_on)
+{
+	u32			reg;
+	u32			timeout = 2000;
+	u32			saved_config = 0;
+
+	if (pm_runtime_suspended(dwc->dev))
+		return 0;
+
+	/*
+	 * When operating in USB 2.0 speeds (HS/FS), ensure that
+	 * GUSB2PHYCFG.ENBLSLPM and GUSB2PHYCFG.SUSPHY are cleared before starting
+	 * or stopping the controller. This resolves timeout issues that occur
+	 * during frequent role switches between host and device modes.
+	 *
+	 * Save and clear these settings, then restore them after completing the
+	 * controller start or stop sequence.
+	 *
+	 * This solution was discovered through experimentation as it is not
+	 * mentioned in the dwc3 programming guide. It has been tested on an
+	 * Exynos platforms.
+	 */
+	reg = dwc3_readl(dwc, DWC3_GUSB2PHYCFG(0));
+	if (reg & DWC3_GUSB2PHYCFG_SUSPHY) {
+		saved_config |= DWC3_GUSB2PHYCFG_SUSPHY;
+		reg &= ~DWC3_GUSB2PHYCFG_SUSPHY;
+	}
+
+	if (reg & DWC3_GUSB2PHYCFG_ENBLSLPM) {
+		saved_config |= DWC3_GUSB2PHYCFG_ENBLSLPM;
+		reg &= ~DWC3_GUSB2PHYCFG_ENBLSLPM;
+	}
+
+	if (saved_config)
+		dwc3_writel(dwc, DWC3_GUSB2PHYCFG(0), reg);
+
+	reg = dwc3_readl(dwc, DWC3_DCTL);
+	if (is_on) {
+		if (DWC3_VER_IS_WITHIN(DWC3, ANY, 187A)) {
+			reg &= ~DWC3_DCTL_TRGTULST_MASK;
+			reg |= DWC3_DCTL_TRGTULST_RX_DET;
+		}
+
+		if (!DWC3_VER_IS_PRIOR(DWC3, 194A))
+			reg &= ~DWC3_DCTL_KEEP_CONNECT;
+		reg |= DWC3_DCTL_RUN_STOP;
+
+		__dwc3_gadget_set_speed(dwc);
+		dwc->pullups_connected = true;
+	} else {
+		reg &= ~DWC3_DCTL_RUN_STOP;
+
+		dwc->pullups_connected = false;
+	}
+
+	dwc3_pre_run_stop(dwc, is_on);
+	dwc3_gadget_dctl_write_safe(dwc, reg);
+
+	do {
+		usleep_range(1000, 2000);
+		reg = dwc3_readl(dwc, DWC3_DSTS);
+		reg &= DWC3_DSTS_DEVCTRLHLT;
+	} while (--timeout && !(!is_on ^ !reg));
+
+	if (saved_config) {
+		reg = dwc3_readl(dwc, DWC3_GUSB2PHYCFG(0));
+		reg |= saved_config;
+		dwc3_writel(dwc, DWC3_GUSB2PHYCFG(0), reg);
+	}
+
+	if (!timeout)
+		return -ETIMEDOUT;
+
+	return 0;
+}
+
+static void dwc3_gadget_disable_irq(struct dwc3 *dwc)
+{
+	/* mask all interrupts */
+	dwc3_writel(dwc, DWC3_DEVTEN, 0x00);
+}
+
+static int __dwc3_gadget_ep_disable(struct dwc3_ep *dep)
+{
+	struct dwc3		*dwc = dep->dwc;
+	u32			reg;
+	u32			mask;
+
+	trace_dwc3_gadget_ep_disable(dep);
+
+	/* make sure HW endpoint isn't stalled */
+	if (dep->flags & DWC3_EP_STALL)
+		__dwc3_gadget_ep_set_halt(dep, 0, false);
+
+	reg = dwc3_readl(dwc, DWC3_DALEPENA);
+	reg &= ~DWC3_DALEPENA_EP(dep->number);
+	dwc3_writel(dwc, DWC3_DALEPENA, reg);
+
+	dwc3_remove_requests(dwc, dep, -ESHUTDOWN);
+
+	dep->stream_capable = false;
+	dep->type = 0;
+	mask = DWC3_EP_TXFIFO_RESIZED | DWC3_EP_RESOURCE_ALLOCATED;
+	/*
+	 * dwc3_remove_requests() can exit early if DWC3 EP delayed stop is
+	 * set.  Do not clear DEP flags, so that the end transfer command will
+	 * be reattempted during the next SETUP stage.
+	 */
+	if (dep->flags & DWC3_EP_DELAY_STOP)
+		mask |= (DWC3_EP_DELAY_STOP | DWC3_EP_TRANSFER_STARTED);
+	dep->flags &= mask;
+
+	/* Clear out the ep descriptors for non-ep0 */
+	if (dep->number > 1) {
+		dep->endpoint.comp_desc = NULL;
+		dep->endpoint.desc = NULL;
+	}
+
+	return 0;
+}
+
+static void __dwc3_gadget_stop(struct dwc3 *dwc)
+{
+	dwc3_gadget_disable_irq(dwc);
+	__dwc3_gadget_ep_disable(dwc->eps[0]);
+	__dwc3_gadget_ep_disable(dwc->eps[1]);
+}
+
+static int dwc3_gadget_soft_disconnect(struct dwc3 *dwc)
+{
+	unsigned long flags;
+	int ret;
+
+	spin_lock_irqsave(&dwc->lock, flags);
+	if (!dwc->pullups_connected) {
+		spin_unlock_irqrestore(&dwc->lock, flags);
+		return 0;
+	}
+
+	dwc->connected = false;
+
+	/*
+	 * Attempt to end pending SETUP status phase, and not wait for the
+	 * function to do so.
+	 */
+	if (dwc->delayed_status)
+		dwc3_ep0_send_delayed_status(dwc);
+
+	/*
+	 * In the Synopsys DesignWare Cores USB3 Databook Rev. 3.30a
+	 * Section 4.1.8 Table 4-7, it states that for a device-initiated
+	 * disconnect, the SW needs to ensure that it sends "a DEPENDXFER
+	 * command for any active transfers" before clearing the RunStop
+	 * bit.
+	 */
+	dwc3_stop_active_transfers(dwc);
+	spin_unlock_irqrestore(&dwc->lock, flags);
+
+	/*
+	 * Per databook, when we want to stop the gadget, if a control transfer
+	 * is still in process, complete it and get the core into setup phase.
+	 * In case the host is unresponsive to a SETUP transaction, forcefully
+	 * stall the transfer, and move back to the SETUP phase, so that any
+	 * pending endxfers can be executed.
+	 */
+	if (dwc->ep0state != EP0_SETUP_PHASE) {
+		reinit_completion(&dwc->ep0_in_setup);
+
+		ret = wait_for_completion_timeout(&dwc->ep0_in_setup,
+				msecs_to_jiffies(DWC3_PULL_UP_TIMEOUT));
+		if (ret == 0) {
+			dev_warn(dwc->dev, "wait for SETUP phase timed out\n");
+			spin_lock_irqsave(&dwc->lock, flags);
+			dwc3_ep0_reset_state(dwc);
+			spin_unlock_irqrestore(&dwc->lock, flags);
+		}
+	}
+
+	/*
+	 * Note: if the GEVNTCOUNT indicates events in the event buffer, the
+	 * driver needs to acknowledge them before the controller can halt.
+	 * Simply let the interrupt handler acknowledges and handle the
+	 * remaining event generated by the controller while polling for
+	 * DSTS.DEVCTLHLT.
+	 */
+	ret = dwc3_gadget_run_stop(dwc, false);
+
+	/*
+	 * Stop the gadget after controller is halted, so that if needed, the
+	 * events to update EP0 state can still occur while the run/stop
+	 * routine polls for the halted state.  DEVTEN is cleared as part of
+	 * gadget stop.
+	 */
+	spin_lock_irqsave(&dwc->lock, flags);
+	__dwc3_gadget_stop(dwc);
+	spin_unlock_irqrestore(&dwc->lock, flags);
+
+	usb_gadget_set_state(dwc->gadget, USB_STATE_NOTATTACHED);
+
+	return ret;
+}
+
+int dwc3_gadget_suspend(struct dwc3 *dwc)
+{
+	unsigned long flags;
+	u32 reg;
+	int ret;
+
+	/* A previous stop can clear the software pullup flag before HALT.
+	 * Do not repeat request teardown or reset while waiting for that HALT.
+	 * This is a hardware snapshot, not serialization of every run/stop
+	 * writer through the subsequent core PM exit.
+	 */
+	spin_lock_irqsave(&dwc->lock, flags);
+	if (!dwc->pullups_connected && !pm_runtime_suspended(dwc->dev)) {
+		reg = dwc3_readl(dwc, DWC3_DSTS);
+		if (!(reg & DWC3_DSTS_DEVCTRLHLT) ||
+		    (dwc3_readl(dwc, DWC3_DCTL) & DWC3_DCTL_RUN_STOP)) {
+			spin_unlock_irqrestore(&dwc->lock, flags);
+			return -EAGAIN;
+		}
+	}
+	spin_unlock_irqrestore(&dwc->lock, flags);
+
+	ret = dwc3_gadget_soft_disconnect(dwc);
+	/*
+	 * Attempt to reset the controller's state. Likely no
+	 * communication can be established until the host
+	 * performs a port reset.
+	 */
+	if (ret && dwc->softconnect) {
+		dwc3_gadget_soft_connect(dwc);
+		return -EAGAIN;
+	}
+	/* Without a requested reconnect, preserve the failed stop errno.
+	 * The core must keep its resources active until HALT is proven.
+	 */
+	if (ret)
+		return ret;
+
+	dwc3_disconnect_gadget_sleepable(dwc);
+
+	return 0;
+}
+
+void dwc3_enable_susphy(struct dwc3 *dwc, bool enable)
+{
+	u32 reg;
+	int i;
+
+	for (i = 0; i < dwc->num_usb3_ports; i++) {
+		reg = dwc3_readl(dwc, DWC3_GUSB3PIPECTL(i));
+		if (enable && !dwc->dis_u3_susphy_quirk)
+			reg |= DWC3_GUSB3PIPECTL_SUSPHY;
+		else
+			reg &= ~DWC3_GUSB3PIPECTL_SUSPHY;
+
+		dwc3_writel(dwc, DWC3_GUSB3PIPECTL(i), reg);
+	}
+
+	for (i = 0; i < dwc->num_usb2_ports; i++) {
+		reg = dwc3_readl(dwc, DWC3_GUSB2PHYCFG(i));
+		if (enable && !dwc->dis_u2_susphy_quirk)
+			reg |= DWC3_GUSB2PHYCFG_SUSPHY;
+		else
+			reg &= ~DWC3_GUSB2PHYCFG_SUSPHY;
+
+		dwc3_writel(dwc, DWC3_GUSB2PHYCFG(i), reg);
+	}
+}
+
+/* Stack-only ownership of SUSPHY bits changed by this suspend attempt.
+ * No IRQ, core, PHY or PM lifetime is owned by this record.
+ */
+struct dwc3_suspend_susphy {
+	u32 usb2_saved, usb3_saved;
+	u32 usb2_changed, usb3_changed;
+};
+
+static void dwc3_suspend_susphy_enable(struct dwc3 *dwc,
+				       struct dwc3_suspend_susphy *saved)
+{
+	u32 reg, next;
+	int i;
+
+	/* Match dwc3_enable_susphy(true), recording the actual same-read delta.
+	 * In particular, an enable request can clear a bit under a quirk.
+	 */
+	for (i = 0; i < dwc->num_usb3_ports; i++) {
+		reg = dwc3_readl(dwc, DWC3_GUSB3PIPECTL(i));
+		if (reg & DWC3_GUSB3PIPECTL_SUSPHY)
+			saved->usb3_saved |= BIT(i);
+		next = dwc->dis_u3_susphy_quirk ?
+			reg & ~DWC3_GUSB3PIPECTL_SUSPHY : reg | DWC3_GUSB3PIPECTL_SUSPHY;
+		if (next != reg)
+			saved->usb3_changed |= BIT(i);
+		dwc3_writel(dwc, DWC3_GUSB3PIPECTL(i), next);
+	}
+	for (i = 0; i < dwc->num_usb2_ports; i++) {
+		reg = dwc3_readl(dwc, DWC3_GUSB2PHYCFG(i));
+		if (reg & DWC3_GUSB2PHYCFG_SUSPHY)
+			saved->usb2_saved |= BIT(i);
+		next = dwc->dis_u2_susphy_quirk ?
+			reg & ~DWC3_GUSB2PHYCFG_SUSPHY : reg | DWC3_GUSB2PHYCFG_SUSPHY;
+		if (next != reg)
+			saved->usb2_changed |= BIT(i);
+		dwc3_writel(dwc, DWC3_GUSB2PHYCFG(i), next);
+	}
+}
+
+static void dwc3_suspend_susphy_restore(struct dwc3 *dwc,
+					struct dwc3_suspend_susphy *saved)
+{
+	u32 reg, next;
+	int i;
+
+	/* The callback failed before core_exit. Keep all resources ACTIVE and
+	 * undo only this attempt's changed bits, preserving other current bits.
+	 */
+	for (i = 0; i < dwc->num_usb3_ports; i++) {
+		if (!(saved->usb3_changed & BIT(i)))
+			continue;
+		reg = dwc3_readl(dwc, DWC3_GUSB3PIPECTL(i));
+		next = (reg & ~DWC3_GUSB3PIPECTL_SUSPHY) |
+			(saved->usb3_saved & BIT(i) ? DWC3_GUSB3PIPECTL_SUSPHY : 0);
+		if (next != reg)
+			dwc3_writel(dwc, DWC3_GUSB3PIPECTL(i), next);
+	}
+	for (i = 0; i < dwc->num_usb2_ports; i++) {
+		if (!(saved->usb2_changed & BIT(i)))
+			continue;
+		reg = dwc3_readl(dwc, DWC3_GUSB2PHYCFG(i));
+		next = (reg & ~DWC3_GUSB2PHYCFG_SUSPHY) |
+			(saved->usb2_saved & BIT(i) ? DWC3_GUSB2PHYCFG_SUSPHY : 0);
+		if (next != reg)
+			dwc3_writel(dwc, DWC3_GUSB2PHYCFG(i), next);
+	}
+}
+
+
+
+static int dwc3_suspend_common(struct dwc3 *dwc, pm_message_t msg)
+{
+	struct dwc3_suspend_susphy saved_susphy = { 0 };
+	u32 reg;
+	int i;
+	int ret;
+
+	if (!pm_runtime_suspended(dwc->dev) && !PMSG_IS_AUTO(msg)) {
+		dwc->susphy_state = (dwc->num_usb2_ports && (dwc3_readl(dwc, DWC3_GUSB2PHYCFG(0)) &
+				    DWC3_GUSB2PHYCFG_SUSPHY)) ||
+				    (dwc->num_usb3_ports && (dwc3_readl(dwc, DWC3_GUSB3PIPECTL(0)) &
+				    DWC3_GUSB3PIPECTL_SUSPHY));
+		/*
+		 * TI AM62 platform requires SUSPHY to be
+		 * enabled for system suspend to work.
+		 */
+		if (!dwc->susphy_state) {
+			if (dwc->current_dr_role == DWC3_GCTL_PRTCAP_DEVICE ||
+			    (dwc->current_dr_role == DWC3_GCTL_PRTCAP_OTG &&
+			     dwc->current_otg_role == DWC3_OTG_ROLE_DEVICE))
+				dwc3_suspend_susphy_enable(dwc, &saved_susphy);
+			else
+				dwc3_enable_susphy(dwc, true);
+		}
+	}
+
+	switch (dwc->current_dr_role) {
+	case DWC3_GCTL_PRTCAP_DEVICE:
+		if (pm_runtime_suspended(dwc->dev))
+			break;
+		ret = dwc3_gadget_suspend(dwc);
+		if (ret)
+			goto restore_susphy;
+		synchronize_irq(dwc->irq_gadget);
+		dwc3_core_exit(dwc);
+		break;
+	case DWC3_GCTL_PRTCAP_HOST:
+		if (!PMSG_IS_AUTO(msg) &&
+		    (!device_may_wakeup(dwc->dev) || dwc->needs_full_reinit)) {
+			dwc3_core_exit(dwc);
+			break;
+		}
+
+		/* Let controller to suspend HSPHY before PHY driver suspends */
+		if (dwc->dis_u2_susphy_quirk ||
+		    dwc->dis_enblslpm_quirk) {
+			for (i = 0; i < dwc->num_usb2_ports; i++) {
+				reg = dwc3_readl(dwc, DWC3_GUSB2PHYCFG(i));
+				reg |=  DWC3_GUSB2PHYCFG_ENBLSLPM |
+					DWC3_GUSB2PHYCFG_SUSPHY;
+				dwc3_writel(dwc, DWC3_GUSB2PHYCFG(i), reg);
+			}
+
+			/* Give some time for USB2 PHY to suspend */
+			usleep_range(5000, 6000);
+		}
+
+		for (i = 0; i < dwc->num_usb2_ports; i++)
+			phy_pm_runtime_put_sync(dwc->usb2_generic_phy[i]);
+		for (i = 0; i < dwc->num_usb3_ports; i++)
+			phy_pm_runtime_put_sync(dwc->usb3_generic_phy[i]);
+		break;
+	case DWC3_GCTL_PRTCAP_OTG:
+		/* do nothing during runtime_suspend */
+		if (PMSG_IS_AUTO(msg))
+			break;
+
+		if (dwc->current_otg_role == DWC3_OTG_ROLE_DEVICE) {
+			ret = dwc3_gadget_suspend(dwc);
+			if (ret)
+				goto restore_susphy;
+			synchronize_irq(dwc->irq_gadget);
+		}
+
+		dwc3_otg_exit(dwc);
+		dwc3_core_exit(dwc);
+		break;
+	default:
+		/* do nothing */
+		break;
+	}
+
+	return 0;
+restore_susphy:
+	dwc3_suspend_susphy_restore(dwc, &saved_susphy);
+	return ret;
+}
+
+static int dwc3_runtime_checks(struct dwc3 *dwc)
+{
+	switch (dwc->current_dr_role) {
+	case DWC3_GCTL_PRTCAP_DEVICE:
+		if (dwc->connected)
+			return -EBUSY;
+		break;
+	case DWC3_GCTL_PRTCAP_HOST:
+	default:
+		/* do nothing */
+		break;
+	}
+
+	return 0;
+}
+
+int dwc3_runtime_suspend(struct dwc3 *dwc)
+{
+	int		ret;
+
+	if (dwc3_runtime_checks(dwc))
+		return -EBUSY;
+
+	ret = dwc3_suspend_common(dwc, PMSG_AUTO_SUSPEND);
+	if (ret)
+		return ret;
+
+	return 0;
+}
+
+int dwc3_pm_suspend(struct dwc3 *dwc)
+{
+	struct device *dev = dwc->dev;
+	int		ret;
+
+	ret = dwc3_suspend_common(dwc, PMSG_SUSPEND);
+	if (ret)
+		return ret;
+
+	pinctrl_pm_select_sleep_state(dev);
+
+	return 0;
+}

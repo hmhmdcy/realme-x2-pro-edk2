@@ -1,0 +1,229 @@
+{
+  "scope": "one physical power removal/reconnection and notification observation",
+  "physical_cycle_passed": true,
+  "screen_latency_verified": false,
+  "terminal_reason": "cycle_complete",
+  "sample_count": 77,
+  "kernel_event_count": 20,
+  "dbus_signal_count": 44,
+  "monitor_complete": true,
+  "raw_cycle_evidence": {
+    "ready_at": 2.287207149999972,
+    "offline_confirmed": true,
+    "offline_begin": 40.276469968000015,
+    "online_begin": 51.47879551400001,
+    "offline_samples": 3,
+    "online_samples": 28,
+    "offline_span": 2.0348045329999422,
+    "online_span": 28.031801975999997,
+    "settling_complete": true,
+    "gap_sample_indices": []
+  },
+  "clock_mapping": {
+    "endpoints_consistent": true,
+    "endpoint_offset_change_seconds": -3.5762786865234375e-06,
+    "anchor_bracket_seconds": 9.68799997735914e-06,
+    "quality": "endpoint-based estimates; no proof against cancelling clock steps inside the interval"
+  },
+  "dbus_parse_errors": [],
+  "edges": [
+    {
+      "edge": "detach",
+      "sample_evidence_t": 40.276469968000015,
+      "source_uevent_t": 40.533510622999984,
+      "acok_uevent_t": 39.957001317999925,
+      "battery_uevent_t": 43.10998203899999,
+      "battery_kernel_status": "Discharging",
+      "battery_state_events": [
+        {
+          "estimated_t": 43.050933671597356,
+          "state": 2
+        }
+      ],
+      "source_to_first_following_battery_state_event_seconds_estimated": 2.5174230485973723,
+      "display_state_events": [
+        {
+          "estimated_t": 43.054758621037756,
+          "state": 2
+        }
+      ],
+      "source_to_first_following_display_state_event_seconds_estimated": 2.521247998037772
+    },
+    {
+      "edge": "attach",
+      "sample_evidence_t": 51.47879551400001,
+      "source_uevent_t": 51.79794640299997,
+      "acok_uevent_t": 51.81837486500001,
+      "battery_uevent_t": null,
+      "battery_kernel_status": null,
+      "battery_state_events": [],
+      "source_to_first_following_battery_state_event_seconds_estimated": null,
+      "display_state_events": [],
+      "source_to_first_following_display_state_event_seconds_estimated": null
+    }
+  ],
+  "notes": [
+    "USB configured state is not used as physical evidence.",
+    "Physical evidence requires continuous source AND ACOK offline then online, with 25s settling.",
+    "No State signal means no measured State latency; net discharge is never rewritten Charging.",
+    "The first following State event is a timing interval, not proof of causality or the intended State.",
+    "All cross-clock event latencies are endpoint-based estimates, not screen presentation times.",
+    "Offline telemetry flags may be cleared by driver collection; flags_fresh marks their scope."
+  ],
+  "manifest_sha256": "5638db4c183ec502ed1df4facfe91111d1956754bb2338a5ddaf8838e9552c68",
+  "worker_exited": true,
+  "cleanup_confirmed": true,
+  "identity_unchanged": true,
+  "first_sample": {
+    "t_start": 0.006744868999930986,
+    "t_end": 0.011499052999965897,
+    "source_online": 1,
+    "acok_online": 1,
+    "telemetry": {
+      "shadow": 0,
+      "valid": 1,
+      "online": 1,
+      "protection_ok": 1,
+      "budget_ua": 1500000,
+      "temp_decic": 252,
+      "pack_uv": 8537000,
+      "cell1_uv": 4270000,
+      "cell2_uv": 4267000,
+      "flags": 128,
+      "fault": 0,
+      "session_seconds": 614,
+      "desired_enable": 1,
+      "error": 0,
+      "stop_error": 0,
+      "latched": 0,
+      "source_inhibit": 0,
+      "thermal_inhibit": 0,
+      "cycle_timeout": 0,
+      "gauge_current_ua": 101000,
+      "logical_full": 0,
+      "full_holding": 0,
+      "hold_requested": 0,
+      "full_cause": 0,
+      "sw_full_count": 0,
+      "recharge_count": 0,
+      "gauge_charge_stop": 0,
+      "age_ms": 58
+    },
+    "flags_fresh": true,
+    "battery": {
+      "status": "Charging",
+      "current_now_ua": 101000
+    }
+  },
+  "last_sample": {
+    "t_start": 79.49867403799999,
+    "t_end": 79.51059749000001,
+    "source_online": 1,
+    "acok_online": 1,
+    "telemetry": {
+      "shadow": 0,
+      "valid": 1,
+      "online": 1,
+      "protection_ok": 1,
+      "budget_ua": 100000,
+      "temp_decic": 255,
+      "pack_uv": 8439000,
+      "cell1_uv": 4220000,
+      "cell2_uv": 4218000,
+      "flags": 192,
+      "fault": 0,
+      "session_seconds": 27,
+      "desired_enable": 1,
+      "error": 0,
+      "stop_error": 0,
+      "latched": 0,
+      "source_inhibit": 0,
+      "thermal_inhibit": 0,
+      "cycle_timeout": 0,
+      "gauge_current_ua": -58000,
+      "logical_full": 0,
+      "full_holding": 0,
+      "hold_requested": 0,
+      "full_cause": 0,
+      "sw_full_count": 0,
+      "recharge_count": 0,
+      "gauge_charge_stop": 0,
+      "age_ms": 630
+    },
+    "flags_fresh": true,
+    "battery": {
+      "status": "Discharging",
+      "current_now_ua": -57000
+    }
+  },
+  "subjective_feedback": {
+    "detach": "用户感觉图标切换明显快了一点",
+    "attach": "用户长时间未见图标变化",
+    "screen_acceptance_passed": false
+  },
+  "source_after_capture": {
+    "online": "1",
+    "usb_type": "Unknown [SDP] DCP CDP C",
+    "current_max": "100000",
+    "input_current_limit": "100000"
+  },
+  "pmic_after_capture": {
+    "0x1307": 17,
+    "0x1308": 1,
+    "0x1310": 16,
+    "0x1506": 8,
+    "0x1509": 35,
+    "0x150b": 43,
+    "0x150d": 6
+  },
+  "upower_later_snapshot": {
+    "UpdateTime": 1792745543,
+    "EnergyRate": 0.025401000000000003,
+    "Percentage": 100.0,
+    "IsPresent": 1,
+    "State": 1,
+    "IconName": "battery-full-charging-symbolic",
+    "OnBattery": false
+  },
+  "later_snapshot_scope": "after capture; exact State transition time not observed",
+  "last_handoff_sample": {
+    "shadow": 0,
+    "valid": 1,
+    "online": 1,
+    "protection_ok": 1,
+    "budget_ua": 100000,
+    "temp_decic": 262,
+    "pack_uv": 8423000,
+    "cell1_uv": 4215000,
+    "cell2_uv": 4209000,
+    "flags": 192,
+    "fault": 0,
+    "session_seconds": 488,
+    "desired_enable": 1,
+    "error": 0,
+    "stop_error": 0,
+    "latched": 0,
+    "source_inhibit": 0,
+    "thermal_inhibit": 0,
+    "cycle_timeout": 0,
+    "gauge_current_ua": -48000,
+    "logical_full": 0,
+    "full_holding": 0,
+    "hold_requested": 0,
+    "full_cause": 0,
+    "sw_full_count": 0,
+    "recharge_count": 0,
+    "gauge_charge_stop": 0,
+    "age_ms": 21
+  },
+  "last_handoff_limits": {
+    "native_ua": 100000,
+    "input_ua": 100000,
+    "charge_ua": 250000,
+    "cv_uv": 4362500
+  },
+  "conclusion": "Real removal/reconnection captured. CDP1.5A became SDP100mA; battery net current remained negative in the recorded reconnect interval. No reconnect State signal in that interval, not a measured screen rendering delay.",
+  "physical_float_branch_observed": false,
+  "usb500_accepted": false,
+  "pm_resume_accepted": false
+}

@@ -1,0 +1,43 @@
+342: 
+343: /* S3706 wiring from this handset's 19781 overlay and saved Android tree. */
+344: &gpi_dma2 {
+345: 	status = "okay";
+346: };
+347: 
+348: &qupv3_id_2 {
+349: 	status = "okay";
+350: };
+351: 
+352: /* Stock BQ28Z610 at QUP15: standard read-only battery monitoring. */
+353: &i2c15 {
+354: 	clock-frequency = <100000>;
+355: 	status = "okay";
+356: 
+357: 	fuel-gauge@55 {
+358: 		compatible = "ti,bq28z610";
+359: 		reg = <0x55>;
+360: 	};
+361: };
+362: 
+363: &i2c17 {
+364: 	status = "okay";
+365: 
+366: 	touchscreen@20 {
+367: 		compatible = "syna,rmi4-i2c";
+368: 		reg = <0x20>;
+369: 		#address-cells = <1>;
+370: 		#size-cells = <0>;
+371: 		interrupt-parent = <&tlmm>;
+372: 		interrupts = <122 IRQ_TYPE_LEVEL_LOW>;
+373: 		reset-gpios = <&tlmm 54 GPIO_ACTIVE_LOW>;
+374: 		pinctrl-names = "default";
+375: 		pinctrl-0 = <&touch_irq_default &touch_reset_default>;
+376: 		vdd-supply = <&vreg_l17a_3p0>;
+377: 		vio-supply = <&vreg_touch_1p8>;
+378: 		/* Vendor: 10 ms power-to-reset release, 80 ms reset-to-normal. */
+379: 		syna,startup-delay-ms = <80>;
+380: 		syna,reset-delay-ms = <80>;
+381: 
+382: 		rmi4-f12@12 {
+383: 			reg = <0x12>;
+384: 			syna,sensor-type = <1>;

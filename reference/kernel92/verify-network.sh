@@ -1,0 +1,33 @@
+#!/bin/sh
+set -eu
+umask 077
+/usr/sbin/wpa_cli -p/run/samurai-wifi/wpa-control -iwlan0 status > /tmp/k92-network-status.txt
+grep -q '^wpa_state=COMPLETED$' /tmp/k92-network-status.txt
+gateway=$(sed -n 's/^router=//p' /run/samurai-wifi/dhcp-lease.txt | awk '{print $1}')
+test -n "$gateway"
+ip route get 1.1.1.1 > /tmp/k92-network-route.txt
+grep -q 'dev wlan0' /tmp/k92-network-route.txt
+if ping -I wlan0 -c 3 -W 3 "$gateway" > /tmp/k92-ping-gateway.txt 2>&1; then
+    echo GATEWAY_PING=PASS
+else
+    echo GATEWAY_PING=FAIL
+fi
+if ping -I wlan0 -c 3 -W 3 1.1.1.1 > /tmp/k92-ping-internet.txt 2>&1; then
+    echo INTERNET_PING=PASS
+else
+    echo INTERNET_PING=FAIL
+fi
+if timeout 15 nslookup kernel.org > /tmp/k92-dns-test.txt 2>&1; then
+    echo DNS_LOOKUP=PASS
+else
+    echo DNS_LOOKUP=FAIL
+fi
+unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY all_proxy
+if timeout 20 wget -O /tmp/k92-http-test.txt http://example.com/ > /tmp/k92-http-test.log 2>&1; then
+    echo HTTP_FETCH=PASS
+    wc -c < /tmp/k92-http-test.txt
+    sha256sum /tmp/k92-http-test.txt
+else
+    echo HTTP_FETCH=FAIL
+fi
+cat /proc/sys/kernel/tainted /sys/class/remoteproc/remoteproc0/state /proc/uptime

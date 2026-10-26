@@ -1,0 +1,37 @@
+%YAML 1.1
+---
+# Experimental common OEM IFE reference; not per-unit IQ calibration.
+version: 1
+sensor_model: s5kgw1
+residual_black_subtraction: 3840
+range_normalization: 1.06201171875
+sensor_controls:
+  width: 4608
+  height: 3456
+  pixel_rate: 1920000000
+  line_length: 17824
+  frame_length: 3584
+  exposure_delay: 2
+  gain_delay: 2
+awb:
+  algorithm: grey
+  statistics_black: [0, 0, 0, 0]
+  minimum_regions: 16
+  minimum_signal: 128
+agc:
+  relativeLuminanceTarget: 0.16
+  AeConstraintMode:
+    ConstraintNormal:
+      lower:
+        qLo: 0.98
+        qHi: 1.0
+        yTarget: 0.16
+      upper:
+        qLo: 0.98
+        qHi: 1.0
+        yTarget: 0.85
+  AeExposureMode:
+    ExposureNormal:
+      exposureTime: [100, 30000, 33200]
+      gain: [1.0, 1.0, 32.0]
+...

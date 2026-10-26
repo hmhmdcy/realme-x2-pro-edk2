@@ -1,0 +1,103 @@
+{
+  "passed": true,
+  "phase": "offline-protection-query-evidence-audit",
+  "production_bug_confirmed": false,
+  "production_patch_created": false,
+  "production_whitelist_changed": false,
+  "exact_extended_2719_model_mapping_established": false,
+  "test": {
+    "passed": true,
+    "real_packet_count": 6,
+    "directed_checks": 21,
+    "actual_oem_functions_executed": 2,
+    "new_packet_generation": 0
+  },
+  "existing_real_packets_replayed": {
+    "0x1": 10009,
+    "0x51": 0,
+    "0x53": 0,
+    "0x54": 902,
+    "0x57": 24
+  },
+  "real_standard_battery_status": 192,
+  "real_battery_bits": {
+    "TCA": false,
+    "OCA": false,
+    "FC": false,
+    "DSG": true
+  },
+  "manufacturing_raw": 24,
+  "inherited_pf_enable_bit": 0,
+  "source_commit": "23172a1571bd91156032cc9fef16284a82b63d2c",
+  "exact_oem_state_functions": {
+    "bq8z610_sealed": {
+      "first_line": 2184,
+      "last_line": 2202
+    },
+    "bq8z610_check_gauge_enable": {
+      "first_line": 2406,
+      "last_line": 2426
+    }
+  },
+  "manual_text_anchors": {
+    "4.8 Terminate Charge and Discharge Alarms": [
+      54,
+      1233
+    ],
+    "12.2.26 AltManufacturerAccess() 0x0050 SafetyAlert": [
+      192,
+      3631
+    ],
+    "12.2.32 AltManufacturerAccess() 0x0056 GaugingStatus": [
+      205,
+      3998
+    ],
+    "PF_EN (Bit 6):": [
+      4092
+    ],
+    "TC (Bit 3):": [
+      4061
+    ],
+    "FC (Bit 1):": [
+      4067
+    ],
+    "DSG (Bit 6):": [
+      4052
+    ],
+    "EMSHUT (Bit 29):": [
+      3851
+    ]
+  },
+  "future_unverified_commands": {
+    "0x0050": "standard TI SafetyAlert 4 payload / length8; not observed on this pack",
+    "0x0052": "standard TI PFAlert 4 payload / length8; not observed on this pack",
+    "0x0056": "standard TI GaugingStatus 4 payload including reserved byte / length8; not observed on this pack"
+  },
+  "inputs": {
+    "/mnt/e/edk2-samurai-out/kernel83/realme-kernel-opensource--realmeX2pro-X3-AndroidR-kernel-source--drivers--power--oppo--gauge_ic--oplus_bq27541.c": "0c4640c85570f1a83ea8db3e82a63d75d9fc2650c71fbbb8c247e471c10b7a87",
+    "/mnt/e/edk2-samurai-out/kernel85/official-oplus_bq27541.h": "58c68c362fc031eb73884a59e121ba25918e6728b37572df4116f8e1277e270e",
+    "/mnt/e/edk2-samurai-out/charging-management-20261023/window2/fixed-query-private.json": "8858bfa3fa9914a6f92262f549257c2dc22c037c1e1b9d95c9aaf06292a40d96",
+    "/mnt/e/edk2-samurai-out/charging-management-20261023/window2/packets-private.bin": "662254550a4f08ed8d0b1f9b1b58139e10cec0ceace5d2b222c438730d7d5ca2",
+    "/mnt/e/edk2-samurai-out/charging-management-20261023/ti-manual-private.txt": "c5cfb494ed5dad0311a13f134702be09cd137ed2c4478b10143eab0c760327fc",
+    "/mnt/e/edk2-samurai-out/charging-management-20261023/ti-bq28z610-sluua65.pdf": "f62ec12bb5aa23631759e59a378f36d254f9b0e2b5b6b8523a0dd081a13e4139",
+    "reference/charging-management-20261023/gauge-protocol.h": "0903f3fa9740f8645dfc8fb5c16f9a35ded63c4ea06f5c9c93475e37bc375f0f",
+    "reference/charging-management-20261023/samurai-gauge-protection.c": "5d77236d555f13fae56adf4a5fcbbb719a9fab9745ae04c02aa558edf39a45b6",
+    "reference/charging-session-20261023/kernel-v2/mp2650-core.h": "6ddeec6edbf61e50257b39ce97beab41b7607dcdacbf09259f8a162aa20a851a",
+    "reference/charging-session-20261023/kernel-v2/samurai-mp2650.c": "a8a03a463f23a75d8820f64b971dafce9fb57ba0e5344ef909321b18f3d43a45",
+    "reference/charging-session-20261023/kernel-v2/oem-full-cycle.h": "8284c957a900fb8a80e24c3485ada55f4120cba8c23c8a60a5ed25e27a59eac9",
+    "reference/charging-session-20261023/thermal-bands-candidate/mp2650-core.h": "df9caed5c3678551b84e04d416c53caafd2b51036f2244b26974a87aa1ced4e8",
+    "reference/charging-session-20261023/thermal-bands-candidate/samurai-mp2650.c": "ed2e1d4d96ea4f2d55b514288b0e8da1d731864d385944d02a105d41b03a144c",
+    "reference/charging-session-20261023/thermal-bands-candidate/oem-full-cycle.h": "91554031a1ea454e1a70fa8bae89316bd8770686c19c5a33ec6a1dbb06bdfba4"
+  },
+  "tested_files": {
+    "audit.py": "514b30f278036ab748ad4241335c34ea690eb43caa86a26ff84a394b20a64f76",
+    "test-query-evidence.c": "6f0dfda9d17c92b106629733d8117d13c96e3923bd16a856d6c5372305365344",
+    "oem-query-extracted.inc": "46c66baa34ed89d39d3d7e2429cfe8e833698df961d7c6e01bfd9cbe74844115"
+  },
+  "new_actual_mac_packets_created": 0,
+  "device_accessed": false,
+  "ssh_executed": false,
+  "new_actual_queries": 0,
+  "configuration_fet_nvm_otp_unseal_operations": 0,
+  "old_2027_154_910_suites_rerun": false
+}

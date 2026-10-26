@@ -1,0 +1,198 @@
+--- a/drivers/usb/dwc3/gadget.c
++++ b/drivers/usb/dwc3/gadget.c
+@@ -4803,13 +4803,6 @@
+ 	kfree(gadget);
+ }
+ 
+-/* Stack-only receipt, not a controller terminal state or IRQ-depth owner. */
+-struct dwc3_recovery_result {
+-	const char *stage;
+-	u64 start_seq, end_seq;
+-	bool pending;
+-};
+-
+ /* Caller holds connect_mutex; core/PHY are already powered. No PM get/put,
+  * new retry loop or IRQ enable/disable is introduced by this helper.
+  */
+@@ -4824,6 +4817,7 @@
+ 	result->start_seq = dwc->err_event_seq;
+ 	result->end_seq = result->start_seq;
+ 	result->pending = false;
++	result->reconnected = false;
+ 	/* A synchronous resume failure cannot itself revive an old failure.
+ 	 * A real IRQ still uses the original schedule_err_recovery policy.
+ 	 */
+@@ -4865,8 +4859,10 @@
+ 		}
+ 		result->stage = "connect";
+ 		ret = dwc3_gadget_soft_connect(dwc);
+-		if (!ret)
++		if (!ret) {
++			result->reconnected = true;
+ 			result->stage = "connect-complete";
++		}
+ 	}
+ 
+ publish:
+@@ -5106,10 +5102,79 @@
+ 	return 0;
+ }
+ 
++static void dwc3_gadget_resume_device(struct dwc3 *dwc,
++				      struct dwc3_device_resume_result *result)
++{
++	unsigned long flags;
++
++	*result = (struct dwc3_device_resume_result) {
++		.requested = true,
++		.detail.stage = "initial-connect",
++	};
++	mutex_lock(&dwc->connect_mutex);
++	spin_lock_irqsave(&dwc->lock, flags);
++	result->detail.start_seq = dwc->err_event_seq;
++	result->detail.end_seq = result->detail.start_seq;
++	spin_unlock_irqrestore(&dwc->lock, flags);
++	/* Preserve the original first attempt, even with an old error state.
++	 * Only the synchronous recovery claim refuses to revive it.
++	 */
++	result->primary = dwc3_gadget_soft_connect(dwc);
++	if (result->primary) {
++		result->recovery_attempted = true;
++		result->recovery = dwc3_gadget_recover_locked(dwc, true,
++							 &result->detail);
++		result->operation_completed = result->detail.reconnected &&
++			!result->detail.pending &&
++			!pm_runtime_suspended(dwc->dev);
++		dev_err(dwc->dev,
++			"DEVICE resume primary=%d recovery=%d stage=%s seq=%llu->%llu pending_at_publish=%u\n",
++			result->primary, result->recovery, result->detail.stage,
++			(unsigned long long)result->detail.start_seq,
++			(unsigned long long)result->detail.end_seq,
++			result->detail.pending);
++	} else {
++		spin_lock_irqsave(&dwc->lock, flags);
++		result->detail.end_seq = dwc->err_event_seq;
++		result->detail.pending = result->detail.end_seq !=
++			result->detail.start_seq;
++		result->detail.reconnected = true;
++		result->detail.stage = "initial-connect-complete";
++		/* A zero primary does not clear an older failure or queued
++		 * recovery. This is a publication snapshot, not exclusion of
++		 * future IRQ/work or permission for core/PHY teardown.
++		 */
++		result->operation_completed = !result->detail.pending &&
++			dwc->err_state == DWC3_ERR_NONE &&
++			!pm_runtime_suspended(dwc->dev);
++		spin_unlock_irqrestore(&dwc->lock, flags);
++	}
++	mutex_unlock(&dwc->connect_mutex);
++}
++
++/* Internal same-Image DEVICE interface. The caller must retain the bound
++ * controller and powered core/PHY for the complete synchronous operation.
++ * No result here supplies failed-attempt abort or PM-unwind ownership.
++ */
++void dwc3_gadget_resume_result(struct dwc3 *dwc,
++			       struct dwc3_device_resume_result *result)
++{
++	*result = (struct dwc3_device_resume_result) {
++		.detail.stage = "not-requested",
++	};
++	if (!dwc->gadget_driver || !dwc->softconnect)
++		return;
++	if (dwc->current_dr_role != DWC3_GCTL_PRTCAP_DEVICE) {
++		result->primary = -EOPNOTSUPP;
++		result->detail.stage = "not-device";
++		return;
++	}
++	dwc3_gadget_resume_device(dwc, result);
++}
++
+ int dwc3_gadget_resume(struct dwc3 *dwc)
+ {
+-	struct dwc3_recovery_result result;
+-	int primary, recovery;
++	struct dwc3_device_resume_result result;
+ 
+ 	if (!dwc->gadget_driver || !dwc->softconnect)
+ 		return 0;
+@@ -5117,22 +5182,9 @@
+ 	if (dwc->current_dr_role != DWC3_GCTL_PRTCAP_DEVICE)
+ 		return dwc3_gadget_soft_connect(dwc);
+ 
+-	mutex_lock(&dwc->connect_mutex);
+-	/* Preserve the original first attempt, even with an old error state.
+-	 * Only the new synchronous recovery claim refuses to revive it.
+-	 */
+-	primary = dwc3_gadget_soft_connect(dwc);
+-	if (primary) {
+-		recovery = dwc3_gadget_recover_locked(dwc, true, &result);
+-		dev_err(dwc->dev,
+-			"DEVICE resume primary=%d recovery=%d stage=%s seq=%llu->%llu pending_at_publish=%u\n",
+-			primary, recovery, result.stage,
+-			(unsigned long long)result.start_seq,
+-			(unsigned long long)result.end_seq, result.pending);
+-	}
+-	mutex_unlock(&dwc->connect_mutex);
+-	/* Existing core PM common ignores this gadget errno and retains its
+-	 * powered success policy, SUSPHY and runtime pending-event tail.
+-	 */
+-	return primary;
+-}
++	dwc3_gadget_resume_device(dwc, &result);
++	/* Preserve the legacy primary errno, including after a successful
++	 * reconnect. Core PM does not consume the new outcome in this leaf.
++	 */
++	return result.primary;
++}
+--- a/drivers/usb/dwc3/core.h
++++ b/drivers/usb/dwc3/core.h
+@@ -1744,10 +1744,33 @@
+ { }
+ #endif
+ 
++/* Stack-only attempt receipts, not controller terminal state, HALT proof,
++ * IRQ-depth ownership or permission to release core/PHY resources.
++ */
++struct dwc3_recovery_result {
++	const char *stage;
++	u64 start_seq, end_seq;
++	bool pending;
++	/* Only an actual soft_connect() return of zero sets this fact. */
++	bool reconnected;
++};
++
++struct dwc3_device_resume_result {
++	int primary;
++	int recovery;
++	bool requested;
++	bool recovery_attempted;
++	/* Completed at publication; a later IRQ/worker is still possible. */
++	bool operation_completed;
++	struct dwc3_recovery_result detail;
++};
++
+ /* power management interface */
+ #if !IS_ENABLED(CONFIG_USB_DWC3_HOST)
+ int dwc3_gadget_suspend(struct dwc3 *dwc);
+ int dwc3_gadget_resume(struct dwc3 *dwc);
++void dwc3_gadget_resume_result(struct dwc3 *dwc,
++			       struct dwc3_device_resume_result *result);
+ #else
+ static inline int dwc3_gadget_suspend(struct dwc3 *dwc)
+ {
+@@ -1757,6 +1780,14 @@
+ static inline int dwc3_gadget_resume(struct dwc3 *dwc)
+ {
+ 	return 0;
++}
++
++static inline void dwc3_gadget_resume_result(struct dwc3 *dwc,
++			       struct dwc3_device_resume_result *result)
++{
++	*result = (struct dwc3_device_resume_result) {
++		.detail.stage = "host-only",
++	};
+ }
+ 
+ #endif /* !IS_ENABLED(CONFIG_USB_DWC3_HOST) */

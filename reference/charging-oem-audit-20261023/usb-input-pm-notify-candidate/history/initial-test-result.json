@@ -1,0 +1,58 @@
+{
+  "passed": false,
+  "groups": 8,
+  "actual_functions": [
+    "samurai_usb_changed",
+    "samurai_usb_set_property",
+    "samurai_usb_poll",
+    "samurai_usb_stop",
+    "samurai_usb_suspend",
+    "samurai_usb_resume",
+    "samurai_usb_prepare",
+    "samurai_usb_complete",
+    "samurai_usb_event"
+  ],
+  "unchanged_original_functions": [
+    "samurai_usb_read_status",
+    "samurai_usb_get_budget",
+    "samurai_usb_type",
+    "samurai_usb_get_property",
+    "samurai_usb_stop",
+    "samurai_usb_suspend",
+    "samurai_usb_resume",
+    "samurai_usb_retain_for_native_consumer",
+    "samurai_usb_request_events",
+    "samurai_usb_unlink_native_consumer",
+    "samurai_usb_link_native_consumer",
+    "samurai_usb_probe",
+    "samurai_usb_shutdown",
+    "samurai_usb_parent_match",
+    "samurai_usb_init",
+    "samurai_usb_exit"
+  ],
+  "decoder_unchanged": true,
+  "modeled_OS_boundaries": true,
+  "hardware_or_PM_accessed": false,
+  "results": [
+    {
+      "argv": [
+        "cc",
+        "-std=c11",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-Wno-unused-parameter",
+        "-I",
+        "/home/cy122/charging-management-20261023/usb-input-pm-notify-tests-01",
+        "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/usb-input-pm-notify-candidate/test-notify.c",
+        "-o",
+        "/home/cy122/charging-management-20261023/usb-input-pm-notify-tests-01/test-notify"
+      ],
+      "pid": 775,
+      "terminal": true,
+      "returncode": 1,
+      "stdout": "",
+      "stderr": "/home/cy122/charging-management-20261023/usb-input-pm-notify-tests-01/actual-functions.inc: In function \u2018samurai_usb_poll\u2019:\n/home/cy122/charging-management-20261023/usb-input-pm-notify-tests-01/actual-functions.inc:34:56: error: implicit declaration of function \u2018to_delayed_work\u2019; did you mean \u2018mod_delayed_work\u2019? [-Wimplicit-function-declaration]\n   34 |         struct samurai_usb_input *input = container_of(to_delayed_work(work),\n      |                                                        ^~~~~~~~~~~~~~~\n/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/usb-input-pm-notify-candidate/test-notify.c:8:45: note: in definition of macro \u2018container_of\u2019\n    8 | #define container_of(p,t,m) ((t *)((char *)(p)-offsetof(t,m)))\n      |                                             ^\n/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/usb-input-pm-notify-candidate/test-notify.c:8:36: error: cast to pointer from integer of different size [-Werror=int-to-pointer-cast]\n    8 | #define container_of(p,t,m) ((t *)((char *)(p)-offsetof(t,m)))\n      |                                    ^\n/home/cy122/charging-management-20261023/usb-input-pm-notify-tests-01/actual-functions.inc:34:43: note: in expansion of macro \u2018container_of\u2019\n   34 |         struct samurai_usb_input *input = container_of(to_delayed_work(work),\n      |                                           ^~~~~~~~~~~~\ncc1: all warnings being treated as errors\n"
+    }
+  ]
+}

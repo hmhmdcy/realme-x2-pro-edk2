@@ -1,0 +1,173 @@
+Subject: [PATCH] media: camss: pair SM8150 captured buffers with SOF
+
+Expose FRAME_SYNC for the supported VFE170 path and tag the first active
+buffer that has not already started. Reset the tag on requeue and report
+a missing tag as a buffer error. Keep completion timestamps and all IRQ
+masks, clocks and power policy unchanged.
+
+---
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe.h b/drivers/media/platform/qcom/camss/camss-vfe.h
+--- a/drivers/media/platform/qcom/camss/camss-vfe.h
++++ b/drivers/media/platform/qcom/camss/camss-vfe.h
+@@ -77,6 +77,7 @@
+ 	};
+ 	enum vfe_output_state state;
+ 	unsigned int sequence;
++	unsigned int sof_sequence;
+ 
+ 	int wait_reg_update;
+ 	struct completion sof;
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe.c b/drivers/media/platform/qcom/camss/camss-vfe.c
+--- a/drivers/media/platform/qcom/camss/camss-vfe.c
++++ b/drivers/media/platform/qcom/camss/camss-vfe.c
+@@ -20,6 +20,7 @@
+ #include <linux/spinlock.h>
+ #include <media/media-entity.h>
+ #include <media/v4l2-device.h>
++#include <media/v4l2-event.h>
+ #include <media/v4l2-subdev.h>
+ 
+ #include "camss-vfe.h"
+@@ -541,6 +542,7 @@
+ 	output->state = VFE_OUTPUT_ON;
+ 
+ 	output->sequence = 0;
++	output->sof_sequence = 0;
+ 	output->wait_reg_update = 0;
+ 	reinit_completion(&output->reg_update);
+ 
+@@ -583,6 +585,7 @@
+ 	output = &line->output;
+ 
+ 	spin_lock_irqsave(&vfe->output_lock, flags);
++	buf->sof_valid = false;
+ 
+ 	if (output->state == VFE_OUTPUT_ON &&
+ 	    output->gen2.active_num < 2) {
+@@ -1967,7 +1970,23 @@
+ 	return 0;
+ }
+ 
++static int vfe_subscribe_event(struct v4l2_subdev *sd, struct v4l2_fh *fh,
++			       struct v4l2_event_subscription *sub)
++{
++	struct vfe_line *line = v4l2_get_subdevdata(sd);
++	struct vfe_device *vfe = to_vfe(line);
++
++	if (vfe->camss->res->version != CAMSS_8150 ||
++	    vfe->res->hw_ops != &vfe_ops_170 ||
++	    sub->type != V4L2_EVENT_FRAME_SYNC || sub->id)
++		return -EINVAL;
++
++	return v4l2_event_subscribe(fh, sub, 16, NULL);
++}
++
+ static const struct v4l2_subdev_core_ops vfe_core_ops = {
++	.subscribe_event = vfe_subscribe_event,
++	.unsubscribe_event = v4l2_event_subdev_unsubscribe,
+ 	.s_power = vfe_set_power,
+ };
+ 
+@@ -2075,6 +2094,9 @@
+ 		v4l2_subdev_init(sd, &vfe_v4l2_ops);
+ 		sd->internal_ops = &vfe_v4l2_internal_ops;
+ 		sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
++		if (vfe->camss->res->version == CAMSS_8150 &&
++		    vfe->res->hw_ops == &vfe_ops_170)
++			sd->flags |= V4L2_SUBDEV_FL_HAS_EVENTS;
+ 		if (i == VFE_LINE_PIX && vfe->res->is_lite == false)
+ 			snprintf(sd->name, ARRAY_SIZE(sd->name), "%s%d_%s",
+ 				 MSM_VFE_NAME, vfe->id, "pix");
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe-17x.c b/drivers/media/platform/qcom/camss/camss-vfe-17x.c
+--- a/drivers/media/platform/qcom/camss/camss-vfe-17x.c
++++ b/drivers/media/platform/qcom/camss/camss-vfe-17x.c
+@@ -10,6 +10,8 @@
+ #include <linux/interrupt.h>
+ #include <linux/io.h>
+ #include <linux/iopoll.h>
++
++#include <media/v4l2-event.h>
+ 
+ #include "camss.h"
+ #include "camss-vfe.h"
+@@ -474,7 +476,34 @@
+  */
+ static void vfe_isr_sof(struct vfe_device *vfe, enum vfe_line_id line_id)
+ {
+-	/* nop */
++	struct v4l2_event event = { .type = V4L2_EVENT_FRAME_SYNC };
++	struct vfe_output *output;
++	unsigned long flags;
++	unsigned int i;
++
++	if (vfe->camss->res->version != CAMSS_8150)
++		return;
++
++	spin_lock_irqsave(&vfe->output_lock, flags);
++	output = &vfe->line[line_id].output;
++	if (output->state != VFE_OUTPUT_ON) {
++		spin_unlock_irqrestore(&vfe->output_lock, flags);
++		return;
++	}
++	event.u.frame_sync.frame_sequence = output->sof_sequence++;
++	/* A previous buffer may await DONE when this SOF is handled. */
++	for (i = 0; i < CAMSS_INIT_BUF_COUNT; i++) {
++		struct camss_buffer *buf = output->buf[i];
++
++		if (buf && !buf->sof_valid) {
++			buf->vb.sequence = event.u.frame_sync.frame_sequence;
++			buf->sof_valid = true;
++			break;
++		}
++	}
++	spin_unlock_irqrestore(&vfe->output_lock, flags);
++
++	v4l2_subdev_notify_event(&vfe->line[line_id].subdev, &event);
+ }
+ 
+ /*
+@@ -513,6 +542,7 @@
+ 	unsigned long flags;
+ 	u32 index;
+ 	u64 ts = ktime_get_ns();
++	bool sof_valid = true;
+ 
+ 	spin_lock_irqsave(&vfe->output_lock, flags);
+ 
+@@ -531,7 +561,14 @@
+ 	}
+ 
+ 	ready_buf->vb.vb2_buf.timestamp = ts;
+-	ready_buf->vb.sequence = output->sequence++;
++	if (vfe->camss->res->version == CAMSS_8150) {
++		sof_valid = ready_buf->sof_valid;
++		if (!sof_valid)
++			dev_err_ratelimited(vfe->camss->dev,
++					    "Missing SOF tag for completed buffer\n");
++	} else {
++		ready_buf->vb.sequence = output->sequence++;
++	}
+ 
+ 	index = 0;
+ 	output->buf[0] = output->buf[1];
+@@ -547,7 +584,8 @@
+ 
+ 	spin_unlock_irqrestore(&vfe->output_lock, flags);
+ 
+-	vb2_buffer_done(&ready_buf->vb.vb2_buf, VB2_BUF_STATE_DONE);
++	vb2_buffer_done(&ready_buf->vb.vb2_buf,
++			sof_valid ? VB2_BUF_STATE_DONE : VB2_BUF_STATE_ERROR);
+ 
+ 	return;
+ 
+diff --git a/drivers/media/platform/qcom/camss/camss-video.h b/drivers/media/platform/qcom/camss/camss-video.h
+--- a/drivers/media/platform/qcom/camss/camss-video.h
++++ b/drivers/media/platform/qcom/camss/camss-video.h
+@@ -23,6 +23,7 @@
+ 	struct vb2_v4l2_buffer vb;
+ 	dma_addr_t addr[3];
+ 	struct list_head queue;
++	bool sof_valid;
+ };
+ 
+ struct camss_video;

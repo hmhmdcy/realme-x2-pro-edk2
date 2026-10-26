@@ -1,0 +1,17 @@
+from pathlib import Path
+r=Path('/mnt/e/RealmeX2Pro edk2');ref=r/'reference/kernel128'
+s=(r/'reference/kernel126/inspect-embedded-runtime.py').read_text().replace('kernel126','kernel128').replace('k126','k128').replace('#126 SMP','#128 SMP').replace('kernel_build=126','kernel_build=128').replace('embedded-runtime-private.tar.gz','first-runtime-private.tar.gz').replace("out/'current-boot-id-private.txt'","out/'source-boot-id-private.txt'").replace('firmware-deployment-package-validation.json','boot-package-validation.json').replace('embedded126_dtb_deployed=True','embedded126_dtb_preserved=True')
+s=s.replace("assert data['ipa-module.sha256'].split()[0]==b'979975a67b2af59c5487f26f1d66ab84beb8374f74db4d75740eb3a362016ad3'","with tarfile.open(out/'modules-k128-private.tar.gz') as archive:\n module=next(m for m in archive if m.name.endswith('/kernel/drivers/net/ipa/ipa.ko'))\n assert data['ipa-module.sha256'].split()[0].decode()==hashlib.sha256(archive.extractfile(module).read()).hexdigest()")
+(ref/'inspect-runtime.py').write_text(s)
+s=(ref/'collect-wifi-baseline.sh').read_text().replace('k128-wifi-baseline-r2','k128-postflash-wifi-baseline').replace('samurai-k126+','samurai-k128+').replace('k126-embedded-runtime','k128-first-runtime').replace('k128-wifi-baseline-private.tar.gz','k128-postflash-wifi-baseline-private.tar.gz')
+s=s.replace('dmesg > "$dest/dmesg-before-private.txt"','dmesg > "$dest/dmesg-before-private.txt"\nlogread -b 0 -n 16000 > "$dest/logread-before-private.txt"')
+(ref/'collect-postflash-wifi-baseline.sh').write_text(s)
+s=(ref/'test-5ghz-once.sh').read_text().replace('k128-wifi-5ghz-once','k128-postflash-wifi-5ghz').replace('k128-wifi-baseline-r2','k128-postflash-wifi-baseline').replace('samurai-k126+','samurai-k128+').replace('Samurai k128 temporary 5GHz','Samurai k128 postflash temporary 5GHz')
+(ref/'test-postflash-5ghz.sh').write_text(s)
+s=(ref/'capture-key-baseline.sh').read_text().replace('k128-keytrace-baseline-r3','k128-keytrace-postflash').replace('k128-wifi-baseline-r2','k128-postflash-wifi-baseline').replace('k128-test-keytrace-inner.sh','k128-test-postflash-5ghz.sh')
+(ref/'capture-key-postflash.sh').write_text(s)
+s=(ref/'verify-key-baseline.py').read_text().replace('keytrace-baseline-private.tar.gz','keytrace-postflash-private.tar.gz').replace("x['return_code']==-110 and x['duration_ms']>=3000","x['return_code']==0 and x['duration_ms']<50").replace('current_kernel=126,current_boot_delete_wait_reproduced=True','current_kernel=128,current_boot_delete_wait_resolved=True').replace('narrow_wcn3990_snoc_patch_justified=True','narrow_wcn3990_snoc_patch_real_runtime_pass=True').replace('key-delete-baseline-validation.json','key-delete-postflash-validation.json')
+(ref/'verify-key-postflash.py').write_text(s)
+s=(ref/'verify-5ghz-once.py').read_text().replace('wifi-5ghz-once-private.tar.gz','postflash-wifi-5ghz-private.tar.gz').replace('wifi-baseline-private.tar.gz','postflash-wifi-baseline-private.tar.gz').replace('current_kernel=126','current_kernel=128').replace('5ghz-once-validation.json','5ghz-postflash-validation.json')
+(ref/'verify-5ghz-postflash.py').write_text(s)
+print('K128_CURRENT128_RUNTIME_AND_FINITE_DUAL_BAND_KEYTRACE_TESTS_READY',flush=True)

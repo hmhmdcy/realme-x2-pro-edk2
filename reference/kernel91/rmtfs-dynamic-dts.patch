@@ -1,0 +1,25 @@
+--- a/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
++++ b/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
+@@ -125,6 +125,22 @@
+ 		/delete-node/ memory@98900000;	/* MTP cdsp_mem */
+ 		/delete-node/ memory@9e400000;	/* MTP qseecom_mem */
+ 
++		/*
++		 * Stock sharedmem-uio allocates 2 MiB dynamically with 4 KiB guards,
++		 * client 1 and HLOS/MSS_MSA RW permissions. Allocate from EFI-described
++		 * HLOS RAM below 4 GiB; never reuse the MTP address inside this board's TZ.
++		 */
++		samurai_rmtfs_mem: rmtfs-dynamic {
++			compatible = "qcom,rmtfs-mem";
++			size = <0x0 0x202000>;
++			alignment = <0x0 0x1000>;
++			alloc-ranges = <0x0 0xc0000000 0x0 0x30000000>;
++			no-map;
++			qcom,client-id = <1>;
++			qcom,use-guard-pages;
++			qcom,vmid = <QCOM_SCM_VMID_MSS_MSA>;
++		};
++
+ 		/* hyp_mem, smem_mem and aop_cmd_db are correct as inherited. */
+ 
+ 		/* tz_mem: the device reserves three times the MTP's 0x3900000. */

@@ -1,0 +1,17 @@
+{
+  "stage": 224,
+  "rejected_candidate": "99990.7.2-r9",
+  "client_exit": -6,
+  "assertion": "Request::Private::cancel requires RequestPending; conversion queue retained an already completed RAW request.",
+  "kernel_taint": 0,
+  "kernel_fault_delta": {
+    "warning": 0,
+    "oops": 0,
+    "gpu": 0,
+    "slpi_fatal": 0,
+    "bluetooth": 0
+  },
+  "controls_formats_graph_and_pm_restored": true,
+  "r9_not_deployed": true,
+  "fix": "Cancel only requests still owned by the live frame map after draining streams; discard queue references without dereferencing completed requests."
+}

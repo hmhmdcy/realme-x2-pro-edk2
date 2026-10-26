@@ -1,0 +1,233 @@
+--- a/src/pipewire/impl-port.c
++++ b/src/pipewire/impl-port.c
+@@ -29,6 +29,12 @@
+ #define PW_LOG_TOPIC_DEFAULT log_port
+ 
+ /** \cond */
++struct broadcast_owner {
++	struct spa_list link;
++	struct pw_impl_port_mix *mix;
++	uint64_t pending;
++};
++
+ struct impl {
+ 	struct pw_impl_port this;
+ 	struct spa_node mix_node;	/**< mix node implementation */
+@@ -36,6 +42,10 @@
+ 
+ 	struct {
+ 		struct spa_list mix_list;
++		struct spa_list broadcast_owners;
++		uint64_t broadcast_outstanding;
++		struct spa_buffer *broadcast_buffers[64];
++		uint32_t broadcast_n_buffers;
+ 	} rt;
+ 
+ 	struct spa_list param_list;
+@@ -44,6 +54,7 @@
+ 	struct spa_hook node_listener;
+ 
+ 	unsigned int cache_params:1;
++	bool reliable_broadcast;
+ };
+ 
+ static const char * const global_keys[] = {
+@@ -222,6 +233,53 @@
+ 	return NULL;
+ }
+ 
++static struct broadcast_owner *broadcast_find_owner(struct impl *impl,
++		struct pw_impl_port_mix *mix)
++{
++	struct broadcast_owner *owner;
++	spa_list_for_each(owner, &impl->rt.broadcast_owners, link)
++		if (owner->mix == mix)
++			return owner;
++	return NULL;
++}
++
++static void broadcast_reset(struct impl *impl)
++{
++	struct broadcast_owner *owner;
++	impl->rt.broadcast_outstanding = 0;
++	spa_list_for_each(owner, &impl->rt.broadcast_owners, link)
++		owner->pending = 0;
++}
++
++static int broadcast_release_idle(struct impl *impl)
++{
++	struct pw_impl_port *port = &impl->this;
++	struct broadcast_owner *owner;
++	uint64_t pending = 0, ready;
++	spa_list_for_each(owner, &impl->rt.broadcast_owners, link)
++		pending |= owner->pending;
++	ready = impl->rt.broadcast_outstanding & ~pending;
++	for (uint32_t id = 0; id < 64; id++) {
++		uint64_t bit = UINT64_C(1) << id;
++		if (!(ready & bit))
++			continue;
++		impl->rt.broadcast_outstanding &= ~bit;
++		if (port->destroying || !port->node || id >= impl->rt.broadcast_n_buffers)
++			continue;
++		/* No live link owns this buffer now. A vanished client can leave its
++		 * shared Busy counter elevated; clearing it is safe only here, after
++		 * every remaining client returned its own lease. */
++		struct spa_meta_busy *busy = spa_buffer_find_meta_data(
++			impl->rt.broadcast_buffers[id], SPA_META_Busy, sizeof(*busy));
++		if (busy)
++			SPA_ATOMIC_STORE(busy->count, 0);
++		int res = spa_node_port_reuse_buffer(port->node->node, port->port_id, id);
++		if (res < 0)
++			return res;
++	}
++	return 0;
++}
++
+ static int
+ do_add_mix(struct spa_loop *loop,
+ 		 bool async, uint32_t seq, const void *data, size_t size, void *user_data)
+@@ -231,6 +289,13 @@
+ 	struct impl *impl = SPA_CONTAINER_OF(this, struct impl, this);
+ 	pw_log_trace("%p: add mix %p", this, mix);
+ 	if (!mix->rt.active) {
++		if (impl->reliable_broadcast) {
++			struct broadcast_owner *owner = calloc(1, sizeof(*owner));
++			if (!owner)
++				return -ENOMEM;
++			owner->mix = mix;
++			spa_list_append(&impl->rt.broadcast_owners, &owner->link);
++		}
+ 		spa_list_append(&impl->rt.mix_list, &mix->rt.link);
+ 		mix->rt.active = true;
+ 	}
+@@ -243,10 +308,17 @@
+ {
+ 	struct pw_impl_port_mix *mix = user_data;
+ 	struct pw_impl_port *this = mix->p;
++	struct impl *impl = SPA_CONTAINER_OF(this, struct impl, this);
+ 	pw_log_trace("%p: remove mix %p", this, mix);
+ 	if (mix->rt.active) {
+ 		spa_list_remove(&mix->rt.link);
+ 		mix->rt.active = false;
++		struct broadcast_owner *owner = broadcast_find_owner(impl, mix);
++		if (owner) {
++			spa_list_remove(&owner->link);
++			free(owner);
++			return broadcast_release_idle(impl);
++		}
+ 	}
+ 	return 0;
+ }
+@@ -305,9 +377,79 @@
+         return SPA_STATUS_HAVE_DATA | SPA_STATUS_NEED_DATA;
+ }
+ 
++/* Reliable camera fanout tracks each link's lease until that exact client
++ * returns the buffer or the link is removed. Never infer ownership from the
++ * first ready consumer, and never discard another client's outstanding slot. */
++static int tee_process_reliable_broadcast(void *object)
++{
++	struct impl *impl = object;
++	struct pw_impl_port *this = &impl->this;
++	struct pw_impl_port_mix *mix;
++	struct spa_io_buffers *io = &this->rt.io;
++	uint32_t cycle = this->node->rt.position->clock.cycle & 1;
++	uint32_t buffer_id;
++	bool delivered = false;
++	int res;
++
++	spa_list_for_each(mix, &impl->rt.mix_list, rt.link) {
++		struct broadcast_owner *owner = broadcast_find_owner(impl, mix);
++		if (!owner)
++			return -EIO;
++		for (uint32_t c = 0; c < 2; c++) {
++			struct spa_io_buffers *mio = mix->io[c];
++			if (mio->status == SPA_STATUS_HAVE_DATA || mio->buffer_id == SPA_ID_INVALID)
++				continue;
++			if (mio->buffer_id < 64)
++				owner->pending &= ~(UINT64_C(1) << mio->buffer_id);
++			mio->buffer_id = SPA_ID_INVALID;
++		}
++	}
++	if ((res = broadcast_release_idle(impl)) < 0)
++		return res;
++	if (io->status != SPA_STATUS_HAVE_DATA)
++		return SPA_STATUS_HAVE_DATA | SPA_STATUS_NEED_DATA;
++	spa_list_for_each(mix, &impl->rt.mix_list, rt.link) {
++		if (mix->io[cycle]->status == SPA_STATUS_HAVE_DATA)
++			return SPA_STATUS_HAVE_DATA | SPA_STATUS_NEED_DATA;
++	}
++	buffer_id = io->buffer_id;
++	if (buffer_id >= 64 || buffer_id >= impl->rt.broadcast_n_buffers)
++		return -EINVAL;
++	spa_list_for_each(mix, &impl->rt.mix_list, rt.link) {
++		struct spa_io_buffers *mio = mix->io[cycle];
++		struct broadcast_owner *owner = broadcast_find_owner(impl, mix);
++		owner->pending |= UINT64_C(1) << buffer_id;
++		impl->rt.broadcast_outstanding |= UINT64_C(1) << buffer_id;
++		mio->buffer_id = buffer_id;
++		mio->status = SPA_STATUS_HAVE_DATA;
++		delivered = true;
++	}
++	io->buffer_id = delivered ? SPA_ID_INVALID : buffer_id;
++	io->status = SPA_STATUS_NEED_DATA;
++	return SPA_STATUS_HAVE_DATA | SPA_STATUS_NEED_DATA;
++}
++
++static int tee_use_buffers(void *object, enum spa_direction direction,
++		uint32_t port_id, uint32_t flags, struct spa_buffer **buffers,
++		uint32_t n_buffers)
++{
++	struct impl *impl = object;
++	if (!impl->reliable_broadcast || direction != SPA_DIRECTION_INPUT || port_id != 0)
++		return -ENOTSUP;
++	if (n_buffers > SPA_N_ELEMENTS(impl->rt.broadcast_buffers))
++		return -ENOSPC;
++	broadcast_reset(impl);
++	impl->rt.broadcast_n_buffers = n_buffers;
++	for (uint32_t i = 0; i < n_buffers; i++)
++		impl->rt.broadcast_buffers[i] = buffers[i];
++	return 0;
++}
++
+ static int tee_process_reliable(void *object)
+ {
+ 	struct impl *impl = object;
++	if (impl->reliable_broadcast)
++		return tee_process_reliable_broadcast(object);
+ 	struct pw_impl_port *this = &impl->this;
+ 	struct pw_impl_port_mix *mix;
+ 	struct spa_io_buffers *io = &this->rt.io;
+@@ -357,6 +499,7 @@
+ 
+ static const struct spa_node_methods schedule_tee_node_reliable = {
+ 	SPA_VERSION_NODE_METHODS,
++	.port_use_buffers = tee_use_buffers,
+ 	.add_listener = mix_add_listener,
+ 	.port_enum_params = mix_port_enum_params,
+ 	.port_set_io = port_set_io,
+@@ -528,6 +671,7 @@
+ 		port->exclusive = new_bool;
+ 	}
+ 
++	impl->reliable_broadcast = pw_properties_get_bool(nprops, "node.reliable.broadcast", false);
+ 	new_bool = pw_properties_get_bool(port->properties, PW_KEY_PORT_RELIABLE, node->reliable);
+ 	if (new_bool != port->reliable && port->direction == PW_DIRECTION_OUTPUT) {
+ 		pw_log_info("%p: reliable %d->%d", port, port->reliable, new_bool);
+@@ -964,6 +1108,7 @@
+ 	spa_list_init(&impl->pending_list);
+ 	impl->cache_params = true;
+ 	spa_list_init(&impl->rt.mix_list);
++	spa_list_init(&impl->rt.broadcast_owners);
+ 
+ 	this = &impl->this;
+ 
+@@ -2091,6 +2236,8 @@
+ 	}
+ 
+ 	if (id == SPA_PARAM_Format) {
++		struct impl *impl = SPA_CONTAINER_OF(port, struct impl, this);
++		broadcast_reset(impl);
+ 		/* setting the format always destroys the negotiated buffers */
+ 		if (port->direction == PW_DIRECTION_OUTPUT) {
+ 			struct pw_impl_link *l;

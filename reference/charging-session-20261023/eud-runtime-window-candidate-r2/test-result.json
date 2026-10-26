@@ -1,0 +1,45 @@
+{
+  "passed": true,
+  "revision": 2,
+  "groups": [
+    "borrowed legacy late RX joined after unregister and UART removal",
+    "ordinary atomic late RX joined after unregister",
+    "ordinary threaded nbcon late RX joined after unregister",
+    "ordinary late TTY start_tx joined after UART producer removal"
+  ],
+  "compile_returncode": 0,
+  "compile_stderr": "",
+  "runtime_returncode": 0,
+  "runtime_stdout": "ok: borrowed legacy late RX joined after unregister and UART removal\nok: ordinary atomic late RX joined after unregister\nok: ordinary threaded nbcon late RX joined after unregister\nok: ordinary late TTY start_tx joined after UART producer removal\n",
+  "runtime_stderr": "",
+  "flags": [
+    "-std=gnu11",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-Wno-unused-parameter",
+    "-Wno-unused-function",
+    "-fsanitize=address,undefined",
+    "-fno-omit-frame-pointer",
+    "-pthread"
+  ],
+  "tested_files": {
+    "eud.c": "1479c3cf0be0b4d62a2b66486b3be5819f28da3d380c95ed76c2a1e6966db3af",
+    "eud-com-window.h": "8003aa9619d2f9d1a15d4ff97460b8f106dc54defc841f31670e98d48e2d8c46",
+    "candidate-functions.inc": "5691608829863c963cdb417fba01ab4bad1f2bb0446e93fd5cfadaaebe543cb6",
+    "nbcon-functions.inc": "11a8da484235b6d4688310c343cf85aba520e45028fd21525e5e7b398efe8dbf",
+    "fake-eud-os.h": "8adf68619f48d482661fe041bc1825f685feb567c92f78d4d16c484c935f6229",
+    "test-late-producers.c": "2c807700d88568effb7ead94b1f9f83b6a575072edc72ae679a5be0449d66717",
+    "prepare-r2.py": "39cb92cce20142471e27e87c6fc85f4f0d3f238f59764849ae60b147bfa87af0",
+    "run-tests.py": "4062c53bf1ed73c1c8d2e5fbeaa58033528d99254a3bb213d1bae94d3db0db61"
+  },
+  "old_9_groups_rerun": false,
+  "old_5_review_groups_rerun": false,
+  "queued_work_executed_after_free": false,
+  "r1_modified": false,
+  "reviewer_files_modified": false,
+  "phone_accessed": false,
+  "ssh_executed": false,
+  "sdk_invoked": false,
+  "scope": "actual R2 remove/producer bodies with controlled pthread preemption and fake work/console/UART joins"
+}

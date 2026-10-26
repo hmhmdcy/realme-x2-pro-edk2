@@ -1,0 +1,23 @@
+--- a/src/libssc-sensor-light.c
++++ b/src/libssc-sensor-light.c
+@@ -268,13 +268,19 @@
+ void
+ ssc_sensor_light_new (GCancellable *cancellable, GAsyncReadyCallback callback, gpointer user_data)
+ {
++	const gchar *data_type = g_getenv ("LIBSSC_LIGHT_DATA_TYPE");
++
++	/* Some OEM firmware publishes the same light protocol as wise_light. */
++	if (g_strcmp0 (data_type, "wise_light") != 0)
++		data_type = "ambient_light";
++
+ 	g_async_initable_new_async (
+ 			SSC_TYPE_SENSOR_LIGHT,
+ 			G_PRIORITY_DEFAULT,
+ 			cancellable,
+ 			callback,
+ 			user_data,
+-			SSC_SENSOR_DATA_TYPE, "ambient_light",
++			SSC_SENSOR_DATA_TYPE, data_type,
+ 			NULL);
+ }
+ 

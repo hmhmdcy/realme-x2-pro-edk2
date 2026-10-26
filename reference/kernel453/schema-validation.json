@@ -1,0 +1,117 @@
+{
+  "stage": 453,
+  "scope": "private candidate structural/dependency validation only; public binding metadata incomplete",
+  "original_public_binding_doc_valid": false,
+  "canonical_original_doc": {
+    "exit": 1,
+    "diagnostic_bytes": 290
+  },
+  "private_placeholder_doc": {
+    "exit": 0,
+    "diagnostic_bytes": 0
+  },
+  "placeholder_is_not_a_maintainer_or_submission": true,
+  "public_binding_or_driver_or_dt_changed": false,
+  "dtc_compilations": {
+    "baseline": {
+      "cpp": {
+        "exit": 0,
+        "diagnostic_bytes": 0
+      },
+      "dtc": {
+        "exit": 0,
+        "diagnostic_bytes": 8376
+      },
+      "yaml": {
+        "exit": 0,
+        "diagnostic_bytes": 8376
+      },
+      "dtb_sha256": "0cc9dfd29044d7ca9ed2dbadbb62cedacd0298eba23fce377112ffe70d3b5db7"
+    },
+    "candidate": {
+      "cpp": {
+        "exit": 0,
+        "diagnostic_bytes": 0
+      },
+      "dtc": {
+        "exit": 0,
+        "diagnostic_bytes": 8376
+      },
+      "yaml": {
+        "exit": 0,
+        "diagnostic_bytes": 8376
+      },
+      "dtb_sha256": "4a6613de6c0ac98f746933ecf35120158d695d6d71ef87a6f7e04dd2ab7461cd"
+    }
+  },
+  "no_removed_nodes": true,
+  "new_nodes": [
+    "/soc@0/cci@ac4a000/i2c-bus@1/lens@c",
+    "/soc@0/cci@ac4b000/i2c-bus@0/lens@c",
+    "/soc@0/geniqup@8c0000/i2c@890000/pmic@4/regulators/ldo6",
+    "/soc@0/geniqup@8c0000/i2c@890000/pmic@8/regulators/ldo3"
+  ],
+  "changed_existing_properties": [
+    [
+      "/soc@0/cci@ac4a000/i2c-bus@1/camera@10",
+      "lens-focus"
+    ],
+    [
+      "/soc@0/cci@ac4b000/i2c-bus@0/camera@2d",
+      "lens-focus"
+    ]
+  ],
+  "relations": [
+    {
+      "lens": "/soc@0/cci@ac4a000/i2c-bus@1/lens@c",
+      "sensor": "/soc@0/cci@ac4a000/i2c-bus@1/camera@10",
+      "regulator": "/soc@0/geniqup@8c0000/i2c@890000/pmic@4/regulators/ldo6",
+      "vdd_sole_consumer": true,
+      "firmware_name": "camera/realme-x2-pro/imx319-bu64253-init.bin"
+    },
+    {
+      "lens": "/soc@0/cci@ac4b000/i2c-bus@0/lens@c",
+      "sensor": "/soc@0/cci@ac4b000/i2c-bus@0/camera@2d",
+      "regulator": "/soc@0/geniqup@8c0000/i2c@890000/pmic@8/regulators/ldo3",
+      "vdd_sole_consumer": true,
+      "firmware_name": "camera/realme-x2-pro/s5k3m5sx-bu64253-init.bin"
+    }
+  ],
+  "explicit_phandle_reference_cells_checked": 251,
+  "processed_schema": {
+    "exit": 0,
+    "diagnostic_bytes": 0
+  },
+  "targeted_dependency_validations": {
+    "rohm,bu64253": {
+      "exit": 0,
+      "diagnostic_bytes": 0
+    },
+    "qcom,pm8008": {
+      "exit": 0,
+      "diagnostic_bytes": 0
+    },
+    "qcom,i2c-cci": {
+      "exit": 0,
+      "diagnostic_bytes": 0
+    },
+    "sony,imx319": {
+      "exit": 0,
+      "diagnostic_bytes": 0
+    },
+    "samsung,s5k3m5": {
+      "exit": 0,
+      "diagnostic_bytes": 0
+    }
+  },
+  "shared_inputs_unchanged": true,
+  "sdk_or_phone_accessed": false,
+  "dts_deployed": false,
+  "actual_kernel_pm_or_hardware_verified": false,
+  "passed": true,
+  "original_public_binding_submission_ready": false,
+  "live_enablement_ready": false,
+  "private_candidate_structural_validation_passed": true,
+  "baseline_and_candidate_dtc_diagnostics_identical": true,
+  "dtc_diagnostic_sha256": "c353ee414d7c1c8f54ac9e5c56551deb5031e5222d2ee5ecc9f8659acef773e4"
+}

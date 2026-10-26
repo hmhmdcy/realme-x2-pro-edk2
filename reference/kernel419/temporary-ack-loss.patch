@@ -1,0 +1,73 @@
+--- a/drivers/media/platform/qcom/camss/camss-icp-a5-boot.c
++++ b/drivers/media/platform/qcom/camss/camss-icp-a5-boot.c
+@@ -19,6 +19,14 @@
+ 
+ #include "camss-icp-a5-boot.h"
+ #include "camss-icp-a5-ipe.h"
++
++#ifdef CAMSS_A5_TEST_DROP_FRAME_ACK
++/* Temporary experiment only: this code is absent from production builds. */
++static unsigned int test_drop_frame_ack;
++module_param_named(test_drop_frame_ack, test_drop_frame_ack, uint, 0600);
++static unsigned int test_dropped_frame_acks;
++module_param_named(test_dropped_frame_acks, test_dropped_frame_acks, uint, 0400);
++#endif
+ 
+ #define A5_RESET 0x04
+ #define A5_CONTROL 0x08
+@@ -220,6 +228,19 @@
+ 	default:
+ 		goto malformed;
+ 	}
++#ifdef CAMSS_A5_TEST_DROP_FRAME_ACK
++	/* Tokens, opcode, size and firmware status have already been checked.
++	 * Consume one real successful frame ACK but do not wake its waiter.
++	 * The unchanged timeout path must retain DMA until reset confirms idle.
++	 */
++	if (!error && type == IPE_ASYNC_INDIRECT_ACK &&
++	    a5->session_opcode == IPE_FRAME_PROCESS &&
++	    cmpxchg(&test_drop_frame_ack, 1, 0) == 1) {
++		test_dropped_frame_acks++;
++		dev_info(a5->dev, "FAULT_TEST dropped validated frame ACK once\n");
++		return;
++	}
++#endif
+ 	/* A successful packet must not erase a concurrent watchdog/protocol
+ 	 * failure latched by the hard IRQ or an earlier packet in this batch.
+ 	 */
+@@ -928,6 +949,18 @@
+ 	ret = quiesce_locked(a5);
+ 	if (ret)
+ 		return ret;
++#ifdef CAMSS_A5_TEST_DROP_FRAME_ACK
++	if (test_dropped_frame_acks)
++		dev_info(a5->dev, "FAULT_TEST before DMA retirement reset_acks=%u,%u pending=%u request_mapped=%u input_ref=%u output_ref=%u\n",
++			 a5->resources.ipe_reset_acks[0], a5->resources.ipe_reset_acks[1],
++			 a5->ipe_dma_pending, a5->request_fw_mapped,
++			 !!a5->dma_input.buffer, !!a5->dma_output.buffer);
++#endif
++#ifdef CAMSS_A5_TEST_DROP_FRAME_ACK
++	if (test_dropped_frame_acks)
++		dev_info(a5->dev, "FAULT_TEST parcel before retirement bytes=%u present=%u\n",
++			 a5->request.bytes, !!a5->request.cpu);
++#endif
+ 	/* Retire all firmware DMA aliases while the supplier is still powered.
+ 	 * A failed unmap keeps the PM reference and backing for a later retry.
+ 	 */
+@@ -1597,6 +1630,16 @@
+ 			ret = cleanup;
+ 	}
+ done:
++#ifdef CAMSS_A5_TEST_DROP_FRAME_ACK
++	if (ret && a5->ipe_dma_pending && test_dropped_frame_acks)
++		dev_info(a5->dev, "FAULT_TEST retained before reset pending=%u request_mapped=%u input_ref=%u output_ref=%u\n",
++			 a5->ipe_dma_pending, a5->request_fw_mapped,
++			 !!a5->dma_input.buffer, !!a5->dma_output.buffer);
++	if (ret && a5->ipe_dma_pending && test_dropped_frame_acks)
++		dev_info(a5->dev, "FAULT_TEST typed IQ retained iq_bytes=%u parcel_bytes=%u parcel_present=%u gamma=%u ltm=%u\n",
++			 iq_bytes, a5->request.bytes, !!a5->request.cpu,
++			 !!gamma_copy, !!ltm_copy);
++#endif
+ 	if (result) {
+ 		if (!ret)
+ 			*result = CAMSS_A5_IPE_COMPLETE;

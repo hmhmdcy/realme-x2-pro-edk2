@@ -1,0 +1,151 @@
+{
+  "stage": 388,
+  "attempt": 1,
+  "exit_code": 0,
+  "seconds": 20.49,
+  "modules": [
+    {
+      "name": "qcom-camss-icp-a5-core",
+      "bytes": 351008,
+      "sha256": "9b5d3d162e26f3eccfa2a4b0ede5b2b76028b49a25198c7889f243a65aad4611",
+      "runtime_candidate": true,
+      "intree": "Y",
+      "vermagic": "7.3.0-rc6-rmx1931-samurai-k363+ SMP preempt mod_unload aarch64",
+      "depends": "",
+      "private_path": "/mnt/e/edk2-samurai-out/kernel388/qcom-camss-icp-a5-core-intree-r1.ko"
+    },
+    {
+      "name": "v4l2-mem2mem",
+      "bytes": 201296,
+      "sha256": "a00c9410b34755c68bdf9c925ce92a9f509e91590fc76ecb443448d35ab411d9",
+      "runtime_candidate": true,
+      "intree": "Y",
+      "vermagic": "7.3.0-rc6-rmx1931-samurai-k363+ SMP preempt mod_unload aarch64",
+      "depends": "videobuf2-common,videobuf2-v4l2",
+      "private_path": "/mnt/e/edk2-samurai-out/kernel388/v4l2-mem2mem-intree-r1.ko"
+    },
+    {
+      "name": "camss-icp-a5-m2m",
+      "bytes": 117336,
+      "sha256": "8722b4eb3ff7300f04256d7cf9a21dfb5c5659f6763f62a3bffe21fa28c4fb65",
+      "runtime_candidate": true,
+      "intree": "Y",
+      "vermagic": "7.3.0-rc6-rmx1931-samurai-k363+ SMP preempt mod_unload aarch64",
+      "depends": "v4l2-mem2mem,videobuf2-dma-sg,videobuf2-v4l2,qcom-camss-icp-a5-core,videobuf2-common",
+      "private_path": "/mnt/e/edk2-samurai-out/kernel388/camss-icp-a5-m2m-intree-r1.ko"
+    },
+    {
+      "name": "camss-icp-a5-boot-test",
+      "bytes": 114864,
+      "sha256": "d903d8111bde4fdef498c439300fe8aa93114e57b8b7822972acfd680267ca02",
+      "runtime_candidate": true,
+      "intree": "Y",
+      "vermagic": "7.3.0-rc6-rmx1931-samurai-k363+ SMP preempt mod_unload aarch64",
+      "depends": "qcom-camss-icp-a5-core,camss-icp-a5-m2m",
+      "private_path": "/mnt/e/edk2-samurai-out/kernel388/camss-icp-a5-boot-test-intree-r1.ko"
+    },
+    {
+      "name": "videobuf2-common",
+      "bytes": 330472,
+      "sha256": "57aca69b51af3aacef80ab6bf049df6487c7e15e264f27b867ce3be4a8ad9e1b",
+      "runtime_candidate": false,
+      "intree": "Y",
+      "vermagic": "7.3.0-rc6-rmx1931-samurai-k363+ SMP preempt mod_unload aarch64",
+      "depends": "",
+      "private_path": "/mnt/e/edk2-samurai-out/kernel388/videobuf2-common-intree-r1.ko"
+    },
+    {
+      "name": "videobuf2-v4l2",
+      "bytes": 128616,
+      "sha256": "484b45cc938963d5ae976b41a3308e231f6580688f4854c7c94bc9139e3366d1",
+      "runtime_candidate": false,
+      "intree": "Y",
+      "vermagic": "7.3.0-rc6-rmx1931-samurai-k363+ SMP preempt mod_unload aarch64",
+      "depends": "videobuf2-common",
+      "private_path": "/mnt/e/edk2-samurai-out/kernel388/videobuf2-v4l2-intree-r1.ko"
+    },
+    {
+      "name": "videobuf2-memops",
+      "bytes": 47144,
+      "sha256": "9babe8ef7d44fe4f79dbe1630c6ebfd185310b6159d33f8dfc29d6e73612bdd6",
+      "runtime_candidate": false,
+      "intree": "Y",
+      "vermagic": "7.3.0-rc6-rmx1931-samurai-k363+ SMP preempt mod_unload aarch64",
+      "depends": "videobuf2-common",
+      "private_path": "/mnt/e/edk2-samurai-out/kernel388/videobuf2-memops-intree-r1.ko"
+    },
+    {
+      "name": "videobuf2-vmalloc",
+      "bytes": 83248,
+      "sha256": "65ed43d6418f7877f3a95b17fe6d11db243bb2b8811d23d0b9af859db3507dba",
+      "runtime_candidate": false,
+      "intree": "Y",
+      "vermagic": "7.3.0-rc6-rmx1931-samurai-k363+ SMP preempt mod_unload aarch64",
+      "depends": "videobuf2-memops,videobuf2-common",
+      "private_path": "/mnt/e/edk2-samurai-out/kernel388/videobuf2-vmalloc-intree-r1.ko"
+    },
+    {
+      "name": "videobuf2-dma-sg",
+      "bytes": 99112,
+      "sha256": "506ab32300cb6e2cd33cb8bdfe92aec6bf7089fca342bd774cc9c6951ba72cf4",
+      "runtime_candidate": false,
+      "intree": "Y",
+      "vermagic": "7.3.0-rc6-rmx1931-samurai-k363+ SMP preempt mod_unload aarch64",
+      "depends": "videobuf2-memops,videobuf2-common",
+      "private_path": "/mnt/e/edk2-samurai-out/kernel388/videobuf2-dma-sg-intree-r1.ko"
+    }
+  ],
+  "firmware_region": {
+    "bytes": 2211,
+    "camss": 38,
+    "camcc": 206,
+    "smmu": 44,
+    "interrupt_parent": 1,
+    "generated_header": "/mnt/samurai-full282/build/drivers/media/platform/qcom/camss/camss-icp-a5-boot-test-blob.h",
+    "firmware_region_path": "/reserved-memory/memory@9ab00000",
+    "firmware_physical": 2595225600,
+    "firmware_bytes": 5242880,
+    "offline_overlay_named_firmware_resolves": true,
+    "existing_firmware_phandle": 246,
+    "static_board_reference_required": true,
+    "existing_dt_properties_untouched_by_overlay": true,
+    "combined_icp_sid_specs": [
+      [
+        8738,
+        0
+      ],
+      [
+        8320,
+        32
+      ],
+      [
+        8352,
+        32
+      ],
+      [
+        8448,
+        32
+      ],
+      [
+        8480,
+        32
+      ],
+      [
+        8384,
+        0
+      ],
+      [
+        8512,
+        0
+      ]
+    ],
+    "image_iova_start": 536870912,
+    "image_iova_bytes": 134217728
+  },
+  "diagnostics": [],
+  "actual_in_tree_candidate_and_standard_helper_build": true,
+  "shared_camss_v4l2_outputs_config_and_symvers_restored": true,
+  "refreshed_host_tools_and_other_preparation_outputs_not_rolled_back": true,
+  "installed": false,
+  "passed": true
+}

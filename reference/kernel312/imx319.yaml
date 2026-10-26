@@ -1,0 +1,51 @@
+# Experimental mode catalog, not per-unit IQ calibration.
+version: 2
+sensor_model: imx319
+modes:
+- match:
+    width: 1632
+    height: 1224
+    pixel_rate: 209066666
+    line_length: 2080
+    frame_length: 3350
+  residual_black_subtraction: 4096
+  range_normalization: 1.0
+  sensor_controls:
+    width: 1632
+    height: 1224
+    pixel_rate: 209066666
+    line_length: 2080
+    frame_length: 3350
+    exposure_delay: 2
+    gain_delay: 2
+  awb:
+    algorithm: grey
+    statistics_black:
+    - 0
+    - 0
+    - 0
+    - 0
+    minimum_regions: 16
+    minimum_signal: 32
+  agc:
+    relativeLuminanceTarget: 0.16
+    AeConstraintMode:
+      ConstraintNormal:
+        lower:
+          qLo: 0.98
+          qHi: 1.0
+          yTarget: 0.16
+        upper:
+          qLo: 0.98
+          qHi: 1.0
+          yTarget: 0.85
+    AeExposureMode:
+      ExposureNormal:
+        exposureTime:
+        - 100
+        - 30000
+        - 33200
+        gain:
+        - 1.0
+        - 1.0
+        - 16.0

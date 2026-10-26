@@ -1,0 +1,238 @@
+{
+  "stage": 350,
+  "source_manifest": "primary-sources.json",
+  "factory_binary_evidence": "../kernel286/register-contract-validation.json",
+  "factory_constructor_bindings": [
+    {
+      "module": "IPEColorTransform12",
+      "tag": 33,
+      "constructor": "0x34f8d0",
+      "constructor_symbol": "CamX::IPEColorTransform12::Create(CamX::IPEModuleCreateData*)",
+      "registry_pointer_slot": "0x5c0680",
+      "relocation": "RELR",
+      "opaque_registry_words_not_interpreted_as_runtime_enable": true
+    },
+    {
+      "module": "IPELTM13",
+      "tag": 34,
+      "constructor": "0x35e238",
+      "constructor_symbol": "CamX::IPELTM13::Create(CamX::IPEModuleCreateData*)",
+      "registry_pointer_slot": "0x5c0698",
+      "relocation": "RELR",
+      "opaque_registry_words_not_interpreted_as_runtime_enable": true
+    },
+    {
+      "module": "IPEColorCorrection13",
+      "tag": 35,
+      "constructor": "0x350368",
+      "constructor_symbol": "CamX::IPEColorCorrection13::Create(CamX::IPEModuleCreateData*)",
+      "registry_pointer_slot": "0x5c06b0",
+      "relocation": "RELR",
+      "opaque_registry_words_not_interpreted_as_runtime_enable": true
+    },
+    {
+      "module": "IPEGamma15",
+      "tag": 36,
+      "constructor": "0x351bd8",
+      "constructor_symbol": "CamX::IPEGamma15::Create(CamX::IPEModuleCreateData*)",
+      "registry_pointer_slot": "0x5c06c8",
+      "relocation": "RELR",
+      "opaque_registry_words_not_interpreted_as_runtime_enable": true
+    }
+  ],
+  "source_facts": [
+    {
+      "file": "camxifegamma16.cpp",
+      "anchors": [
+        {
+          "needle": "IFEDynamicEnableMask",
+          "lines": [
+            201
+          ]
+        },
+        {
+          "needle": "TonemapModeContrastCurve",
+          "lines": [
+            250
+          ]
+        },
+        {
+          "needle": "gammaOutput.gammaG",
+          "lines": [
+            175
+          ]
+        }
+      ],
+      "interpretation": "IFE enable also depends on runtime mask and tonemap mode; enabled tuning alone is insufficient. The exported Gamma output is its 64 green base nodes.",
+      "scope": "pinned published source, not observed target Android runtime"
+    },
+    {
+      "file": "camxipenode.cpp",
+      "anchors": [
+        {
+          "needle": "IPENode::GetGammaOutput(",
+          "lines": [
+            836
+          ]
+        },
+        {
+          "needle": "IPENode::GetGammaPreCalculationOutput(",
+          "lines": [
+            900
+          ]
+        },
+        {
+          "needle": "case ISPIQModuleType::IPELTM:",
+          "lines": [
+            7587,
+            8523,
+            8591
+          ]
+        },
+        {
+          "needle": "case ISPIQModuleType::IPEGamma:",
+          "lines": [
+            7594,
+            8526,
+            8594
+          ]
+        }
+      ],
+      "interpretation": "The IPE node consumes upstream IFE/BPS Gamma and distinguishes this from later Gamma15 pre-calculation metadata; LTM is classified before the post-LTM Gamma/CCM commands.",
+      "scope": "pinned published source, not observed target Android runtime"
+    },
+    {
+      "file": "ltm13setting.cpp",
+      "anchors": [
+        {
+          "needle": "InverseGamma(gamma,",
+          "lines": [
+            756
+          ]
+        },
+        {
+          "needle": "pReserveData->igamma_en",
+          "lines": [
+            647
+          ]
+        }
+      ],
+      "interpretation": "LTM constructs inverse Gamma from the upstream curve, with a separate reserve-data enable. It cannot be modelled as plain composition of the two Gamma curves.",
+      "scope": "pinned published source, not observed target Android runtime"
+    },
+    {
+      "file": "camxipeltm13.cpp",
+      "anchors": [
+        {
+          "needle": "m_useHardcodedGamma",
+          "lines": [
+            417,
+            706,
+            716,
+            720,
+            723
+          ]
+        },
+        {
+          "needle": "m_ignoreChromatixRGammaFlag",
+          "lines": [
+            243,
+            705,
+            715,
+            720,
+            722
+          ]
+        },
+        {
+          "needle": "moduleCfg.RGAMMA_EN = 0",
+          "lines": [
+            245
+          ]
+        }
+      ],
+      "interpretation": "Static settings can replace the upstream curve with a hardcoded one or disable RGamma despite the Chromatix reserve value. Target values have not yet been recovered.",
+      "scope": "pinned published source, not observed target Android runtime"
+    },
+    {
+      "file": "camxipepipelinetitan170.cpp",
+      "anchors": [
+        {
+          "needle": "ISPIQModuleType::IPECST",
+          "lines": [
+            40
+          ]
+        },
+        {
+          "needle": "ISPIQModuleType::IPELTM",
+          "lines": [
+            41
+          ]
+        },
+        {
+          "needle": "ISPIQModuleType::IPEColorCorrection",
+          "lines": [
+            42
+          ]
+        },
+        {
+          "needle": "ISPIQModuleType::IPEGamma",
+          "lines": [
+            43
+          ]
+        },
+        {
+          "needle": "ISPIQModuleType::IPEChromaEnhancement",
+          "lines": [
+            44
+          ]
+        }
+      ],
+      "interpretation": "Published hardware-order list places CST, LTM, CCM, Gamma, chroma enhancement in this order. This does not identify the target Titan version or actual runtime enable state.",
+      "scope": "pinned published source, not observed target Android runtime"
+    },
+    {
+      "file": "camxipepipelinetitan175.cpp",
+      "anchors": [
+        {
+          "needle": "ISPIQModuleType::IPECST",
+          "lines": [
+            40
+          ]
+        },
+        {
+          "needle": "ISPIQModuleType::IPELTM",
+          "lines": [
+            41
+          ]
+        },
+        {
+          "needle": "ISPIQModuleType::IPEColorCorrection",
+          "lines": [
+            42
+          ]
+        },
+        {
+          "needle": "ISPIQModuleType::IPEGamma",
+          "lines": [
+            43
+          ]
+        },
+        {
+          "needle": "ISPIQModuleType::IPEChromaEnhancement",
+          "lines": [
+            44
+          ]
+        }
+      ],
+      "interpretation": "Published hardware-order list places CST, LTM, CCM, Gamma, chroma enhancement in this order. This does not identify the target Titan version or actual runtime enable state.",
+      "scope": "pinned published source, not observed target Android runtime"
+    }
+  ],
+  "registry_neighborhood_not_claimed_as_full_physical_graph": true,
+  "target_titan_version_not_inferred_from_vfe_driver_filename": true,
+  "actual_android_runtime_masks_and_overrides_not_observed": true,
+  "need_ltm_reserve_and_ipe_ccm_and_static_settings_before_final_tone_default": true,
+  "simple_gamma_composition_not_accepted_as_final_oem_output": true,
+  "phone_changed": false,
+  "passed": true
+}

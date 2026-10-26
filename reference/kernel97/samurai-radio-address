@@ -1,0 +1,72 @@
+#!/bin/sh
+# Same-handset read-only DMS identity; all identity records remain private RAM.
+set -eu
+umask 077
+base=/run/samurai-radio-address
+tr '\0' '\n' < /proc/device-tree/compatible | grep -qx realme,samurai
+[ "$(id -u)" = 0 ]
+test ! -L "$base"
+mkdir -p "$base"
+chmod 700 "$base"
+stamp() { echo "$1 uptime=$(cut -d ' ' -f1 /proc/uptime)"; }
+cache()
+{
+    test -f "$base/current" && test ! -L "$base/current" || return 1
+    query=$(cat "$base/current")
+    case "$query" in "$base"/query.??????) ;; *) return 1;; esac
+    test -d "$query" && test ! -L "$query" || return 1
+    [ "$(cat "$query/boot-id")" = "$(cat /proc/sys/kernel/random/boot_id)" ] || return 1
+    [ "$(wc -c < "$query/wlan-mac-le.bin")" = 6 ] || return 1
+    [ "$(wc -c < "$query/bt-mac-le.bin")" = 6 ] || return 1
+}
+refresh()
+{
+    if cache; then stamp RADIO_ADDRESS_CACHE_READY; return 0; fi
+    [ "$(cat /sys/class/remoteproc/remoteproc0/state)" = running ]
+    query=$(mktemp -d "$base/query.XXXXXX")
+    cat /proc/sys/kernel/random/boot_id > "$query/boot-id"
+    /usr/sbin/samurai-dms-mac-read wlan "$query" > "$query/wlan-query.log" 2>&1
+    /usr/sbin/samurai-dms-mac-read bt "$query" > "$query/bt-query.log" 2>&1
+    [ "$(wc -c < "$query/wlan-mac-le.bin")" = 6 ]
+    [ "$(wc -c < "$query/bt-mac-le.bin")" = 6 ]
+    printf '%s\n' "$query" > "$base/current.tmp"
+    mv "$base/current.tmp" "$base/current"
+    stamp RADIO_ADDRESS_QUERY_VERIFIED
+}
+load()
+{
+    if ! cache; then refresh; fi
+    cache
+}
+wlan()
+{
+    load
+    test -d /sys/class/net/wlan0
+    mac=$(od -An -tx1 -v "$query/wlan-mac-le.bin" | awk '{printf "%s:%s:%s:%s:%s:%s",$6,$5,$4,$3,$2,$1}')
+    current=$(cat /sys/class/net/wlan0/address)
+    if [ "$current" != "$mac" ]; then
+        # Refuse to change an active interface or disrupt an established link.
+        flags=$(cat /sys/class/net/wlan0/flags)
+        [ "$((flags & 1))" = 0 ]
+        printf '%s\n' "$current" > "$query/wlan-before.txt"
+        ip link set dev wlan0 address "$mac"
+    fi
+    [ "$(cat /sys/class/net/wlan0/address)" = "$mac" ]
+    unset mac current
+    stamp WLAN_ADDRESS_VERIFIED
+}
+bt()
+{
+    load
+    /usr/sbin/samurai-bt-address "$query/bt-mac-le.bin"
+}
+case "${1:-}" in
+    status)
+        if cache; then echo cache=verified-this-boot; else echo cache=unavailable; fi
+        exit 0 ;;
+    refresh|wlan|bt) action=$1 ;;
+    *) echo 'Use refresh, wlan, bt or status' >&2; exit 2 ;;
+esac
+mkdir "$base/request.lock" || { echo RADIO_ADDRESS_BUSY >&2; exit 1; }
+trap 'rmdir "$base/request.lock"' EXIT
+"$action"

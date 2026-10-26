@@ -1,0 +1,44 @@
+{
+  "stage": 143,
+  "baseline_kernel_build": 140,
+  "candidate_source_sha256": "7f5e4bf0ad5c95aad80dffacf88cc4f5178ba755cefc09a06dfb972e1cc78ba6",
+  "actual_driver_functions_extracted": [
+    "to_eud_port",
+    "eud_put",
+    "eud_send_frame",
+    "eud_tx_work",
+    "eud_shutdown",
+    "eud_console_write_legacy",
+    "eud_console_device_lock",
+    "eud_console_device_unlock",
+    "eud_console_write_thread",
+    "eud_console_write_atomic"
+  ],
+  "actual_function_cases": 16,
+  "results": {
+    "plain": {
+      "returncode": 0,
+      "cases": 16,
+      "compiler_diagnostics_empty": true,
+      "sanitizer_diagnostics_empty": true
+    },
+    "asan-ubsan": {
+      "returncode": 0,
+      "cases": 16,
+      "compiler_diagnostics_empty": true,
+      "sanitizer_diagnostics_empty": true
+    }
+  },
+  "modeled_85_byte_total_tx_pacing_us": 69800,
+  "modeled_normal_max_port_irq_off_us": 3200,
+  "modeled_legacy_whole_record_irq_off_us": 69800,
+  "whole_console_and_tty_records_serialized": true,
+  "ownership_loss_before_and_between_frames_checked": true,
+  "rx_error_and_f1_work_scheduling_checked": true,
+  "tty_close_drain_and_empty_or_stopped_states_checked": true,
+  "limits": "Host stubs model locks, MMIO pacing and ownership loss; not a running-kernel timing or panic acceptance test.",
+  "actual_functions_tested": true,
+  "kernel_build_completed": false,
+  "deployed": false,
+  "goal_complete": false
+}

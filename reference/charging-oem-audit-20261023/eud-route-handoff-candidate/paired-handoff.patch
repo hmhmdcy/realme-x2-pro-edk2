@@ -1,0 +1,188 @@
+--- a/PlatformBm.c
++++ b/PlatformBm.c
+@@ -15,6 +15,8 @@
+ #include <Guid/TtyTerm.h>
+ #include <IndustryStandard/Pci22.h>
+ #include <Library/BaseMemoryLib.h>
++#include <Library/BaseLib.h>
++#include "samurai-eud-handoff-wire.h"
+ #include <Library/BootLogoLib.h>
+ #include <Library/CapsuleLib.h>
+ #include <Library/DevicePathLib.h>
+@@ -160,10 +162,110 @@
+   UINT32      AfterCsr;
+   EFI_STATUS  Status;
+   EFI_STATUS  CloseStatus;
++  struct samurai_eud_handoff *Record;
++  BOOLEAN RecordInstalled;
+ } SAMURAI_EUD_OFF_HANDOFF;
+ 
+ // Static storage: even a failed CloseEvent cannot leave a stack context alive.
+ STATIC SAMURAI_EUD_OFF_HANDOFF  mSamuraiEudOffHandoff;
++
++/* Actual static BDS context owns the reserved page and its publication. */
++#define SAMURAI_EUD_GUID_INITIALIZER(a, b, c, d0, d1, d2, d3, d4, d5, d6, d7) \
++  { a, b, c, { d0, d1, d2, d3, d4, d5, d6, d7 } }
++#define SAMURAI_EUD_GUID_EXPAND(...) SAMURAI_EUD_GUID_INITIALIZER (__VA_ARGS__)
++STATIC EFI_GUID mSamuraiEudHandoffGuid = SAMURAI_EUD_GUID_EXPAND (SAMURAI_EUD_GUID_WORDS);
++
++STATIC
++VOID
++SamuraiEudInvalidateRecord (IN OUT SAMURAI_EUD_OFF_HANDOFF *Handoff)
++{
++  if (Handoff->Record != NULL) {
++    Handoff->Record->commit = 0U;
++    MemoryFence ();
++  }
++}
++
++STATIC
++VOID
++SamuraiEudReleaseRecord (IN OUT SAMURAI_EUD_OFF_HANDOFF *Handoff, IN BOOLEAN CanFree)
++{
++  EFI_STATUS Status;
++
++  SamuraiEudInvalidateRecord (Handoff);
++  if (!CanFree || (Handoff->Record == NULL) || (gBS == NULL) ||
++      (gBS->InstallConfigurationTable == NULL)) {
++    return;
++  }
++  if (Handoff->RecordInstalled) {
++    Status = gBS->InstallConfigurationTable (&mSamuraiEudHandoffGuid, NULL);
++    if (EFI_ERROR (Status)) {
++      return; // Retain an invalid reserved page, never leave a dangling table.
++    }
++    Handoff->RecordInstalled = FALSE;
++  }
++  FreePages (Handoff->Record, 1);
++  Handoff->Record = NULL;
++}
++
++STATIC
++EFI_STATUS
++SamuraiEudPrepareRecord (IN OUT SAMURAI_EUD_OFF_HANDOFF *Handoff)
++{
++  EFI_STATUS Status;
++  VOID *Existing;
++
++  if ((gST == NULL) || (gBS == NULL) || (gBS->InstallConfigurationTable == NULL)) {
++    return EFI_UNSUPPORTED;
++  }
++  Status = EfiGetSystemConfigurationTable (&mSamuraiEudHandoffGuid, &Existing);
++  if (Status != EFI_NOT_FOUND) {
++    return EFI_ERROR (Status) ? Status : EFI_ALREADY_STARTED;
++  }
++  Handoff->Record = AllocateReservedPages (1);
++  if (Handoff->Record == NULL) {
++    return EFI_OUT_OF_RESOURCES;
++  }
++  ZeroMem (Handoff->Record, 4096);
++  Status = gBS->InstallConfigurationTable (&mSamuraiEudHandoffGuid, Handoff->Record);
++  if (EFI_ERROR (Status)) {
++    FreePages (Handoff->Record, 1);
++    Handoff->Record = NULL;
++    return Status;
++  }
++  Handoff->RecordInstalled = TRUE;
++  return EFI_SUCCESS;
++}
++
++STATIC
++VOID
++SamuraiEudPublishRecord (IN OUT SAMURAI_EUD_OFF_HANDOFF *Handoff)
++{
++  struct samurai_eud_handoff *Record = Handoff->Record;
++
++  if ((Record == NULL) || !Handoff->RecordInstalled || Handoff->Cancelled ||
++      !Handoff->Attempted || EFI_ERROR (Handoff->Status) || Handoff->AfterCsr != 0U) {
++    SamuraiEudInvalidateRecord (Handoff);
++    return;
++  }
++  ZeroMem (Record, sizeof (*Record));
++  Record->version = SAMURAI_EUD_HANDOFF_VERSION;
++  Record->bytes = sizeof (*Record);
++  Record->flags = SAMURAI_EUD_FLAG_ATTEMPTED | SAMURAI_EUD_FLAG_DIRECT_FIFO_RETIRED;
++  if (Handoff->WriteAttempted) {
++    Record->flags |= SAMURAI_EUD_FLAG_WRITE_ATTEMPTED;
++  }
++  Record->arm_csr = Handoff->ArmCsr;
++  Record->before_csr = Handoff->BeforeCsr;
++  Record->after_csr = Handoff->AfterCsr;
++  Record->status = Handoff->Status;
++  Record->csr_address = SAMURAI_EUD_HANDOFF_CSR;
++  Record->table_address = (UINTN)Record;
++  Record->checksum = samurai_eud_handoff_crc (Record);
++  MemoryFence ();
++  Record->commit = SAMURAI_EUD_HANDOFF_MAGIC;
++  MemoryFence ();
++}
++
+ 
+ STATIC
+ BOOLEAN
+@@ -207,6 +309,8 @@
+     Handoff->Status   = (Handoff->AfterCsr == 0U) ? EFI_SUCCESS : EFI_DEVICE_ERROR;
+   }
+ 
++  SamuraiEudPublishRecord (Handoff);
++
+   // Current samurai SerialPortLib only appends RAM. This is an observation,
+   // not a veto: a VOID BeforeEBS notification cannot stop EFI from booting.
+   DEBUG ((DEBUG_ERROR,
+@@ -241,6 +345,12 @@
+   if (!SamuraiEudCsrKnown (Handoff->ArmCsr)) {
+     Handoff->Status = EFI_COMPROMISED_DATA;
+     return Handoff->Status;
++  }
++
++  Status = SamuraiEudPrepareRecord (Handoff);
++  if (EFI_ERROR (Status)) {
++    Handoff->Status = Status;
++    return Status;
+   }
+ 
+   Status = gBS->CreateEventEx (
+@@ -254,6 +364,7 @@
+   if (EFI_ERROR (Status)) {
+     Handoff->Event  = NULL;
+     Handoff->Status = Status;
++    SamuraiEudReleaseRecord (Handoff, TRUE);
+   }
+ 
+   return Status;
+@@ -271,6 +382,7 @@
+   // If the kernel loader returns without EBS, withdraw this policy before
+   // BDS tries anything else. A failed close leaves an inert static context.
+   Handoff->Cancelled = TRUE;
++  SamuraiEudInvalidateRecord (Handoff);
+   if (Handoff->Event != NULL) {
+     if ((gBS != NULL) && (gBS->CloseEvent != NULL)) {
+       Handoff->CloseStatus = gBS->CloseEvent (Handoff->Event);
+@@ -281,6 +393,8 @@
+ 
+     Handoff->Event = NULL;
+   }
++
++  SamuraiEudReleaseRecord (Handoff, Handoff->CloseStatus == EFI_SUCCESS);
+ 
+   // Never automatically re-enable EUD on a failed MapKey or loader return.
+ }
+--- a/drivers/firmware/efi/efi.c
++++ b/drivers/firmware/efi/efi.c
+@@ -20,6 +20,7 @@
+ #include <linux/debugfs.h>
+ #include <linux/device.h>
+ #include <linux/efi.h>
++#include <linux/firmware/samurai-eud-handoff.h>
+ #include <linux/of.h>
+ #include <linux/initrd.h>
+ #include <linux/io.h>
+@@ -735,6 +736,8 @@
+ 			guid = &tbl32[i].guid;
+ 			table = tbl32[i].table;
+ 		}
++
++		samurai_eud_handoff_config(guid, table);
+ 
+ 		if (!match_config_table(guid, table, common_tables) && arch_tables)
+ 			match_config_table(guid, table, arch_tables);

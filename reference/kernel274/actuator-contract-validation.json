@@ -1,0 +1,148 @@
+{
+  "stage": 274,
+  "variants": [
+    {
+      "variant": "sunny",
+      "source_sha256": "2e2f8e1f4d0ea46115cf86e9264e91a6e565c08c109575596637c481a1acafb7",
+      "name": "s5kgw1_lc898219xi",
+      "address8": 228,
+      "address7": 114,
+      "i2c_frequency_mode": 1,
+      "actuator_type": 0,
+      "data_bit_width": 10,
+      "power_sequence_raw": {
+        "up": [
+          [
+            4,
+            0,
+            1
+          ]
+        ],
+        "down": [
+          [
+            4,
+            0,
+            1
+          ]
+        ]
+      },
+      "position_write": [
+        {
+          "address_bytes": 1,
+          "value_bytes": 2,
+          "address": 132,
+          "base_data": 0,
+          "operation": "WRITE_DAC_VALUE",
+          "delay_us": 1,
+          "hw_mask": 0,
+          "hw_shift": 0,
+          "data_shift": 0
+        }
+      ],
+      "initialization": [
+        {
+          "address": 224,
+          "address_bytes": 1,
+          "value_bytes": 1,
+          "value": 1,
+          "delay_us": 1
+        }
+      ],
+      "tuned_initial_code": 208,
+      "regions": [
+        {
+          "macro_step_boundary": 718,
+          "infinity_step_boundary": 0,
+          "code_per_step": 1.0,
+          "q_value": 128
+        }
+      ],
+      "module_eeprom_calibration_may_override_tuned_defaults": true
+    },
+    {
+      "variant": "qtech",
+      "source_sha256": "50e046c9acf8d7d1ce3e26c7283fb43db591b76c2f348b0173f52446488b88d3",
+      "name": "s5kgw1_bu64253",
+      "address8": 24,
+      "address7": 12,
+      "i2c_frequency_mode": 1,
+      "actuator_type": 1,
+      "data_bit_width": 10,
+      "power_sequence_raw": {
+        "up": [
+          [
+            4,
+            0,
+            10
+          ]
+        ],
+        "down": [
+          [
+            4,
+            0,
+            1
+          ]
+        ]
+      },
+      "position_write": [
+        {
+          "address_bytes": 1,
+          "value_bytes": 1,
+          "address": 255,
+          "base_data": 0,
+          "operation": "WRITE_DAC_VALUE",
+          "delay_us": 1,
+          "hw_mask": 0,
+          "hw_shift": 0,
+          "data_shift": 0
+        }
+      ],
+      "initialization": [
+        {
+          "address": 194,
+          "address_bytes": 1,
+          "value_bytes": 1,
+          "value": 0,
+          "delay_us": 1
+        },
+        {
+          "address": 208,
+          "address_bytes": 1,
+          "value_bytes": 1,
+          "value": 91,
+          "delay_us": 1
+        },
+        {
+          "address": 200,
+          "address_bytes": 1,
+          "value_bytes": 1,
+          "value": 1,
+          "delay_us": 1
+        }
+      ],
+      "tuned_initial_code": 407,
+      "regions": [
+        {
+          "macro_step_boundary": 623,
+          "infinity_step_boundary": 0,
+          "code_per_step": 1.0,
+          "q_value": 128
+        }
+      ],
+      "module_eeprom_calibration_may_override_tuned_defaults": true
+    }
+  ],
+  "source_headers_and_vector_bounds_verified": true,
+  "operation_enum_from_matching_schema": true,
+  "actual_handset_actuator_model_not_yet_proven": true,
+  "no_actuator_operation": true,
+  "lc898219xi_datasheet": "https://www.onsemi.com/download/data-sheet/pdf/lc898219xi-d.pdf",
+  "datasheet_vdd_range_volts": [
+    2.6,
+    3.3
+  ],
+  "datasheet_nominal_vdd_volts": 2.8,
+  "datasheet_power_on_to_i2c_min_us": 5000,
+  "datasheet_power_off_min_us": 100000,
+  "public_datasheet_does_not_include_register_map": true
+}

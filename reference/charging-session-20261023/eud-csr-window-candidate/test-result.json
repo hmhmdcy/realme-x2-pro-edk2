@@ -1,0 +1,43 @@
+{
+  "passed": true,
+  "groups": [
+    "software-only default has no CSR access",
+    "known enabled CSR exact restore, stale/duplicate zero-write and quiet_end fence",
+    "known disabled CSR borrowed without entry write and restores actual old zero",
+    "unsupported whole CSR value is one read, no write and no hardware owner",
+    "entry mismatch retains owner and primary error until explicit verified restoration",
+    "restore mismatch stays quiet, cancel never reconnects, explicit retry retains diagnostics",
+    "PM, F1, stopping, self-work and incomplete quiet preconditions reject without CSR access",
+    "concurrent quiet_end cannot resume producers across an in-progress CSR entry",
+    "remove serializes CSR, preserves a terminal receipt, orphan ack never restores old MMIO"
+  ],
+  "compiler_flags": [
+    "-std=gnu11",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-Wno-unused-parameter",
+    "-Wno-unused-function",
+    "-fsanitize=address,undefined",
+    "-fno-omit-frame-pointer",
+    "-pthread"
+  ],
+  "compile_stderr": "",
+  "runtime_stdout": "ok: software-only default has no CSR access\nok: known enabled CSR exact restore, stale/duplicate zero-write and quiet_end fence\nok: known disabled CSR borrowed without entry write and restores actual old zero\nok: unsupported whole CSR value is one read, no write and no hardware owner\nok: entry mismatch retains owner and primary error until explicit verified restoration\nok: restore mismatch stays quiet, cancel never reconnects, explicit retry retains diagnostics\nok: PM, F1, stopping, self-work and incomplete quiet preconditions reject without CSR access\nok: concurrent quiet_end cannot resume producers across an in-progress CSR entry\nok: remove serializes CSR, preserves a terminal receipt, orphan ack never restores old MMIO\n",
+  "runtime_stderr": "",
+  "tested_files": {
+    "eud.c": "435a6fcef66fac56de7f95017b8a899c20337d4022f69bbcd72adc48e5ed3861",
+    "eud-com-window.h": "4d3201450bead68daeb5ce1ed5ecaab200ffdb2c2e26a555da1e2c1c4c747c3f",
+    "candidate-functions.inc": "398d24b51380ef46fb5534e6bafc80192401901c87e41a26394829203680a073",
+    "fake-eud-os.h": "cff3c75a8adcd5b7f46879cdf5e7bdd65f43e17e2d04fb11d3dfd7932afb2820",
+    "test-csr.c": "fbeefbdf2c9122d1ae8af2c0c101f8c7e57191d21b17c1b5d05147a76a18a804",
+    "csr-implementation.inc": "db5a9408156e16e8294f2a47368057ff2c343ea8154df50dcf3230404f94c62d",
+    "prepare-candidate.py": "40bf869d7775b4b2ae60f5c981a7befbd1eda6704a054e0443508fc5b1a10230",
+    "run-tests.py": "e0e79aefacc248615c4327e6da56a9ba991524e840f65c9d582ddddd1d23e082"
+  },
+  "old_r2_or_r1_suites_rerun": false,
+  "scope": "actual CSR/quiet/PM/remove functions with fake OS/MMIO and controlled pthread serialization",
+  "hardware_route_usb_apsd_or_budget_proven": false,
+  "phone_ssh_sdk_accessed": false,
+  "shared_sources_modified": false
+}

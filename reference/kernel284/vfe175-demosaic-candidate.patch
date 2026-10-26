@@ -1,0 +1,264 @@
+diff --git a/drivers/media/platform/qcom/camss/Makefile b/drivers/media/platform/qcom/camss/Makefile
+index be015adbae6b10a7377a56d0a10ceb3451db5bd1..86cdf092cc349915ac9bd9f382b7b58bc1f10d42 100644
+--- a/drivers/media/platform/qcom/camss/Makefile
++++ b/drivers/media/platform/qcom/camss/Makefile
+@@ -26,6 +26,7 @@ qcom-camss-objs += \
+ 		camss-vfe-175-camif.o \
+ 		camss-vfe-175-output.o \
+ 		camss-vfe-175-pixel.o \
++		camss-vfe-175-demosaic.o \
+ 		camss-vfe-340.o \
+ 		camss-vfe-480.o \
+ 		camss-vfe-680.o \
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe-175-demosaic.c b/drivers/media/platform/qcom/camss/camss-vfe-175-demosaic.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..4056fa46a738dd56395d4886c3a940a8514bd373
+--- /dev/null
++++ b/drivers/media/platform/qcom/camss/camss-vfe-175-demosaic.c
+@@ -0,0 +1,114 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/* SM8150 full VFE175 uses Demosaic36, selected by the platform mask. */
++
++#include <linux/bitfield.h>
++#include <linux/io.h>
++
++#include "camss.h"
++#include "camss-vfe.h"
++#include "camss-vfe-175-demosaic.h"
++
++#define VFE_175_LENS_ENABLE		0x040
++#define VFE_175_LENS_DEMOSAIC		BIT(10)
++#define VFE_175_DEMO_CONFIG		0x6f8
++#define VFE_175_DEMO_DIR_G_DISABLE	BIT(0)
++#define VFE_175_DEMO_DIR_RB_DISABLE	BIT(1)
++#define VFE_175_DEMO_COSITED		BIT(4)
++#define VFE_175_DEMO_DYNAMIC_G		BIT(8)
++#define VFE_175_DEMO_DYNAMIC_RB		BIT(9)
++#define VFE_175_DEMO_LINE_BUFFER_ONLY	BIT(11)
++#define VFE_175_DEMO_CONFIG_FIELDS	(VFE_175_DEMO_DIR_G_DISABLE | \
++	VFE_175_DEMO_DIR_RB_DISABLE | VFE_175_DEMO_COSITED | \
++	VFE_175_DEMO_DYNAMIC_G | VFE_175_DEMO_DYNAMIC_RB | \
++	VFE_175_DEMO_LINE_BUFFER_ONLY)
++#define VFE_175_DEMO_INTERPOLATION	0x71c
++#define VFE_175_DEMO_LAMBDA_G		GENMASK(15, 8)
++#define VFE_175_DEMO_LAMBDA_RB		GENMASK(31, 24)
++#define VFE_175_DEMO_CLASSIFIER		0x720
++#define VFE_175_DEMO_CLASSIFIER_W		GENMASK(9, 0)
++#define VFE_175_DEMO_CLASSIFIER_A		GENMASK(31, 20)
++
++static bool vfe_175_demosaic_supported(struct vfe_device *vfe)
++{
++	return !vfe->res->is_lite && vfe->camss->res->version == CAMSS_8150;
++}
++
++int vfe_175_demosaic_configure(struct vfe_device *vfe,
++			       const struct vfe_175_demosaic_config *config)
++{
++	u32 value, mode = 0;
++
++	/* The matched Demosaic36 tuning contract bounds A to 400 and W to s10. */
++	if (!vfe_175_demosaic_supported(vfe) || !config ||
++	    config->lambda_g > 255 || config->lambda_rb > 255 ||
++	    config->classifier_a > 400 || config->classifier_w < -512 ||
++	    config->classifier_w > 511)
++		return -EINVAL;
++
++	if (config->directional_g_disable)
++		mode |= VFE_175_DEMO_DIR_G_DISABLE;
++	if (config->directional_rb_disable)
++		mode |= VFE_175_DEMO_DIR_RB_DISABLE;
++	if (config->cosited_rgb)
++		mode |= VFE_175_DEMO_COSITED;
++	if (config->dynamic_g_clamp)
++		mode |= VFE_175_DEMO_DYNAMIC_G;
++	if (config->dynamic_rb_clamp)
++		mode |= VFE_175_DEMO_DYNAMIC_RB;
++	if (!config->enabled)
++		mode |= VFE_175_DEMO_LINE_BUFFER_ONLY;
++
++	value = readl_relaxed(vfe->base + VFE_175_DEMO_CONFIG);
++	value &= ~VFE_175_DEMO_CONFIG_FIELDS;
++	writel_relaxed(value | mode, vfe->base + VFE_175_DEMO_CONFIG);
++	value = readl_relaxed(vfe->base + VFE_175_DEMO_INTERPOLATION);
++	value &= ~(VFE_175_DEMO_LAMBDA_G | VFE_175_DEMO_LAMBDA_RB);
++	value |= FIELD_PREP(VFE_175_DEMO_LAMBDA_G, config->lambda_g) |
++		 FIELD_PREP(VFE_175_DEMO_LAMBDA_RB, config->lambda_rb);
++	writel_relaxed(value, vfe->base + VFE_175_DEMO_INTERPOLATION);
++	value = readl_relaxed(vfe->base + VFE_175_DEMO_CLASSIFIER);
++	value &= ~(VFE_175_DEMO_CLASSIFIER_W | VFE_175_DEMO_CLASSIFIER_A);
++	value |= FIELD_PREP(VFE_175_DEMO_CLASSIFIER_W,
++			    (u32)config->classifier_w & 0x3ff) |
++		 FIELD_PREP(VFE_175_DEMO_CLASSIFIER_A, config->classifier_a);
++	writel_relaxed(value, vfe->base + VFE_175_DEMO_CLASSIFIER);
++
++	/* Publish the configuration before enabling the module; no PIX RUP yet. */
++	wmb();
++	value = readl_relaxed(vfe->base + VFE_175_LENS_ENABLE);
++	value &= ~VFE_175_LENS_DEMOSAIC;
++	if (config->enabled)
++		value |= VFE_175_LENS_DEMOSAIC;
++	writel_relaxed(value, vfe->base + VFE_175_LENS_ENABLE);
++
++	return 0;
++}
++
++int vfe_175_demosaic_prepare(struct vfe_line *line)
++{
++	/* Hardware bring-up profile, not a calibrated sensor or scene tuning. */
++	const struct vfe_175_demosaic_config config = {
++		.lambda_g = 128,
++		.lambda_rb = 0,
++		.classifier_a = 128,
++		.classifier_w = 102,
++		.dynamic_g_clamp = true,
++		.enabled = true,
++	};
++
++	if (!line->is_pix)
++		return 0;
++
++	return vfe_175_demosaic_configure(to_vfe(line), &config);
++}
++
++void vfe_175_demosaic_stop(struct vfe_device *vfe)
++{
++	u32 value;
++
++	if (!vfe_175_demosaic_supported(vfe))
++		return;
++	value = readl_relaxed(vfe->base + VFE_175_LENS_ENABLE);
++	writel_relaxed(value & ~VFE_175_LENS_DEMOSAIC,
++		       vfe->base + VFE_175_LENS_ENABLE);
++}
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe-175-demosaic.h b/drivers/media/platform/qcom/camss/camss-vfe-175-demosaic.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..d0c6e3906cf36f574f9f5e76c389b2ff75ce8a83
+--- /dev/null
++++ b/drivers/media/platform/qcom/camss/camss-vfe-175-demosaic.h
+@@ -0,0 +1,28 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++#ifndef CAMSS_VFE_175_DEMOSAIC_H
++#define CAMSS_VFE_175_DEMOSAIC_H
++
++#include <linux/types.h>
++
++struct vfe_device;
++struct vfe_line;
++
++struct vfe_175_demosaic_config {
++	u16 lambda_g;
++	u16 lambda_rb;
++	u16 classifier_a;
++	s16 classifier_w;
++	bool directional_g_disable;
++	bool directional_rb_disable;
++	bool cosited_rgb;
++	bool dynamic_g_clamp;
++	bool dynamic_rb_clamp;
++	bool enabled;
++};
++
++int vfe_175_demosaic_configure(struct vfe_device *vfe,
++			       const struct vfe_175_demosaic_config *config);
++int vfe_175_demosaic_prepare(struct vfe_line *line);
++void vfe_175_demosaic_stop(struct vfe_device *vfe);
++
++#endif /* CAMSS_VFE_175_DEMOSAIC_H */
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe-175-pixel.c b/drivers/media/platform/qcom/camss/camss-vfe-175-pixel.c
+index 3e18ccf8d62d760ccbb88544bea2a4bd9d70ec5e..3d8d0ee7bae6c4c42285a312d54e7a523fb55a5f 100644
+--- a/drivers/media/platform/qcom/camss/camss-vfe-175-pixel.c
++++ b/drivers/media/platform/qcom/camss/camss-vfe-175-pixel.c
+@@ -8,6 +8,7 @@
+ #include "camss.h"
+ #include "camss-vfe.h"
+ #include "camss-vfe-175-pixel.h"
++#include "camss-vfe-175-demosaic.h"
+ 
+ #define VFE_175_WB_GAIN_0		0x6fc
+ #define VFE_175_WB_GAIN_1		0x700
+@@ -98,12 +99,17 @@ const struct v4l2_isp_params_block_type_info vfe_175_params_info[2] = {
+ 	},
+ };
+ 
+-void vfe_175_pixel_prepare(struct vfe_line *line)
++int vfe_175_pixel_prepare(struct vfe_line *line)
+ {
+ 	struct vfe_device *vfe = to_vfe(line);
+ 
++	int ret;
++
+ 	if (!line->is_pix)
+-		return;
++		return 0;
++	ret = vfe_175_demosaic_prepare(line);
++	if (ret)
++		return ret;
+ 	/* Reopening a line starts from neutral gains, then queued params apply. */
+ 	vfe->pixel175 = (struct vfe_175_pixel_state) {
+ 		.g_gain = 1024,
+@@ -112,6 +118,13 @@ void vfe_175_pixel_prepare(struct vfe_line *line)
+ 		.wb_enabled = true,
+ 	};
+ 	vfe_175_wb_write(vfe);
++
++	return 0;
++}
++
++void vfe_175_pixel_stop(struct vfe_device *vfe)
++{
++	vfe_175_demosaic_stop(vfe);
+ }
+ 
+ void vfe_175_params_apply(struct vfe_device *vfe, struct vfe_line *line,
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe-175-pixel.h b/drivers/media/platform/qcom/camss/camss-vfe-175-pixel.h
+index c8a930c5bb5ba9682de14358d6963cfa162795c8..f1ff62669c3cc7aa7a8326d7b47b723e39977682 100644
+--- a/drivers/media/platform/qcom/camss/camss-vfe-175-pixel.h
++++ b/drivers/media/platform/qcom/camss/camss-vfe-175-pixel.h
+@@ -19,7 +19,8 @@ struct vfe_175_pixel_state {
+ };
+ 
+ extern const struct v4l2_isp_params_block_type_info vfe_175_params_info[2];
+-void vfe_175_pixel_prepare(struct vfe_line *line);
++int vfe_175_pixel_prepare(struct vfe_line *line);
++void vfe_175_pixel_stop(struct vfe_device *vfe);
+ void vfe_175_params_apply(struct vfe_device *vfe, struct vfe_line *line,
+ 			  const struct v4l2_isp_buffer *params);
+ 
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe-17x.c b/drivers/media/platform/qcom/camss/camss-vfe-17x.c
+index 8af13bfa951d75647b3b12631b37d2cf13cc8ecf..ba5f71ec87636fb57db55672d00b8a7ef16f24f3 100644
+--- a/drivers/media/platform/qcom/camss/camss-vfe-17x.c
++++ b/drivers/media/platform/qcom/camss/camss-vfe-17x.c
+@@ -445,6 +445,8 @@ static int vfe_enable(struct vfe_line *line)
+ 	return 0;
+ 
+ error_enable_output:
++	if (line->is_pix)
++		vfe_175_pixel_stop(vfe);
+ 	vfe_put_output(line);
+ 
+ error_get_output:
+@@ -661,9 +663,7 @@ static int vfe_line_prepare_175(struct vfe_line *line)
+ 	ret = vfe_175_camif_prepare(line);
+ 	if (ret)
+ 		return ret;
+-	vfe_175_pixel_prepare(line);
+-
+-	return 0;
++	return vfe_175_pixel_prepare(line);
+ }
+ 
+ static void vfe_output_start_175(struct vfe_device *vfe,
+@@ -678,9 +678,11 @@ static void vfe_output_start_175(struct vfe_device *vfe,
+ static void vfe_output_stop_175(struct vfe_device *vfe,
+ 				struct vfe_output *output)
+ {
+-	if (output->line->is_pix)
++	if (output->line->is_pix) {
+ 		vfe_175_full_stop(vfe, output);
+-	else
++		if (output->pad == MSM_VFE_PAD_SRC)
++			vfe_175_pixel_stop(vfe);
++	} else
+ 		vfe_wm_stop(vfe, output->wm[0].bus_client, output->line);
+ }
+ 

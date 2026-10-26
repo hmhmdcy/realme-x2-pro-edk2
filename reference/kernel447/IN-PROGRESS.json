@@ -1,0 +1,22 @@
+{
+  "stage": 447,
+  "goal_active": true,
+  "phase": "cpu-fault-preemption-observations-and-thread-capacity-control-completed",
+  "candidate_type": "diagnostic-only, no production scheduling change installed",
+  "candidate_installed": false,
+  "full_goal_complete": false,
+  "source": "/mnt/samurai-full282/libcamera447-focus-execution/src/libcamera-v0.7.2",
+  "evidence": "two isolated sizes per transaction; r1 unrestricted and r2 CameraManager thread-only affinity;480images466math+14bootstrap/480IPE passed",
+  "finding": "all4 unrestricted >33ms sample frames startCPU0,0sample faults,preemptions,23..46ms offCPU difference;capacity/preemption material,not entire cost proven scheduler-only",
+  "control": "afterfirstimage capacity4..7 only short-lived manager thread;steady wallmax3.480/3.406ms and30.056fps/no missingSOFs;initialframe unresolved",
+  "formal_release": "440 r32/r27 and434 modules restored;epoch0,taint0,resources/PM/services normal at handoff",
+  "historical441_backlog_root_cause_closed": false,
+  "long_recording_accepted": false,
+  "next": [
+    "Lifecycle-scoped dynamic capacity affinity selection with shared-thread ownership and reversible restore; no hardcoded experiment mask",
+    "Retained buildUCLAMP_TASK disabled, actualrunningconfig not requeried; no kernel rebuild performed",
+    "Coordinate phone after charging persistent-service/DT window and newboot adoption; currently offline only",
+    "Keep full optical/video/HDR/otherlens/AFdistance/fifth2MP/multicamera scope active"
+  ],
+  "private_evidence": "E:/edk2-samurai-out/kernel447 and phone k447-focus-execution-r1/r2;bothterminal do not replay"
+}

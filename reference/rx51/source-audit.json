@@ -1,0 +1,52 @@
+{
+  "kernel_revision": "e42788eafb0bb9d8dfce319c71ca54c5207b2295",
+  "unchanged_core_diff": "",
+  "sha256": {
+    "driver": "e25d7fe215cab2ff842bdc3aa3bdf644d8f1701ecd27ea694fe43f848f5f5066",
+    "printk": "8af2356c105e742e6e1514a7201d89440396ff9e7f3827d919e5e9d7dea90581",
+    "printk_internal": "e60b1c97b271cb328618264b83ebed6b660d670e6d84f599b0b35853e0f8b4de",
+    "config": "863178c0810704b4d327c7e34375aa73ea2c8cc6c2ee09ee8aa34b7209b598f3",
+    "Image": "5565d69447afa60d18aab045030b3ccedb1188daa9022bb379d8a6e38ef9117d",
+    "DTB": "68001bab92e8611373200f2928d1d83ef5256890528df59dea92c72c1900756e"
+  },
+  "init_sha256": "e9c7c2da0f93509565a36c182b3b39d928ddcba0317ee9d76469317e6b9135ab",
+  "selected_config": [
+    "CONFIG_PREEMPT_BUILD=y",
+    "CONFIG_PREEMPT=y",
+    "# CONFIG_PREEMPT_LAZY is not set",
+    "CONFIG_PREEMPT_COUNT=y",
+    "CONFIG_PREEMPTION=y",
+    "# CONFIG_PREEMPT_DYNAMIC is not set",
+    "CONFIG_PRINTK=y",
+    "CONFIG_SMP=y",
+    "CONFIG_NR_CPUS=512",
+    "CONFIG_HZ_250=y",
+    "CONFIG_HZ=250",
+    "CONFIG_PRINTK_TIME=y",
+    "# CONFIG_PRINTK_CALLER is not set",
+    "CONFIG_RCU_CPU_STALL_TIMEOUT=21"
+  ],
+  "preempt_rt_enabled": false,
+  "source_ranges": {
+    "eud_console_write": "drivers/tty/serial/eud.c:417-435",
+    "eud_tx_work": "drivers/tty/serial/eud.c:253-291",
+    "eud_rx_irq": "drivers/tty/serial/eud.c:660-696",
+    "eud_rx_work_grace": "drivers/tty/serial/eud.c:765-795",
+    "console_emit_next_record": "kernel/printk/printk.c:3126-3195",
+    "devkmsg_write": "kernel/printk/printk.c:737-798",
+    "record_and_thread_limits": "kernel/printk/internal.h:30-51"
+  },
+  "claims": [
+    "Current legacy console holds UART lock over all bytes; RX IRQ increments counters only after acquiring it.",
+    "Current non-RT printk core disables local IRQs around legacy con->write; force_legacy_kthread is false for this config.",
+    "TTY worker unlocks between paced four-byte frames. PREEMPT=y excludes the earlier unverified nonpreempt-worker premise.",
+    "The devkmsg single-write limit is 1024 bytes; the injected write was 1009 bytes.",
+    "Driver-only per-frame unlocking would still leave printk outer IRQ disable; no such change was made.",
+    "Host overlap is measured; physical arrival, actual IRQ entry delay and hardware acceptance are not measured."
+  ],
+  "primary_urls": [
+    "https://docs.kernel.org/core-api/printk-basics.html",
+    "https://docs.kernel.org/driver-api/tty/console.html",
+    "https://github.com/quic/eud"
+  ]
+}

@@ -1,0 +1,776 @@
+--- a/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec.c
++++ b/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec.c
+@@ -61,6 +61,21 @@
+ 	    microwatt != 2500000)
+ 		return false;
+ 	return true;
++}
++
++/* Only the fixed sink/device Samurai can enter this terminal handoff. */
++static bool qcom_pmic_typec_samurai_sink(struct pmic_typec *tcpm)
++{
++	struct fwnode_handle *f = tcpm->tcpc.fwnode;
++	const char *role;
++
++	return of_machine_is_compatible("realme,samurai") &&
++		of_device_is_compatible(tcpm->dev->of_node, "qcom,pm8150b-typec") &&
++		!fwnode_property_read_string(f, "power-role", &role) &&
++		!strcmp(role, "sink") &&
++		!fwnode_property_read_string(f, "data-role", &role) &&
++		!strcmp(role, "device") &&
++		!fwnode_property_present(f, "source-pdos");
+ }
+ 
+ static int qcom_pmic_typec_stop_samurai_5v(struct pmic_typec *tcpm)
+@@ -85,6 +100,39 @@
+ 	return tcpm->samurai_stop_error;
+ }
+ 
++/* Request/measure while every IRQ and TCPM worker is still available. */
++static int qcom_pmic_typec_stop_samurai_contract(struct pmic_typec *tcpm)
++{
++	int ret;
++
++	if (tcpm->samurai_joined)
++		return tcpm->samurai_stop_error;
++	ret = tcpm_prepare_sink_shutdown(tcpm->tcpm_port, 2000,
++					 tcpm->read_vbus_uv, tcpm);
++	if (ret) {
++		dev_err(tcpm->dev,
++			"5V shutdown preparation failed %d; contract/ADC not verified\n", ret);
++		return ret;
++	}
++	return qcom_pmic_typec_stop_samurai_5v(tcpm);
++}
++
++/* Removal cannot fail. Join every callback, without claiming a safe-voltage close. */
++static void qcom_pmic_typec_abort_samurai(struct pmic_typec *tcpm, int error)
++{
++	if (!tcpm->samurai_joined) {
++		tcpm->port_stop(tcpm);
++		qcom_pmic_typec_pdphy_quiesce_5v(tcpm);
++		tcpm_unregister_port(tcpm->tcpm_port);
++		tcpm->tcpm_port = NULL;
++		tcpm->samurai_joined = true;
++		/* Remaining TCPM callbacks can queue a final CC debounce during join. */
++		tcpm->port_stop(tcpm);
++	}
++	if (!tcpm->samurai_stop_error)
++		tcpm->samurai_stop_error = error;
++}
++
+ static int qcom_pmic_typec_probe(struct platform_device *pdev)
+ {
+ 	struct pmic_typec *tcpm;
+@@ -94,7 +142,8 @@
+ 	struct regmap *regmap;
+ 	struct auxiliary_device *bridge_dev;
+ 	u32 base;
+-	int ret;
++	bool protocol_live = false;
++	int ret, stop_error;
+ 
+ 	res = of_device_get_match_data(dev);
+ 	if (!res)
+@@ -169,6 +218,12 @@
+ 		return -EINVAL;
+ 
+ 	tcpm->samurai_fixed_5v = qcom_pmic_typec_samurai_fixed_5v(tcpm);
++	tcpm->samurai_contract_shutdown = !tcpm->samurai_fixed_5v &&
++		qcom_pmic_typec_samurai_sink(tcpm);
++	if (tcpm->samurai_contract_shutdown && !tcpm->read_vbus_uv) {
++		ret = -EOPNOTSUPP;
++		goto fwnode_remove;
++	}
+ 
+ 	bridge_dev = devm_drm_dp_hpd_bridge_alloc(tcpm->dev, to_of_node(tcpm->tcpc.fwnode));
+ 	if (IS_ERR(bridge_dev)) {
+@@ -189,6 +244,7 @@
+ 	ret = tcpm->pdphy_start(tcpm, tcpm->tcpm_port);
+ 	if (ret)
+ 		goto port_stop;
++	protocol_live = true;
+ 
+ 	ret = devm_drm_dp_hpd_bridge_add(tcpm->dev, bridge_dev);
+ 	if (ret)
+@@ -197,16 +253,21 @@
+ 	return 0;
+ 
+ pdphy_stop:
+-	if (!tcpm->samurai_fixed_5v)
++	if (!tcpm->samurai_fixed_5v && !tcpm->samurai_contract_shutdown)
+ 		tcpm->pdphy_stop(tcpm);
+ port_stop:
+-	if (!tcpm->samurai_fixed_5v)
++	if (!tcpm->samurai_fixed_5v && !tcpm->samurai_contract_shutdown)
+ 		tcpm->port_stop(tcpm);
+ port_unregister:
+-	if (tcpm->samurai_fixed_5v)
++	if (tcpm->samurai_contract_shutdown) {
++		stop_error = protocol_live ? qcom_pmic_typec_stop_samurai_contract(tcpm) : ret;
++		if (!tcpm->samurai_joined)
++			qcom_pmic_typec_abort_samurai(tcpm, stop_error);
++	} else if (tcpm->samurai_fixed_5v) {
+ 		qcom_pmic_typec_stop_samurai_5v(tcpm);
+-	else
++	} else {
+ 		tcpm_unregister_port(tcpm->tcpm_port);
++	}
+ fwnode_remove:
+ 	fwnode_handle_put(tcpm->tcpc.fwnode);
+ 
+@@ -216,9 +277,31 @@
+ static void qcom_pmic_typec_remove(struct platform_device *pdev)
+ {
+ 	struct pmic_typec *tcpm = platform_get_drvdata(pdev);
++	int ret;
+ 
+ 	if (tcpm->pd5v) {
+ 		samurai_pd5v_destroy(tcpm->pd5v);
++		return;
++	}
++
++	if (tcpm->samurai_contract_shutdown) {
++		ret = qcom_pmic_typec_stop_samurai_contract(tcpm);
++		if (!ret || tcpm->samurai_joined) {
++			fwnode_handle_put(tcpm->tcpc.fwnode);
++			tcpm->tcpc.fwnode = NULL;
++			return;
++		}
++		/*
++		 * platform remove is void: devres WILL be released. Never leave
++		 * live IRQ/work callbacks pointing at that freed state. This is
++		 * forced teardown, NOT verified 5V handoff; high-PD adoption is
++		 * blocked until the removal policy is resolved externally.
++		 */
++		dev_err(tcpm->dev, "forced remove without verified 5V; joining callbacks\n");
++		qcom_pmic_typec_abort_samurai(tcpm, ret);
++		/* No SNK_ONLY restore and no successful-5V close claimed. */
++		fwnode_handle_put(tcpm->tcpc.fwnode);
++		tcpm->tcpc.fwnode = NULL;
+ 		return;
+ 	}
+ 
+@@ -252,7 +335,13 @@
+ 	struct pmic_typec *tcpm = platform_get_drvdata(pdev);
+ 	if (tcpm->pd5v)
+ 		samurai_pd5v_quiesce(tcpm->pd5v);
+-	else if (tcpm->samurai_fixed_5v) {
++	else if (tcpm->samurai_contract_shutdown) {
++		qcom_pmic_typec_stop_samurai_contract(tcpm);
++		if (tcpm->samurai_joined) {
++			fwnode_handle_put(tcpm->tcpc.fwnode);
++			tcpm->tcpc.fwnode = NULL;
++		}
++	} else if (tcpm->samurai_fixed_5v) {
+ 		qcom_pmic_typec_stop_samurai_5v(tcpm);
+ 		fwnode_handle_put(tcpm->tcpc.fwnode);
+ 		tcpm->tcpc.fwnode = NULL;
+--- a/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec.h
++++ b/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec.h
+@@ -10,6 +10,8 @@
+ 	struct device		*dev;
+ 	struct samurai_pd5v	*pd5v;
+ 	bool			samurai_fixed_5v;
++	bool			samurai_contract_shutdown;
++	int (*read_vbus_uv)(void *context, int *uv);
+ 	bool			samurai_joined;
+ 	bool			samurai_pd_quiet;
+ 	int			samurai_stop_error;
+--- a/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_pdphy.c
++++ b/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_pdphy.c
+@@ -535,7 +535,7 @@
+ 
+ err_disable_vdd_pdhy:
+ 	/* This profile joins TCPM before disabling its still-owned PD supply. */
+-	if (tcpm->samurai_fixed_5v)
++	if (tcpm->samurai_fixed_5v || tcpm->samurai_contract_shutdown)
+ 		return ret;
+ 	regulator_disable(pmic_typec_pdphy->vdd_pdphy);
+ 	pmic_typec_pdphy->supply_held = false;
+--- a/drivers/usb/typec/tcpm/tcpm.c
++++ b/drivers/usb/typec/tcpm/tcpm.c
+@@ -7,6 +7,7 @@
+ 
+ #include <linux/completion.h>
+ #include <linux/debugfs.h>
++#include <linux/delay.h>
+ #include <linux/device.h>
+ #include <linux/hrtimer.h>
+ #include <linux/jiffies.h>
+@@ -624,6 +625,15 @@
+ 	struct pd_spr_avs_data spr_avs_data;
+ 
+ 	/* Augmented supply request - PPS; SPR_AVS */
++	/* Terminal sink policy; never cleared by detach/reset or a failed attempt. */
++	bool shutdown_5v;
++	bool shutdown_busy;
++	bool shutdown_5v_pending;
++	bool shutdown_5v_accepted;
++	int shutdown_5v_status;
++	u64 shutdown_sequence;
++	struct completion shutdown_5v_complete;
++
+ 	struct completion aug_supply_req_complete;
+ 	bool aug_supply_req_pending;
+ 	int aug_supply_req_status;
+@@ -1770,6 +1780,25 @@
+ 	}
+ }
+ 
++/* port->lock held. This completion describes this Request, not a cached voltage. */
++static void tcpm_shutdown_5v_complete(struct tcpm_port *port, int status)
++{
++	if (!port->shutdown_5v_pending)
++		return;
++	port->shutdown_5v_status = status;
++	port->shutdown_5v_pending = false;
++	complete(&port->shutdown_5v_complete);
++}
++
++static void tcpm_shutdown_state_change(struct tcpm_port *port, enum tcpm_state state)
++{
++	port->shutdown_sequence++;
++	if (state != AMS_START && state != SNK_NEGOTIATE_CAPABILITIES &&
++	    state != SNK_TRANSITION_SINK && state != SNK_TRANSITION_SINK_VBUS &&
++	    state != SNK_READY)
++		tcpm_shutdown_5v_complete(port, -EPROTO);
++}
++
+ static void tcpm_set_state(struct tcpm_port *port, enum tcpm_state state,
+ 			   unsigned int delay_ms)
+ {
+@@ -1787,6 +1816,7 @@
+ 			 pd_rev[port->negotiated_rev], tcpm_ams_str[port->ams]);
+ 		port->delayed_state = INVALID_STATE;
+ 		port->prev_state = port->state;
++		tcpm_shutdown_state_change(port, state);
+ 		port->state = state;
+ 		/*
+ 		 * Don't re-queue the state machine work item if we're currently
+@@ -3749,6 +3779,7 @@
+ 	enum pd_ctrl_msg_type type = pd_header_type_le(msg->header);
+ 	enum tcpm_state next_state;
+ 	unsigned int rev = pd_header_rev_le(msg->header);
++	int ret;
+ 
+ 	/*
+ 	 * Stop VDM state machine if interrupted by other Messages while NOT_SUPP is allowed in
+@@ -3776,7 +3807,7 @@
+ 		switch (port->state) {
+ 		case SNK_TRANSITION_SINK:
+ 			if (port->vbus_present) {
+-				tcpm_set_current_limit(port,
++				ret = tcpm_set_current_limit(port,
+ 						       port->req_current_limit,
+ 						       port->req_supply_voltage);
+ 				port->explicit_contract = true;
+@@ -3785,6 +3816,10 @@
+ 								       port->pps_data.active,
+ 								       port->supply_voltage);
+ 				tcpm_set_state(port, SNK_READY, 0);
++				if (rx_sop_type == TCPC_TX_SOP && port->shutdown_5v_accepted &&
++				    port->req_supply_voltage == 5000)
++					tcpm_shutdown_5v_complete(port,
++						port->tcpc->set_current_limit ? ret : 0);
+ 			} else {
+ 				/*
+ 				 * Seen after power swap. Keep waiting for VBUS
+@@ -3820,6 +3855,9 @@
+ 	case PD_CTRL_NOT_SUPP:
+ 		switch (port->state) {
+ 		case SNK_NEGOTIATE_CAPABILITIES:
++			if (rx_sop_type == TCPC_TX_SOP)
++				tcpm_shutdown_5v_complete(port, type == PD_CTRL_WAIT ?
++							  -EAGAIN : -EOPNOTSUPP);
+ 			/* USB PD specification, Figure 8-43 */
+ 			if (port->explicit_contract)
+ 				next_state = SNK_READY;
+@@ -3911,6 +3949,9 @@
+ 	case PD_CTRL_ACCEPT:
+ 		switch (port->state) {
+ 		case SNK_NEGOTIATE_CAPABILITIES:
++			if (rx_sop_type == TCPC_TX_SOP && port->shutdown_5v_pending &&
++			    port->req_supply_voltage == 5000)
++				port->shutdown_5v_accepted = true;
+ 			port->pps_data.active = false;
+ 			port->spr_avs_data.active = false;
+ 			tcpm_set_state(port, SNK_TRANSITION_SINK, 0);
+@@ -4451,6 +4492,10 @@
+ 	for (i = 0; i < port->nr_source_caps; i++) {
+ 		u32 pdo = port->source_caps[i];
+ 		enum pd_pdo_type type = pdo_type(pdo);
++
++		if (port->shutdown_5v &&
++		    (type != PDO_TYPE_FIXED || pdo_fixed_voltage(pdo) != 5000))
++			continue;
+ 
+ 		switch (type) {
+ 		case PDO_TYPE_FIXED:
+@@ -4905,6 +4950,9 @@
+ 	struct pd_message msg;
+ 	int ret;
+ 	u32 rdo;
++
++	if (port->shutdown_5v)
++		return -ESHUTDOWN;
+ 
+ 	if (type == PD_PPS) {
+ 		ret = tcpm_pd_build_pps_request(port, &rdo);
+@@ -5889,6 +5937,7 @@
+ 		port->hard_reset_count = 0;
+ 		ret = tcpm_pd_send_request(port);
+ 		if (ret < 0) {
++			tcpm_shutdown_5v_complete(port, ret);
+ 			/* Restore back to the original state */
+ 			tcpm_set_auto_vbus_discharge_threshold(port, TYPEC_PWR_MODE_PD,
+ 							       port->pps_data.active,
+@@ -6558,6 +6607,7 @@
+ 			 tcpm_states[port->state],
+ 			 tcpm_states[port->delayed_state], port->delay_ms);
+ 		port->prev_state = port->state;
++		tcpm_shutdown_state_change(port, port->delayed_state);
+ 		port->state = port->delayed_state;
+ 		port->delayed_state = INVALID_STATE;
+ 	}
+@@ -7435,6 +7485,11 @@
+ 
+ 	mutex_lock(&port->swap_lock);
+ 	mutex_lock(&port->lock);
++	if (port->shutdown_5v) {
++		ret = -ESHUTDOWN;
++		goto port_unlock;
++	}
++
+ 
+ 	if (port->typec_caps.data != TYPEC_PORT_DRD) {
+ 		ret = -EINVAL;
+@@ -7507,6 +7562,11 @@
+ 
+ 	mutex_lock(&port->swap_lock);
+ 	mutex_lock(&port->lock);
++	if (port->shutdown_5v) {
++		ret = -ESHUTDOWN;
++		goto port_unlock;
++	}
++
+ 
+ 	if (port->port_type != TYPEC_PORT_DRP) {
+ 		ret = -EINVAL;
+@@ -7556,6 +7616,11 @@
+ 
+ 	mutex_lock(&port->swap_lock);
+ 	mutex_lock(&port->lock);
++	if (port->shutdown_5v) {
++		ret = -ESHUTDOWN;
++		goto port_unlock;
++	}
++
+ 
+ 	if (port->state != SRC_READY && port->state != SNK_READY) {
+ 		ret = -EAGAIN;
+@@ -7601,6 +7666,11 @@
+ 	int ret = 0;
+ 
+ 	mutex_lock(&port->lock);
++	if (port->shutdown_5v) {
++		mutex_unlock(&port->lock);
++		return -ESHUTDOWN;
++	}
++
+ 	if (tcpc->try_role)
+ 		ret = tcpc->try_role(tcpc, role);
+ 	if (!ret)
+@@ -7619,6 +7689,11 @@
+ 
+ 	mutex_lock(&port->swap_lock);
+ 	mutex_lock(&port->lock);
++	if (port->shutdown_5v) {
++		ret = -ESHUTDOWN;
++		goto port_unlock;
++	}
++
+ 
+ 	if (port->pps_data.active) {
+ 		req_op_curr_ma = req_op_curr_ma -
+@@ -7685,6 +7760,11 @@
+ 
+ 	mutex_lock(&port->swap_lock);
+ 	mutex_lock(&port->lock);
++	if (port->shutdown_5v) {
++		ret = -ESHUTDOWN;
++		goto port_unlock;
++	}
++
+ 
+ 	if (port->pps_data.active) {
+ 		req_out_volt_mv = req_out_volt_mv - (req_out_volt_mv %
+@@ -7747,6 +7827,11 @@
+ 
+ 	mutex_lock(&port->swap_lock);
+ 	mutex_lock(&port->lock);
++	if (port->shutdown_5v) {
++		ret = -ESHUTDOWN;
++		goto port_unlock;
++	}
++
+ 
+ 	if (!port->pps_data.supported) {
+ 		ret = -EOPNOTSUPP;
+@@ -7805,6 +7890,11 @@
+ 
+ 	mutex_lock(&port->swap_lock);
+ 	mutex_lock(&port->lock);
++	if (port->shutdown_5v) {
++		ret = -ESHUTDOWN;
++		goto port_unlock;
++	}
++
+ 
+ 	if (port->spr_avs_data.port_snk_status == SPR_AVS_NOT_SUPPORTED ||
+ 	    port->spr_avs_data.port_partner_src_status == SPR_AVS_NOT_SUPPORTED) {
+@@ -7862,6 +7952,169 @@
+ 
+ 	return ret;
+ }
++
++/* Candidate board acceptance window, to be validated against calibrated VBUS ADC. */
++#define TCPM_SHUTDOWN_MIN_UV	4750000
++#define TCPM_SHUTDOWN_MAX_UV	5500000
++#define TCPM_SHUTDOWN_SAMPLES	3
++#define TCPM_SHUTDOWN_SAMPLE_MS	20
++
++/* The voltage fields here are protocol evidence only; ADC is checked separately. */
++static bool tcpm_shutdown_contract_valid(struct tcpm_port *port)
++{
++	return port->registered && port->connected && port->vbus_present &&
++		port->pwr_role == TYPEC_SINK && port->state == SNK_READY &&
++		port->upcoming_state == INVALID_STATE &&
++		!port->pps_data.active && !port->spr_avs_data.active &&
++		port->supply_voltage == 5000 &&
++		(!port->pd_capable || port->explicit_contract);
++}
++
++int tcpm_prepare_sink_shutdown(struct tcpm_port *port, unsigned int timeout_ms,
++			       int (*read_vbus_uv)(void *context, int *uv), void *context)
++{
++	unsigned long deadline, remaining;
++	u64 sequence;
++	unsigned int samples = 0;
++	int ret, uv;
++	bool request = false;
++
++	if (!timeout_ms || timeout_ms > 10000)
++		return -EINVAL;
++	deadline = jiffies + msecs_to_jiffies(timeout_ms);
++	mutex_lock(&port->swap_lock);
++	mutex_lock(&port->lock);
++	if (!port->registered) {
++		ret = -ENODEV;
++		goto unlock;
++	}
++	if (!read_vbus_uv) {
++		ret = -EOPNOTSUPP;
++		goto unlock;
++	}
++	if (port->port_type != TYPEC_PORT_SNK ||
++	    port->typec_caps.data != TYPEC_PORT_UFP) {
++		ret = -EOPNOTSUPP;
++		goto unlock;
++	}
++	if (port->shutdown_busy) {
++		ret = -EBUSY;
++		goto unlock;
++	}
++	/* Seal before waiting, not after completion. Retain this on every failure. */
++	port->shutdown_5v = true;
++	port->shutdown_busy = true;
++	mutex_unlock(&port->lock);
++
++	/* Give an existing AMS its normal finite time to finish. Do not reset it. */
++	for (;;) {
++		mutex_lock(&port->lock);
++		if (!port->registered || !port->connected || !port->vbus_present ||
++		    port->pwr_role != TYPEC_SINK) {
++			ret = -ENOTCONN;
++			goto finish_locked;
++		}
++		if (port->state == SNK_READY && port->ams == NONE_AMS &&
++		    port->upcoming_state == INVALID_STATE && !port->vdm_sm_running) {
++			if (!port->pd_capable)
++				break;
++			if (!port->explicit_contract) {
++				ret = -EPROTO;
++				goto finish_locked;
++			}
++			/* Always obtain a fresh fixed-5V Accept + PS_RDY, even if cached at 5V. */
++			reinit_completion(&port->shutdown_5v_complete);
++			port->shutdown_5v_accepted = false;
++			port->shutdown_5v_pending = true;
++			port->shutdown_5v_status = -EINPROGRESS;
++			port->upcoming_state = SNK_NEGOTIATE_CAPABILITIES;
++			ret = tcpm_ams_start(port, POWER_NEGOTIATION);
++			if (!ret) {
++				request = true;
++				break;
++			}
++			port->shutdown_5v_pending = false;
++			port->upcoming_state = INVALID_STATE;
++			if (ret != -EAGAIN)
++				goto finish_locked;
++		}
++		mutex_unlock(&port->lock);
++		if (time_after_eq(jiffies, deadline)) {
++			ret = -ETIMEDOUT;
++			goto finish;
++		}
++		msleep(TCPM_SHUTDOWN_SAMPLE_MS);
++	}
++	mutex_unlock(&port->lock);
++	if (request) {
++		remaining = time_before(jiffies, deadline) ? deadline - jiffies : 0;
++		if (!remaining || !wait_for_completion_timeout(&port->shutdown_5v_complete,
++							     remaining)) {
++			ret = -ETIMEDOUT;
++			goto finish;
++		}
++		mutex_lock(&port->lock);
++		ret = port->shutdown_5v_status;
++		mutex_unlock(&port->lock);
++		if (ret)
++			goto finish;
++	}
++
++	/* No TCPM mutex is held across a provider call, including swap_lock. */
++	mutex_unlock(&port->swap_lock);
++	mutex_lock(&port->lock);
++	sequence = port->shutdown_sequence;
++	mutex_unlock(&port->lock);
++	for (;;) {
++		mutex_lock(&port->lock);
++		ret = tcpm_shutdown_contract_valid(port) &&
++		      port->shutdown_sequence == sequence ? 0 : -EAGAIN;
++		mutex_unlock(&port->lock);
++		if (ret)
++			break;
++		if (time_after_eq(jiffies, deadline)) {
++			ret = -ETIMEDOUT;
++			break;
++		}
++		ret = read_vbus_uv(context, &uv);
++		if (ret)
++			break;
++		mutex_lock(&port->lock);
++		if (!tcpm_shutdown_contract_valid(port) ||
++		    port->shutdown_sequence != sequence)
++			ret = -EAGAIN;
++		mutex_unlock(&port->lock);
++		if (ret)
++			break;
++		if (time_after_eq(jiffies, deadline)) {
++			ret = -ETIMEDOUT;
++			break;
++		}
++		if (uv >= TCPM_SHUTDOWN_MIN_UV && uv <= TCPM_SHUTDOWN_MAX_UV)
++			samples++;
++		else
++			samples = 0;
++		if (samples == TCPM_SHUTDOWN_SAMPLES)
++			break;
++		msleep(TCPM_SHUTDOWN_SAMPLE_MS);
++	}
++	mutex_lock(&port->swap_lock);
++	mutex_lock(&port->lock);
++	if (!ret && (!tcpm_shutdown_contract_valid(port) ||
++		     port->shutdown_sequence != sequence))
++		ret = -EAGAIN;
++	goto finish_locked;
++finish:
++	mutex_lock(&port->lock);
++finish_locked:
++	port->shutdown_5v_pending = false;
++	port->shutdown_busy = false;
++unlock:
++	mutex_unlock(&port->lock);
++	mutex_unlock(&port->swap_lock);
++	return ret;
++}
++EXPORT_SYMBOL_GPL(tcpm_prepare_sink_shutdown);
+ 
+ static void tcpm_init(struct tcpm_port *port)
+ {
+@@ -7915,6 +8168,11 @@
+ 	struct tcpm_port *port = typec_get_drvdata(p);
+ 
+ 	mutex_lock(&port->lock);
++	if (port->shutdown_5v) {
++		mutex_unlock(&port->lock);
++		return -ESHUTDOWN;
++	}
++
+ 	if (type == port->port_type)
+ 		goto port_unlock;
+ 
+@@ -7963,6 +8221,11 @@
+ 	int i, ret = 0;
+ 
+ 	mutex_lock(&port->lock);
++	if (port->shutdown_5v) {
++		ret = -ESHUTDOWN;
++		goto unlock;
++	}
++
+ 
+ 	if (port->selected_pd == pd)
+ 		goto unlock;
+@@ -8916,6 +9179,7 @@
+ 
+ 	init_completion(&port->tx_complete);
+ 	init_completion(&port->swap_complete);
++	init_completion(&port->shutdown_5v_complete);
+ 	init_completion(&port->aug_supply_req_complete);
+ 	tcpm_debugfs_init(port);
+ 
+@@ -9004,6 +9268,8 @@
+ 	/* Join any supplier callback before destroying the TCPM worker. */
+ 	mutex_lock(&port->lock);
+ 	port->registered = false;
++	port->shutdown_sequence++;
++	tcpm_shutdown_5v_complete(port, -ENODEV);
+ 	mutex_unlock(&port->lock);
+ 	kthread_destroy_worker(port->wq);
+ 	port->wq = NULL;
+--- a/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_port.c
++++ b/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_port.c
+@@ -6,6 +6,9 @@
+ #include <linux/delay.h>
+ #include <linux/err.h>
+ #include <linux/interrupt.h>
++#include <linux/iio/consumer.h>
++#include <linux/iio/iio.h>
++#include <dt-bindings/iio/qcom,spmi-vadc.h>
+ #include <linux/kernel.h>
+ #include <linux/module.h>
+ #include <linux/of.h>
+@@ -175,6 +178,7 @@
+ 	struct pmic_typec_port_irq_data	*irq_data;
+ 
+ 	struct power_supply		*usb_psy;
++	struct iio_channel		*vbus_adc;
+ 	struct regulator		*vdd_vbus;
+ 	bool				vbus_enabled;
+ 	bool				sink_only;
+@@ -724,13 +728,16 @@
+ 	struct pmic_typec_port *pmic_typec_port = tcpm->pmic_typec_port;
+ 	int i;
+ 
+-	if (!tcpm->samurai_fixed_5v || pmic_typec_port->irqs_started) {
++	if ((!tcpm->samurai_fixed_5v && !tcpm->samurai_contract_shutdown) ||
++	    pmic_typec_port->irqs_started) {
+ 		for (i = 0; i < pmic_typec_port->nr_irqs; i++)
+ 			disable_irq(pmic_typec_port->irq_data[i].irq);
+ 	}
+ 	pmic_typec_port->irqs_started = false;
+ 
+ 	disable_delayed_work_sync(&pmic_typec_port->cc_debounce_dwork);
++	if (tcpm->samurai_joined)
++		pmic_typec_port->tcpm_port = NULL;
+ }
+ 
+ 
+@@ -807,6 +814,61 @@
+ 	return limit;
+ }
+ 
++/*
++ * This kernel's qcom-spmi-adc5 processed voltage is already microvolts:
++ * adc_read_raw_common -> qcom_adc5_hw_scale -> result_uv, factor=1.
++ * Validate provider/channel at probe. Do not apply the usual mV * 1000 rule.
++ * This callback performs a fresh conversion without either TCPM mutex held.
++ */
++static int qcom_pmic_typec_port_get_vbus_voltage(void *context, int *uv)
++{
++	struct pmic_typec *tcpm = context;
++	int ret;
++
++	ret = iio_read_channel_processed(tcpm->pmic_typec_port->vbus_adc, uv);
++	if (ret)
++		return ret;
++	return *uv < 0 ? -ERANGE : 0;
++}
++
++static int qcom_pmic_typec_port_get_vbus_adc(struct device *dev,
++					 struct pmic_typec *tcpm)
++{
++	struct iio_channel *adc;
++	struct device_node *provider, *pmic, *adc_pmic;
++	u32 reg;
++	enum iio_chan_type type;
++	int ret;
++
++	if (!device_property_present(dev, "io-channels"))
++		return 0;
++	adc = devm_iio_channel_get(dev, "vbus");
++	if (IS_ERR(adc))
++		return PTR_ERR(adc);
++	provider = adc->indio_dev->dev.of_node;
++	if (!provider && adc->indio_dev->dev.parent)
++		provider = adc->indio_dev->dev.parent->of_node;
++	ret = iio_get_channel_type(adc, &type);
++	if (ret)
++		return ret;
++	/* Channel 8 is ADC5_USB_IN_V_16 in this exact local provider. */
++	if (!of_device_is_compatible(provider, "qcom,spmi-adc5") ||
++	    type != IIO_VOLTAGE || adc->channel->channel != ADC5_USB_IN_V_16)
++		return -EINVAL;
++	/* Match the actual ADC block within this Type-C controller's PMIC. */
++	pmic = of_get_parent(dev->of_node);
++	adc_pmic = of_get_parent(provider);
++	ret = pmic && pmic == adc_pmic &&
++	      !of_property_read_u32(provider, "reg", &reg) && reg == 0x3100 ? 0 : -EINVAL;
++	of_node_put(adc_pmic);
++	of_node_put(pmic);
++	if (ret)
++		return ret;
++	tcpm->pmic_typec_port->vbus_adc = adc;
++	tcpm->read_vbus_uv = qcom_pmic_typec_port_get_vbus_voltage;
++	return 0;
++}
++
+ static int qcom_pmic_typec_port_get_usb_supply(struct device *dev,
+ 					    struct pmic_typec *tcpm)
+ {
+@@ -884,6 +946,10 @@
+ 	}
+ 
+ 	tcpm->pmic_typec_port = pmic_typec_port;
++	ret = qcom_pmic_typec_port_get_vbus_adc(dev, tcpm);
++	if (ret)
++		return ret;
++
+ 	ret = qcom_pmic_typec_port_get_usb_supply(dev, tcpm);
+ 	if (ret)
+ 		return ret;
+--- a/include/linux/usb/tcpm.h
++++ b/include/linux/usb/tcpm.h
+@@ -176,6 +176,20 @@
+ 
+ struct tcpm_port *tcpm_register_port(struct device *dev, struct tcpc_dev *tcpc);
+ void tcpm_unregister_port(struct tcpm_port *port);
++/*
++ * Terminal fixed sink/device shutdown preparation. Caller must keep the port and
++ * ADC provider alive and serialize with unregister/controller teardown.
++ * read_vbus_uv must perform a fresh physical VBUS measurement in microvolts and
++ * return 0 or errno, with a bounded conversion time. It is called in sleepable
++ * context with neither TCPM port nor swap mutex held. Cached contract/presence
++ * values are not measurements.
++ * Returns success only after a fresh fixed-5V PD exchange (for PD links) and
++ * three in-window ADC readings. The selection/APDO exclusion remains on failure.
++ * timeout_ms bounds negotiation/sample scheduling, not a misbehaving callback.
++ * The window is candidate board policy, not calibrated hardware acceptance.
++ */
++int tcpm_prepare_sink_shutdown(struct tcpm_port *port, unsigned int timeout_ms,
++			       int (*read_vbus_uv)(void *context, int *uv), void *context);
+ 
+ void tcpm_vbus_change(struct tcpm_port *port);
+ void tcpm_cc_change(struct tcpm_port *port);

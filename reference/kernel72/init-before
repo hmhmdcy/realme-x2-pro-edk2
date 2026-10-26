@@ -1,0 +1,60 @@
+#!/bin/sh
+# rmx1931/samurai 主线诊断 initramfs 的 init。
+# 目标：开机后把关键信息打到控制台（tty0 / EUD earlycon 已经由内核负责），
+# 然后挂起而不是退出，方便从屏幕或串口抄日志。
+mount -t proc     proc /proc 2>/dev/null
+mount -t sysfs   sysfs /sys  2>/dev/null
+mount -t devtmpfs dev  /dev  2>/dev/null
+
+exec 1>/dev/kmsg 2>/dev/kmsg
+mount -t configfs configfs /sys/kernel/config 2>/dev/null
+
+echo
+echo "=============================================="
+echo " rmx1931-mainline initramfs reached userspace"
+echo "=============================================="
+echo "[kernel] $(cat /proc/version 2>/dev/null)"
+echo "[cmdline] $(cat /proc/cmdline 2>/dev/null)"
+echo
+echo "[cpu] $(grep -c ^processor /proc/cpuinfo 2>/dev/null) processors"
+grep -m1 -E 'Hardware|machine' /proc/cpuinfo 2>/dev/null
+echo
+echo "--- /proc/iomem (前 40 行) ---"
+head -40 /proc/iomem 2>/dev/null
+echo
+echo "--- 块设备 ---"
+ls /sys/class/block 2>/dev/null | tr '\n' ' '; echo
+echo "--- UFS ---"
+ls /sys/bus/platform/drivers/ufshcd-qcom 2>/dev/null | tr '\n' ' '; echo
+echo "--- USB gadget ---"
+ls /sys/class/udc 2>/dev/null | tr '\n' ' '; echo
+echo "--- framebuffer ---"
+ls /sys/class/graphics 2>/dev/null | tr '\n' ' '; echo
+for f in /sys/class/graphics/fb0/virtual_size /sys/class/graphics/fb0/bits_per_pixel; do
+	[ -r "$f" ] && echo "$f = $(cat $f 2>/dev/null)"
+done
+echo
+echo "--- dmesg 末尾 ---"
+dmesg 2>/dev/null | tail -30
+echo
+echo "=== 诊断结束，保持在用户态（不会自动重启）==="
+# 不退出：init 退出会导致 panic，保留现场
+exec 1>/dev/kmsg 2>/dev/kmsg
+
+# EUD tty test: prove /dev/ttyEUD0 works end to end (the driver writes
+# [0x90][len][data] frames to the FIFO; the host reassembles them).
+if [ -c /dev/ttyEUD0 ]; then
+        echo "[[TTYBANNER-OK]]" > /dev/ttyEUD0
+        echo "[tty] wrote to /dev/ttyEUD0" >> /dev/kmsg
+        # Interactive shell over EUD.  The host sends [0x82][char] frames and
+        # the driver feeds them into this tty, so the PC can type commands.
+        sh -i </dev/ttyEUD0 >/dev/ttyEUD0 2>&1 &
+        echo "[tty] shell started on /dev/ttyEUD0" >> /dev/kmsg
+        echo "[[CONSOLE-OK]]" > /dev/console 2>/dev/null
+else
+        echo "[tty] /dev/ttyEUD0 MISSING" >> /dev/kmsg
+fi
+
+# EUD_RX_TEST_LOOP: stay alive so the RX probe keeps running and the box does
+# not panic and reboot after the dump (handover 27.2, candidate b).
+while true; do sleep 3600; done

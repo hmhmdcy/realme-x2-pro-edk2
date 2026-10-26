@@ -1,0 +1,33 @@
+0000ef6c 41 8b 47 30              mov      eax, dword ptr [r15 + 0x30]
+0000ef70 89 45 50                 mov      dword ptr [rbp + 0x50], eax
+0000ef73 85 c0                    test     eax, eax
+0000ef75 75 61                    jne      0xefd8
+0000ef77 80 bb c2 11 00 00 01     cmp      byte ptr [rbx + 0x11c2], 1
+0000ef7e 75 23                    jne      0xefa3
+0000ef80 48 8b 93 b8 0d 00 00     mov      rdx, qword ptr [rbx + 0xdb8]
+0000ef87 48 85 d2                 test     rdx, rdx
+0000ef8a 74 17                    je       0xefa3
+0000ef8c 46 8b 4c 36 64           mov      r9d, dword ptr [rsi + r14 + 0x64]
+0000ef91 48 8b cb                 mov      rcx, rbx
+0000ef94 44 88 44 24 20           mov      byte ptr [rsp + 0x20], r8b
+0000ef99 4e 8b 44 36 68           mov      r8, qword ptr [rsi + r14 + 0x68]
+0000ef9e e8 65 07 02 00           call     0x2f708 ; QCSER_LogData
+0000efa3 46 8b 44 36 64           mov      r8d, dword ptr [rsi + r14 + 0x64]
+0000efa8 4c 8d 0d 61 7c 02 00     lea      r9, [rip + 0x27c61]
+0000efaf 4a 8b 4c 36 68           mov      rcx, qword ptr [rsi + r14 + 0x68]
+0000efb4 ba 80 00 00 00           mov      edx, 0x80
+0000efb9 c7 44 24 30 06 00 00 00  mov      dword ptr [rsp + 0x30], 6
+0000efc1 c7 44 24 28 40 00 00 00  mov      dword ptr [rsp + 0x28], 0x40
+0000efc9 48 89 5c 24 20           mov      qword ptr [rsp + 0x20], rbx
+0000efce e8 ed 0e 02 00           call     0x2fec0 ; QCUTIL_PrintBytes
+0000efd3 e9 99 00 00 00           jmp      0xf071
+0000efd8 80 bb c2 11 00 00 01     cmp      byte ptr [rbx + 0x11c2], 1
+0000efdf 75 2d                    jne      0xf00e
+0000efe1 48 8b 93 b8 0d 00 00     mov      rdx, qword ptr [rbx + 0xdb8]
+0000efe8 48 85 d2                 test     rdx, rdx
+0000efeb 74 21                    je       0xf00e
+0000efed 41 b9 04 00 00 00        mov      r9d, 4
+0000eff3 c6 44 24 20 03           mov      byte ptr [rsp + 0x20], 3
+0000eff8 4c 8d 45 50              lea      r8, [rbp + 0x50]
+0000effc 48 8b cb                 mov      rcx, rbx
+0000efff e8 04 07 02 00           call     0x2f708 ; QCSER_LogData

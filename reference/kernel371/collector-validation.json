@@ -1,0 +1,43 @@
+{
+  "stage": 371,
+  "tests": [
+    {
+      "case": "owned",
+      "snapshot_saved": true,
+      "dump_acknowledged": true,
+      "passed": true
+    },
+    {
+      "case": "code-mismatch",
+      "snapshot_saved": false,
+      "dump_acknowledged": true,
+      "passed": true
+    },
+    {
+      "case": "guard-mismatch",
+      "snapshot_saved": false,
+      "dump_acknowledged": false,
+      "passed": true
+    },
+    {
+      "case": "not-held",
+      "snapshot_saved": false,
+      "dump_acknowledged": true,
+      "passed": true
+    },
+    {
+      "case": "unrelated-node",
+      "snapshot_saved": false,
+      "dump_acknowledged": false,
+      "passed": true
+    }
+  ],
+  "independent_collector_ready_before_boot_fixture": true,
+  "verifies_held_state_owner_of_node_and_boot_guard": true,
+  "code_page_checked_before_exception_or_page_tables": true,
+  "only_necessary_bounded_l2_tables_read": true,
+  "private_durable_snapshot_and_dump_precede_ack": true,
+  "unrelated_dump_not_consumed": true,
+  "fixture_not_actual_kernel_or_firmware_execution": true,
+  "passed": true
+}

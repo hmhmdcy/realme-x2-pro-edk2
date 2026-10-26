@@ -1,0 +1,31 @@
+{
+  "cycle_cases": 98,
+  "passed": true,
+  "tested_files": {
+    "charge-cycle.h": "1ad3e8a4cdb4fa2dabc979c58265ff76efb2074a54dbc54ce811ca2485c42782",
+    "test-charge-cycle.c": "ccc15ce54cb5235edcb16be715741d7e43e37dc044fdd702ab587d92e656f58c",
+    "../charging-management-20261023/mp2650-core.h": "f9ffc2d380967d787d042c9780c5e5968a6e46d902089b7ad1ba511d5ba00af3",
+    "../charging-management-20261023/oem-profile.h": "14a425065aadcca1cc38efcc75cb112c0c25ac05567195b04feaa2bec21b0729"
+  },
+  "sanitizers": [
+    "ASan",
+    "UBSan"
+  ],
+  "command": [
+    "gcc",
+    "-std=c11",
+    "-g",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-fsanitize=address,undefined",
+    "-fno-omit-frame-pointer",
+    "-I/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/test-charge-cycle.c",
+    "-o",
+    "/home/cy122/charging-session-20261023/test-charge-cycle"
+  ],
+  "scope": "Actual portable cycle helper, not kernel deployment or physical recharge acceptance",
+  "phone_accessed": false,
+  "shared_kernel_or_sdk_modified": false
+}

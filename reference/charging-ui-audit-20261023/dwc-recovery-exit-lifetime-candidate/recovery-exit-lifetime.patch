@@ -1,0 +1,103 @@
+--- a/drivers/usb/dwc3/gadget.c
++++ b/drivers/usb/dwc3/gadget.c
+@@ -4693,7 +4693,8 @@
+ 	 */
+ 	dwc->err_event_seq++;
+ 	dwc->err_state = DWC3_ERR_RECOVERY;
+-	schedule_work(&dwc->err_recovery_work);
++	if (!dwc->recovery_stopping)
++		schedule_work(&dwc->err_recovery_work);
+ }
+ 
+ static irqreturn_t dwc3_check_event_buf(struct dwc3_event_buffer *evt)
+@@ -4818,6 +4819,14 @@
+ 	result->end_seq = result->start_seq;
+ 	result->pending = false;
+ 	result->reconnected = false;
++	/* Exit owns the closed recovery gate until the next gadget init.
++	 * A queued old worker must not touch a retiring controller.
++	 */
++	if (dwc->recovery_stopping) {
++		result->stage = "gadget-exit";
++		spin_unlock_irqrestore(&dwc->lock, flags);
++		return -ESHUTDOWN;
++	}
+ 	/* A synchronous resume failure cannot itself revive an old failure.
+ 	 * A real IRQ still uses the original schedule_err_recovery policy.
+ 	 */
+@@ -4878,13 +4887,14 @@
+ 		dwc->err_state = DWC3_ERR_RECOVERY;
+ 	else
+ 		dwc->err_state = ret ? DWC3_ERR_UNRECOVERABLE : DWC3_ERR_NONE;
++	/* Queue under the same lock as exit closes the producer gate.
++	 * Joining the running worker alone cannot prevent a later IRQ or
++	 * pending publication from rearming it. Keep the original pending
++	 * generation/state, but no execution after this gadget retires.
++	 */
++	if (result->pending && !dwc->recovery_stopping)
++		schedule_work(&dwc->err_recovery_work);
+ 	spin_unlock_irqrestore(&dwc->lock, flags);
+-	/* The IRQ already requested work; explicitly preserve an execution
+-	 * opportunity even when its request coalesced with a running worker.
+-	 * One call only: no synchronous second recovery or new retry loop.
+-	 */
+-	if (result->pending)
+-		schedule_work(&dwc->err_recovery_work);
+ 	return ret;
+ }
+ 
+@@ -4947,6 +4957,10 @@
+ 	}
+ 
+ 	init_completion(&dwc->ep0_in_setup);
++	/* Previous gadget exit joined work and freed its IRQ before reuse.
++	 * No IRQ/UDC producer for this new gadget is registered yet.
++	 */
++	dwc->recovery_stopping = false;
+ 	INIT_WORK(&dwc->err_recovery_work, dwc3_err_recovery_work);
+ 	mutex_init(&dwc->connect_mutex);
+ 	dwc->gadget = kzalloc_obj(struct usb_gadget);
+@@ -5042,13 +5056,23 @@
+ 
+ void dwc3_gadget_exit(struct dwc3 *dwc)
+ {
++	unsigned long flags;
++
+ 	if (!dwc->gadget)
+ 		return;
+ 
++	/* Exclude both IRQ enqueue and recovery-publication requeue before
++	 * joining. Never join while holding connect_mutex: the worker
++	 * needs it. Leave it alive for usb_del_gadget() -> pullup/off ->
++	 * udc_stop/free_irq; no recovery producer can rearm in that gap.
++	 */
++	spin_lock_irqsave(&dwc->lock, flags);
++	dwc->recovery_stopping = true;
++	spin_unlock_irqrestore(&dwc->lock, flags);
+ 	cancel_work_sync(&dwc->err_recovery_work);
+-	mutex_destroy(&dwc->connect_mutex);
+ 	dwc3_enable_susphy(dwc, true);
+ 	usb_del_gadget(dwc->gadget);
++	mutex_destroy(&dwc->connect_mutex);
+ 	dwc3_gadget_free_endpoints(dwc);
+ 	usb_put_gadget(dwc->gadget);
+ 	dma_free_coherent(dwc->sysdev, DWC3_BOUNCE_SIZE, dwc->bounce,
+--- a/drivers/usb/dwc3/core.h
++++ b/drivers/usb/dwc3/core.h
+@@ -1090,6 +1090,7 @@
+  * @link_state: link state
+  * @err_state: current error recovery state.
+  * @err_event_seq: real IRQ error generations, serialized by lock
++ * @recovery_stopping: exit-only recovery enqueue gate, protected by lock
+  * @err_recovery_count: number of consecutive error recovery attempts until
+  *		confirmed healthy and reset to 0 on reset event.
+  * @speed: device speed (super, high, full, low)
+@@ -1354,6 +1355,8 @@
+ 	u32			err_recovery_count;
+ 	/* Real IRQ error generations; protected by lock, not a retry count. */
+ 	u64			err_event_seq;
++	/* Only gadget init reopens this exit-owned producer gate. */
++	bool			recovery_stopping;
+ 
+ 	u16			u2sel;
+ 	u16			u2pel;

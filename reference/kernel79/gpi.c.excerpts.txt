@@ -1,0 +1,41 @@
+2159: }
+2160: 
+2161: static int gpi_probe(struct platform_device *pdev)
+2162: {
+2163: 	struct gpi_dev *gpi_dev;
+2164: 	unsigned int i;
+2165: 	u32 ee_offset;
+2166: 	int ret;
+2167: 
+2168: 	gpi_dev = devm_kzalloc(&pdev->dev, sizeof(*gpi_dev), GFP_KERNEL);
+2169: 	if (!gpi_dev)
+2170: 		return -ENOMEM;
+2171: 
+2172: 	gpi_dev->dev = &pdev->dev;
+2173: 	gpi_dev->regs = devm_platform_get_and_ioremap_resource(pdev, 0, &gpi_dev->res);
+2174: 	if (IS_ERR(gpi_dev->regs))
+2175: 		return PTR_ERR(gpi_dev->regs);
+2176: 	gpi_dev->ee_base = gpi_dev->regs;
+2177: 
+2178: 	ret = of_property_read_u32(gpi_dev->dev->of_node, "dma-channels",
+2179: 				   &gpi_dev->max_gpii);
+2180: 	if (ret) {
+2181: 		dev_err(gpi_dev->dev, "missing 'max-no-gpii' DT node\n");
+2182: 		return ret;
+2314: 
+2315: static struct platform_driver gpi_driver = {
+2316: 	.probe = gpi_probe,
+2317: 	.driver = {
+2318: 		.name = KBUILD_MODNAME,
+2319: 		.of_match_table = gpi_of_match,
+2320: 	},
+2321: };
+2322: 
+2323: static int __init gpi_init(void)
+2324: {
+2325: 	return platform_driver_register(&gpi_driver);
+2326: }
+2327: subsys_initcall(gpi_init)
+2328: 
+2329: MODULE_DESCRIPTION("QCOM GPI DMA engine driver");
+2330: MODULE_LICENSE("GPL v2");

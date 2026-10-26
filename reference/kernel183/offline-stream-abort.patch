@@ -1,0 +1,209 @@
+Subject: [PATCH] slimbus: discard offline WCD streams after transport loss
+
+An SSR can close QMI before device-status callbacks remove the codec. An
+active capture STOP then tries interface-register and channel transactions
+over the disconnected transport. Expose its availability and release local
+stream storage explicitly; preserve ordinary live cleanup and its errors.
+
+---
+--- a/drivers/slimbus/slimbus.h
++++ b/drivers/slimbus/slimbus.h
+@@ -372,6 +372,8 @@
+  * @wakeup: This function pointer implements controller-specific procedure
+  *	to wake it up from clock-pause. Framework will call this to bring
+  *	the controller out of clock pause.
++ * @is_online: Optional non-sleeping transport availability query. Sleeping
++ *	controllers remain online if normal runtime resume can reach the device.
+  * @enable_stream: This function pointer implements controller-specific procedure
+  *	to enable a stream.
+  * @disable_stream: This function pointer implements controller-specific procedure
+@@ -417,6 +419,7 @@
+ 					     struct slim_eaddr *ea, u8 laddr);
+ 	int			(*get_laddr)(struct slim_controller *ctrl,
+ 					     struct slim_eaddr *ea, u8 *laddr);
++	bool		(*is_online)(struct slim_controller *ctrl);
+ 	int		(*enable_stream)(struct slim_stream_runtime *rt);
+ 	int		(*disable_stream)(struct slim_stream_runtime *rt);
+ 	int			(*wakeup)(struct slim_controller *ctrl);
+--- a/include/linux/slimbus.h
++++ b/include/linux/slimbus.h
+@@ -199,6 +199,8 @@
+ int slim_read(struct slim_device *sdev, u32 addr, size_t count, u8 *val);
+ int slim_write(struct slim_device *sdev, u32 addr, size_t count, u8 *val);
+ 
++bool slim_device_is_online(struct slim_device *sdev);
++
+ /* SLIMbus Stream apis */
+ struct slim_stream_runtime;
+ struct slim_stream_runtime *slim_stream_allocate(struct slim_device *dev,
+@@ -208,6 +210,7 @@
+ int slim_stream_enable(struct slim_stream_runtime *stream);
+ int slim_stream_disable(struct slim_stream_runtime *stream);
+ int slim_stream_unprepare(struct slim_stream_runtime *stream);
++int slim_stream_abort(struct slim_stream_runtime *stream);
+ int slim_stream_free(struct slim_stream_runtime *stream);
+ 
+ #endif /* _LINUX_SLIMBUS_H */
+--- a/drivers/slimbus/core.c
++++ b/drivers/slimbus/core.c
+@@ -332,6 +332,25 @@
+ }
+ EXPORT_SYMBOL_GPL(slim_report_absent);
+ 
++/**
++ * slim_device_is_online() - Check whether a device has a usable transport
++ * @sdev: Device whose logical address and transport are being checked
++ *
++ * This is a non-sleeping snapshot, not a lifetime or transaction lock. A
++ * suspended transport is online if normal runtime resume can reach it.
++ */
++bool slim_device_is_online(struct slim_device *sdev)
++{
++	struct slim_controller *ctrl = sdev->ctrl;
++
++	if (!ctrl || READ_ONCE(sdev->status) != SLIM_DEVICE_STATUS_UP ||
++	    !READ_ONCE(sdev->is_laddr_valid))
++		return false;
++
++	return !ctrl->is_online || ctrl->is_online(ctrl);
++}
++EXPORT_SYMBOL_GPL(slim_device_is_online);
++
+ static bool slim_eaddr_equal(const struct slim_eaddr *a,
+ 			     const struct slim_eaddr *b)
+ {
+--- a/drivers/slimbus/stream.c
++++ b/drivers/slimbus/stream.c
+@@ -465,6 +465,29 @@
+ EXPORT_SYMBOL_GPL(slim_stream_unprepare);
+ 
+ /**
++ * slim_stream_abort() - Discard local stream state after transport loss
++ * @stream: Stream whose device or transport has gone offline
++ *
++ * The caller serializes this with prepare and trigger operations. No bus
++ * command is sent, and no successful hardware stop is implied. A live device
++ * must use the ordinary disable/unprepare sequence instead.
++ *
++ * Return: zero after local cleanup, or -EBUSY if the device is online.
++ */
++int slim_stream_abort(struct slim_stream_runtime *stream)
++{
++	if (slim_device_is_online(stream->dev))
++		return -EBUSY;
++
++	kfree(stream->ports);
++	stream->ports = NULL;
++	stream->num_ports = 0;
++
++	return 0;
++}
++EXPORT_SYMBOL_GPL(slim_stream_abort);
++
++/**
+  * slim_stream_free() - Free a SLIMbus Stream
+  *
+  * @stream: instance of slim stream runtime to free
+--- a/drivers/slimbus/qcom-ngd-ctrl.c
++++ b/drivers/slimbus/qcom-ngd-ctrl.c
+@@ -1125,6 +1125,16 @@
+ 	return ret;
+ }
+ 
++static bool qcom_slim_ngd_is_online(struct slim_controller *sctrl)
++{
++	struct qcom_slim_ngd_ctrl *ctrl =
++		container_of(sctrl, struct qcom_slim_ngd_ctrl, ctrl);
++
++	/* QMI loss precedes report_absent and codec removal during SSR. */
++	return READ_ONCE(ctrl->state) != QCOM_SLIM_NGD_CTRL_DOWN &&
++		READ_ONCE(ctrl->registered) && READ_ONCE(ctrl->qmi.handle);
++}
++
+ static int qcom_slim_ngd_get_laddr(struct slim_controller *ctrl,
+ 				   struct slim_eaddr *ea, u8 *laddr)
+ {
+@@ -1710,6 +1720,7 @@
+ 
+ 	ctrl->ctrl.a_framer = &ctrl->framer;
+ 	ctrl->ctrl.clkgear = SLIM_MAX_CLK_GEAR;
++	ctrl->ctrl.is_online = qcom_slim_ngd_is_online;
+ 	ctrl->ctrl.get_laddr = qcom_slim_ngd_get_laddr;
+ 	ctrl->ctrl.enable_stream = qcom_slim_ngd_enable_stream;
+ 	ctrl->ctrl.xfer_msg = qcom_slim_ngd_xfer_msg;
+--- a/sound/soc/codecs/wcd934x.c
++++ b/sound/soc/codecs/wcd934x.c
+@@ -1926,17 +1926,53 @@
+ 	return err;
+ }
+ 
++static int wcd934x_slim_stop(struct wcd934x_codec *wcd,
++			     struct wcd_slim_codec_dai_data *dai_data)
++{
++	int ret = 0, cleanup;
++
++	if (!slim_device_is_online(wcd->sdev))
++		goto abort;
++
++	/* Mask FIFO/port-closed events before disconnecting a live bus. */
++	ret = wcd934x_slim_port_interrupts(wcd, dai_data, false);
++	if (ret == -ENOTCONN && !slim_device_is_online(wcd->sdev))
++		goto abort;
++	cleanup = slim_stream_disable(dai_data->sruntime);
++	if (!ret)
++		ret = cleanup;
++	if (cleanup == -ENOTCONN && !slim_device_is_online(wcd->sdev))
++		goto abort;
++	cleanup = slim_stream_unprepare(dai_data->sruntime);
++	if (!ret)
++		ret = cleanup;
++	cleanup = wcd934x_slim_port_clear(wcd, dai_data);
++	if (!ret)
++		ret = cleanup;
++	if (cleanup == -ENOTCONN && !slim_device_is_online(wcd->sdev))
++		goto abort;
++
++	return ret;
++abort:
++	cleanup = slim_stream_abort(dai_data->sruntime);
++	return ret && ret != -ENOTCONN ? ret : cleanup;
++}
++
+ static int wcd934x_trigger(struct snd_pcm_substream *substream, int cmd,
+                           struct snd_soc_dai *dai)
+ {
+ 	struct wcd934x_codec *wcd = snd_soc_component_get_drvdata(dai->component);
+ 	struct wcd_slim_codec_dai_data *dai_data = &wcd->dai[dai->id];
+-	int ret = 0, cleanup;
++	int ret = 0;
+ 
+ 	switch (cmd) {
+ 	case SNDRV_PCM_TRIGGER_START:
+ 	case SNDRV_PCM_TRIGGER_RESUME:
+ 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
++		if (!slim_device_is_online(wcd->sdev)) {
++			ret = -ENOTCONN;
++			break;
++		}
+ 		ret = wcd934x_slim_port_interrupts(wcd, dai_data, false);
+ 		if (ret)
+ 			break;
+@@ -1963,17 +1999,7 @@
+ 	case SNDRV_PCM_TRIGGER_STOP:
+ 	case SNDRV_PCM_TRIGGER_SUSPEND:
+ 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
+-		/* Mask FIFO/port-closed events before disconnecting the bus. */
+-		ret = wcd934x_slim_port_interrupts(wcd, dai_data, false);
+-		cleanup = slim_stream_disable(dai_data->sruntime);
+-		if (!ret)
+-			ret = cleanup;
+-		cleanup = slim_stream_unprepare(dai_data->sruntime);
+-		if (!ret)
+-			ret = cleanup;
+-		cleanup = wcd934x_slim_port_clear(wcd, dai_data);
+-		if (!ret)
+-			ret = cleanup;
++		ret = wcd934x_slim_stop(wcd, dai_data);
+ 		break;
+ 	default:
+ 		return -EINVAL;

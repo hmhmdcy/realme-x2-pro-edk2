@@ -1,0 +1,93 @@
+{
+  "stage": 352,
+  "upstream_commit": "ebd1e440443121d18f730ab2aeea5586a754f36f",
+  "upstream_primary_url": "https://kernel.googlesource.com/pub/scm/linux/kernel/git/bod/linux/+/ebd1e440443121d18f730ab2aeea5586a754f36f",
+  "pinned_prototype_missing_makefile_sources": [
+    "camss-icp-hfi.c",
+    "camss-bps-cmd.c"
+  ],
+  "pinned_prototype_ipe_not_in_makefile": true,
+  "ipe_session_api_definitions_missing_from_fetched_sources": [
+    "icp_get",
+    "icp_ctx_create",
+    "icp_ctx_submit_frame",
+    "icp_ctx_destroy",
+    "icp_ctx_abort"
+  ],
+  "pinned_prototype_not_ready_to_build_or_deploy_as_is": true,
+  "only_one_icp_bps_ipe_named_upstream_head_observed": true,
+  "register_differences": [
+    {
+      "role": "HFI_REG_FW_VERSION",
+      "a5_offset": "0x44",
+      "prototype_x1e_offset": "0x24"
+    },
+    {
+      "role": "HFI_REG_HOST_ICP_INIT_REQUEST",
+      "a5_offset": "0x48",
+      "prototype_x1e_offset": "0x28"
+    },
+    {
+      "role": "HFI_REG_ICP_HOST_INIT_RESPONSE",
+      "a5_offset": "0x4c",
+      "prototype_x1e_offset": "0x2c"
+    },
+    {
+      "role": "HFI_REG_SHARED_MEM_PTR",
+      "a5_offset": "0x50",
+      "prototype_x1e_offset": "0x30"
+    },
+    {
+      "role": "HFI_REG_QTBL_PTR",
+      "a5_offset": "0x58",
+      "prototype_x1e_offset": "0x38"
+    }
+  ],
+  "prototype_loader": "MDT/PAS on X1E80100",
+  "target_loader": "ELF32 ARM A5 into firmware IOVA window",
+  "target_firmware_segments": [
+    {
+      "virtual_address": "0x0",
+      "physical_address_field": "0x0",
+      "file_offset": "0x100000",
+      "file_bytes": 1084336,
+      "memory_bytes": 1252796,
+      "flags": 7,
+      "alignment": 4
+    },
+    {
+      "virtual_address": "0x140000",
+      "physical_address_field": "0x140000",
+      "file_offset": "0x208bb0",
+      "file_bytes": 0,
+      "memory_bytes": 2097152,
+      "flags": 6,
+      "alignment": 4
+    },
+    {
+      "virtual_address": "0x340000",
+      "physical_address_field": "0x340000",
+      "file_offset": "0x208bb0",
+      "file_bytes": 278528,
+      "memory_bytes": 278528,
+      "flags": 6,
+      "alignment": 4
+    }
+  ],
+  "target_firmware_entry": 0,
+  "target_firmware_runtime_span": 3686400,
+  "downstream_firmware_iova_window_start": 0,
+  "downstream_firmware_iova_window_bytes": 5242880,
+  "firmware_fits_original_window": true,
+  "no_camera_named_reserved_region_observed_in_current_dt": true,
+  "reserved_region_absence_not_a_proof_dynamic_allocation_impossible": true,
+  "hfi_queue_layout_actual_firmware_evidence": "firmware-queue-validation.json",
+  "no_firmware_boot_or_new_hardware_driver_yet": true,
+  "next_required_work": [
+    "A5-specific CSR/doorbell and firmware-loader backend",
+    "ICP IOMMU streams and firmware/shared buffer mappings",
+    "HFI queues and session lifecycle",
+    "IPE IO/IQ command preparation and libcamera m2m integration"
+  ],
+  "passed": true
+}

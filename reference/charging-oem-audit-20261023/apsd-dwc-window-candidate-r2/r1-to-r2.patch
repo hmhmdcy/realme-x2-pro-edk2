@@ -1,0 +1,21 @@
+--- r1/gadget.c
++++ r2/gadget.c
+@@ -3086,7 +3086,7 @@
+ 	is_on = !!is_on;
+ 
+ 	spin_lock_irqsave(&dwc->lock, flags);
+-	if (dwc->detect_stopping) {
++	if (dwc->detect_stopping && is_on) {
+ 		spin_unlock_irqrestore(&dwc->lock, flags);
+ 		return -ESHUTDOWN;
+ 	}
+@@ -3131,7 +3131,8 @@
+ 	/* Serialize against dwc3_err_recovery_work() */
+ 	mutex_lock(&dwc->connect_mutex);
+ 	/* begin may have claimed after this pullup's PM/IRQ preparation. */
+-	if (dwc3_gadget_window_busy(dwc) || READ_ONCE(dwc->detect_stopping)) {
++	if (dwc3_gadget_window_busy(dwc) ||
++	    (READ_ONCE(dwc->detect_stopping) && is_on)) {
+ 		mutex_unlock(&dwc->connect_mutex);
+ 		pm_runtime_put(dwc->dev);
+ 		return 0;

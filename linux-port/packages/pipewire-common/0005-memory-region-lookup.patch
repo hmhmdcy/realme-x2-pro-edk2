@@ -1,0 +1,47 @@
+--- a/src/pipewire/mem.c
++++ b/src/pipewire/mem.c
+@@ -887,6 +887,29 @@
+ 	return NULL;
+ }
+ 
++/* A block imported from a remote client need not have a default map.
++ * Query its live region instead of assuming block->map is populated. */
++SPA_EXPORT
++struct pw_memmap * pw_mempool_find_map(struct pw_mempool *pool,
++        const void *ptr, uint32_t size)
++{
++    struct mempool *impl = SPA_CONTAINER_OF(pool, struct mempool, this);
++    struct memblock *b;
++    struct memmap *mm;
++
++    spa_list_for_each(b, &impl->blocks, link) {
++        spa_list_for_each(mm, &b->memmaps, link) {
++            uintptr_t start = (uintptr_t) mm->this.ptr;
++            uintptr_t address = (uintptr_t) ptr;
++            if (address >= start && address - start < mm->this.size &&
++                    size <= mm->this.size - (address - start))
++                return &mm->this;
++        }
++    }
++    errno = EFAULT;
++    return NULL;
++}
++
+ SPA_EXPORT
+ struct pw_memblock * pw_mempool_find_id(struct pw_mempool *pool, uint32_t id)
+ {
+--- a/src/pipewire/mem.h
++++ b/src/pipewire/mem.h
+@@ -140,6 +140,12 @@
+ 
+ /** Find memblock for given \a ptr */
+ struct pw_memblock * pw_mempool_find_ptr(struct pw_mempool *pool, const void *ptr);
++
++/** Find a live mapped region containing the complete pointer range.
++ * The returned map is borrowed and valid only until that map is freed.
++ * Call from the pool owner thread or while its loop is locked. */
++struct pw_memmap * pw_mempool_find_map(struct pw_mempool *pool,
++        const void *ptr, uint32_t size);
+ 
+ /** Find memblock for given \a id */
+ struct pw_memblock * pw_mempool_find_id(struct pw_mempool *pool, uint32_t id);

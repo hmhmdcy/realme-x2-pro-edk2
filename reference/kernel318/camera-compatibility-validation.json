@@ -1,0 +1,69 @@
+{
+  "stage": 318,
+  "cameras": {
+    "s5kgw1": {
+      "frames": 12,
+      "probe_passed": true,
+      "settled_phases": 0,
+      "cleanup_restored": true
+    },
+    "imx471": {
+      "frames": 12,
+      "probe_passed": true,
+      "settled_phases": 0,
+      "cleanup_restored": true
+    },
+    "imx319": {
+      "frames": 12,
+      "probe_passed": true,
+      "settled_phases": 0,
+      "cleanup_restored": true
+    },
+    "s5k3m5": {
+      "frames": 12,
+      "probe_passed": true,
+      "settled_phases": 0,
+      "cleanup_restored": true
+    }
+  },
+  "source_runs": {
+    "r4": {
+      "overall_passed": false,
+      "deployment_restored": true,
+      "fault_delta": {
+        "WARNING:": 0,
+        "Oops:": 0,
+        "gpu fault:": 0,
+        "fatal error received": 0,
+        "CCI error": 0,
+        "Stream stop failed:": 0,
+        "Failed to disable stream on remote pad:": 0,
+        "Missing SOF tag": 0,
+        "Received wm done for unmapped index": 0,
+        "Unhandled context fault": 0
+      },
+      "failure": {
+        "failure.txt": "Traceback (most recent call last):\n  File \"/var/lib/samurai/k318-lsc-r4/worker.py\", line 83, in <module>\n    devices=[p for p in Path('/sys/bus/i2c/drivers',selection).iterdir() if (p/'of_node').exists()]\n                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^\n  File \"/usr/lib/python3.14/pathlib/__init__.py\", line 836, in iterdir\n    with os.scandir(root_dir) as scandir_it:\n         ~~~~~~~~~~^^^^^^^^^^\nFileNotFoundError: [Errno 2] No such file or directory: '/sys/bus/i2c/drivers/imx616'\n"
+      }
+    },
+    "r5": {
+      "overall_passed": true,
+      "deployment_restored": true,
+      "fault_delta": {
+        "WARNING:": 0,
+        "Oops:": 0,
+        "gpu fault:": 0,
+        "fatal error received": 0,
+        "CCI error": 0,
+        "Stream stop failed:": 0,
+        "Failed to disable stream on remote pad:": 0,
+        "Missing SOF tag": 0,
+        "Received wm done for unmapped index": 0,
+        "Unhandled context fault": 0
+      },
+      "failure": {}
+    }
+  },
+  "passed": true,
+  "ambient_scene_not_optical_calibration": true
+}

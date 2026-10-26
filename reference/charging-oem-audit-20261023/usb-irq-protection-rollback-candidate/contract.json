@@ -1,0 +1,43 @@
+{
+  "schema": "samurai-usb-irq-protection-rollback-contract-v1",
+  "source_only": true,
+  "worker_sha256": "f0767ce2506f500b5893ddfdf28f7aa7d7a4d0930ccde092970170f1b7fa4142",
+  "payload_sha256": "5ecae1f5799a1c01d132553b1ad4fb5923d643d1e13fcde8007f5380253fa339",
+  "request_schema": "samurai-usb-irq-protection-rollback-request-v1",
+  "transaction_regex": "usb-irq-protection-rollback-[a-z0-9-]{8,48}",
+  "request_exact_fields": [
+    "schema",
+    "transaction_id",
+    "profile",
+    "identity",
+    "source_identity",
+    "source_stage",
+    "activation",
+    "payload_sha256",
+    "payload_base64",
+    "worker_sha256",
+    "lease_token"
+  ],
+  "profiles": [
+    "staged_same_boot_old_resident",
+    "booted_irq_new_resident",
+    "booted_original_new_resident"
+  ],
+  "current_identity_source": "future actual original-key capture with exact Popen/input/terminal binding; never inferred from old adoption",
+  "source_stage_projection": "unchanged stage-proof guard_stage_fields: seven fields/fourteen original remote facts",
+  "saved_source_API": "review_profile_sources(profile,stage_directory,stage_fetch_directory,context_path=None)",
+  "connected_owner": "reuse existing stage-host detached same-Popen/regular-request-stdin/finally-wait; not implemented here",
+  "worker_argv": [
+    "python3",
+    "-B",
+    "/root/charging-management-20261023/<transaction_id>/restore-worker.py",
+    "--execute-rollback"
+  ],
+  "worker_out": "/root/charging-management-20261023/<transaction_id>/device-rollback",
+  "lease_path": "/run/<transaction_id>-window-private.json",
+  "lease": "exact original stage lease keys/current boot/token/camera+bluetooth released, <=120 BOOTTIME seconds",
+  "success_only": "staged_original/runtime_pending",
+  "host_runtime_binding_or_supervisor_implemented": false,
+  "actual_request_or_guard_generated": false,
+  "device_accessed": false
+}

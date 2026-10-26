@@ -1,0 +1,518 @@
+Subject: [PATCH] drivers/media/i2c/imx319.c: use common camera resources
+
+---
+--- a/drivers/media/i2c/imx319.c
++++ b/drivers/media/i2c/imx319.c
+@@ -8,7 +8,6 @@
+ #include <linux/gpio/consumer.h>
+ #include <linux/of.h>
+ #include <linux/pinctrl/consumer.h>
+-#include <linux/platform_device.h>
+ #include <linux/regulator/consumer.h>
+ #include <linux/module.h>
+ #include <linux/pm_runtime.h>
+@@ -92,12 +91,17 @@
+ 	const struct imx319_reg *regs;
+ };
+ 
++/* Full unbinned register-list readout coordinate space. */
++#define IMX319_NATIVE_WIDTH	3280
++#define IMX319_NATIVE_HEIGHT	2464
++
+ /* Mode : resolution and related config&values */
+ struct imx319_mode {
+ 	/* Frame width */
+ 	u32 width;
+ 	/* Frame height */
+ 	u32 height;
++	struct v4l2_rect analogue_crop;
+ 
+ 	/* V-timing */
+ 	u32 fll_def;
+@@ -132,7 +136,7 @@
+ 	struct clk *clk;
+ 	struct gpio_desc *reset_gpio;
+ 	struct regulator *vana, *vdig, *vif;
+-	bool of_power_resources;
++	bool managed_power;
+ 	bool vana_enabled, vdig_enabled, vif_enabled, clock_enabled;
+ 	bool power_fault;
+ 	bool removing;
+@@ -1693,6 +1697,10 @@
+ 	{
+ 		.width = 3280,
+ 		.height = 2464,
++		.analogue_crop = {
++			.left = 0, .top = 0,
++			.width = 3280, .height = 2464,
++		},
+ 		.fll_def = 3242,
+ 		.fll_min = 3242,
+ 		.llp = 3968,
+@@ -1705,6 +1713,10 @@
+ 	{
+ 		.width = 3264,
+ 		.height = 2448,
++		.analogue_crop = {
++			.left = 0, .top = 0,
++			.width = 3280, .height = 2464,
++		},
+ 		.fll_def = 3242,
+ 		.fll_min = 3242,
+ 		.llp = 3968,
+@@ -1717,6 +1729,10 @@
+ 	{
+ 		.width = 1936,
+ 		.height = 1096,
++		.analogue_crop = {
++			.left = 0, .top = 684,
++			.width = 3280, .height = 1096,
++		},
+ 		.fll_def = 3242,
+ 		.fll_min = 3242,
+ 		.llp = 3968,
+@@ -1729,6 +1745,10 @@
+ 	{
+ 		.width = 1920,
+ 		.height = 1080,
++		.analogue_crop = {
++			.left = 0, .top = 692,
++			.width = 3280, .height = 1080,
++		},
+ 		.fll_def = 3242,
+ 		.fll_min = 3242,
+ 		.llp = 3968,
+@@ -1741,6 +1761,10 @@
+ 	{
+ 		.width = 1640,
+ 		.height = 1232,
++		.analogue_crop = {
++			.left = 0, .top = 0,
++			.width = 3280, .height = 2464,
++		},
+ 		.fll_def = 5146,
+ 		.fll_min = 5146,
+ 		.llp = 2500,
+@@ -1753,6 +1777,10 @@
+ 	{
+ 		.width = 1640,
+ 		.height = 922,
++		.analogue_crop = {
++			.left = 0, .top = 304,
++			.width = 3280, .height = 1856,
++		},
+ 		.fll_def = 5146,
+ 		.fll_min = 5146,
+ 		.llp = 2500,
+@@ -1765,6 +1793,10 @@
+ 	{
+ 		.width = 1296,
+ 		.height = 736,
++		.analogue_crop = {
++			.left = 0, .top = 496,
++			.width = 3280, .height = 1472,
++		},
+ 		.fll_def = 5146,
+ 		.fll_min = 5146,
+ 		.llp = 2500,
+@@ -1777,6 +1809,10 @@
+ 	{
+ 		.width = 1280,
+ 		.height = 720,
++		.analogue_crop = {
++			.left = 0, .top = 512,
++			.width = 3280, .height = 1440,
++		},
+ 		.fll_def = 5146,
+ 		.fll_min = 5146,
+ 		.llp = 2500,
+@@ -1788,32 +1824,36 @@
+ 	},
+ };
+ 
+-#include "imx319-oem-tables.h"
+-
+-static const struct imx319_reg_list imx319_oem_global_setting = {
+-	.regs = imx319_oem_global_regs,
+-	.num_of_regs = ARRAY_SIZE(imx319_oem_global_regs),
+-};
+-static const struct imx319_mode imx319_oem_modes[] = {
++#include "imx319-222mhz-tables.h"
++
++static const struct imx319_reg_list imx319_222mhz_global_setting = {
++	.regs = imx319_222mhz_global_regs,
++	.num_of_regs = ARRAY_SIZE(imx319_222mhz_global_regs),
++};
++static const struct imx319_mode imx319_222mhz_modes[] = {
+ 	{
+ 		.width = 1632, .height = 1224,
++		.analogue_crop = {
++			.left = 0, .top = 8,
++			.width = 3280, .height = 2448,
++		},
+ 		.fll_def = 3350, .fll_min = 3350, .llp = 2080,
+ 		.link_freq_index = 0,
+-		.reg_list = { ARRAY_SIZE(imx319_oem_mode_regs), imx319_oem_mode_regs },
++		.reg_list = { ARRAY_SIZE(imx319_222mhz_mode_regs), imx319_222mhz_mode_regs },
+ 	},
+ };
+ /* Firmware/PLL-derived rates, to be checked against native SOF timestamps. */
+-static const s64 imx319_oem_link_freqs[] = { 222000000 };
+-static const struct imx319_profile imx319_acpi_profile = {
++static const s64 imx319_222mhz_link_freqs[] = { 222000000 };
++static const struct imx319_profile imx319_482mhz_profile = {
+ 	.modes = supported_modes, .num_modes = ARRAY_SIZE(supported_modes),
+ 	.global_setting = &imx319_global_setting,
+ 	.link_freqs = link_freq_menu_items, .num_link_freqs = ARRAY_SIZE(link_freq_menu_items),
+ 	.pixel_rate = IMX319_LINK_FREQ_DEFAULT * 2 * 4 / 10,
+ };
+-static const struct imx319_profile imx319_rmx1931_profile = {
+-	.modes = imx319_oem_modes, .num_modes = ARRAY_SIZE(imx319_oem_modes),
+-	.global_setting = &imx319_oem_global_setting,
+-	.link_freqs = imx319_oem_link_freqs, .num_link_freqs = ARRAY_SIZE(imx319_oem_link_freqs),
++static const struct imx319_profile imx319_222mhz_profile = {
++	.modes = imx319_222mhz_modes, .num_modes = ARRAY_SIZE(imx319_222mhz_modes),
++	.global_setting = &imx319_222mhz_global_setting,
++	.link_freqs = imx319_222mhz_link_freqs, .num_link_freqs = ARRAY_SIZE(imx319_222mhz_link_freqs),
+ 	.pixel_rate = 209066666,
+ };
+ 
+@@ -1822,107 +1862,26 @@
+ 	return container_of(_sd, struct imx319, sd);
+ }
+ 
+-/* RMX1931 resources: runtime callbacks never acquire the controls mutex. */
+-static int imx319_match_lab_child(struct device *child, const void *unused)
+-{
+-	(void)unused;
+-	return child->bus == &platform_bus_type &&
+-		str_has_prefix(dev_name(child), "pm8008-reg-lab14.");
+-}
+-
+-static int imx319_link_lab_supplier(struct imx319 *imx319)
+-{
+-	struct device *dev = imx319->dev;
+-	struct device_node *vana, *vdig, *va_parent, *vd_parent, *pmic;
+-	struct i2c_client *client;
+-	struct device *supplier;
+-	struct device_link *link;
+-	int ret = -EINVAL;
+-
+-	vana = of_parse_phandle(dev->of_node, "vana-supply", 0);
+-	vdig = of_parse_phandle(dev->of_node, "vdig-supply", 0);
+-	if (!vana || !vdig)
+-		goto put_nodes;
+-	va_parent = of_get_parent(vana);
+-	vd_parent = of_get_parent(vdig);
+-	if (!va_parent || va_parent != vd_parent ||
+-	    !of_node_name_eq(vana, "ldo4") || !of_node_name_eq(vdig, "ldo1"))
+-		goto put_parents;
+-	pmic = of_get_parent(va_parent);
+-	if (!pmic)
+-		goto put_parents;
+-	client = i2c_find_device_by_fwnode(of_fwnode_handle(pmic));
+-	of_node_put(pmic);
+-	if (!client) {
+-		ret = -EPROBE_DEFER;
+-		goto put_parents;
+-	}
+-	supplier = device_find_child(&client->dev, NULL, imx319_match_lab_child);
+-	put_device(&client->dev);
+-	if (!supplier) {
+-		ret = -EPROBE_DEFER;
+-		goto put_parents;
+-	}
+-	device_lock(supplier);
+-	if (!device_is_bound(supplier) ||
+-	    READ_ONCE(supplier->links.status) != DL_DEV_DRIVER_BOUND)
+-		ret = -EPROBE_DEFER;
+-	else if (!supplier->driver || strcmp(supplier->driver->name, "pm8008-imx319-lab"))
+-		ret = -EINVAL;
+-	else {
+-		link = device_link_add(dev, supplier, DL_FLAG_AUTOPROBE_CONSUMER);
+-		ret = link ? 0 : -EINVAL;
+-	}
+-	device_unlock(supplier);
+-	put_device(supplier);
+-put_parents:
+-	of_node_put(va_parent);
+-	of_node_put(vd_parent);
+-put_nodes:
+-	of_node_put(vana);
+-	of_node_put(vdig);
+-	return ret;
+-}
+-
++/* Standard regulator consumers supply dependency ordering. */
+ static int imx319_get_power_resources(struct imx319 *imx319)
+ {
+ 	struct device *dev = imx319->dev;
+-	int ret;
+ 
+ 	if (!dev->of_node)
+ 		return 0;
+-	if (!of_device_is_compatible(dev->of_node, "realme,rmx1931-imx319") ||
+-	    !of_machine_is_compatible("realme,samurai") ||
+-	    of_property_count_u32_elems(dev->of_node, "vana-supply") != 1 ||
+-	    of_property_count_u32_elems(dev->of_node, "vdig-supply") != 1 ||
+-	    of_property_count_u32_elems(dev->of_node, "vif-supply") != 1 ||
+-	    of_property_count_u32_elems(dev->of_node, "power-domains") != 2)
+-		return -EINVAL;
+-	ret = imx319_link_lab_supplier(imx319);
+-	if (ret)
+-		return ret;
+ 	imx319->reset_gpio = devm_gpiod_get(dev, "reset", GPIOD_OUT_HIGH);
+ 	if (IS_ERR(imx319->reset_gpio))
+ 		return PTR_ERR(imx319->reset_gpio);
+-	imx319->vana = devm_regulator_get(dev, "vana");
++	imx319->vana = devm_regulator_get_optional(dev, "vana");
+ 	if (IS_ERR(imx319->vana))
+ 		return PTR_ERR(imx319->vana);
+-	imx319->vdig = devm_regulator_get(dev, "vdig");
++	imx319->vdig = devm_regulator_get_optional(dev, "vdig");
+ 	if (IS_ERR(imx319->vdig))
+ 		return PTR_ERR(imx319->vdig);
+-	imx319->vif = devm_regulator_get(dev, "vif");
++	imx319->vif = devm_regulator_get_optional(dev, "vif");
+ 	if (IS_ERR(imx319->vif))
+ 		return PTR_ERR(imx319->vif);
+-	ret = regulator_set_voltage(imx319->vana, 2800000, 2800000);
+-	if (ret)
+-		return ret;
+-	ret = regulator_set_voltage(imx319->vdig, 1104000, 1104000);
+-	if (ret)
+-		return ret;
+-	ret = regulator_get_voltage(imx319->vif);
+-	if (ret != 1800000)
+-		return ret < 0 ? ret : -EINVAL;
+-	imx319->of_power_resources = true;
++	imx319->managed_power = true;
+ 	return 0;
+ }
+ 
+@@ -1930,7 +1889,7 @@
+ {
+ 	int ret, first = 0;
+ 
+-	if (!imx319->of_power_resources)
++	if (!imx319->managed_power)
+ 		return 0;
+ 	if (imx319->clock_enabled) {
+ 		clk_disable_unprepare(imx319->clk);
+@@ -1975,7 +1934,7 @@
+ {
+ 	int ret, cleanup_ret;
+ 
+-	if (!imx319->of_power_resources)
++	if (!imx319->managed_power)
+ 		return 0;
+ 	if (imx319->power_fault || imx319->vana_enabled || imx319->vdig_enabled ||
+ 	    imx319->vif_enabled || imx319->clock_enabled)
+@@ -2300,6 +2259,48 @@
+ 	return ret;
+ }
+ 
++static int imx319_get_selection(struct v4l2_subdev *sd,
++				struct v4l2_subdev_state *sd_state,
++				struct v4l2_subdev_selection *sel)
++{
++	struct imx319 *imx319 = to_imx319(sd);
++	const struct imx319_mode *mode;
++	struct v4l2_mbus_framefmt *format;
++
++	if (sel->pad || (sel->which != V4L2_SUBDEV_FORMAT_ACTIVE &&
++			 sel->which != V4L2_SUBDEV_FORMAT_TRY))
++		return -EINVAL;
++
++	switch (sel->target) {
++	case V4L2_SEL_TGT_NATIVE_SIZE:
++	case V4L2_SEL_TGT_CROP_BOUNDS:
++	case V4L2_SEL_TGT_CROP_DEFAULT:
++		sel->r = (struct v4l2_rect) {
++			.left = 0, .top = 0,
++			.width = IMX319_NATIVE_WIDTH,
++			.height = IMX319_NATIVE_HEIGHT,
++		};
++		return 0;
++	case V4L2_SEL_TGT_CROP:
++		mutex_lock(&imx319->mutex);
++		if (sel->which == V4L2_SUBDEV_FORMAT_TRY) {
++			format = v4l2_subdev_state_get_format(sd_state, sel->pad);
++			mode = v4l2_find_nearest_size(imx319->profile->modes,
++						      imx319->profile->num_modes,
++						      width, height,
++						      format->width, format->height);
++		} else {
++			mode = imx319->cur_mode;
++		}
++		/* Report the analogue window before binning/digital cropping. */
++		sel->r = mode->analogue_crop;
++		mutex_unlock(&imx319->mutex);
++		return 0;
++	default:
++		return -EINVAL;
++	}
++}
++
+ static int
+ imx319_set_pad_format(struct v4l2_subdev *sd,
+ 		      struct v4l2_subdev_state *sd_state,
+@@ -2454,7 +2455,7 @@
+ 			goto unlock;
+ 		ret = imx319_start_streaming(imx319);
+ 		if (ret) {
+-			if (!imx319->of_power_resources) {
++			if (!imx319->managed_power) {
+ 				pm_runtime_put(imx319->dev);
+ 				goto unlock;
+ 			}
+@@ -2470,11 +2471,11 @@
+ 		imx319->streaming = true;
+ 	} else {
+ 		ret = imx319_stop_streaming(imx319);
+-		if (ret && imx319->of_power_resources)
++		if (ret && imx319->managed_power)
+ 			imx319->power_fault = true;
+ 		/* Exactly one reference is owned, even when the stop write fails. */
+ 		imx319->streaming = false;
+-		if (imx319->of_power_resources)
++		if (imx319->managed_power)
+ 			cleanup_ret = pm_runtime_put_sync_suspend(imx319->dev);
+ 		else {
+ 			pm_runtime_put(imx319->dev);
+@@ -2508,6 +2509,7 @@
+ 	.enum_mbus_code = imx319_enum_mbus_code,
+ 	.get_fmt = imx319_get_pad_format,
+ 	.set_fmt = imx319_set_pad_format,
++	.get_selection = imx319_get_selection,
+ 	.enum_frame_size = imx319_enum_frame_size,
+ };
+ 
+@@ -2528,6 +2530,7 @@
+ /* Initialize control handlers */
+ static int imx319_init_controls(struct imx319 *imx319)
+ {
++	struct v4l2_fwnode_device_properties props;
+ 	struct v4l2_ctrl_handler *ctrl_hdlr;
+ 	s64 exposure_max;
+ 	s64 vblank_def;
+@@ -2538,12 +2541,19 @@
+ 	u32 max;
+ 	int ret;
+ 
+-	ctrl_hdlr = &imx319->ctrl_handler;
+-	ret = v4l2_ctrl_handler_init(ctrl_hdlr, 10);
++	ret = v4l2_fwnode_device_parse(imx319->dev, &props);
+ 	if (ret)
+ 		return ret;
+ 
++	ctrl_hdlr = &imx319->ctrl_handler;
++	ret = v4l2_ctrl_handler_init(ctrl_hdlr, 12);
++	if (ret)
++		return ret;
++
+ 	ctrl_hdlr->lock = &imx319->mutex;
++	ret = v4l2_ctrl_new_fwnode_properties(ctrl_hdlr, &imx319_ctrl_ops, &props);
++	if (ret)
++		goto error;
+ 	max = imx319->profile->num_link_freqs - 1;
+ 	imx319->link_freq = v4l2_ctrl_new_int_menu(ctrl_hdlr, &imx319_ctrl_ops,
+ 						   V4L2_CID_LINK_FREQ, max, 0,
+@@ -2620,10 +2630,12 @@
+ 	return ret;
+ }
+ 
+-static struct imx319_hwcfg *imx319_get_hwcfg(struct device *dev,
+-					   const struct imx319_profile *profile)
++static struct imx319_hwcfg *imx319_get_hwcfg(struct imx319 *imx319)
+ {
++	struct device *dev = imx319->dev;
++	const struct imx319_profile *profile;
+ 	struct imx319_hwcfg *cfg;
++	unsigned int i;
+ 	struct v4l2_fwnode_endpoint bus_cfg = {
+ 		.bus_type = V4L2_MBUS_CSI2_DPHY
+ 	};
+@@ -2648,6 +2660,20 @@
+ 	cfg = devm_kzalloc(dev, sizeof(*cfg), GFP_KERNEL);
+ 	if (!cfg)
+ 		goto out_err;
++
++	profile = NULL;
++	for (i = 0; i < bus_cfg.nr_of_link_frequencies; i++) {
++		if (bus_cfg.link_frequencies[i] == IMX319_LINK_FREQ_DEFAULT)
++			profile = &imx319_482mhz_profile;
++		else if (bus_cfg.link_frequencies[i] == 222000000)
++			profile = &imx319_222mhz_profile;
++		else
++			continue;
++		break;
++	}
++	if (!profile)
++		goto out_err;
++	imx319->profile = profile;
+ 
+ 	ret = v4l2_link_freq_to_bitmap(dev, bus_cfg.link_frequencies,
+ 				       bus_cfg.nr_of_link_frequencies,
+@@ -2678,7 +2704,6 @@
+ 	if (!imx319)
+ 		return -ENOMEM;
+ 	imx319->dev = &client->dev;
+-	imx319->profile = client->dev.of_node ? &imx319_rmx1931_profile : &imx319_acpi_profile;
+ 	mutex_init(&imx319->mutex);
+ 	imx319->clk = devm_v4l2_sensor_clk_get(imx319->dev, NULL);
+ 	if (IS_ERR(imx319->clk)) {
+@@ -2694,7 +2719,7 @@
+ 	ret = imx319_get_power_resources(imx319);
+ 	if (ret)
+ 		goto error_probe;
+-	imx319->hwcfg = imx319_get_hwcfg(imx319->dev, imx319->profile);
++	imx319->hwcfg = imx319_get_hwcfg(imx319);
+ 	if (!imx319->hwcfg) {
+ 		ret = -ENODEV;
+ 		goto error_probe;
+@@ -2711,7 +2736,7 @@
+ 	ret = media_entity_pads_init(&imx319->sd.entity, 1, &imx319->pad);
+ 	if (ret)
+ 		goto error_handler;
+-	if (imx319->of_power_resources) {
++	if (imx319->managed_power) {
+ 		ret = imx319_power_on(imx319);
+ 		if (ret)
+ 			goto error_entity;
+@@ -2727,7 +2752,7 @@
+ 		if (ret)
+ 			goto error_power;
+ 	}
+-	if (imx319->of_power_resources) {
++	if (imx319->managed_power) {
+ 		pm_runtime_get_noresume(imx319->dev);
+ 		probe_reference = true;
+ 		pm_runtime_set_autosuspend_delay(imx319->dev, 1000);
+@@ -2746,7 +2771,7 @@
+ 	return 0;
+ error_pm:
+ 	pm_runtime_disable(imx319->dev);
+-	if (imx319->of_power_resources)
++	if (imx319->managed_power)
+ 		pm_runtime_dont_use_autosuspend(imx319->dev);
+ 	if (probe_reference)
+ 		pm_runtime_put_noidle(imx319->dev);
+@@ -2777,7 +2802,7 @@
+ 	mutex_unlock(&imx319->mutex);
+ 	imx319_set_stream(sd, 0);
+ 	pm_runtime_disable(imx319->dev);
+-	if (imx319->of_power_resources)
++	if (imx319->managed_power)
+ 		pm_runtime_dont_use_autosuspend(imx319->dev);
+ 	ret = imx319_power_off(imx319);
+ 	if (ret)
+@@ -2797,7 +2822,7 @@
+ MODULE_DEVICE_TABLE(acpi, imx319_acpi_ids);
+ 
+ static const struct of_device_id imx319_of_match[] = {
+-	{ .compatible = "realme,rmx1931-imx319" },
++	{ .compatible = "sony,imx319" },
+ 	{ }
+ };
+ MODULE_DEVICE_TABLE(of, imx319_of_match);

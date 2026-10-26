@@ -1,0 +1,50 @@
+/* SPDX-License-Identifier: LGPL-2.1-or-later */
+module ipa.camss;
+import "include/libcamera/ipa/core.mojom";
+
+struct SensorControlConfiguration {
+	bool enabled;
+	uint32 exposureDelay;
+	uint32 gainDelay;
+};
+struct SensorContext {
+	bool valid;
+	uint32 exposureLines;
+	uint32 gainCode;
+	uint32 source;
+};
+struct AutoSensorUpdate {
+ bool valid;
+ uint32 revision;
+ uint32 exposureLines;
+ uint32 gainCode;
+};
+struct Statistics {
+	int32 status;
+	uint64 population;
+	uint64 weightedSum;
+	bool parametersKnown;
+	bool sensorControlsKnown;
+ AutoSensorUpdate automaticUpdate;
+};
+
+interface IPACamssInterface {
+	init(libcamera.IPASettings settings, libcamera.IPACameraSensorInfo sensorInfo,
+	     libcamera.ControlInfoMap sensorControls) => (int32 ret, libcamera.ControlInfoMap ipaControls);
+	configure(libcamera.IPACameraSensorInfo sensorInfo, libcamera.Size input,
+		  libcamera.ControlInfoMap sensorControls, string profilePath)
+		=> (int32 ret, libcamera.ControlInfoMap ipaControls, SensorControlConfiguration sensorConfiguration);
+	mapBuffers(array<libcamera.IPABuffer> parameters, array<libcamera.IPABuffer> statistics) => (int32 ret);
+	unmapBuffers(array<uint32> ids);
+	start(uint64 epoch, libcamera.ControlList controls) => (int32 ret, libcamera.ControlList sensorControls);
+	convertControls(uint64 epoch, libcamera.ControlList controls) => (int32 ret, libcamera.ControlList sensorControls);
+	stop();
+	prepareParameters(uint64 epoch, uint32 bufferId) => (int32 ret, uint32 bytesused);
+	[async] parametersApplied(uint64 epoch, uint32 firstSof);
+	[async] processStats(uint64 epoch, uint32 sof, uint32 bufferId, uint32 bytesused, SensorContext sensorContext);
+};
+
+interface IPACamssEventInterface {
+	statsProcessed(uint64 epoch, uint32 sof, uint32 bufferId,
+		       Statistics statistics, libcamera.ControlList metadata);
+};

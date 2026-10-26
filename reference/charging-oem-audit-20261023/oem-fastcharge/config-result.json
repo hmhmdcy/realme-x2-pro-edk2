@@ -1,0 +1,367 @@
+{
+  "repository": "realme-kernel-opensource/realmeX2pro-X3-AndroidR-kernel-source",
+  "commit": "23172a1571bd91156032cc9fef16284a82b63d2c",
+  "inputs": {
+    "arch/arm64/boot/dts/19781/sm8150-pmic-overlay.dtsi": {
+      "local": "/mnt/e/edk2-samurai-out/kernel83/realme-kernel-opensource--realmeX2pro-X3-AndroidR-kernel-source--arch--arm64--boot--dts--19781--sm8150-pmic-overlay.dtsi",
+      "sha256": "f2f12882b42c1a5f7440d120b56ed38ee0ac2cb15fada2c6a0c3352f4c6f91e7"
+    },
+    "arch/arm64/boot/dts/19781/pm8150b.dtsi": {
+      "local": "/mnt/e/edk2-samurai-out/kernel83/realme-kernel-opensource--realmeX2pro-X3-AndroidR-kernel-source--arch--arm64--boot--dts--19781--pm8150b.dtsi",
+      "sha256": "43d554879e68bb9b7795d7fb37530dfe6a5ce6cc6aae42514057e757079140c8"
+    }
+  },
+  "fastcharge_node": {
+    "source": "arch/arm64/boot/dts/19781/sm8150-pmic-overlay.dtsi",
+    "line": 438,
+    "bus": "qupv3_se15_i2c",
+    "properties": {
+      "status": [
+        "okay"
+      ],
+      "compatible": [
+        "oplus,stm8s-fastcg"
+      ],
+      "reg": [
+        38
+      ],
+      "qcom,vooc-low-temp": [
+        120
+      ],
+      "qcom,oplus_batt_4400mv": true,
+      "qcom,support_vooc_by_normal_charger_path": true,
+      "qcom,vooc-high-temp": [
+        430
+      ],
+      "qcom,vooc-low-soc": [
+        1
+      ],
+      "qcom,vooc-high-soc": [
+        90
+      ],
+      "qcom,vooc-fw-type": [
+        34
+      ],
+      "qcom,vooc_multistep_adjust_current_support": true,
+      "qcom,vooc_multistep_initial_batt_temp": [
+        320
+      ],
+      "qcom,vooc_strategy_normal_current": [
+        6
+      ],
+      "qcom,vooc_strategy1_batt_high_temp0": [
+        425
+      ],
+      "qcom,vooc_strategy1_batt_high_temp1": [
+        430
+      ],
+      "qcom,vooc_strategy1_batt_high_temp2": [
+        435
+      ],
+      "qcom,vooc_strategy1_batt_low_temp2": [
+        420
+      ],
+      "qcom,vooc_strategy1_batt_low_temp1": [
+        415
+      ],
+      "qcom,vooc_strategy1_batt_low_temp0": [
+        400
+      ],
+      "qcom,vooc_strategy1_high_current0": [
+        4
+      ],
+      "qcom,vooc_strategy1_high_current1": [
+        3
+      ],
+      "qcom,vooc_strategy1_high_current2": [
+        2
+      ],
+      "qcom,vooc_strategy1_low_current2": [
+        3
+      ],
+      "qcom,vooc_strategy1_low_current1": [
+        4
+      ],
+      "qcom,vooc_strategy1_low_current0": [
+        4
+      ],
+      "qcom,vooc_strategy2_batt_up_temp1": [
+        375
+      ],
+      "qcom,vooc_strategy2_batt_up_down_temp2": [
+        380
+      ],
+      "qcom,vooc_strategy2_batt_up_temp3": [
+        390
+      ],
+      "qcom,vooc_strategy2_batt_up_down_temp4": [
+        400
+      ],
+      "qcom,vooc_strategy2_batt_up_temp5": [
+        410
+      ],
+      "qcom,vooc_strategy2_batt_up_temp6": [
+        415
+      ],
+      "qcom,vooc_strategy2_high0_current": [
+        5
+      ],
+      "qcom,vooc_strategy2_high1_current": [
+        4
+      ],
+      "qcom,vooc_strategy2_high2_current": [
+        3
+      ],
+      "qcom,vooc_strategy2_high3_current": [
+        2
+      ],
+      "pinctrl-names": [
+        "switch1_act_switch2_act",
+        "switch1_sleep_switch2_sleep",
+        "switch1_act_switch3_act",
+        "switch1_sleep_switch3_sleep",
+        "switch1_act_switch2_sleep",
+        "switch1_sleep_switch2_act",
+        "clock_active",
+        "clock_sleep",
+        "data_active",
+        "data_sleep",
+        "reset_active",
+        "reset_sleep"
+      ],
+      "pinctrl-0": [
+        "&charging_switch1_active"
+      ],
+      "pinctrl-1": [
+        "&charging_switch1_sleep"
+      ],
+      "pinctrl-2": [
+        "&charging_switch1_active"
+      ],
+      "pinctrl-3": [
+        "&charging_switch1_sleep"
+      ],
+      "pinctrl-4": [
+        "&charging_switch1_active"
+      ],
+      "pinctrl-5": [
+        "&charging_switch1_sleep"
+      ],
+      "pinctrl-6": [
+        "&charging_clock_active"
+      ],
+      "pinctrl-7": [
+        "&charging_clock_sleep"
+      ],
+      "pinctrl-8": [
+        "&charging_data_active"
+      ],
+      "pinctrl-9": [
+        "&charging_data_sleep"
+      ],
+      "pinctrl-10": [
+        "&charging_reset_active"
+      ],
+      "pinctrl-11": [
+        "&charging_reset_sleep"
+      ],
+      "qcom,charging_switch1-gpio": [
+        "&tlmm",
+        59,
+        0
+      ],
+      "qcom,charging_reset-gpio": [
+        "&tlmm",
+        131,
+        0
+      ],
+      "qcom,charging_clock-gpio": [
+        "&tlmm",
+        92,
+        0
+      ],
+      "qcom,charging_data-gpio": [
+        "&tlmm",
+        93,
+        0
+      ]
+    }
+  },
+  "divider_node": {
+    "source": "arch/arm64/boot/dts/19781/sm8150-pmic-overlay.dtsi",
+    "line": 416,
+    "bus": "qupv3_se15_i2c",
+    "properties": {
+      "status": [
+        "okay"
+      ],
+      "compatible": [
+        "oplus,da9313-divider"
+      ],
+      "reg": [
+        104,
+        0
+      ]
+    }
+  },
+  "source_board_selection": "missing ASIC and MCU ID GPIO properties select STM8S in OEM fallback; no runtime IC identification performed",
+  "explicit_regulator_supply_in_node": false,
+  "regulator_rail": "not identified by this node or stm8s probe; do not infer voltage/power ownership",
+  "ffc_properties": {
+    "qcom,vooc_project": [
+      3
+    ],
+    "qcom,vbatt_num": [
+      2
+    ],
+    "qcom,ffc_support": true,
+    "qcom,ff1_normal_fastchg_ma": [
+      750
+    ],
+    "qcom,ff1_warm_fastchg_ma": [
+      800
+    ],
+    "qcom,ffc2_normal_fastchg_ma": [
+      350
+    ],
+    "qcom,ffc2_temp_warm_decidegc": [
+      350
+    ],
+    "qcom,ffc2_warm_fastchg_ma": [
+      400
+    ],
+    "qcom,ffc2_temp_high_decidegc": [
+      400
+    ],
+    "qcom,ffc2_temp_low_decidegc": [
+      120
+    ],
+    "qcom,ffc2_exit_step_ma": [
+      100
+    ],
+    "qcom,ff1_exit_step_ma": [
+      100
+    ],
+    "qcom,ff1_warm_exit_step_ma": [
+      100
+    ],
+    "qcom,ffc_normal_vfloat_sw_limit": [
+      4445
+    ],
+    "qcom,ffc2_normal_vfloat_sw_limit": [
+      4415
+    ],
+    "qcom,ffc_temp_normal_vfloat_mv": [
+      4495
+    ],
+    "qcom,ffc1_temp_normal_vfloat_mv": [
+      4495
+    ],
+    "qcom,ffc2_temp_normal_vfloat_mv": [
+      4465
+    ],
+    "qcom,ffc_normal_vfloat_over_sw_limit": [
+      4495
+    ],
+    "qcom,ffc1_normal_vfloat_over_sw_limit": [
+      4495
+    ],
+    "qcom,ffc2_normal_vfloat_over_sw_limit": [
+      4465
+    ]
+  },
+  "pinctrl": {
+    "charging_switch1_active": {
+      "line": 5306,
+      "source": "mux {\n\t\t\t\t\tpins = \"gpio59\";\n\t\t\t\t\tfunction = \"gpio\";\n\t\t\t\t};\n\n\t\t\t\tconfig {\n\t\t\t\t\tpins = \"gpio59\";\n\t\t\t\t\tdrive-strength = <2>;\n\t\t\t\t\tbias-pull-up;\n\t\t\t\t};"
+    },
+    "charging_switch1_sleep": {
+      "line": 5319,
+      "source": "mux {\n\t\t\t\t\tpins = \"gpio59\";\n\t\t\t\t\tfunction = \"gpio\";\n\t\t\t\t};\n\n\t\t\t\tconfig {\n\t\t\t\t\tpins = \"gpio59\";\n\t\t\t\t\tdrive-strength = <2>;\n\t\t\t\t\tbias-pull-down;\n\t\t\t\t};"
+    },
+    "charging_reset_active": {
+      "line": 5332,
+      "source": "mux {\n\t\t\t\t\tpins = \"gpio131\";\n\t\t\t\t\tfunction = \"gpio\";\n\t\t\t\t};\n\n\t\t\t\tconfig {\n\t\t\t\t\tpins = \"gpio131\";\n\t\t\t\t\tdrive-strength = <2>;\n\t\t\t\t\tbias-pull-up;\n\t\t\t\t};"
+    },
+    "charging_reset_sleep": {
+      "line": 5345,
+      "source": "mux {\n\t\t\t\t\tpins = \"gpio131\";\n\t\t\t\t\tfunction = \"gpio\";\n\t\t\t\t};\n\n\t\t\t\tconfig {\n\t\t\t\t\tpins = \"gpio131\";\n\t\t\t\t\tdrive-strength = <2>;\n\t\t\t\t\tbias-pull-down;\n\t\t\t\t};"
+    },
+    "charging_clock_active": {
+      "line": 5358,
+      "source": "mux {\n\t\t\t\t\tpins = \"gpio92\";\n\t\t\t\t\tfunction = \"gpio\";\n\t\t\t\t};\n\n\t\t\t\tconfig {\n\t\t\t\t\tpins = \"gpio92\";\n\t\t\t\t\tdrive-strength = <2>;\n\t\t\t\t\tbias-pull-up;\n\t\t\t\t};"
+    },
+    "charging_clock_sleep": {
+      "line": 5371,
+      "source": "mux {\n\t\t\t\t\tpins = \"gpio92\";\n\t\t\t\t\tfunction = \"gpio\";\n\t\t\t\t};\n\n\t\t\t\tconfig {\n\t\t\t\t\tpins = \"gpio92\";\n\t\t\t\t\tdrive-strength = <2>;\n\t\t\t\t\tbias-pull-down;\n\t\t\t\t};"
+    },
+    "charging_data_active": {
+      "line": 5384,
+      "source": "mux {\n\t\t\t\t\tpins = \"gpio93\";\n\t\t\t\t\tfunction = \"gpio\";\n\t\t\t\t};\n\n\t\t\t\tconfig {\n\t\t\t\t\tpins = \"gpio93\";\n\t\t\t\t\tdrive-strength = <2>;\n\t\t\t\t\tbias-pull-up;\n\t\t\t\t};"
+    },
+    "charging_data_sleep": {
+      "line": 5397,
+      "source": "mux {\n\t\t\t\t\tpins = \"gpio93\";\n\t\t\t\t\tfunction = \"gpio\";\n\t\t\t\t};\n\n\t\t\t\tconfig {\n\t\t\t\t\tpins = \"gpio93\";\n\t\t\t\t\tdrive-strength = <2>;\n\t\t\t\t\tbias-pull-down;\n\t\t\t\t};"
+    }
+  },
+  "firmware_images": {
+    "True": {
+      "config_OPLUS_SM8150R_CHARGER": true,
+      "symbol": "Stm8s_fw_data_4400_svooc_5000MA",
+      "source_line": 4606,
+      "format": "STM8S record stream: LE16 flash address then 32 data bytes",
+      "bytes": 6460,
+      "records": 190,
+      "first_address": "0x8800",
+      "last_address": "0x9fe0",
+      "gaps": [
+        {
+          "after": "0x9f80",
+          "before": "0x9fe0",
+          "unrepresented_bytes": 64
+        }
+      ],
+      "firmware_version": 24,
+      "version_offset": 6456,
+      "sha256": "aa14367c829c32f9be333e23fc1f645da9e97c832b932030d64637e421ccd976",
+      "tail32_hex": "ffffffffffffffffffffffffffffffffffffffffffffffffffffff0018345534",
+      "checksum": "no checksum/authentication algorithm established by this parser",
+      "running_mcu_version_known": false
+    },
+    "False": {
+      "config_OPLUS_SM8150R_CHARGER": false,
+      "symbol": "Stm8s_fw_data_4400_svooc_5000MA",
+      "source_line": 4801,
+      "format": "STM8S record stream: LE16 flash address then 32 data bytes",
+      "bytes": 6460,
+      "records": 190,
+      "first_address": "0x8800",
+      "last_address": "0x9fe0",
+      "gaps": [
+        {
+          "after": "0x9f80",
+          "before": "0x9fe0",
+          "unrepresented_bytes": 64
+        }
+      ],
+      "firmware_version": 60,
+      "version_offset": 6456,
+      "sha256": "8fe4c61b2b7ce600e149d65d7db08e6a5649d163371c993665a9c9c9e9ca2dd1",
+      "tail32_hex": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffff3c345534",
+      "checksum": "no checksum/authentication algorithm established by this parser",
+      "running_mcu_version_known": false
+    }
+  },
+  "branch_evidence": {
+    "config": "CONFIG_OPLUS_SM8150R_CHARGER=y",
+    "source": "/mnt/e/edk2-samurai-out/kernel83/cyborgdc2000--kernel_realme_sm8150--arch--arm64--configs--samurai_defconfig",
+    "sha256": "4fc94fe18900ca7507d6e88e0a3c40f18857c44785ea7f8f288468faea55fc18",
+    "scope": "cached third-party samurai build configuration and previous source audit; not an acquired official production .config or MCU version"
+  },
+  "firmware_update_newmethod_present": false,
+  "gpio_ID_properties_present": [],
+  "live_configuration_read": false,
+  "phone_accessed": false,
+  "ssh_executed": false,
+  "sdk_invoked": false
+}

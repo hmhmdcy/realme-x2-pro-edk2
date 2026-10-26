@@ -1,0 +1,81 @@
+{
+  "schema": "samurai-dwc-suspend-retry-independent-review-v1",
+  "passed": true,
+  "frozen": true,
+  "conclusion": "accepted within the hardware-snapshot retry-gate scope; no new blocking finding",
+  "findings": [],
+  "author_delivery_sha256": "d38c5b953a843da73c17e3f583168075b6fafe03ed0af976740ef19016a8f1e1",
+  "checked_frozen_files": 17,
+  "source_bindings": {
+    "old": "aabfc928ca916d5b40492996153a03c08b837dcbb1d0c07091f23a35c2debfe2",
+    "new": "1f47ecbd54f931ccd1068b23c4e171864966f652cdf85986f89e151f386cf354",
+    "core": "5331ae946cde894e2da484df5b8fbc6d386d117a60ad0e3dac5a1ebaaec6a17f",
+    "header": "9a8dc48a1283db17b6a0cad01f0bc43ff916cfa7dc3a11b680c2145984f97a67"
+  },
+  "independent_readonly_assertions": {
+    "exactly_one_function_changed": "dwc3_gadget_suspend",
+    "full_source_exact_after_replacing_only_changed_function": true,
+    "original_stop_and_reconnect_tail_byte_identical": true,
+    "active_false_pullup_requires_HALT_and_RUN_STOP_clear": true,
+    "runtime_suspended_skips_new_MMIO": true,
+    "short_spin_section_has_no_new_write_sleep_IRQ_join_or_reconnect": true,
+    "DEVICE_and_OTG_error_exit_keeps_core_active_and_restores_SUSPHY": true,
+    "actual_extracted_function_count": 11,
+    "actual_extracted_function_sha256": {
+      "dwc3_gadget_run_stop": "2c8a6e402daa419776a6d21ca5d68a8e08f471b611e0dfc727f5fee845989116",
+      "dwc3_gadget_disable_irq": "60f2342329c4226611f574bebd33b0e25d6507eb0da7f5818f344662192488f7",
+      "__dwc3_gadget_ep_disable": "dcd769f39e45d4b53157dbdd96c7f640776b4092811e570b79441ac415ee054c",
+      "__dwc3_gadget_stop": "252fd4609a85b98ead40d3caab27936c293f692b22f00761a53d196feb87b7d3",
+      "dwc3_gadget_soft_disconnect": "28f170460736f828fa5ce4915daa107f5b09bf56745931671a60afea02dbd144",
+      "dwc3_gadget_suspend": "21e34ff999fe4df4c220ab9f5626ae85ea2d47236f69e04de1d3e845cdbb8bfb",
+      "dwc3_enable_susphy": "43efeaec26d82f0a36e9ec4433f3c12d9c6ebd7a7b7c3bc636cd9bc03a0d49a2",
+      "dwc3_suspend_common": "29fddaec272528c7641da1d35aba77b5701688811a4f52f48d3ab78cbbeb88b7",
+      "dwc3_runtime_checks": "f9732feda0df1600a93cdd224ea5db184183e137a46171d4e1e773363a449a0f",
+      "dwc3_runtime_suspend": "4c77eb41a9a8a5408f440a55079e9c103e9ded103c88ad37585e6c20d1b8587c",
+      "dwc3_pm_suspend": "e0589c95aec0e7ac0a52a87558f130e66c9fbcc9e3ce0882e1c54067e159d9dd"
+    },
+    "exact_extraction_compared_preserving_actual_CRLF": true,
+    "old_retry_failure_and_post_snapshot_counterexample_present": true
+  },
+  "author_validation_reused": {
+    "new_cases": 15,
+    "compile_pid": 744,
+    "fixture_pid": 806,
+    "terminal_returncodes": [
+      0,
+      0
+    ],
+    "test_result_sha256": "79d83a51fee1d24e98a14bd77b538865c58838093279c43b82f0cc59f99f4d17",
+    "fake_boundaries": [
+      "MMIO",
+      "DMA/request ownership",
+      "IRQ/PM",
+      "reconnect",
+      "modeled producer interleaving"
+    ],
+    "physical_HALT_or_Linux_scheduling_proven": false
+  },
+  "author_private_object_receipt_reused": {
+    "build_result_sha256": "ea5606a1850fb327c90f74537a25bdb0a1ef2729034b9e16d62d2148b57bfef5",
+    "object_sha256": "a199defc16318131c5abe1d7baf434f9943a1f252d4abbb4c7f434ba96c404e2",
+    "object_bytes": 466720,
+    "pid": 847,
+    "terminal": true,
+    "returncode": 0,
+    "W1_Werror_no_diagnostics": true,
+    "tracked_source_and_config_inputs_equal_before_after": true,
+    "parent_mounts_restored": true,
+    "object_bytes_independently_rehashed": false
+  },
+  "limitations": [
+    "Snapshot is not serialization of all RUN_STOP/pullup writers through core_exit",
+    "An explicit modeled producer after the snapshot still reaches unsafe_exit; not a safety pass",
+    "Original first-failure/true-intent reconnect policy and its limitations remain",
+    "No complete powered-resume unwind, request/DMA ownership or asynchronous PM lifecycle proof",
+    "No Image link/deployment or physical USB/IRQ/icon-latency acceptance"
+  ],
+  "author_or_old_tests_executed": false,
+  "author_generators_or_builds_executed": false,
+  "device_SSH_USB_PM_storage_SDK_Git_used": false,
+  "author_files_changed": false
+}

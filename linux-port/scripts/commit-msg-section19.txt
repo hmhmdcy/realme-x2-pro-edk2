@@ -1,0 +1,11 @@
+docs: handover - the kernel command line is now a LoadOptions
+
+Section 19: why the EFI command line is not optional (the arm64 EFI stub
+replaces /chosen/bootargs with any non-empty EFI command line), why it has to
+be UTF-16 (an ASCII buffer is decoded into garbage and then replaces the real
+bootargs), what changed in PlatformBm.c, the offline evidence, the new
+scripts, and the hardware step that is still pending because the phone was not
+connected during this session.
+
+Also flag that linux-port/ itself is still unversioned and only exists on the
+Windows side, which is the next reproducibility gap.

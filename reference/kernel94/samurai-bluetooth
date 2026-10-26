@@ -1,0 +1,29 @@
+#!/bin/sh
+# Load the same UART driver after the Wi-Fi bootstrap has settled.
+# This service registers the controller; it does not choose an identity,
+# enable discovery, pair, or connect to any peer.
+set -eu
+umask 077
+base=/run/samurai-bluetooth
+mkdir -p "$base"
+case "${1:-}" in
+    start)
+        for attempt in $(seq 1 180); do
+            [ -e /run/samurai-wifi/ready ] && break
+            sleep 1
+        done
+        test -e /run/samurai-wifi/ready
+        [ "$(cat /sys/class/remoteproc/remoteproc0/state)" = running ]
+        echo "WIFI_DEPENDENCY_READY uptime=$(cut -d ' ' -f1 /proc/uptime)"
+        /sbin/insmod /lib/modules/samurai/btbcm.ko
+        /sbin/insmod /lib/modules/samurai/btqca.ko
+        /sbin/insmod /lib/modules/samurai/hci_uart.ko
+        for attempt in $(seq 1 30); do
+            test -d /sys/class/bluetooth/hci0 && break
+            sleep 1
+        done
+        test -d /sys/class/bluetooth/hci0
+        echo "BT_DRIVER_REGISTERED uptime=$(cut -d ' ' -f1 /proc/uptime)"
+        ;;
+    *) echo 'Use start' >&2; exit 2 ;;
+esac

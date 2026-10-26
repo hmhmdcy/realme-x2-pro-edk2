@@ -1,0 +1,90 @@
+--- frozen-observer/build-ko.py
++++ observed-2719-profile/build-ko.py
+@@ -4,15 +4,15 @@
+ sys.dont_write_bytecode=True
+ if sys.flags.optimize:raise RuntimeError('Non-optimized Python required')
+ HERE=Path(__file__).resolve().parent;REF=HERE.parents[1]
+-AUTHOR=HERE.parent/'protection-query-observer-candidate'
++AUTHOR=HERE.parent/'protection-observed-2719-profile-candidate'
+ IMAGE=REF/'charging-ui-audit-20261023/gauge-image502-notify-candidate'
+ REUSE=REF/'charging-ui-audit-20261023/usb-input-irq-board-candidate'
+ BASE=Path('/home/cy122/charging-management-20261023/gauge-image502-notify-01')
+-OUT=Path('/home/cy122/charging-management-20261023/protection-query-observer-module-01')
+-EXPORT=Path('/mnt/e/edk2-samurai-out/charging-management-20261023/protection-query-observer-module-private-01')
+-NAMES={'samurai-gauge-protection.c':'3e1e81a341a5df072cde2c57ec7505096c192e7b873cfbb2720375ae7f9b8f6d',
+- 'gauge-i2c.h':'8846d20648dc0b137a2608be9a7ed479ecd692b17db6875a2a18a2d046d7c8b2',
+- 'gauge-protocol.h':'98148c0701d000c21c7a9be60d0d14e412887f90fc1b83d0a3de8168359c28df'}
++OUT=Path('/home/cy122/charging-management-20261023/protection-observed-2719-profile-module-01')
++EXPORT=Path('/mnt/e/edk2-samurai-out/charging-management-20261023/protection-observed-2719-profile-module-private-01')
++NAMES={'samurai-gauge-protection.c':'3078c62fdb7ef9f2aefbce3bac64be508b66fb0734fbcac7edcbd95bebbe1015',
++ 'gauge-i2c.h':'a47a031b66bea9c10d00a0dec271a2d21cb0497ef8e28285642f3115bb48803d',
++ 'gauge-protocol.h':'080f1d621886c3772f5b0b83ec4e5b4150c0e37007dd8fce707594882ff83e02'}
+ def sha(path):
+  with Path(path).open('rb') as stream:return hashlib.file_digest(stream,'sha256').hexdigest()
+ def save(path,obj):
+@@ -34,11 +34,11 @@
+ def main():
+  assert sys.argv[1:]==['--execute'] and os.geteuid()==0
+  assert not OUT.exists() and not EXPORT.exists() and not (HERE/'ko-result.json').exists(),'unique output exists; inspect same original handle, never replay'
+- assert sha(AUTHOR/'delivery.json')=='907fc1245576eee21b3d5231c25359f6d101e1f537ea8ff423ee21139392a304'
++ assert sha(AUTHOR/'delivery.json')=='45467c6084d04e2149614477595781fe0a329d10fd9cb9d0b61d44ec84d2a509'
+  author=json.loads((AUTHOR/'delivery.json').read_bytes())
+  for name,row in author['files'].items():assert sha(AUTHOR/name)==row['sha256']
+  for name,digest in NAMES.items():assert sha(AUTHOR/name)==digest
+- assert sha(AUTHOR/'test-result.json')=='6ed3a351b01b1bf2b75586348b3a87aca62ec0170a86aa30ee62a1baac721033'
++ assert sha(AUTHOR/'test-result.json')=='6a9a7ec194b67158af16e04a5c12a7ea6aa0ca4a0da098d03afca568018f39fc'
+  assert sha(REUSE/'build-ko.py')=='7b69accb526573ad0419ec115f747844e8ac1da3941b9dc7c4ec68bad2656574'
+  previous=json.loads((REUSE/'ko-result.json').read_bytes());assert previous['passed'] and previous['actual_config_values_exact_Image502']
+  assert sha(IMAGE/'build-result.json')=='feb6fd2e8ef8ca380f48a6f8f88b131646a874fa1d8660c3bde83a38ec8940e6'
+@@ -48,7 +48,7 @@
+  helper=REF/'kernel284/storage.py';assert sha(helper)=='5cddb34d1c6db70a8a2d1df18bf753a9f6759714fa8c0bfa8b5a2952c5a7d42c'
+  backing=Path('/mnt/e/edk2-samurai-out/kernel282/full-kernel-build282.ext4')
+  assert not backing.is_symlink() and stat.S_ISREG(backing.stat().st_mode) and backing.stat().st_size==32*1024**3
+- spec=importlib.util.spec_from_file_location('protection_module_original_storage284',helper)
++ spec=importlib.util.spec_from_file_location('protection_profile_original_storage284',helper)
+  storage=importlib.util.module_from_spec(spec);spec.loader.exec_module(storage)
+  shared=storage.mounted_build();assert shared==Path('/mnt/samurai-full282/build')
+  assert sha(BASE/'build/.config')=='23e088a90736bbbc442c672d82b35c11bf04f7dc489f1c6afb1b03dc0d8f30ed'
+@@ -67,7 +67,8 @@
+  before={str(path):sha(path) for path in tracked}
+  OUT.mkdir(mode=0o700);source,build=OUT/'source-view',OUT/'kbuild';commands=[];phases=[]
+  result={'passed':False,'private_output':str(OUT),'sources':NAMES,'source_delivery_sha256':sha(AUTHOR/'delivery.json'),
+-  'old21_and_codec149_reused_not_rerun':True,'original284_helper_sha256':sha(helper),'Image502_build_receipt_sha256':sha(IMAGE/'build-result.json'),
++  'old21_and_codec149_reused_not_rerun':True,'profile11_and_parser18_reused_not_rerun':True,
++  'default_observed_2719_diagnostic':False,'ordinary_Health_policy_unchanged':True,'new_query_or_attempt_created':False,'original284_helper_sha256':sha(helper),'Image502_build_receipt_sha256':sha(IMAGE/'build-result.json'),
+   'reused_USB_IRQ_builder_sha256':sha(REUSE/'build-ko.py'),'before':before,'device_SSH_USB_SDK_Git':False,
+   'installed_or_loaded':False,'new_Image_built':False,'new_anchor_or_unmount':False,'builder_sha256':sha(Path(__file__))}
+  try:
+@@ -112,6 +113,7 @@
+   assert vermagic.split()[0]==release and run_output(['modinfo','-F','intree',str(ko)]).strip()=='Y'
+   assert run_output(['modinfo','-F','name',str(ko)]).strip()=='samurai_gauge_protection'
+   assert not run_output(['modinfo','-F','depends',str(ko)]).strip()
++  assert 'observed_2719_diagnostic:bool' in run_output(['modinfo','-F','parmtype',str(ko)]).splitlines()
+   assert 'AArch64' in run_output(['aarch64-linux-gnu-readelf','-h',str(ko)])
+   config=lambda p:{l.split('=',1)[0]:l.split('=',1)[1] for l in p.read_text().splitlines() if l.startswith('CONFIG_')}
+   assert config(build/'.config')==config(BASE/'build/.config') and sha(build/'.config')==sha(BASE/'build/.config')
+@@ -126,7 +128,7 @@
+   assert not strong-exported.keys(),sorted(strong-exported.keys())
+   imports={name:exported[name] for name in sorted(strong)};save(OUT/'Image502-import-map.json',imports)
+   module_note,build_id=note(ko.read_bytes());(OUT/'note.gnu.build-id').write_bytes(module_note)
+-  EXPORT.mkdir(mode=0o700);private_ko=EXPORT/'samurai-gauge-protection-observer-private.ko';shutil.copy2(ko,private_ko)
++  EXPORT.mkdir(mode=0o700);private_ko=EXPORT/'samurai-gauge-protection-observed-2719-private.ko';shutil.copy2(ko,private_ko)
+   assert sha(private_ko)==sha(ko)
+   shutil.copy2(OUT/'note.gnu.build-id',EXPORT/'note.gnu.build-id')
+   for name,digest in NAMES.items():assert sha(supply/name)==digest
+@@ -145,4 +147,14 @@
+   result['passed']=result['passed'] and before==after;save(OUT/'ko-result.json',result);save(HERE/'ko-result.json',result)
+   print(json.dumps({k:result.get(k) for k in ['passed','module_sha256','module_bytes','module_note_sha256','strong_import_count','tracked_inputs_unchanged','error']}),flush=True)
+  return 0 if result['passed'] else 1
+-if __name__=='__main__':raise SystemExit(main())
++if __name__=='__main__':
++ if sys.argv[1:]==['--execute']:raise SystemExit(main())
++ assert not sys.argv[1:],'only explicit --execute; default source check'
++ assert sha(AUTHOR/'delivery.json')=='45467c6084d04e2149614477595781fe0a329d10fd9cb9d0b61d44ec84d2a509'
++ author=json.loads((AUTHOR/'delivery.json').read_bytes())
++ for name,row in author['files'].items():assert sha(AUTHOR/name)==row['sha256']
++ for name,digest in NAMES.items():assert sha(AUTHOR/name)==digest
++ source=(AUTHOR/'samurai-gauge-protection.c').read_text()
++ assert 'static bool observed_2719_diagnostic;' in source and 'module_param(observed_2719_diagnostic, bool, 0444);' in source
++ print(json.dumps({'passed':True,'source_only':True,'default_profile':False,'storage_or_build_accessed':False,'device_accessed':False,'actual_output_created':False}))
++

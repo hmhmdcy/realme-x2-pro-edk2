@@ -1,0 +1,754 @@
+[    0.000000] Booting Linux on physical CPU 0x0000000000 [0x51df805e]
+[    0.000000] Linux version 7.3.0-rc6-rmx1931-samurai+ (cy122@DESKTOP-A0HU3DG) (aarch64-linux-gnu-gcc (Ubuntu 15.2.0-16ubuntu1) 15.2.0, GNU ld (GNU Binutils for Ubuntu) 2.46) #76 SMP PREEMPT Sat Oct 10 15:50:46 CST 2026
+[    0.000000] KASLR disabled due to lack of seed
+[    0.000000] Machine model: Realme X2 Pro (RMX1931CN)
+[    0.000000] earlycon: eud0 MMIO:0x00000000088e0000 (options '')
+[    0.000000] printk: legacy bootconsole [eud0] enabled
+[    0.000000] printk: debug: ignoring loglevel setting.
+[    0.000000] efi: EFI v2.7 by Renegade Project
+[    0.000000] efi: ACPI 2.0=0x13cfd0018 SMBIOS=0xfffe0000 SMBIOS 3.0=0x13fee0000 MEMRESERVE=0x13ce00f18 
+[    0.000000] OF: reserved mem: 0x0000000085700000..0x0000000085cfffff (6144 KiB) nomap non-reusable memory@85700000
+[    0.000000] OF: reserved mem: 0x0000000085f20000..0x0000000085f3ffff (128 KiB) nomap non-reusable memory@85f20000
+[    0.000000] OF: reserved mem: 0x0000000086000000..0x00000000861fffff (2048 KiB) nomap non-reusable memory@86000000
+[    0.000000] OF: reserved mem: 0x0000000086200000..0x000000008d6fffff (119808 KiB) nomap non-reusable memory@86200000
+[    0.000000] OF: reserved mem: 0x0000000085e00000..0x0000000085f1ffff (1152 KiB) nomap non-reusable memory@85e00000
+[    0.000000] OF: reserved mem: 0x000000008dc00000..0x0000000097bfffff (163840 KiB) nomap non-reusable memory@8dc00000
+[    0.000000] OF: reserved mem: 0x0000000097c00000..0x00000000980fffff (5120 KiB) nomap non-reusable memory@97c00000
+[    0.000000] OF: reserved mem: 0x0000000098100000..0x00000000994fffff (20480 KiB) nomap non-reusable memory@98100000
+[    0.000000] OF: reserved mem: 0x0000000099500000..0x000000009950ffff (64 KiB) nomap non-reusable memory@99500000
+[    0.000000] OF: reserved mem: 0x0000000099510000..0x0000000099514fff (20 KiB) nomap non-reusable memory@99510000
+[    0.000000] OF: reserved mem: 0x0000000099515000..0x0000000099516fff (8 KiB) nomap non-reusable memory@99515000
+[    0.000000] OF: reserved mem: 0x0000000099600000..0x00000000996fffff (1024 KiB) nomap non-reusable memory@99600000
+[    0.000000] OF: reserved mem: 0x0000000099700000..0x000000009aafffff (20480 KiB) nomap non-reusable memory@99700000
+[    0.000000] OF: reserved mem: 0x000000009ab00000..0x000000009affffff (5120 KiB) nomap non-reusable memory@9ab00000
+[    0.000000] OF: reserved mem: 0x000000009b000000..0x000000009b17ffff (1536 KiB) nomap non-reusable memory@9b000000
+[    0.000000] OF: reserved mem: 0x000000009b180000..0x000000009b1fffff (512 KiB) nomap non-reusable memory@9b180000
+[    0.000000] OF: reserved mem: 0x000000009b200000..0x000000009cffffff (30720 KiB) nomap non-reusable memory@9b200000
+[    0.000000] OF: reserved mem: 0x000000009d000000..0x000000009f3fffff (36864 KiB) map non-reusable memory@9d000000
+[    0.000000] OF: reserved mem: 0x00000000a0000000..0x00000000a13fffff (20480 KiB) nomap non-reusable memory@a0000000
+[    0.000000] OF: reserved mem: 0x00000000a4c00000..0x00000000a57fffff (12288 KiB) nomap non-reusable memory@a4c00000
+[    0.000000] OF: reserved mem: 0x00000000b7e00000..0x00000000b81fffff (4096 KiB) map non-reusable ramoops@b7e00000
+[    0.000000] NUMA: Faking a node at [mem 0x0000000080000000-0x000000027fffffff]
+[    0.000000] NODE_DATA(0) allocated [mem 0x27f1401c0-0x27f1428bf]
+[    0.000000] cma: Reserved 32 MiB at 0x00000000fde00000
+[    0.000000] psci: probing for conduit method from DT.
+[    0.000000] psci: PSCIv1.1 detected in firmware.
+[    0.000000] psci: Using standard PSCI v0.2 function IDs
+[    0.000000] psci: MIGRATE_INFO_TYPE not supported.
+[    0.000000] psci: SMC Calling Convention v1.1
+[    0.000000] psci: OSI mode supported.
+[    0.000000] psci: [Firmware Bug]: failed to set PC mode: -3
+[    0.000000] Zone ranges:
+[    0.000000]   DMA      [mem 0x0000000080000000-0x00000000ffffffff]
+[    0.000000]   DMA32    empty
+[    0.000000]   Normal   [mem 0x0000000100000000-0x000000027fffffff]
+[    0.000000] Movable zone start for each node
+[    0.000000] Early memory node ranges
+[    0.000000]   node   0: [mem 0x0000000080000000-0x00000000829fffff]
+[    0.000000]   node   0: [mem 0x0000000083722000-0x00000000856fffff]
+[    0.000000]   node   0: [mem 0x0000000085700000-0x0000000085f4ffff]
+[    0.000000]   node   0: [mem 0x0000000085f50000-0x0000000085ffffff]
+[    0.000000]   node   0: [mem 0x0000000086000000-0x00000000879fffff]
+[    0.000000]   node   0: [mem 0x0000000089b00000-0x000000009f7fffff]
+[    0.000000]   node   0: [mem 0x000000009f800000-0x000000009ff8ffff]
+[    0.000000]   node   0: [mem 0x000000009ff90000-0x000000009ffaffff]
+[    0.000000]   node   0: [mem 0x000000009ffb0000-0x000000009ffcffff]
+[    0.000000]   node   0: [mem 0x000000009ffd0000-0x00000000bbafffff]
+[    0.000000]   node   0: [mem 0x00000000c0000000-0x00000000fffcffff]
+[    0.000000]   node   0: [mem 0x00000000fffd0000-0x00000000fffeffff]
+[    0.000000]   node   0: [mem 0x00000000ffff0000-0x000000013b01ffff]
+[    0.000000]   node   0: [mem 0x000000013b020000-0x000000013b7fffff]
+[    0.000000]   node   0: [mem 0x000000013b800000-0x000000013bf7afff]
+[    0.000000]   node   0: [mem 0x000000013bf7b000-0x000000013bfd7fff]
+[    0.000000]   node   0: [mem 0x000000013bfd8000-0x000000013c01ffff]
+[    0.000000]   node   0: [mem 0x000000013c020000-0x000000013c05ffff]
+[    0.000000]   node   0: [mem 0x000000013c060000-0x000000013cd4ffff]
+[    0.000000]   node   0: [mem 0x000000013cd50000-0x000000013cdfffff]
+[    0.000000]   node   0: [mem 0x000000013ce00000-0x000000013ce3ffff]
+[    0.000000]   node   0: [mem 0x000000013ce40000-0x000000013ce7ffff]
+[    0.000000]   node   0: [mem 0x000000013ce80000-0x000000013cecffff]
+[    0.000000]   node   0: [mem 0x000000013ced0000-0x000000013cfaffff]
+[    0.000000]   node   0: [mem 0x000000013cfb0000-0x000000013cffffff]
+[    0.000000]   node   0: [mem 0x000000013d000000-0x000000013d04ffff]
+[    0.000000]   node   0: [mem 0x000000013d050000-0x000000013fe1ffff]
+[    0.000000]   node   0: [mem 0x000000013fe20000-0x000000013feaffff]
+[    0.000000]   node   0: [mem 0x000000013feb0000-0x000000013fecffff]
+[    0.000000]   node   0: [mem 0x000000013fed0000-0x000000013ffdffff]
+[    0.000000]   node   0: [mem 0x000000013ffe0000-0x000000027fffffff]
+[    0.000000] Initmem setup node 0 [mem 0x0000000080000000-0x000000027fffffff]
+[    0.000000] On node 0, zone DMA: 3362 pages in unavailable ranges
+[    0.000000] On node 0, zone DMA: 8448 pages in unavailable ranges
+[    0.000000] On node 0, zone DMA: 17664 pages in unavailable ranges
+[    0.000000] percpu: Embedded 26 pages/cpu s67096 r8192 d31208 u106496
+[    0.000000] pcpu-alloc: s67096 r8192 d31208 u106496 alloc=26*4096
+[    0.000000] pcpu-alloc: [0] 0 [0] 1 [0] 2 [0] 3 [0] 4 [0] 5 [0] 6 [0] 7 
+[    0.000000] Detected VIPT I-cache on CPU0
+[    0.000000] CPU features: detected: GICv3 CPU interface
+[    0.000000] CPU features: detected: ARM errata 1165522, 1319367, or 1530923
+[    0.000000] alternatives: applying boot alternatives
+[    0.000000] Kernel command line: earlycon=eud,mmio,0x88e0000 console=tty0 console=eud loglevel=7 ignore_loglevel panic=15 clk_ignore_unused pd_ignore_unused regulator_ignore_unused
+[    0.000000] printk: log buffer data + meta data: 131072 + 458752 = 589824 bytes
+[    0.000000] Dentry cache hash table entries: 1048576 (order: 11, 8388608 bytes, linear)
+[    0.000000] Inode-cache hash table entries: 524288 (order: 10, 4194304 bytes, linear)
+[    0.000000] software IO TLB: area num 8.
+[    0.000000] software IO TLB: mapped [mem 0x00000000f9e00000-0x00000000fde00000] (64MB)
+[    0.000000] Fallback order for Node 0: 0 
+[    0.000000] Built 1 zonelists, mobility grouping on.  Total pages: 2067678
+[    0.000000] Policy zone: Normal
+[    0.000000] mem auto-init: stack:all(zero), heap alloc:off, heap free:off
+[    0.000000] SLUB: HWalign=64, Order=0-3, MinObjects=0, CPUs=8, Nodes=1
+[    0.000000] rcu: Preemptible hierarchical RCU implementation.
+[    0.000000] rcu: 	RCU event tracing is enabled.
+[    0.000000] rcu: 	RCU restricting CPUs from NR_CPUS=512 to nr_cpu_ids=8.
+[    0.000000] 	Trampoline variant of Tasks RCU enabled.
+[    0.000000] 	Tracing variant of Tasks RCU enabled.
+[    0.000000] rcu: RCU calculated value of scheduler-enlistment delay is 25 jiffies.
+[    0.000000] rcu: Adjusting geometry for rcu_fanout_leaf=16, nr_cpu_ids=8
+[    0.000000] RCU Tasks: Setting shift to 3 and lim to 1 rcu_task_cb_adjust=1 rcu_task_cpu_ids=8.
+[    0.000000] NR_IRQS: 64, nr_irqs: 64, preallocated irqs: 0
+[    0.000000] GICv3: 928 SPIs implemented
+[    0.000000] GICv3: 0 Extended SPIs implemented
+[    0.000000] Root IRQ handler: gic_handle_irq
+[    0.000000] GICv3: GICv3 features: 16 PPIs
+[    0.000000] GICv3: GICD_CTLR.DS=0, SCR_EL3.FIQ=1
+[    0.000000] GICv3: CPU0: found redistributor 0 region 0:0x0000000017a60000
+[    0.000000] ITS: No ITS available, not enabling LPIs
+[    0.000000] rcu: srcu_init: Setting srcu_struct sizes based on contention.
+[    0.000000] clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 7645041785100000 ns
+[    0.000000] arch_timer: cp15 timer running at 19.20MHz (virt).
+[    0.000000] clocksource: arch_sys_counter: mask: 0xffffffffffffff max_cycles: 0x46d987e47, max_idle_ns: 440795202767 ns
+[    0.000001] sched_clock: 56 bits at 19MHz, resolution 52ns, wraps every 4398046511078ns
+[    0.004230] Console: colour dummy device 80x25
+[    0.006446] printk: legacy console [tty0] enabled
+[    0.009546] Calibrating delay loop (skipped), value calculated using timer frequency.. 38.40 BogoMIPS (lpj=76800)
+[    0.014669] pid_max: default: 32768 minimum: 301
+[    0.056569] Mount-cache hash table entries: 16384 (order: 5, 131072 bytes, linear)
+[    0.126616] Mountpoint-cache hash table entries: 16384 (order: 5, 131072 bytes, linear)
+[    0.200314] VFS: Finished mounting rootfs on nullfs
+[    0.246618] rcu: Hierarchical SRCU implementation.
+[    0.291054] rcu: 	Max phase no-delay instances is 1000.
+[    0.339035] Timer migration: 1 hierarchy levels; 8 children per group; 1 crossnode level
+[    0.413076] Remapping and enabling EFI services.
+[    0.455022] smp: Bringing up secondary CPUs ...
+[    0.497585] Detected VIPT I-cache on CPU1
+[    0.497728] GICv3: CPU1: found redistributor 100 region 0:0x0000000017a80000
+[    0.497775] CPU1: Booted secondary processor 0x0000000100 [0x51df805e]
+[    0.498889] Detected VIPT I-cache on CPU2
+[    0.499019] GICv3: CPU2: found redistributor 200 region 0:0x0000000017aa0000
+[    0.499056] CPU2: Booted secondary processor 0x0000000200 [0x51df805e]
+[    0.500194] Detected VIPT I-cache on CPU3
+[    0.500317] GICv3: CPU3: found redistributor 300 region 0:0x0000000017ac0000
+[    0.500352] CPU3: Booted secondary processor 0x0000000300 [0x51df805e]
+[    0.502105] CPU features: detected: Spectre-v2
+[    0.502113] CPU features: detected: Spectre-v4
+[    0.502116] CPU features: detected: Spectre-BHB
+[    0.502117] CPU features: detected: Kernel page table isolation (KPTI)
+[    0.502119] CPU features: detected: ARM erratum 1418040
+[    0.502122] Detected PIPT I-cache on CPU4
+[    0.502171] GICv3: CPU4: found redistributor 400 region 0:0x0000000017ae0000
+[    0.502184] arch_timer: Enabling local workaround for ARM erratum 1418040
+[    0.502198] CPU4: Booted secondary processor 0x0000000400 [0x51df804e]
+[    0.503525] Detected PIPT I-cache on CPU5
+[    0.503582] GICv3: CPU5: found redistributor 500 region 0:0x0000000017b00000
+[    0.503594] arch_timer: Enabling local workaround for ARM erratum 1418040
+[    0.503608] CPU5: Booted secondary processor 0x0000000500 [0x51df804e]
+[    0.505049] Detected PIPT I-cache on CPU6
+[    0.505106] GICv3: CPU6: found redistributor 600 region 0:0x0000000017b20000
+[    0.505118] arch_timer: Enabling local workaround for ARM erratum 1418040
+[    0.505132] CPU6: Booted secondary processor 0x0000000600 [0x51df804e]
+[    0.507084] Detected PIPT I-cache on CPU7
+[    0.507135] GICv3: CPU7: found redistributor 700 region 0:0x0000000017b40000
+[    0.507147] arch_timer: Enabling local workaround for ARM erratum 1418040
+[    0.507161] CPU7: Booted secondary processor 0x0000000700 [0x51df804e]
+[    0.507210] smp: Brought up 1 node, 8 CPUs
+[    2.166780] SMP: Total of 8 processors activated.
+[    2.211004] CPU: All CPU(s) started at EL1
+[    2.249055] CPU features: detected: 32-bit EL0 Support
+[    2.296681] CPU features: detected: Data cache clean to the PoU not required for I/D coherence
+[    2.376320] CPU features: detected: Common not Private translations
+[    2.433745] CPU features: detected: CRC32 instructions
+[    2.481369] CPU features: detected: RCpc load-acquire (LDAPR)
+[    2.535191] CPU features: detected: LSE atomic instructions
+[    2.586212] CPU features: detected: Privileged Access Never
+[    2.637233] CPU features: detected: PMUv3
+[    2.675051] CPU features: detected: RAS Extension Support
+[    2.725676] CPU features: detected: XNX
+[    2.760751] alternatives: applying system-wide alternatives
+[    2.815667] CPU features: detected: Hardware dirty bit management on CPU4-7
+[    2.890835] Memory: 7073192K/8270712K available (14720K kernel code, 3894K rwdata, 9268K rodata, 3136K init, 552K bss, 1160240K reserved, 32768K cma-reserved)
+[    3.023827] devtmpfs: initialized
+[    3.059576] posixtimers hash table entries: 4096 (order: 4, 65536 bytes, linear)
+[    3.126852] futex hash table entries: 2048 (131072 bytes on 1 NUMA nodes, total 128 KiB, linear).
+[    3.209583] 24816 pages in range for non-PLT usage
+[    3.209585] 516336 pages in range for PLT usage
+[    3.254490] DMI: SMBIOS 3.3.0 present.
+[    3.330730] DMI: Realme X2 Pro/X2 Pro, BIOS edk2-msm 136157b Oct  7 2026
+[    3.391558] DMI: Memory slots populated: 1/1
+[    3.430790] NET: Registered PF_NETLINK/PF_ROUTE protocol family
+[    3.485308] DMA: preallocated 1024 KiB GFP_KERNEL pool for atomic allocations
+[    3.552000] DMA: preallocated 1024 KiB GFP_KERNEL|GFP_DMA pool for atomic allocations
+[    3.625037] audit: initializing netlink subsys (disabled)
+[    3.675738] audit: type=2000 audit(0.896:1): state=initialized audit_enabled=0 res=1
+[    3.676157] thermal_sys: Registered thermal governor 'step_wise'
+[    3.746180] thermal_sys: Registered thermal governor 'power_allocator'
+[    3.800624] cpuidle: using governor menu
+[    3.896334] hw-breakpoint: found 6 breakpoint and 4 watchpoint registers.
+[    3.959841] ASID allocator initialised with 32768 entries
+[    4.010862] Serial: AMBA PL011 UART driver
+[    4.049200] pstore: Using crash dump compression: deflate
+[    4.099825] printk: legacy console [ramoops-1] enabled
+[    4.147856] pstore: Registered ramoops as persistent store backend
+[    4.205076] ramoops: using 0x400000@0xb7e00000, ecc: 0
+[    4.253177] CPUidle PSCI: Initialized CPU PM domain topology using OSI mode
+[    4.319243] /soc@0/phy@1d87000: Fixed dependency cycle(s) with /soc@0/ufshc@1d84000
+[    4.389473] /soc@0/ufshc@1d84000: Fixed dependency cycle(s) with /soc@0/phy@1d87000
+[    4.459723] /soc@0/funnel@6041000: Fixed dependency cycle(s) with /soc@0/stm@6002000
+[    4.530163] /soc@0/stm@6002000: Fixed dependency cycle(s) with /soc@0/funnel@6041000
+[    4.600601] /soc@0/funnel@6045000: Fixed dependency cycle(s) with /soc@0/funnel@6041000
+[    4.674033] /soc@0/funnel@6041000: Fixed dependency cycle(s) with /soc@0/funnel@6045000
+[    4.747468] /soc@0/funnel@6045000: Fixed dependency cycle(s) with /soc@0/funnel@6042000
+[    4.820888] /soc@0/etf@6047000: Fixed dependency cycle(s) with /soc@0/funnel@6045000
+[    4.891308] /soc@0/replicator@6046000: Fixed dependency cycle(s) with /soc@0/etf@6047000
+[    4.964934] /soc@0/replicator@604a000: Fixed dependency cycle(s) with /soc@0/replicator@6046000
+[    5.044754] /soc@0/funnel@6b08000: Fixed dependency cycle(s) with /soc@0/replicator@604a000
+[    5.121374] /soc@0/etf@6b09000: Fixed dependency cycle(s) with /soc@0/funnel@6b08000
+[    5.191793] /soc@0/replicator@6b0a000: Fixed dependency cycle(s) with /soc@0/etf@6b09000
+[    5.265414] /soc@0/replicator@6b0a000: Fixed dependency cycle(s) with /soc@0/funnel@6042000
+[    5.342033] /soc@0/funnel@6042000: Fixed dependency cycle(s) with /soc@0/replicator@6b0a000
+[    5.418660] /soc@0/etf@6b09000: Fixed dependency cycle(s) with /soc@0/replicator@6b0a000
+[    5.492273] /soc@0/funnel@6b08000: Fixed dependency cycle(s) with /soc@0/etf@6b09000
+[    5.562687] /soc@0/replicator@604a000: Fixed dependency cycle(s) with /soc@0/funnel@6b08000
+[    5.639308] /soc@0/replicator@6046000: Fixed dependency cycle(s) with /soc@0/replicator@604a000
+[    5.719127] /soc@0/etf@6047000: Fixed dependency cycle(s) with /soc@0/replicator@6046000
+[    5.792741] /soc@0/funnel@6045000: Fixed dependency cycle(s) with /soc@0/etf@6047000
+[    5.863154] /soc@0/funnel@6042000: Fixed dependency cycle(s) with /soc@0/funnel@6045000
+[    5.936579] /soc@0/funnel@7810000: Fixed dependency cycle(s) with /soc@0/funnel@6043000
+[    6.009993] /soc@0/funnel@6043000: Fixed dependency cycle(s) with /soc@0/funnel@7810000
+[    6.083406] /soc@0/funnel@6045000: Fixed dependency cycle(s) with /soc@0/funnel@6043000
+[    6.156826] /soc@0/funnel@6043000: Fixed dependency cycle(s) with /soc@0/funnel@6045000
+[    6.230273] /soc@0/etr@6048000: Fixed dependency cycle(s) with /soc@0/replicator@6046000
+[    6.303887] /soc@0/replicator@6046000: Fixed dependency cycle(s) with /soc@0/etr@6048000
+[    6.377600] /soc@0/funnel@7800000: Fixed dependency cycle(s) with /soc@0/etm@7040000
+[    6.448028] /soc@0/etm@7040000: Fixed dependency cycle(s) with /soc@0/funnel@7800000
+[    6.518448] /soc@0/funnel@7800000: Fixed dependency cycle(s) with /soc@0/etm@7140000
+[    6.588868] /soc@0/etm@7140000: Fixed dependency cycle(s) with /soc@0/funnel@7800000
+[    6.659284] /soc@0/funnel@7800000: Fixed dependency cycle(s) with /soc@0/etm@7240000
+[    6.729708] /soc@0/etm@7240000: Fixed dependency cycle(s) with /soc@0/funnel@7800000
+[    6.800129] /soc@0/funnel@7800000: Fixed dependency cycle(s) with /soc@0/etm@7340000
+[    6.870558] /soc@0/etm@7340000: Fixed dependency cycle(s) with /soc@0/funnel@7800000
+[    6.940977] /soc@0/funnel@7800000: Fixed dependency cycle(s) with /soc@0/etm@7440000
+[    7.011399] /soc@0/etm@7440000: Fixed dependency cycle(s) with /soc@0/funnel@7800000
+[    7.081819] /soc@0/funnel@7800000: Fixed dependency cycle(s) with /soc@0/etm@7540000
+[    7.152242] /soc@0/etm@7540000: Fixed dependency cycle(s) with /soc@0/funnel@7800000
+[    7.222660] /soc@0/funnel@7800000: Fixed dependency cycle(s) with /soc@0/etm@7640000
+[    7.293082] /soc@0/etm@7640000: Fixed dependency cycle(s) with /soc@0/funnel@7800000
+[    7.363496] /soc@0/funnel@7800000: Fixed dependency cycle(s) with /soc@0/etm@7740000
+[    7.433923] /soc@0/etm@7740000: Fixed dependency cycle(s) with /soc@0/funnel@7800000
+[    7.504343] /soc@0/funnel@7810000: Fixed dependency cycle(s) with /soc@0/funnel@7800000
+[    7.577769] /soc@0/funnel@7800000: Fixed dependency cycle(s) with /soc@0/funnel@7810000
+[    7.651205] /soc@0/usb@a6f8800/usb@a600000: Fixed dependency cycle(s) with /soc@0/phy@88e8000
+[    7.730622] /soc@0/phy@88e8000: Fixed dependency cycle(s) with /soc@0/usb@a6f8800/usb@a600000
+[    7.810054] /soc@0/display-subsystem@ae00000/dsi@ae94000: Fixed dependency cycle(s) with /soc@0/display-subsystem@ae00000/display-controller@ae01000
+[    7.931694] /soc@0/display-subsystem@ae00000/display-controller@ae01000: Fixed dependency cycle(s) with /soc@0/display-subsystem@ae00000/dsi@ae94000
+[    8.053323] /soc@0/display-subsystem@ae00000/dsi@ae94000/panel@0: Fixed dependency cycle(s) with /soc@0/display-subsystem@ae00000/dsi@ae94000
+[    8.171151] /soc@0/display-subsystem@ae00000/dsi@ae94000: Fixed dependency cycle(s) with /soc@0/display-subsystem@ae00000/dsi@ae94000/panel@0
+[    8.289011] /soc@0/clock-controller@af00000: Fixed dependency cycle(s) with /soc@0/display-subsystem@ae00000/phy@ae94400
+[    8.388236] /soc@0/display-subsystem@ae00000/phy@ae94400: Fixed dependency cycle(s) with /soc@0/clock-controller@af00000
+[    8.487477] /soc@0/interrupt-controller@17a00000: Fixed dependency cycle(s) with /soc@0/interrupt-controller@17a00000
+[    8.589249] /soc@0/display-subsystem@ae00000: Fixed dependency cycle(s) with /soc@0/clock-controller@af00000
+[    8.681947] /soc@0/rsc@18200000/regulators-0: Fixed dependency cycle(s) with /soc@0/rsc@18200000/regulators-0/smps5
+[    8.777788] /soc@0/rsc@18200000/regulators-0: Fixed dependency cycle(s) with /soc@0/rsc@18200000/regulators-0/smps6
+[    8.873666] /soc@0/rsc@18200000/regulators-1: Fixed dependency cycle(s) with /soc@0/rsc@18200000/regulators-1/bob
+[    8.969085] /soc@0/rsc@18200000/regulators-1: Fixed dependency cycle(s) with /soc@0/rsc@18200000/regulators-1/smps8
+[    9.065947] HugeTLB: registered 1.00 GiB page size, pre-allocated 0 pages
+[    9.129374] HugeTLB: 0 KiB vmemmap can be freed for a 1.00 GiB page
+[    9.186792] HugeTLB: registered 32.0 MiB page size, pre-allocated 0 pages
+[    9.250206] HugeTLB: 0 KiB vmemmap can be freed for a 32.0 MiB page
+[    9.307617] HugeTLB: registered 2.00 MiB page size, pre-allocated 0 pages
+[    9.371032] HugeTLB: 0 KiB vmemmap can be freed for a 2.00 MiB page
+[    9.428446] HugeTLB: registered 64.0 KiB page size, pre-allocated 0 pages
+[    9.491857] HugeTLB: 0 KiB vmemmap can be freed for a 64.0 KiB page
+[    9.551793] iommu: Default domain type: Translated
+[    9.596211] iommu: DMA domain TLB invalidation policy: strict mode
+[    9.653682] SCSI subsystem initialized
+[    9.688559] libata version 3.00 loaded.
+[    9.723662] usbcore: registered new interface driver usbfs
+[    9.774481] usbcore: registered new interface driver hub
+[    9.822504] usbcore: registered new device driver usb
+[    9.870019] pps_core: LinuxPPS API ver. 1 registered
+[    9.914830] pps_core: Software ver. 5.3.6 - Copyright 2005-2007 Rodolfo Giometti <giometti@linux.it>
+[    9.998050] PTP clock support registered
+[   10.033274] EDAC MC: Ver: 3.0.0
+[   10.061973] scmi_core: SCMI protocol bus registered
+[   10.106671] efivars: Registered efivars operations
+[   10.151124] qcom_scm firmware:scm: SHM Bridge not supported
+[   10.202158] qcom_scm: convention: smc arm 64
+[   10.240952] qcom_scm firmware:scm: qseecom: found qseecom with version 0x1400000
+[   10.308177] qcom_scm firmware:scm: qseecom: untested machine, skipping
+[   10.368963] FPGA manager framework
+[   10.400946] clocksource: Switched to clocksource arch_sys_counter
+[   10.458083] VFS: Disk quotas dquot_6.6.0
+[   10.493301] VFS: Dquot-cache hash table entries: 512 (4096 bytes)
+[   10.552849] NET: Registered PF_INET protocol family
+[   10.597544] IP idents hash table entries: 131072 (order: 8, 1048576 bytes, linear)
+[   10.668949] tcp_listen_portaddr_hash hash table entries: 4096 (order: 4, 65536 bytes, linear)
+[   10.748400] Table-perturb hash table entries: 65536 (order: 6, 262144 bytes, linear)
+[   10.818826] TCP established hash table entries: 65536 (order: 7, 524288 bytes, linear)
+[   10.892252] TCP bind hash table entries: 65536 (order: 9, 2097152 bytes, linear)
+[   10.960369] TCP: Hash tables configured (established 65536 bind 65536)
+[   11.020818] UDP hash table entries: 4096 (order: 6, 262144 bytes, linear)
+[   11.084405] NET: Registered PF_UNIX/PF_LOCAL protocol family
+[   11.135786] RPC: Registered named UNIX socket transport module.
+[   11.190007] RPC: Registered udp transport module.
+[   11.234216] RPC: Registered tcp transport module.
+[   11.278430] RPC: Registered tcp-with-tls transport module.
+[   11.329244] RPC: Registered tcp NFSv4.1 backchannel transport module.
+[   11.393027] kvm [1]: HYP mode not available
+[   11.431634] Initialise system trusted keyrings
+[   11.472991] workingset: timestamp_bits=42 (anon: 37) max_order=21 bucket_order=0 (anon: 0)
+[   11.549548] squashfs: version 4.0 (2009/01/31) Phillip Lougher
+[   11.603680] NFS: Registering the id_resolver key type
+[   11.651104] Key type id_resolver registered
+[   11.689313] Key type id_legacy registered
+[   11.727131] nfs4filelayout_init: NFSv4 File Layout Driver Registering...
+[   11.787950] nfs4flexfilelayout_init: NFSv4 Flexfile Layout Driver Registering...
+[   11.855333] Key type asymmetric registered
+[   11.893352] Asymmetric key parser 'x509' registered
+[   11.937978] Block layer SCSI generic (bsg) driver version 0.4 loaded (major 242)
+[   12.005196] io scheduler mq-deadline registered
+[   12.046606] io scheduler kyber registered
+[   12.084430] io scheduler bfq registered
+[   12.121204] ledtrig-cpu: registered to indicate activity on CPUs
+[   12.179373] qcom_eud_com 88e0000.serial: AHB2PHY TOP_CFG=00000011 original=00000000
+[   12.249653] 88e0000.serial: ttyEUD0 MMIO:0x00000000088e0000 (irq = 0, base_baud = 7200) is a EUD
+[   12.329801] qcom_eud_com 88e0000.serial: RX46 IRQ requested virq=20 hwirq=524 route=legacy-SPI492, deferred enable
+[   12.425443] printk: legacy console [eud0] enabled
+[   12.513902] printk: legacy bootconsole [eud0] disabled
+[   12.609170] qcom_eud_com 88e0000.serial: EUD COM ready: ttyEUD0, [0x90][1,3..14]=tty [2]=bootloader
+[   12.692224] Serial: 8250/16550 driver, 4 ports, IRQ sharing enabled
+[   12.750344] msm_serial: driver initialized
+[   12.788740] arm-smmu 2ca0000.iommu: probing hardware configuration...
+[   12.848962] arm-smmu 2ca0000.iommu: SMMUv2 with:
+[   12.890599] arm-smmu 2ca0000.iommu: 	stage 1 translation
+[   12.938627] arm-smmu 2ca0000.iommu: 	non-coherent table walk
+[   12.989846] arm-smmu 2ca0000.iommu: 	(IDR0.CTTW overridden by FW configuration)
+[   13.056865] arm-smmu 2ca0000.iommu: 	stream matching with 6 register groups
+[   13.120709] arm-smmu 2ca0000.iommu: 	5 context banks (0 stage-2 only)
+[   13.180955] arm-smmu 2ca0000.iommu: 	Supported page sizes: 0x61311000
+[   13.241186] arm-smmu 2ca0000.iommu: 	Stage-1: 48-bit VA -> 48-bit IPA
+[   13.301452] arm-smmu 2ca0000.iommu: 	preserved 0 boot mappings
+[   13.356266] platform 2c00000.gpu: Adding to iommu group 0
+[   13.407001] platform 2c6a000.gmu: Adding to iommu group 1
+[   13.458989] arm-smmu 15000000.iommu: probing hardware configuration...
+[   13.519419] arm-smmu 15000000.iommu: SMMUv2 with:
+[   13.563642] arm-smmu 15000000.iommu: 	stage 1 translation
+[   13.614277] arm-smmu 15000000.iommu: 	coherent table walk
+[   13.664900] arm-smmu 15000000.iommu: 	stream matching with 94 register groups
+[   13.731539] arm-smmu 15000000.iommu: 	56 context banks (0 stage-2 only)
+[   13.792696] arm-smmu 15000000.iommu: 	Supported page sizes: 0x61311000
+[   13.853120] arm-smmu 15000000.iommu: 	Stage-1: 48-bit VA -> 48-bit IPA
+[   13.913566] arm-smmu 15000000.iommu: 	preserved 0 boot mappings
+[   13.970212] platform ac0000.geniqup: Adding to iommu group 2
+[   14.021500] platform c00000.dma-controller: Adding to iommu group 3
+[   14.078985] platform cc0000.geniqup: Adding to iommu group 4
+[   14.130262] platform 1d84000.ufshc: Adding to iommu group 5
+[   14.181530] platform 1dc4000.dma-controller: Adding to iommu group 6
+[   14.239385] platform 1dfa000.crypto: Adding to iommu group 6
+[   14.290665] platform ae00000.display-subsystem: Adding to iommu group 7
+[   14.351948] amba 6048000.etr: Adding to iommu group 8
+[   14.402785] loop: module loaded
+[   14.432120] spmi_pmic_arb c440000.spmi: PMIC arbiter version v5 (0x50000000)
+[   14.502459] tun: Universal TUN/TAP device driver, 1.6
+[   14.550024] VFIO - User Level meta-driver version: 0.3
+[   14.598097] usbcore: registered new interface driver usb-storage
+[   14.658527] i2c_dev: i2c /dev entries driver
+[   14.697686] input: pm8941_pwrkey as /devices/platform/soc@0/c440000.spmi/spmi-0/0-00/c440000.spmi:pmic@0:pon@800/c440000.spmi:pmic@0:pon@800:pwrkey/input/input0
+[   14.832960] simple-framebuffer simple-framebuffer.0: [drm] could not acquire memory region [mem 0x9d000000-0x9d9e3fff flags 0x200]
+[   14.941682] [drm] Initialized simpledrm 1.0.0 for simple-framebuffer.0 on minor 0
+[   15.020730] Console: switching to colour frame buffer device 135x150
+[   15.083501] simple-framebuffer simple-framebuffer.0: [drm] fb0: simpledrmdrmfb frame buffer device
+[   15.166739] pstore: backend 'ramoops' already in use: ignoring 'efi_pstore'
+[   15.230799] clocksource: arch_mmio_counter: mask: 0xffffffffffffff max_cycles: 0x46d987e47, max_idle_ns: 440795202767 ns
+[   15.330094] arch-timer-mmio 17c20000.timer: mmio timer running at 19.20MHz (virt)
+[   15.400110] usbcore: registered new interface driver usbhid
+[   15.451168] usbhid: USB HID core driver
+[   15.487907] hw perfevents: enabled with armv8_pmuv3 PMU driver, 7 (0,8000003f) counters available
+[   15.576839] NET: Registered PF_INET6 protocol family
+[   15.622373] Segment Routing with IPv6
+[   15.657032] In-situ OAM (IOAM) with IPv6
+[   15.692287] NET: Registered PF_PACKET protocol family
+[   15.739756] Key type dns_resolver registered
+[   15.781337] registered taskstats version 1
+[   15.819469] Loading compiled-in X.509 certificates
+[   15.866695] Demotion targets for Node 0: null
+[   15.914795] cpu cpu0: EM: created perf domain
+[   15.962136] cpu cpu4: EM: created perf domain
+[   16.006039] cpu cpu7: EM: created perf domain
+[   16.051517] geni_i2c c80000.i2c: Bus frequency not specified, default to 100kHz.
+[   16.126494] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read VOLTAGE ret = -95
+[   16.129304] platform a600000.usb: Adding to iommu group 9
+[   16.203201] bob: Setting 3032000-3992000uV
+[   16.266102] input: gpio-keys as /devices/platform/gpio-keys/input/input1
+[   16.291850] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read VOLTAGE ret = -95
+[   16.353363] clk: Not disabling unused clocks
+[   16.429278] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read VOLTAGE ret = -95
+[   16.429559] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read ENABLE status ret = -95
+[   16.467695] PM: genpd: Not disabling unused power domains
+[   16.467726] Warning: unable to open an initial console.
+[   16.544306] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read initial mode for bob
+[   16.805117] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read VOLTAGE ret = -95
+[   16.882052] smps8: Setting 1352000-1352000uV
+[   16.920494] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read VOLTAGE ret = -95
+[   16.997169] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read VOLTAGE ret = -95
+[   17.073876] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read ENABLE status ret = -95
+[   17.156528] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read initial mode for smps8
+[   17.236596] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read VOLTAGE ret = -95
+[   17.313243] ldo1: Setting 1800000-1800000uV
+[   17.351472] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read VOLTAGE ret = -95
+[   17.428112] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read VOLTAGE ret = -95
+[   17.505413] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read ENABLE status ret = -95
+[   17.588115] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read initial mode for ldo1
+[   17.667998] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read VOLTAGE ret = -95
+[   17.744654] ldo2: Setting 1304000-1304000uV
+[   17.782890] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read VOLTAGE ret = -95
+[   17.859539] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read VOLTAGE ret = -95
+[   17.937238] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read ENABLE status ret = -95
+[   18.019950] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read initial mode for ldo2
+[   18.099822] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read VOLTAGE ret = -95
+[   18.176483] ldo3: Setting 1200000-1200000uV
+[   18.214717] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read VOLTAGE ret = -95
+[   18.291364] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read VOLTAGE ret = -95
+[   18.368648] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read ENABLE status ret = -95
+[   18.451352] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read initial mode for ldo3
+[   18.531215] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read VOLTAGE ret = -95
+[   18.607880] ldo4: Setting 1704000-2928000uV
+[   18.646123] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read VOLTAGE ret = -95
+[   18.722773] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read VOLTAGE ret = -95
+[   18.799681] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read ENABLE status ret = -95
+[   18.882333] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read initial mode for ldo4
+[   18.962197] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read VOLTAGE ret = -95
+[   19.038841] ldo5: Setting 1704000-2928000uV
+[   19.077076] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read VOLTAGE ret = -95
+[   19.153722] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read VOLTAGE ret = -95
+[   19.231002] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read ENABLE status ret = -95
+[   19.313694] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read initial mode for ldo5
+[   19.393564] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read VOLTAGE ret = -95
+[   19.470215] ldo6: Setting 1800000-2960000uV
+[   19.508448] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read VOLTAGE ret = -95
+[   19.572963] random: crng init done
+[   19.585067] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read VOLTAGE ret = -95
+[   19.693832] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read ENABLE status ret = -95
+[   19.776542] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read initial mode for ldo6
+[   19.856418] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read VOLTAGE ret = -95
+[   19.933065] ldo7: Setting 2856000-3104000uV
+[   19.971302] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read VOLTAGE ret = -95
+[   20.047951] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read VOLTAGE ret = -95
+[   20.125727] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read ENABLE status ret = -95
+[   20.208454] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read initial mode for ldo7
+[   20.288331] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read VOLTAGE ret = -95
+[   20.364978] ldo8: Setting 1800000-1800000uV
+[   20.403206] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read VOLTAGE ret = -95
+[   20.479846] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read VOLTAGE ret = -95
+[   20.557114] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read ENABLE status ret = -95
+[   20.639837] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read initial mode for ldo8
+[   20.719706] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read VOLTAGE ret = -95
+[   20.796362] ldo9: Setting 2704000-2960000uV
+[   20.834596] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read VOLTAGE ret = -95
+[   20.911242] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read VOLTAGE ret = -95
+[   20.988301] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read ENABLE status ret = -95
+[   21.070957] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read initial mode for ldo9
+[   21.150826] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read VOLTAGE ret = -95
+[   21.227473] ldo10: Setting 3000000-3312000uV
+[   21.265905] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read VOLTAGE ret = -95
+[   21.342619] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read VOLTAGE ret = -95
+[   21.419870] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read ENABLE status ret = -95
+[   21.502575] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read initial mode for ldo10
+[   21.582640] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read VOLTAGE ret = -95
+[   21.659309] ldo11: Setting 3000000-3312000uV
+[   21.697746] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read VOLTAGE ret = -95
+[   21.774395] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read VOLTAGE ret = -95
+[   21.851322] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read ENABLE status ret = -95
+[   21.933974] qcom-rpmh-regulator 18200000.rsc:regulators-1: failed to read initial mode for ldo11
+[   22.015050] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   22.015064] Freeing unused kernel memory: 3136K
+[   22.015201] qcom-rpmh-regulator 18200000.rsc:regulators-2: ldo2: could not find RPMh address for resource ldof2
+[   22.091681] smps5: Setting 1904000-2000000uV
+[   22.091683] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   22.091685] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   22.133133] Run /init as init process
+[   22.225772] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read ENABLE status ret = -95
+[   22.264135]   with arguments:
+[   22.264136]     /init
+[   22.340753] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read initial mode for smps5
+[   22.417373]   with environment:
+[   22.451996] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   22.534603]     HOME=/
+[   22.534604]     TERM=linux
+[   22.540177] 
+[   22.562821] smps6: Setting 920000-1128000uV
+[   22.584643] ==============================================
+[   22.664645] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   22.664647] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   22.664677] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read ENABLE status ret = -95
+[   22.693277]  rmx1931-mainline initramfs reached userspace
+[   22.769883] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read initial mode for smps6
+[   22.769894] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   22.791911] ==============================================
+[   22.817107] ldo1: Setting 752000-752000uV
+[   22.817108] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   22.817110] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   22.817240] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read ENABLE status ret = -95
+[   22.830902] [kernel] Linux version 7.3.0-rc6-rmx1931-samurai+ (cy122@DESKTOP-A0HU3DG) (aarch64-linux-gnu-gcc (Ubuntu 15.2.0-16ubuntu1) 15.2.0, GNU ld (GNU Binutils for Ubuntu) 2.46) #76 SMP PREEMPT Sat Oct 10 15:50:46 CST 2026
+[   22.868135] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read initial mode for ldo1
+[   22.868151] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   22.919849] [cmdline] earlycon=eud,mmio,0x88e0000 console=tty0 console=eud loglevel=7 ignore_loglevel panic=15 clk_ignore_unused pd_ignore_unused regulator_ignore_unused
+[   22.995567] ldo2: Setting 3072000-3072000uV
+[   22.995569] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   22.995570] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   22.995986] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read ENABLE status ret = -95
+[   23.072221] 
+[   23.154819] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read initial mode for ldo2
+[   23.154842] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   23.209240] [cpu] 8 processors
+[   23.285446] ldo3: Setting 480000-928000uV
+[   23.285447] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   23.285449] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   23.285857] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read ENABLE status ret = -95
+[   23.362967] 
+[   23.412911] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read initial mode for ldo3
+[   23.412934] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   23.450738] --- /proc/iomem (前 40 行) ---
+[   23.527345] ldo5: Setting 880000-880000uV
+[   23.615914] tail: write error: Invalid argument
+[   23.686578] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   23.686581] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   23.687086] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read ENABLE status ret = -95
+[   24.655958] [tty] wrote to /dev/ttyEUD0
+[   24.693809] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read initial mode for ldo5
+[   24.770491] [tty] shell started on /dev/ttyEUD0
+[   24.847082] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   25.726710] ldo6: Setting 1200000-1200000uV
+[   25.726740] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   25.726757] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   25.727143] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read ENABLE status ret = -95
+[   26.010294] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read initial mode for ldo6
+[   26.093700] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   26.172033] ldo7: Setting 1800000-1800000uV
+[   26.213534] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   26.293476] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   26.374747] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read ENABLE status ret = -95
+[   26.458916] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read initial mode for ldo7
+[   26.542176] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   26.623162] ldo9: Setting 1200000-1200000uV
+[   26.663395] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   26.744398] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   26.823308] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read ENABLE status ret = -95
+[   26.908814] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read initial mode for ldo9
+[   26.993119] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   27.071498] ldo10: Setting 2504000-2960000uV
+[   27.114358] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   27.192777] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   27.271586] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read ENABLE status ret = -95
+[   27.355310] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read initial mode for ldo10
+[   27.438214] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   27.520826] ldo11: Setting 800000-800000uV
+[   27.561288] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   27.639079] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   27.717429] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read ENABLE status ret = -95
+[   27.800889] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read initial mode for ldo11
+[   27.881973] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   27.961104] ldo12: Setting 1800000-1800000uV
+[   28.002609] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   28.080381] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   28.161144] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read ENABLE status ret = -95
+[   28.244938] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read initial mode for ldo12
+[   28.326556] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   28.404718] ldo13: Setting 2704000-2704000uV
+[   28.444389] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   28.524058] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   28.602339] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read ENABLE status ret = -95
+[   28.685816] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read initial mode for ldo13
+[   28.766874] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   28.845825] ldo14: Setting 1800000-1800000uV
+[   28.885413] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   28.965089] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   29.043221] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read ENABLE status ret = -95
+[   29.128933] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read initial mode for ldo14
+[   29.210215] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   29.288136] ldo15: Setting 1704000-1704000uV
+[   29.329614] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   29.407507] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   29.488242] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read ENABLE status ret = -95
+[   29.572140] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read initial mode for ldo15
+[   29.653902] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   29.732220] ldo16: Setting 2704000-2960000uV
+[   29.773637] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   29.851391] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   29.932131] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read ENABLE status ret = -95
+[   30.016941] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read initial mode for ldo16
+[   30.098253] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   30.176017] ldo17: Setting 3000000-3000000uV
+[   30.217460] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   30.295415] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read VOLTAGE ret = -95
+[   30.376046] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read ENABLE status ret = -95
+[   30.459639] qcom-rpmh-regulator 18200000.rsc:regulators-0: failed to read initial mode for ldo17
+[   30.542974] ufshcd-qcom 1d84000.ufshc: ufshcd_populate_vreg: Unable to find vdd-hba-supply regulator, assuming enabled
+[   30.669594] qcom-qmp-combo-phy 88e8000.phy: unable to determine orientation & mode from data-lanes
+[   30.753618] aux_bridge.aux_bridge aux_bridge.aux_bridge.0: error -ENODEV: failed to acquire drm_bridge
+[   30.947828] rmi4_i2c 0-0020: registering I2C-connected sensor
+[   31.205993] rmi4_f01 rmi4-00.fn01: found RMI device, manufacturer: Synaptics, product: S3706A, fw id: 3078696
+[   31.408800] input: Synaptics S3706A as /devices/platform/soc@0/cc0000.geniqup/c80000.i2c/i2c-0/0-0020/rmi4-00/input/input2
+[   31.600598] ufshcd-qcom 1d84000.ufshc: ufshcd_populate_vreg: Unable to find vdd-hba-supply regulator, assuming enabled
+[   31.618441] configfs-gadget.samurai gadget.0: HOST MAC 02:62:bc:28:a1:02
+[   31.700796] ufshcd-qcom 1d84000.ufshc: Found QC Inline Crypto Engine (ICE) v3.1.79
+[   31.760369] configfs-gadget.samurai gadget.0: MAC 02:62:bc:28:a1:01
+[   31.830430] ufshcd-qcom 1d84000.ufshc: A supported HWKM is not present. Supporting raw keys only.
+[   31.969246] [180] Jan 01 00:00:29 Running in background
+[   31.969505] [usb] CDC NCM usb0/169.254.42.1 with public-key SSH started
+[   32.027624] scsi host0: ufshcd
+[   32.177751] scsi 0:0:0:49488: Well-known LUN    SAMSUNG  KLUDG4UHDB-B2D1  0400 PQ: 0 ANSI: 6
+[   32.178511] msm_dpu ae01000.display-controller: bound ae94000.dsi (ops dsi_ops)
+[   32.263257] scsi 0:0:0:49476: Well-known LUN    SAMSUNG  KLUDG4UHDB-B2D1  0400 PQ: 0 ANSI: 6
+[   32.322538] adreno 2c00000.gpu: supply vdd not found, using dummy regulator
+[   32.404462] scsi 0:0:0:49456: Well-known LUN    SAMSUNG  KLUDG4UHDB-B2D1  0400 PQ: 0 ANSI: 6
+[   32.462440] adreno 2c00000.gpu: supply vddcx not found, using dummy regulator
+[   32.540322] scsi 0:0:0:0: Direct-Access     SAMSUNG  KLUDG4UHDB-B2D1  0400 PQ: 0 ANSI: 6
+[   32.609855] msm_dpu ae01000.display-controller: bound 2c00000.gpu (ops a3xx_ops)
+[   32.680400] scsi 0:0:0:1: Direct-Access     SAMSUNG  KLUDG4UHDB-B2D1  0400 PQ: 0 ANSI: 6
+[   32.681071] sd 0:0:0:0: [sda] 30860288 4096-byte logical blocks: (126 GB/118 GiB)
+[   32.681161] sd 0:0:0:0: [sda] Write Protect is off
+[   32.681171] sd 0:0:0:0: [sda] Mode Sense: 00 32 00 10
+[   32.681321] sd 0:0:0:0: [sda] Write cache: enabled, read cache: enabled, supports DPO and FUA
+[   32.681394] sd 0:0:0:0: [sda] Preferred minimum I/O size 524288 bytes
+[   32.681402] sd 0:0:0:0: [sda] Optimal transfer size 524288 bytes
+[   33.193738] scsi 0:0:0:2: Direct-Access     SAMSUNG  KLUDG4UHDB-B2D1  0400 PQ: 0 ANSI: 6
+[   33.193831] sd 0:0:0:1: [sdb] 1024 4096-byte logical blocks: (4.19 MB/4.00 MiB)
+[   33.268214] scsi 0:0:0:3: Direct-Access     SAMSUNG  KLUDG4UHDB-B2D1  0400 PQ: 0 ANSI: 6
+[   33.268384] sd 0:0:0:2: [sdc] 1024 4096-byte logical blocks: (4.19 MB/4.00 MiB)
+[   33.268455] sd 0:0:0:2: [sdc] Write Protect is off
+[   33.268464] sd 0:0:0:2: [sdc] Mode Sense: 00 32 00 10
+[   33.268591] sd 0:0:0:2: [sdc] Write cache: enabled, read cache: enabled, supports DPO and FUA
+[   33.268651] sd 0:0:0:2: [sdc] Preferred minimum I/O size 524288 bytes
+[   33.268658] sd 0:0:0:2: [sdc] Optimal transfer size 524288 bytes
+[   33.334967] sd 0:0:0:1: [sdb] Write Protect is off
+[   33.343041]  sda: sda1 sda2 sda3 sda4 sda5 sda6 sda7 sda8 sda9 sda10 sda11 sda12 sda13 sda14 sda15 sda16
+[   33.345342] sd 0:0:0:0: [sda] Attached SCSI disk
+[   33.408888] scsi 0:0:0:4: Direct-Access     SAMSUNG  KLUDG4UHDB-B2D1  0400 PQ: 0 ANSI: 6
+[   33.409871] sd 0:0:0:3: [sdd] 1024 4096-byte logical blocks: (4.19 MB/4.00 MiB)
+[   33.409987] sd 0:0:0:3: [sdd] Write Protect is off
+[   33.410000] sd 0:0:0:3: [sdd] Mode Sense: 00 32 00 10
+[   33.410397] sd 0:0:0:3: [sdd] Write cache: enabled, read cache: enabled, supports DPO and FUA
+[   33.410503] sd 0:0:0:3: [sdd] Preferred minimum I/O size 524288 bytes
+[   33.410516] sd 0:0:0:3: [sdd] Optimal transfer size 524288 bytes
+[   33.475477] sd 0:0:0:1: [sdb] Mode Sense: 00 32 00 10
+[   33.520400] scsi 0:0:0:5: Direct-Access     SAMSUNG  KLUDG4UHDB-B2D1  0400 PQ: 0 ANSI: 6
+[   33.520685] sd 0:0:0:4: [sde] 225280 4096-byte logical blocks: (923 MB/880 MiB)
+[   33.520756] sd 0:0:0:4: [sde] Write Protect is off
+[   33.520765] sd 0:0:0:4: [sde] Mode Sense: 00 32 00 10
+[   33.520903] sd 0:0:0:4: [sde] Write cache: enabled, read cache: enabled, supports DPO and FUA
+[   33.520979] sd 0:0:0:4: [sde] Preferred minimum I/O size 524288 bytes
+[   33.520986] sd 0:0:0:4: [sde] Optimal transfer size 524288 bytes
+[   33.567874] sd 0:0:0:1: [sdb] Write cache: enabled, read cache: enabled, supports DPO and FUA
+[   33.653962] sd 0:0:0:5: [sdf] 153600 4096-byte logical blocks: (629 MB/600 MiB)
+[   33.654931]  sdc:
+[   33.654981] sd 0:0:0:2: [sdc] Attached SCSI disk
+[   33.655301]  sdd: sdd1 sdd2 sdd3
+[   33.655663] sd 0:0:0:3: [sdd] Attached SCSI disk
+[   33.707146] sd 0:0:0:1: [sdb] Preferred minimum I/O size 524288 bytes
+[   33.715789]  sde: sde1 sde2 sde3 sde4 sde5 sde6 sde7 sde8 sde9 sde10 sde11 sde12 sde13 sde14 sde15 sde16 sde17 sde18 sde19 sde20 sde21 sde22 sde23 sde24 sde25 sde26 sde27 sde28 sde29 sde30 sde31 sde32 sde33 sde34 sde35 sde36 sde37 sde38 sde39 sde40
+[   33.720337] sd 0:0:0:4: [sde] Attached SCSI disk
+[   33.761176] sd 0:0:0:5: [sdf] Write Protect is off
+[   33.805412] sd 0:0:0:1: [sdb] Optimal transfer size 524288 bytes
+[   33.891822] sd 0:0:0:5: [sdf] Mode Sense: 00 32 00 10
+[   34.556710] eud: RX46 IRQ armed virq=20 active=1 mask=01 original=1c grace_ms=100
+[   34.558778] sd 0:0:0:5: [sdf] Write cache: enabled, read cache: enabled, supports DPO and FUA
+[   35.748903] Console: switching to colour dummy device 80x25
+[   35.750387] sd 0:0:0:5: [sdf] Preferred minimum I/O size 524288 bytes
+[   35.801896]  sdb: sdb1 sdb2
+[   35.860233] sd 0:0:0:5: [sdf] Optimal transfer size 524288 bytes
+[   35.940621] sd 0:0:0:1: [sdb] Attached SCSI disk
+[   35.943589] [drm:dpu_kms_hw_init:1173] dpu hardware revision:0x50000001
+[   35.984958]  sdf: sdf1 sdf2 sdf3 sdf4 sdf5 sdf6 sdf7 sdf8 sdf9 sdf10 sdf11 sdf12
+[   36.042970] boot INTF1: tearcheck=0x1 autorefresh=0x80000001 trigger=0x0 height=2400 line=0x7d4
+[   36.110927] sd 0:0:0:5: [sdf] Attached SCSI disk
+[   36.240107] boot INTF1 frame stalled: line=0x7d4 height=2400 out=0x0 count=0xffaa
+[   36.310002] boot INTF1 stopped: tearcheck=0x0 autorefresh=0x1 trigger=0x0
+[   36.373484] boot CTL0: top=0x20000 layers=0x100002d fetch=0x0 intf=0x2 dsc=0x3
+[   36.440396] boot CTL0 cleared: layer0=0x0 layer1=0x0 fetch=0x0
+[   36.494552] [drm:dpu_rm_clear_boot_config] boot stalled INTF mask=0x2 aborted, CTL outputs=0x2
+[   36.589824] [drm] Initialized msm 1.13.0 for ae01000.display-controller on minor 1
+[   36.659972] msm_dpu ae01000.display-controller: [drm:adreno_request_fw] loaded qcom/a630_sqe.fw from new location
+[   36.755490] msm_dpu ae01000.display-controller: [drm:adreno_request_fw] loaded qcom/a640_gmu.bin from new location
+[   36.852345] [drm] Loaded GMU firmware v2.0.261
+[   37.137233] panel-samsung-sofef03f ae94000.dsi.0: DSC 1080x2400@60, power mode 0x9c (stock 0x9c)
+[   37.137782] Console: switching to colour frame buffer device 135x150
+[   37.167828] dsi_err_worker: status=c
+[   37.265620] dsi_err_worker: status=c
+[   37.308741] msm_dpu ae01000.display-controller: [drm] fb0: msmdrmfb frame buffer device
+[   37.372980] dsi_err_worker: status=0
+[   37.478498] dsi_err_worker: status=0
+[   37.518527] dsi_err_worker: status=c
+[   37.573323] dsi_err_worker: status=0
+[   37.605421] dsi_err_worker: status=0
+[   37.637491] dsi_err_worker: status=0
+[   37.686630] dsi_err_worker: status=c
+[   37.741035] dsi_err_worker: status=0
+[   42.271776] dsi_err_worker: 22 callbacks suppressed
+[   42.271799] dsi_err_worker: status=c
+[   42.369860] dsi_err_worker: status=0
+[   42.406280] dsi_err_worker: status=c
+[   42.461704] dsi_err_worker: status=0
+[   42.506152] dsi_err_worker: status=c
+[   42.561701] dsi_err_worker: status=0
+[   42.605419] dsi_err_worker: status=c
+[   42.661715] dsi_err_worker: status=0
+[   42.705789] dsi_err_worker: status=c
+[   42.761077] dsi_err_worker: status=0
+[   46.780983] regulator: Not disabling unused regulators
+[   47.392390] dsi_err_worker: 24 callbacks suppressed
+[   47.392413] dsi_err_worker: status=c
+[   47.492990] dsi_err_worker: status=0
+[   47.542208] dsi_err_worker: status=c
+[   47.597684] dsi_err_worker: status=0
+[   47.643780] dsi_err_worker: status=c
+[   47.697022] dsi_err_worker: status=0
+[   47.743537] dsi_err_worker: status=c
+[   47.797722] dsi_err_worker: status=0
+[   47.830924] dsi_err_worker: status=c
+[   47.885348] dsi_err_worker: status=0
+[   52.496172] dsi_err_worker: 24 callbacks suppressed
+[   52.496195] dsi_err_worker: status=c
+[   52.597707] dsi_err_worker: status=0
+[   52.631109] dsi_err_worker: status=c
+[   52.685703] dsi_err_worker: status=0
+[   52.730599] dsi_err_worker: status=c
+[   52.785041] dsi_err_worker: status=0
+[   52.830146] dsi_err_worker: status=c
+[   52.885078] dsi_err_worker: status=0
+[   52.930127] dsi_err_worker: status=c
+[   52.985909] dsi_err_worker: status=0
+[   57.634144] dsi_err_worker: 24 callbacks suppressed
+[   57.634167] dsi_err_worker: status=c
+[   57.733989] dsi_err_worker: status=0
+[   57.784676] dsi_err_worker: status=c
+[   57.837031] dsi_err_worker: status=0
+[   57.869684] dsi_err_worker: status=c
+[   57.925849] dsi_err_worker: status=0
+[   57.968129] dsi_err_worker: status=c
+[   58.021141] dsi_err_worker: status=0
+[   58.068224] dsi_err_worker: status=c
+[   58.121647] dsi_err_worker: status=0
+[   62.755310] dsi_err_worker: 23 callbacks suppressed
+[   62.755334] dsi_err_worker: status=c
+[   62.854563] dsi_err_worker: status=0
+[   62.888517] dsi_err_worker: status=c
+[   62.941095] dsi_err_worker: status=0
+[   62.989000] dsi_err_worker: status=c
+[   63.045674] dsi_err_worker: status=0
+[   63.089995] dsi_err_worker: status=c
+[   63.145028] dsi_err_worker: status=0
+[   63.189258] dsi_err_worker: status=c
+[   63.245004] dsi_err_worker: status=0
+[   66.628882] [218] Jan 01 00:01:03 Child connection from 169.254.191.135:56557
+[   66.764632] [218] Jan 01 00:01:03 Pubkey auth succeeded for 'root' with ssh-ed25519 key SHA256:MJFUR9BsjAXOdjFL6zVatq+XtOT+d5F4fYQV0SkDUTs f
+[   66.764641] rom 169.254.191.135:56557

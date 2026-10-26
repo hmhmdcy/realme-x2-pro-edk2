@@ -1,0 +1,62 @@
+--- a/include/libcamera/internal/framebuffer.h
++++ b/include/libcamera/internal/framebuffer.h
+@@ -29,6 +29,8 @@
+ 
+ 	void setRequest(Request *request) { request_ = request; }
+ 	bool isContiguous() const { return isContiguous_; }
++	uint32_t kernelSequence() const { return kernelSequence_; }
++	void setKernelSequence(uint32_t sequence) { kernelSequence_ = sequence; }
+ 	bool timestampMonotonic() const { return timestampMonotonic_; }
+ 	void setTimestampMonotonic(bool monotonic) { timestampMonotonic_ = monotonic; }
+ 
+@@ -47,6 +49,7 @@
+ 	std::unique_ptr<Fence> fence_;
+ 	Request *request_;
+ 	bool isContiguous_;
++	uint32_t kernelSequence_ = 0;
+ 	bool timestampMonotonic_ = false;
+ };
+ 
+--- a/src/libcamera/v4l2_videodevice.cpp
++++ b/src/libcamera/v4l2_videodevice.cpp
+@@ -1896,6 +1896,8 @@
+ 			? FrameMetadata::FrameError
+ 			: FrameMetadata::FrameSuccess;
+ 	metadata.sequence = buf.sequence;
++	/* Keep the shared kernel frame identity across independently started queues. */
++	buffer->_d()->setKernelSequence(buf.sequence);
+ 	metadata.timestamp = buf.timestamp.tv_sec * 1000000000ULL
+ 			   + buf.timestamp.tv_usec * 1000ULL;
+ 	buffer->_d()->setTimestampMonotonic((buf.flags & V4L2_BUF_FLAG_TIMESTAMP_MASK) ==
+--- a/meson.build
++++ b/meson.build
+@@ -215,6 +215,7 @@
+ arch_arm = ['arm', 'aarch64']
+ arch_x86 = ['x86', 'x86_64']
+ pipelines_support = {
++    'camss-vfe':    arch_arm,
+     'imx8-isi':     arch_arm,
+     'ipu3':         arch_x86,
+     'mali-c55':     arch_arm,
+--- a/meson_options.txt
++++ b/meson_options.txt
+@@ -83,6 +83,7 @@
+         choices : [
+             'all',
+             'auto',
++            'camss-vfe',
+             'imx8-isi',
+             'ipu3',
+             'mali-c55',
+--- a/include/linux/videodev2.h
++++ b/include/linux/videodev2.h
+@@ -837,6 +837,9 @@
+ #define V4L2_TCH_FMT_TU08	v4l2_fourcc('T', 'U', '0', '8') /* 8-bit unsigned touch data */
+ 
+ /* Meta-data formats */
++/* Qualcomm ISP metadata, synchronized from the deployed kernel UAPI. */
++#define V4L2_META_FMT_QCOM_ISP_STATS	v4l2_fourcc('Q', 'C', 'I', 'S') /* Qualcomm CAMSS ISP Statistics */
++#define V4L2_META_FMT_QCOM_ISP_PARAMS	v4l2_fourcc('Q', 'C', 'I', 'P') /* Qualcomm CAMSS ISP Parameters */
+ #define V4L2_META_FMT_VSP1_HGO    v4l2_fourcc('V', 'S', 'P', 'H') /* R-Car VSP1 1-D Histogram */
+ #define V4L2_META_FMT_VSP1_HGT    v4l2_fourcc('V', 'S', 'P', 'T') /* R-Car VSP1 2-D Histogram */
+ #define V4L2_META_FMT_UVC         v4l2_fourcc('U', 'V', 'C', 'H') /* UVC Payload Header metadata */

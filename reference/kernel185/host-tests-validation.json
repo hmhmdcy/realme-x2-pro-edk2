@@ -1,0 +1,34 @@
+{
+  "actual_qca_receive_and_power_pulse_extracted": true,
+  "actual_h4_parser_extracted": true,
+  "asan_ubsan_passed": true,
+  "scenarios": "PASS cases=1049 allocations=1030 frees=1030",
+  "source_sha256": "645ded4980918a2d0a22dd2d56327bbc69c08e3689e9d313158f0d263e291d90",
+  "h4_parser_source_sha256": "841d77149606f61f36e6a9f1acf9035ec8c4add724da2878e48a417ff37374a2",
+  "partial_payload_padding_and_regular_mode_errors_preserved": true,
+  "all_pulse_write_failures_restore_flow_and_flag": true,
+  "runtime_hardware_tested": false,
+  "negative_controls": [
+    {
+      "mutation": "drops_nuls_outside_pulse",
+      "expected_failure_detected": true
+    },
+    {
+      "mutation": "drops_partial_payload",
+      "expected_failure_detected": true
+    },
+    {
+      "mutation": "reports_short_consumption",
+      "expected_failure_detected": true
+    },
+    {
+      "mutation": "accepts_zero_byte_write",
+      "expected_failure_detected": true
+    },
+    {
+      "mutation": "leaves_flow_disabled",
+      "expected_failure_detected": true
+    }
+  ],
+  "all_negative_controls_detected": true
+}

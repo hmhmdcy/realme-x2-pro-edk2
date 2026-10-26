@@ -1,0 +1,60 @@
+{
+  "schema": "samurai-irq-native-usb-pm-stage-contract-v1",
+  "request_schema": "samurai-irq-native-usb-pm-stage-request-v1",
+  "request_keys": [
+    "schema",
+    "transaction_id",
+    "cohort_delivery_sha256",
+    "payload_sha256",
+    "payload_base64",
+    "worker_sha256",
+    "identity",
+    "adoption",
+    "lease_token"
+  ],
+  "transaction_pattern": "irq-native-usb-pm-stage-[a-z0-9-]{8,48}",
+  "identity_keys": [
+    "boot_id",
+    "version",
+    "serial_sha256",
+    "compatible_sha256",
+    "rootfs_sha256"
+  ],
+  "adoption_keys": [
+    "transaction_id",
+    "guard_path",
+    "guard_sha256"
+  ],
+  "worker_sha256": "8e188610e8002c4d23a70a7d3d01572366ebf668c0674ac93ea4f05b23aeb7e8",
+  "supervisor_sha256": "b29ab985159ecc911571514cdc5fa72a1a44886037e35ff024dfa6fe623440cc",
+  "cohort_delivery_sha256": "89349ffc0adb7e0043505f0250b53eefd78cc917f0b953fb12bb4aeabe25da01",
+  "payload_sha256": "f1162d2b5614327f0ce78c918cec62fd681d42cca99d8c03819cfa41086230bc",
+  "payload_bytes": 27163,
+  "old_manifest_sha256": "18e8a1049a2c497fbc47ace50f8319aefccd63a9cd1ce5a7e9ef06916773b4e5",
+  "new_manifest_sha256": "34ead4cdb98c2d4b812662cdbe4c0964d5e705574b5d4ab85716b37975a8a39b",
+  "execute_argv": [
+    "python3",
+    "-B",
+    "<root>/stage-worker.py",
+    "--execute-stage"
+  ],
+  "output_directory": "device-stage",
+  "preflight_argv": [
+    "--preflight"
+  ],
+  "preflight_schema": "samurai-irq-native-usb-pm-preflight-v1",
+  "preflight_healthy_full_eligible": true,
+  "preflight_mutations": false,
+  "success_status": "staged/runtime_pending",
+  "new_module_loaded": false,
+  "activation_attempted": false,
+  "full_holding_cleared_by_inhibit": true,
+  "logical_full_and_cause_retained_until_physical_event_or_cold_boot": true,
+  "original_stage_process_keys": [
+    "transaction_id",
+    "boot_id",
+    "pid",
+    "start_ticks",
+    "argv"
+  ]
+}

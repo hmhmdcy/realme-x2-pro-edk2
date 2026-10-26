@@ -1,0 +1,25 @@
+00025424 48 8b 41 10              mov      rax, qword ptr [rcx + 0x10]
+00025428 4c 8d 0d d1 4b 01 00     lea      r9, [rip + 0x14bd1]
+0002542f 44 8b 71 58              mov      r14d, dword ptr [rcx + 0x58]
+00025433 33 ed                    xor      ebp, ebp
+00025435 45 8a e8                 mov      r13b, r8b
+00025438 48 8b f1                 mov      rsi, rcx
+0002543b 41 b4 01                 mov      r12b, 1
+0002543e 48 8b 58 40              mov      rbx, qword ptr [rax + 0x40]
+00025442 45 85 f6                 test     r14d, r14d
+00025445 75 2a                    jne      0x25471
+00025447 39 69 48                 cmp      dword ptr [rcx + 0x48], ebp
+0002544a 0f 86 2b 01 00 00        jbe      0x2557b
+00025450 e8 2f da ff ff           call     0x22e84 ; QCRD_AdjustPaddingBytes
+00025455 40 88 ab 28 12 00 00     mov      byte ptr [rbx + 0x1228], bpl
+0002545c 48 8b cb                 mov      rcx, rbx
+0002545f 44 8b 46 48              mov      r8d, dword ptr [rsi + 0x48]
+00025463 48 8b 56 20              mov      rdx, qword ptr [rsi + 0x20]
+00025467 e8 e4 3d 00 00           call     0x29250 ; vPutToReadBuffer
+0002546c e9 0a 01 00 00           jmp      0x2557b
+00025471 41 81 fe 9c 00 00 c0     cmp      r14d, 0xc000009c
+00025478 74 16                    je       0x25490
+0002547a 41 81 fe a3 00 00 c0     cmp      r14d, 0xc00000a3
+00025481 74 0d                    je       0x25490
+00025483 41 81 fe 01 00 00 c0     cmp      r14d, 0xc0000001
+0002548a 0f 85 eb 00 00 00        jne      0x2557b

@@ -1,0 +1,46 @@
+{
+  "stage": 478,
+  "scope": "offline476 executable chain vs frozen461 runtime",
+  "passed": true,
+  "source_hashes": {
+    "src/libcamera/pipeline/camss-vfe/camss_vfe.cpp": "befec1da3743545652adc669cc649860d6840738e38a3798305d213b2e874b40",
+    "src/ipa/camss-vfe/camss.cpp": "d963f91d55b52b7693b73c6a05ad0ad282de47335592fb5c02821ddc9cb7520c"
+  },
+  "frozen476_unchanged": true,
+  "verified_frozen_public_inputs": 10,
+  "archive_members_verified": 20,
+  "template_sha256": "5fa75688fc498ffae35fad0c51f4df7f828bbcaf95f21ea8f73048ce4ba9d137",
+  "template_deployable": false,
+  "blockers_found": [],
+  "candidate_corrections_required": false,
+  "chain_checks": [
+    "configure then stepper then camera start",
+    "RAW10 mode2 exact output and two sensor mode guards",
+    "BLS-only configure clears automatic algorithms and does not enable DelayedControls or IPE",
+    "UID10000 zero-CapEff capture/stepper/isolated-IPA live witness and matching core maps",
+    "actual SOF event_ns/pending and write begin_ns/end_ns/ret/errno",
+    "per-write G_CTRL executed and checked",
+    "current parameter-buffer-submitted Pair and population2491136",
+    "zero IPE completed count and controlled sensor/module/service restore"
+  ],
+  "evidence_limits": [
+    "G_CTRL checks are actual but per-write values not separately printed",
+    "parameter-buffer-submitted is not hardware-latch confirmation",
+    "pipeline sensor metadata stays startup-context when external stepper bypasses DelayedControls; use writes and BHIST/SOF for delay",
+    "partial clipping cannot be excluded from BHIST means alone",
+    "fresh preflight and formal baseline remain execution prerequisites"
+  ],
+  "cached_analyser": {
+    "path": "analyse-cached.py",
+    "sha256": "b54f6d77ecd4ec67d0c5a10a8bc3c3dd237a1fbd5f995e5973526e89a2ea268a",
+    "ast_valid": true,
+    "new_mode2_originals_available": false,
+    "executed_on_new_measurement": false,
+    "delay_expected": null
+  },
+  "no_ssh": true,
+  "no_sdk": true,
+  "no_build": true,
+  "no_upload": true,
+  "no_target_execution": true
+}

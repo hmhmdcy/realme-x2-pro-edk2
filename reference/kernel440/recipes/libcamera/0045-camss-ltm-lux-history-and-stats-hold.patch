@@ -1,0 +1,62 @@
+--- a/src/ipa/camss-vfe/camss.cpp
++++ b/src/ipa/camss-vfe/camss.cpp
+@@ -938,13 +938,13 @@
+ 	if (!ipeTone_) return 0;
+ 	const auto *frame = token ? ipeHistory_.pending(token) : nullptr;
+ 	if (token && (!frame || frame->sof != sof || frame->epoch != epoch)) return -ESTALE;
+-	if (!frame || numericHistory_.busy()) {
++	if (!frame || !frame->luxValid || numericHistory_.busy()) {
+ 		if (committedTone_) {
+ 			const auto *p = reinterpret_cast<const uint8_t *>(&*committedTone_);
+ 			parameters->assign(p, p + sizeof(*committedTone_)); *revision = numericHistory_.revision();
+ 		}
+ 		LOG(IPACamss, Info) << "IPE_TONE_HOLD epoch=" << epoch << " sof=" << sof << " token=" << token
+-			<< " revision=" << *revision << " bytes=" << parameters->size() << " busy=" << numericHistory_.busy();
++			<< " revision=" << *revision << " bytes=" << parameters->size() << " busy=" << numericHistory_.busy() << " lux-valid=" << bool(frame && frame->luxValid);
+ 		return 0;
+ 	}
+ 	qcom_ipe_a5_frame_params packet; IpeToneState next;
+@@ -964,7 +964,7 @@
+ 	LOG(IPACamss, Info) << "IPE_TONE_PREPARE epoch=" << epoch << " sof=" << sof << " token=" << token
+ 		<< " base=" << base << " revision=" << *revision << " bytes=" << parameters->size() << " trace=" << trace
+ 		<< " histogram=" << histogramTrace(*frame) << " lux=" << frame->luxIndex << " gain=" << frame->analogueGain
+-		<< " exposure-index=" << frame->exposureIndex << " factory=" << ipeTone_->factoryMode();
++		<< " exposure-index=" << frame->exposureIndex << " previous-ltm-lux=" << numericHistory_.state().ltmLuxIndex << " factory=" << ipeTone_->factoryMode();
+ 	return 0;
+ }
+ 
+--- a/src/ipa/camss-vfe/ipe_tone_profile.h
++++ b/src/ipa/camss-vfe/ipe_tone_profile.h
+@@ -15,8 +15,8 @@
+ namespace ipa::camss {
+ template<size_t N> struct ToneAecRegion { std::array<float, 4> trigger; std::array<float, N> data; };
+ struct IpeToneState {
+-	bool initialized = false, exposureValid = false;
+-	float exposureIndex = 0;
++	bool initialized = false, ltmLuxValid = false;
++	float ltmLuxIndex = 0;
+ 	Tmc11PolicyResult policy{};
+ 	TargetAdrcMetadata adrc{}, cache{};
+ 	Ltm13FaceSmoothingState smoothing{};
+--- a/src/ipa/camss-vfe/ipe_tone_profile.cpp
++++ b/src/ipa/camss-vfe/ipe_tone_profile.cpp
+@@ -163,8 +163,8 @@
+ 	in.curves.darkBoost = leaf[168]; in.curves.brightSuppress = leaf[169]; in.curves.lceStrength = leaf[170];
+ 	in.curves.darkRange = leaf[173]; in.curves.brightRange = leaf[174]; in.curves.darkMaximum = leaf[175];
+ 	in.curves.brightMaximum = leaf[176]; in.curves.darkGamma = leaf[177]; in.curves.brightGamma = leaf[178];
+-	in.curves.exposureIndex = frame.exposureIndex;
+-	in.curves.previousExposureIndex = history.exposureValid ? history.exposureIndex : frame.exposureIndex;
++	in.curves.exposureIndex = frame.luxIndex;
++	in.curves.previousExposureIndex = history.ltmLuxValid ? history.ltmLuxIndex : frame.luxIndex;
+ 	Tmc11GenerationResult adrc; bool useAdrc = false;
+ 	if (mode_ == 0) {
+ 		Tmc11PolicyInput policy{ tmcUid_, tmcEnabled_, history.policy.cachedUid, history.initialized,
+@@ -216,7 +216,7 @@
+ 		packet.gamma.base[ch][i] = encoded[i] & 1023;
+ 		uint32_t d = (encoded[i] >> 10) & 1023; packet.gamma.delta[ch][i] = d >= 512 ? int(d) - 1024 : int(d);
+ 	}
+-	state.initialized = true; state.exposureValid = true; state.exposureIndex = frame.exposureIndex;
++	state.initialized = true; state.ltmLuxValid = true; state.ltmLuxIndex = frame.luxIndex;
+ 	*parameters = packet; *next = state; return 0;
+ }
+ } /* namespace libcamera::ipa::camss */

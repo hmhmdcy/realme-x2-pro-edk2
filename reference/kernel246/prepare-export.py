@@ -1,0 +1,4 @@
+from pathlib import Path
+R=Path(__file__).resolve().parent;s=(R.parent/'kernel244/export-evidence.py').read_text();s=s.replace("P=Path('/mnt/e/edk2-samurai-out/kernel244')","P=Path('/mnt/e/edk2-samurai-out/kernel246')").replace("R/'host.py'","R/'host.py'").replace('k244-runtime','k246-runtime').replace('k244-nextboot','k246-nextboot')
+s=s.replace("names=['k244-power-diag','k244-online-version','k244-reconnect','k244-quiesce','k244-tools','k246-nextboot','k246-runtime']","names=['k246-tools','k246-streaming-rf','k246-quiesce','k246-nextboot','k246-runtime']")
+assert "names=['k246-tools'" in s;s=s.replace('k244-evidence-private','k246-evidence-private').replace('stage=244','stage=246').replace('stage-244','stage-246');compile(s,'export-evidence.py','exec');(R/'export-evidence.py').write_text(s);print('Prepared complete pre/post Linux restart evidence export.')

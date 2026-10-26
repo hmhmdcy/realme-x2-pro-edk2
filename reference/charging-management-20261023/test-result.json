@@ -1,0 +1,28 @@
+{
+  "source_latch_sequence_cases": 8,
+  "policy_cases": 6016,
+  "transaction_cases": 113,
+  "passed": true,
+  "command": [
+    "gcc",
+    "-std=c11",
+    "-g",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-fsanitize=address,undefined",
+    "-fno-omit-frame-pointer",
+    "-I/mnt/e/RealmeX2Pro edk2/reference/charging-management-20261023",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-management-20261023/test-core.c",
+    "-o",
+    "/home/cy122/charging-management-20261023/test-core"
+  ],
+  "sanitizers": [
+    "ASan",
+    "UBSan"
+  ],
+  "tested_core_sha256": "f9ffc2d380967d787d042c9780c5e5968a6e46d902089b7ad1ba511d5ba00af3",
+  "tested_profile_sha256": "14a425065aadcca1cc38efcc75cb112c0c25ac05567195b04feaa2bec21b0729",
+  "harness_sha256": "0704b618123d110b595416c3fc287b7eab990c3664245e24646e40085c23db8d",
+  "scope": "Actual policy and register transaction code; simulated bus, no hardware acceptance"
+}

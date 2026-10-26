@@ -1,0 +1,18 @@
+"""Only the actual adopted Image501 endpoint, with the original strict key."""
+from pathlib import Path
+import hashlib,importlib.util,json,subprocess
+HERE=Path(__file__).resolve().parent
+PINS=Path('/mnt/e/edk2-samurai-out/charging-management-20261023/image501-activation/image501-gauge-live-001/adoption-01-private/icon-identity-pins-private.json')
+def raw_ssh(command,**kwargs):
+ pins=json.loads(PINS.read_bytes());endpoint=pins['endpoint'];key=pins['key_transport']
+ for entry in [endpoint,key]:assert hashlib.sha256(Path(entry['path']).read_bytes()).hexdigest()==entry['sha256']
+ assert key['sha256']=='7f49a922e0babf167c77ad6e9bd7edf63e437418d5134e3d081fb8a0082a4f4c'
+ e=json.loads(Path(endpoint['path']).read_bytes())
+ assert e['kind']=='usb-ipv6' and e['original_key_verified'] and e['postboot_Image501_passed']
+ assert e['peer']=='fe80::62:bcff:fe28:a101%29' and e['interface_index']==29 and e['host_key_alias']=='169.254.42.1'
+ assert e['guard_path']=='/var/lib/samurai/image501-gauge-live-001-adopted/boot-id-private.txt'
+ spec=importlib.util.spec_from_file_location('icon501_strict_key',key['path']);base=importlib.util.module_from_spec(spec);spec.loader.exec_module(base)
+ q=subprocess.run([base.SSH,'-6','-T',*base.OPTIONS,'-o','HostKeyAlias=169.254.42.1','root@'+e['peer'],command],
+  input=kwargs.get('input'),capture_output=True,timeout=kwargs.get('timeout',30))
+ if kwargs.get('check',True):q.check_returncode()
+ return q

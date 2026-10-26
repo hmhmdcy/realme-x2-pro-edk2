@@ -1,0 +1,117 @@
+{
+  "passed": true,
+  "private_output": "/mnt/e/edk2-samurai-out/charging-management-20261023/usb-input-irq-board-private-01",
+  "source_native_sha256": "9271d9cc33b3701ad0675c6345d43e9a5c404aa6c192126edc3eb715b0914358",
+  "host_only": true,
+  "runtime_overlay_applied": false,
+  "SDK_Git_device_used": false,
+  "script_sha256": "05f1bf4f6e8b4e004fb5fcab4e4574f2b9b51a0c751f63a25bd44d0e3e187591",
+  "tools": {
+    "dtc": {
+      "path": "/usr/bin/dtc",
+      "sha256": "438747895b91454385a7acebac7e8f0a28f980c5b3fa2d5f3f2034d29b9120af",
+      "version": "Version: DTC 1.7.2"
+    },
+    "fdtoverlay": {
+      "path": "/usr/bin/fdtoverlay",
+      "sha256": "5ceccef2df580cea6fa136e30a66e9ae84efca642583345275ab6b8a21e1e3b2",
+      "version": "Version: DTC 1.7.2"
+    }
+  },
+  "candidate_DTB_sha256": "13d359c4a78ed423d52f1d5e09345c7dc7032811fabe786952ac11e868adee9f",
+  "candidate_DTB_bytes": 116124,
+  "overlay_source_sha256": "8b115532e67c53f9e38d5166307103bd9db381c2dc2e2e70dc4408cd97af157d",
+  "overlay_blob_sha256": "0e7c4964bfc21a38f68dbcfb3dea02812f0b0e71db3ad871fe5574f984793054",
+  "old_node_count": 965,
+  "new_node_count": 966,
+  "old_property_count": 3965,
+  "existing_node_property_changes": [],
+  "only_added_node": "/soc@0/spmi@c440000/pmic@2/usb-input@1300",
+  "added_properties": {
+    "compatible": "7265616c6d652c726d78313933312d7573622d696e70757400",
+    "reg": "00001300",
+    "interrupts": "0000000200000013000000040000000300000002000000130000000600000001",
+    "interrupt-names": "757362696e2d706c7567696e00757362696e2d7372632d6368616e676500",
+    "status": "6f6b617900"
+  },
+  "reserve_table_unchanged": true,
+  "reserved_memory_subtree_unchanged": true,
+  "bootcpu_and_FDT_versions_unchanged": true,
+  "EUD_and_TypeC_disabled_unchanged": true,
+  "original_native_DTB_unchanged": true,
+  "overlay_compile_context_diagnostics": "/mnt/e/edk2-samurai-out/charging-management-20261023/usb-input-irq-board-private-01/usb-input-irq.dtso:13.28-19.15: Warning (interrupts_property): /fragment@0/__overlay__/usb-input@1300: Missing interrupt-parent\n",
+  "full_tree_diagnostics_equal_original": true,
+  "original_full_tree_diagnostic_lines": 27,
+  "commands": [
+    {
+      "name": "compile-overlay",
+      "argv": [
+        "/usr/bin/dtc",
+        "-I",
+        "dts",
+        "-O",
+        "dtb",
+        "-o",
+        "/mnt/e/edk2-samurai-out/charging-management-20261023/usb-input-irq-board-private-01/usb-input-irq.dtbo",
+        "/mnt/e/edk2-samurai-out/charging-management-20261023/usb-input-irq-board-private-01/usb-input-irq.dtso"
+      ],
+      "pid": 863,
+      "terminal": true,
+      "returncode": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "422a3f2b238d8ff60069a7f806df11323c1045d693add531611cd6ce542bfdd4"
+    },
+    {
+      "name": "apply-overlay",
+      "argv": [
+        "/usr/bin/fdtoverlay",
+        "-i",
+        "/mnt/e/edk2-samurai-out/charging-management-20261023/eud-boot-policy-private/samurai-eud-off-policy-private.dtb",
+        "-o",
+        "/mnt/e/edk2-samurai-out/charging-management-20261023/usb-input-irq-board-private-01/samurai-usb-input-irq-native-private.dtb",
+        "/mnt/e/edk2-samurai-out/charging-management-20261023/usb-input-irq-board-private-01/usb-input-irq.dtbo"
+      ],
+      "pid": 864,
+      "terminal": true,
+      "returncode": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "decompile-original",
+      "argv": [
+        "/usr/bin/dtc",
+        "-I",
+        "dtb",
+        "-O",
+        "dts",
+        "-o",
+        "/mnt/e/edk2-samurai-out/charging-management-20261023/usb-input-irq-board-private-01/native-original-private.dts",
+        "/mnt/e/edk2-samurai-out/charging-management-20261023/eud-boot-policy-private/samurai-eud-off-policy-private.dtb"
+      ],
+      "pid": 865,
+      "terminal": true,
+      "returncode": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "4282d340596101e47167ae8eef1fba0e48610faf7b348017d76c7abfe7239034"
+    },
+    {
+      "name": "decompile-candidate",
+      "argv": [
+        "/usr/bin/dtc",
+        "-I",
+        "dtb",
+        "-O",
+        "dts",
+        "-o",
+        "/mnt/e/edk2-samurai-out/charging-management-20261023/usb-input-irq-board-private-01/native-candidate-private.dts",
+        "/mnt/e/edk2-samurai-out/charging-management-20261023/usb-input-irq-board-private-01/samurai-usb-input-irq-native-private.dtb"
+      ],
+      "pid": 866,
+      "terminal": true,
+      "returncode": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "ad4f95bc38c326a98b7267013bb63e71e13f42de3770a9aeaeaf13046902dae2"
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+# Adopt the already built and source-verified207 artifact; source rebuild is
+# linux-port/radio/build-tftp.py. Do not silently substitute a new toolchain build.
+maintainer="Realme X2 Pro Linux port"
+pkgname=samurai-tftp207
+pkgver=0.1.0
+pkgrel=0
+pkgdesc="Validated Realme X2 Pro RAM work-file TFTP server"
+url="https://github.com/hmhmdcy/pmaports"
+arch="aarch64"
+license="BSD-3-Clause"
+options="!check !strip"
+install="$pkgname.pre-install $pkgname.pre-upgrade"
+source="samurai-tftp207.pre-install samurai-tftp207.pre-upgrade samurai-tqftpserv-207 source-lock.json REBUILD.md tqftpserv-LICENSE qrtr-LICENSE"
+# File owner/replaces is deliberately pending the current device query.
+package() {
+    install -Dm755 "$srcdir"/samurai-tqftpserv-207 "$pkgdir"/usr/sbin/samurai-tqftpserv
+    for name in source-lock.json REBUILD.md tqftpserv-LICENSE qrtr-LICENSE; do
+        install -Dm644 "$srcdir/$name" "$pkgdir/usr/share/doc/$pkgname/$name"
+    done
+}
+sha512sums="
+2961a4088be2567d7f5c13eb56414011c47505463373cc3a3e2ead8dfc489fb68cadbaa841718729156b899d3124c6f62e3642c59b108e78fddf28ec8a09a04e  samurai-tftp207.pre-install
+2961a4088be2567d7f5c13eb56414011c47505463373cc3a3e2ead8dfc489fb68cadbaa841718729156b899d3124c6f62e3642c59b108e78fddf28ec8a09a04e  samurai-tftp207.pre-upgrade
+198d734e9e3f3c242d3bb45a31cfcaadff8a29b42dc62002276e111f8e8468a6fadc23ec66343434c92df22cebe744da204d06dd169a141d6ca4e090971bd9b1  samurai-tqftpserv-207
+e389e6a510ccb2e72063fb37030a4554565b231651d67f0e0a1de48231973ca9c73ae4e5bbbbef9d1029c7d3718ab8861ba5592049ef67faba72a96d61974504  source-lock.json
+5f23667df81d65a64979997c1c142689d6e32fbeff6699a1e7ad832883c09f77bfde424a4b83841bcbad16e878bca7dceedb9ee22c45a6fc6fc0060ec80a3121  REBUILD.md
+bb0a51da642694a66a609e3fe7940f67393ee982e3cbf9fe1eaeed301bcd5e80f33a0a32e780ecf16fa97a2c3dbf8630b8b8307ea16ee139ce591946ba635761  tqftpserv-LICENSE
+9e081f5eff4ae43eea30b605a8ed64e33545dcc07e27cda03696840e2e9f3a2fa334051f027bf2036d64a4e7cc2181225e04144fc74fdaf504f718b26559bfd5  qrtr-LICENSE
+"

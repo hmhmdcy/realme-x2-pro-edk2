@@ -1,0 +1,21 @@
+--- a/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
++++ b/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
+@@ -824,11 +824,15 @@
+ 		compatible = "realme,samurai-audio";
+ 		model = "Realme X2 Pro";
+ 		widgets = "Speaker", "Left Speaker", "Speaker", "Right Speaker",
+-			  "Headphone", "Headphone Jack", "Microphone", "Handset Mic";
++			  "Headphone", "Headphone Jack", "Microphone", "Handset Mic",
++			  "Microphone", "Secondary Mic", "Microphone", "Speaker Mic";
+ 		audio-routing = "Left Speaker", "Left OUT", "Right Speaker", "Right OUT",
+ 				"Headphone Jack", "HPHL", "Headphone Jack", "HPHR",
+-				"AMIC1", "Handset Mic", "Handset Mic", "MIC BIAS1";
+-		pin-switches = "Left Speaker", "Right Speaker", "Headphone Jack", "Handset Mic";
++				/* Native WCD934x uses distinct DMIC input pins and supplies. */
++                "DMIC0 Pin", "Handset Mic", "DMIC0", "MIC BIAS1", "DMIC0", "MCLK",
++                "DMIC1 Pin", "Secondary Mic", "DMIC1", "MIC BIAS1", "DMIC1", "MCLK",
++                "DMIC2 Pin", "Speaker Mic", "DMIC2", "MIC BIAS3", "DMIC2", "MCLK";
++		pin-switches = "Left Speaker", "Right Speaker", "Headphone Jack", "Handset Mic", "Secondary Mic", "Speaker Mic";
+ 
+ 		playback-dai-link {
+ 			link-name = "MultiMedia1";

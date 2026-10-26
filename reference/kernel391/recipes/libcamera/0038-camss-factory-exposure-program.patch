@@ -1,0 +1,948 @@
+--- a/include/libcamera/ipa/camss.mojom
++++ b/include/libcamera/ipa/camss.mojom
+@@ -58,7 +58,7 @@
+ 	unmapBuffers(array<uint32> ids);
+ 	start(uint64 epoch, libcamera.ControlList controls) => (int32 ret, libcamera.ControlList sensorControls);
+ 	convertControls(uint64 epoch, libcamera.ControlList controls) => (int32 ret, libcamera.ControlList sensorControls);
+-	applyIspControls(uint64 epoch, libcamera.ControlList controls) => (int32 ret, AutoIspUpdate update);
++	applyIspControls(uint64 epoch, uint32 firstSof, libcamera.ControlList controls) => (int32 ret, AutoIspUpdate update);
+ 	frameMetadata(uint64 epoch, uint32 sof, SensorContext sensorContext) => (int32 ret, libcamera.ControlList metadata);
+  processFocus(uint64 epoch, uint32 sof, libcamera.ControlList controls, bool valid, int32 score,
+               uint64 capturedMonotonic, SensorContext sensorContext)
+--- a/src/ipa/camss-vfe/camss.cpp
++++ b/src/ipa/camss-vfe/camss.cpp
+@@ -47,7 +47,7 @@
+ 	void unmapBuffers(const std::vector<uint32_t> &ids) override;
+ 	int start(uint64_t epoch, const ControlList &controls, ControlList *sensorControls) override;
+ 	int convertControls(uint64_t epoch, const ControlList &controls, ControlList *sensorControls) override;
+-	int applyIspControls(uint64_t epoch, const ControlList &controls, AutoIspUpdate *update) override;
++	int applyIspControls(uint64_t epoch, uint32_t firstSof, const ControlList &controls, AutoIspUpdate *update) override;
+ 	int frameMetadata(uint64_t epoch, uint32_t sof, const SensorContext &sensorContext, ControlList *metadata) override;
+  int processFocus(uint64_t epoch,uint32_t sof,const ControlList &controls,bool valid,int32_t score,
+                   uint64_t captured,const SensorContext &sensorContext,ControlList *metadata,LensMove *move) override;
+@@ -212,6 +212,13 @@
+  if (ret) return ret;
+  profile_ = { 0, 1.0 }; gamma_.reset(); lensShading_.reset(); dynamicLensShading_.reset(); whiteBalance_.reset(); colourTemperature_.reset(); colourCorrection_.reset(); manualMatrix_.reset(); lux_.reset();
+  afEnabled_=false;af_.cancel();frameLength_=info.minFrameLength;
++ /* These drivers reset VBLANK to its default when selecting a mode. Their
++  * exposure control maximum already includes the integration-time margin. */
++ if (auto blanking=sensorControls.find(V4L2_CID_VBLANK);blanking!=sensorControls.end()) {
++  int32_t lines=blanking->second.def().get<int32_t>();
++  if(lines<0 || uint64_t(input.height)+lines>UINT32_MAX)return -ERANGE;
++  frameLength_=input.height+lines;
++ }
+  if (!profilePath.empty()) {
+   File file(profilePath);
+   if (!file.open(File::OpenModeFlag::ReadOnly)) return file.error();
+@@ -300,7 +307,8 @@
+   if (!agc.isEmpty()) {
+    if (!sensorConfiguration->enabled || !agc.isDictionary()) return -EINVAL;
+    auto candidate = std::make_unique<HardwareAgc>();
+-   ret = candidate->initialise(agc, lineUs_, minLines_, maxLines_, minGain_, maxGain_, helper_.get());
++   ret = candidate->initialise(agc, lineUs_, minLines_, maxLines_, minGain_, maxGain_, helper_.get(),
++    tuning["exposure_program"], std::llround(frameLength_*lineUs_*1000), minGainCode_, maxGainCode_);
+    if (ret) return ret;
+    agc_ = std::move(candidate);
+    autoAvailable_ = true;
+@@ -310,6 +318,12 @@
+     int32_t(controls::ExposureTimeModeAuto), int32_t(controls::ExposureTimeModeManual)}, int32_t(controls::ExposureTimeModeAuto));
+    map[&controls::AnalogueGainMode] = ControlInfo(std::vector<ControlValue>{
+     int32_t(controls::AnalogueGainModeAuto), int32_t(controls::AnalogueGainModeManual)}, int32_t(controls::AnalogueGainModeAuto));
++   map[&controls::ExposureValue] = ControlInfo(-8.0f, 8.0f, 0.0f);
++   if (agc_->hasExposureProgram()) {
++    map[&controls::AeFlickerMode] = ControlInfo(std::vector<ControlValue>{
++     int32_t(controls::FlickerOff),int32_t(controls::FlickerManual)},int32_t(controls::FlickerOff));
++    map[&controls::AeFlickerPeriod] = ControlInfo(int32_t(0),int32_t(INT32_MAX),int32_t(0));
++   }
+    *ipaControls = ControlInfoMap(std::move(map), controls::controls);
+   }
+  }
+@@ -323,8 +337,11 @@
+ int IPACamss::translate(const ControlList &controls, bool startup, ControlList *sensorControls)
+ {
+  if (!sensorControls) return -EINVAL;
++ if (agc_) {int ret=agc_->validateControls(controls);if(ret)return ret;}
++ else for(const auto &[id,value]:controls)if(HardwareAgc::algorithmControl(id))return -ENOTSUP;
+  ControlList translated(sensorControls_);
+  for (const auto &[id, value] : controls) {
++  if (HardwareAgc::algorithmControl(id)) continue;
+   if (id==libcamera::controls::AfMode.id() || id==libcamera::controls::AfTrigger.id()) {
+    if (!afEnabled_) return -ENOTSUP;
+    if (value.type()!=ControlTypeInteger32 || value.isArray()) return -EINVAL;
+@@ -388,7 +405,7 @@
+  if (!running_ || epoch != epoch_) return -ESTALE;
+  ControlList sensorOnly(libcamera::controls::controls);
+  for (const auto &[id, value] : controls)
+-  if (id != libcamera::controls::ColourCorrectionMatrix.id() && id != libcamera::controls::ColourTemperature.id() && id != libcamera::controls::ColourGains.id() && id != libcamera::controls::AwbEnable.id() && id!=libcamera::controls::AfMode.id() && id!=libcamera::controls::AfTrigger.id()) sensorOnly.set(id,value);
++  if (!HardwareAgc::algorithmControl(id) && id != libcamera::controls::ColourCorrectionMatrix.id() && id != libcamera::controls::ColourTemperature.id() && id != libcamera::controls::ColourGains.id() && id != libcamera::controls::AwbEnable.id() && id!=libcamera::controls::AfMode.id() && id!=libcamera::controls::AfTrigger.id()) sensorOnly.set(id,value);
+  ControlList ignored(sensorControls_);
+  int ret = translate(controls, true, &ignored);
+  if (ret) return ret;
+@@ -438,7 +455,7 @@
+  return x.a==y.a && x.b==y.b && x.c==y.c && x.k==y.k && x.qfactor==y.qfactor;
+ }
+ 
+-int IPACamss::applyIspControls(uint64_t epoch, const ControlList &controls, AutoIspUpdate *update)
++int IPACamss::applyIspControls(uint64_t epoch, uint32_t firstSof, const ControlList &controls, AutoIspUpdate *update)
+ {
+  if (!update) return -EINVAL;
+  *update = {};
+@@ -474,8 +491,10 @@
+  std::optional<DynamicLscState> selectedLsc;
+  ret=selectLensShading(red,blue,temperature,current.lensShading?&*current.lensShading:nullptr,&selectedLsc,ccmInputs_?&*ccmInputs_:nullptr);
+  if(ret)return ret;
+- if (enabled == current.awbEnabled && red == current.sourceRed && blue == current.sourceBlue && temperature == current.colourTemperature && manualMatrix == manualMatrix_ && sameColourCorrection(current.colourCorrection,selected) && sameLensShading(current.lensShading,selectedLsc)) return 0;
+- if (ispRevision_ >= UINT32_MAX-1) return -EOVERFLOW;
++ const bool unchanged=enabled == current.awbEnabled && red == current.sourceRed && blue == current.sourceBlue && temperature == current.colourTemperature && manualMatrix == manualMatrix_ && sameColourCorrection(current.colourCorrection,selected) && sameLensShading(current.lensShading,selectedLsc);
++ if (!unchanged && ispRevision_ >= UINT32_MAX-1) return -EOVERFLOW;
++ if (agc_) {ret=agc_->applyControls(controls,firstSof);if(ret)return ret;}
++ if (unchanged) return 0;
+  af_.cancelScan();
+  awbEnabled_ = enabled; colourTemperature_ = temperature; manualMatrix_ = manualMatrix;
+  if (awb_) awb_->reset();
+@@ -509,6 +528,7 @@
+  metadata->set(controls::AnalogueGainMode,int32_t(automatic_?controls::AnalogueGainModeAuto:controls::AnalogueGainModeManual));
+  metadata->set(controls::ExposureTime,int32_t(std::lround(sensorContext.exposureLines*lineUs_)));
+  metadata->set(controls::AnalogueGain,float(helper_->gain(sensorContext.gainCode)));
++ if (agc_) agc_->metadata(sof,metadata);
+  return 0;
+ }
+ 
+@@ -632,7 +652,7 @@
+  automatic_ = automatic;
+  revision_ = 0;
+  awaiting_.reset();
+- if (agc_) agc_->resetFrameCount();
++ if (agc_) {ret=agc_->resetControls();if(ret)return ret;ret=agc_->applyControls(controls);if(ret)return ret;}
+  if (lux_) lux_->reset();
+  ccmInputs_.reset();pendingColourCorrection_.reset();pendingLensShading_.reset();
+  epoch_ = epoch;
+@@ -810,6 +830,7 @@
+   metadata.set(controls::ExposureTime, int32_t(std::lround(sensorContext.exposureLines * lineUs_)));
+   metadata.set(controls::AnalogueGain, float(helper_->gain(sensorContext.gainCode)));
+  }
++ if (agc_ && result.parametersKnown && result.sensorControlsKnown) agc_->metadata(sof,&metadata);
+  if (lux_ && result.parametersKnown && result.sensorControlsKnown && result.rgbPresent) {
+   LuxResult observation;
+   const uint64_t exposureNs=std::llround(sensorContext.exposureLines * lineUs_ * 1000);
+@@ -857,7 +878,7 @@
+       sensorContext.exposureLines == awaiting_->exposureLines && sensorContext.gainCode == awaiting_->gainCode))) {
+   awaiting_.reset();
+   uint32_t lines, code;
+-  if (!agc_->calculate(parsed.histogram, sensorContext.exposureLines, sensorContext.gainCode, &lines, &code) &&
++  if (!agc_->calculate(sof, parsed.histogram, sensorContext.exposureLines, sensorContext.gainCode, &lines, &code) &&
+       (lines != sensorContext.exposureLines || code != sensorContext.gainCode) && revision_ < UINT32_MAX - 1) {
+    result.automaticUpdate = { true, ++revision_, lines, code };
+    awaiting_ = result.automaticUpdate;
+@@ -871,7 +892,7 @@
+ namespace libcamera {
+ extern "C" {
+ const IPAModuleInfo ipaModuleInfo = {
+-	IPA_MODULE_API_VERSION, 0, "camss-vfe", "camss-vfe",
++	IPA_MODULE_API_VERSION, 1, "camss-vfe", "camss-vfe",
+ };
+ IPAInterface *ipaCreate() { return new ipa::camss::IPACamss(); }
+ }
+--- /dev/null
++++ b/src/ipa/camss-vfe/exposure_program.cpp
+@@ -0,0 +1,129 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#include "exposure_program.h"
++
++#include <algorithm>
++#include <cerrno>
++#include <charconv>
++#include <cmath>
++#include <string>
++
++#include "../libipa/aec_lux.h"
++
++namespace libcamera::ipa::camss {
++namespace {
++bool integer(const ValueNode &value, uint64_t *result)
++{
++	auto text = value.get<std::string>();
++	if (!text)
++		return false;
++	auto [end, error] = std::from_chars(text->data(), text->data() + text->size(), *result);
++	return error == std::errc() && end == text->data() + text->size();
++}
++}
++
++int ExposureProgram::configure(const ValueNode &tuning, uint64_t minimumNs,
++			       uint64_t maximumNs, uint64_t frameNs, float minimumGain,
++			       std::optional<ExposureProgram> *program)
++{
++	if (!program)
++		return -EINVAL;
++	program->reset();
++	if (tuning.isEmpty())
++		return 0;
++	if (!tuning.isDictionary())
++		return -EINVAL;
++	auto enabled = tuning["enabled"].get<bool>();
++	if (!enabled)
++		return -EINVAL;
++	if (!*enabled)
++		return 0;
++	if (!minimumNs || maximumNs < minimumNs || frameNs < maximumNs ||
++	    !std::isfinite(minimumGain) || minimumGain <= 0)
++		return -ERANGE;
++
++	ExposureProgram result;
++	const auto &table = tuning["knees"];
++	if (!table.isList())
++		return -EINVAL;
++	std::vector<AecExposureKnee> knees;
++	for (const auto &point : table.asList()) {
++		AecExposureKnee knee{};
++		auto gain = point["gain"].get<float>();
++		auto index = point["index"].get<float>();
++		auto priority = point["priority"].get<unsigned int>();
++		if (!gain || !index || !priority || *priority > 2 ||
++		    !integer(point["exposure_time_ns"], &knee.exposureTimeNs))
++			return -EINVAL;
++		knee.gain = *gain; knee.index = *index;
++		knee.priority = static_cast<AecExposurePriority>(*priority);
++		knees.push_back(knee);
++	}
++	if (!result.source_.configure(knees))
++		return -ERANGE;
++	result.anchor_ = knees.front();
++	const auto &ev = tuning["ev_adjustment"];
++	auto adjust = ev["enabled"].get<bool>();
++	auto cap = ev["cap_gain"].get<bool>();
++	auto maximumGain = ev["maximum_gain"].get<float>();
++	const auto &banding = tuning["antibanding"];
++	auto threshold = banding["minimum_period_fraction"].get<float>();
++	auto method = banding["fps_method"].get<unsigned int>();
++	uint64_t blanking;
++	if (!adjust || !cap || !maximumGain || !threshold || !method || *method > 2 ||
++	    !std::isfinite(*maximumGain) || *maximumGain <= 0 ||
++	    !std::isfinite(*threshold) || *threshold < 0 ||
++	    !integer(banding["minimum_preview_vertical_blanking_ns"], &blanking))
++		return -EINVAL;
++	/* As in the original FPS setter, subtract preview blanking only when
++	 * it fits. The configured sensor exposure range remains an absolute cap.
++	 */
++	uint64_t budget = frameNs - (blanking < frameNs ? blanking : 0);
++	budget = std::clamp(budget, minimumNs, maximumNs);
++	result.adjustEv_ = *adjust;
++	result.adjustment_ = { budget, 0, *cap, *maximumGain, false };
++	result.banding_ = { false, 0, *threshold, minimumGain, minimumNs,
++			    budget, blanking, static_cast<AecAntibandingFpsMethod>(*method) };
++	if (!result.adjust(0))
++		return -ERANGE;
++	*program = std::move(result);
++	return 0;
++}
++
++bool ExposureProgram::adjust(float evStops)
++{
++	auto adjustment = adjustment_;
++	adjustment.evStops = adjustEv_ ? evStops : 0;
++	AecExposureProgram program;
++	if (!source_.activeProgram(adjustment, &program))
++		return false;
++	AecExposureTable active;
++	if (!active.configure(program.knees))
++		return false;
++	active_ = std::move(active);
++	adjustment_ = adjustment;
++	return true;
++}
++
++bool ExposureProgram::allocate(double exposureNsGain, uint64_t flickerPeriodNs,
++			       AecExposureAllocation *allocation) const
++{
++	if (!allocation || !std::isfinite(exposureNsGain) || exposureNsGain <= 0)
++		return false;
++	/* The controller passes time*analogue-gain in nanoseconds. It has not
++	 * applied the factory sensitivity correction, so this conversion uses
++	 * unity correction rather than applying that factor a second time.
++	 */
++	float index;
++	if (!aecSensitivityExposureIndex({ anchor_.gain, anchor_.exposureTimeNs, anchor_.index },
++					1.f, float(exposureNsGain), &index))
++		return false;
++	AecExposureAllocation selected;
++	if (!active_.allocate(index, &selected))
++		return false;
++	auto banding = banding_;
++	banding.enabled = flickerPeriodNs != 0;
++	banding.periodNs = flickerPeriodNs;
++	return aecApplyAntibanding(banding, selected, allocation);
++}
++
++} /* namespace libcamera::ipa::camss */
+--- /dev/null
++++ b/src/ipa/camss-vfe/exposure_program.h
+@@ -0,0 +1,29 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++
++#include <optional>
++
++#include "libcamera/internal/value_node.h"
++#include "../libipa/aec_antibanding.h"
++
++namespace libcamera::ipa::camss {
++
++/* A selected tuning table, independent of the AE target and filtering policy. */
++class ExposureProgram
++{
++public:
++	static int configure(const ValueNode &tuning, uint64_t minimumNs,
++			     uint64_t maximumNs, uint64_t frameNs, float minimumGain,
++			     std::optional<ExposureProgram> *program);
++	bool adjust(float evStops);
++	bool allocate(double exposureNsGain, uint64_t flickerPeriodNs,
++		      AecExposureAllocation *allocation) const;
++private:
++	AecExposureTable source_, active_;
++	AecExposureKnee anchor_{};
++	AecExposureAdjustment adjustment_{};
++	AecAntibandingConfiguration banding_{};
++	bool adjustEv_ = false;
++};
++
++} /* namespace libcamera::ipa::camss */
+--- a/src/ipa/camss-vfe/hardware_agc.cpp
++++ b/src/ipa/camss-vfe/hardware_agc.cpp
+@@ -10,7 +10,8 @@
+ namespace libcamera::ipa::camss {
+ 
+ int HardwareAgc::initialise(const ValueNode &tuning, double lineUs, int32_t minLines,
+- int32_t maxLines, double minGain, double maxGain, const CameraSensorHelper *helper)
++ int32_t maxLines, double minGain, double maxGain, const CameraSensorHelper *helper,
++ const ValueNode &program, uint64_t frameNs, uint32_t minimumGainCode, uint32_t maximumGainCode)
+ {
+  if (!tuning.isDictionary() || !helper || !std::isfinite(lineUs) || lineUs <= 0 ||
+      minLines <= 0 || maxLines < minLines || !std::isfinite(minGain) || !std::isfinite(maxGain) ||
+@@ -39,13 +40,85 @@
+  if (ret) return ret;
+  if (constraintModes().size() != 1 || !constraintModes().count(controls::ConstraintNormal) ||
+      exposureModeHelpers().size() != 1 || !exposureModeHelpers().count(controls::ExposureNormal)) return -ENOTSUP;
++ if (maximumGainCode < minimumGainCode) return -ERANGE;
++ int profileStatus = ExposureProgram::configure(program, std::llround(minLines * lineUs * 1000),
++  std::llround(maxLines * lineUs * 1000), frameNs, minGain, &program_);
++ if (profileStatus) return profileStatus;
+  lineUs_ = lineUs; minLines_ = minLines; maxLines_ = maxLines;
+  minGain_ = minGain; maxGain_ = maxGain; helper_ = helper;
++ minimumGainCode_ = minimumGainCode; maximumGainCode_ = maximumGainCode;
+  configure(std::chrono::duration<double, std::micro>(lineUs), helper);
+  setLimits(std::chrono::duration<double, std::micro>(minLines * lineUs),
+            std::chrono::duration<double, std::micro>(maxLines * lineUs), minGain, maxGain, {});
+- resetFrameCount();
++ return resetControls();
++}
++
++bool HardwareAgc::algorithmControl(unsigned int id)
++{
++ return id == controls::ExposureValue.id() || id == controls::AeFlickerMode.id() ||
++        id == controls::AeFlickerPeriod.id();
++}
++
++int HardwareAgc::validateControls(const ControlList &values) const
++{
++ for (const auto &[id, value] : values) {
++  if (!algorithmControl(id)) continue;
++  if (id == controls::ExposureValue.id()) {
++   if (value.type() != ControlTypeFloat || value.isArray()) return -EINVAL;
++   float ev = value.get<float>();
++   if (!std::isfinite(ev) || ev < -8 || ev > 8) return -ERANGE;
++  } else {
++   if (!program_) return -ENOTSUP;
++   if (value.type() != ControlTypeInteger32 || value.isArray()) return -EINVAL;
++   int32_t requested = value.get<int32_t>();
++   if (id == controls::AeFlickerMode.id() && requested != controls::FlickerOff &&
++       requested != controls::FlickerManual) return -ENOTSUP;
++   if (id == controls::AeFlickerPeriod.id() && requested < 0) return -ERANGE;
++  }
++ }
+  return 0;
++}
++
++int HardwareAgc::applyControls(const ControlList &values, uint32_t firstSof)
++{
++ int ret = validateControls(values);
++ if (ret) return ret;
++ bool change = false;
++ for (const auto &[id,value] : values) change |= algorithmControl(id);
++ if (change && !history_.empty() && firstSof < history_.rbegin()->first) return -ESTALE;
++ float ev = values.get(controls::ExposureValue).value_or(evStops_);
++ auto program = program_;
++ if (program && ev != evStops_ && !program->adjust(ev)) return -ERANGE;
++ program_ = std::move(program); evStops_ = ev;
++ flickerMode_ = values.get(controls::AeFlickerMode).value_or(flickerMode_);
++ flickerPeriodUs_ = values.get(controls::AeFlickerPeriod).value_or(flickerPeriodUs_);
++ setExposureCompensation(std::exp2(double(ev)));
++ if (change) {
++  history_[firstSof] = { evStops_, flickerMode_, flickerPeriodUs_ };
++  while (history_.size() > 64) history_.erase(history_.begin());
++ }
++ return 0;
++}
++
++int HardwareAgc::resetControls()
++{
++ if (program_ && !program_->adjust(0)) return -ERANGE;
++ evStops_ = 0; flickerMode_ = controls::FlickerOff; flickerPeriodUs_ = 0;
++ history_.clear(); history_[0] = { evStops_, flickerMode_, flickerPeriodUs_ };
++ setExposureCompensation(1); resetFrameCount();
++ return 0;
++}
++
++void HardwareAgc::metadata(uint32_t sof, ControlList *values) const
++{
++ auto state = history_.upper_bound(sof);
++ if (state == history_.begin()) return;
++ --state;
++ values->set(controls::ExposureValue, state->second.ev);
++ if (program_) {
++  values->set(controls::AeFlickerMode, state->second.mode);
++  values->set(controls::AeFlickerPeriod, state->second.periodUs);
++ }
+ }
+ 
+ double HardwareAgc::estimateLuminance(double gain) const
+@@ -57,25 +130,56 @@
+  return weighted / population_;
+ }
+ 
+-int HardwareAgc::calculate(Span<const uint32_t> bins, uint32_t exposureLines, uint32_t gainCode,
++int HardwareAgc::calculate(uint32_t sof, Span<const uint32_t> bins, uint32_t exposureLines, uint32_t gainCode,
+  uint32_t *nextLines, uint32_t *nextCode)
+ {
+  if (!helper_ || !nextLines || !nextCode || bins.size() != bins_.size() ||
+      exposureLines < uint32_t(minLines_) || exposureLines > uint32_t(maxLines_)) return -EINVAL;
+  double actualGain = helper_->gain(gainCode);
+  if (!std::isfinite(actualGain) || actualGain < minGain_ || actualGain > maxGain_) return -ERANGE;
++ auto state = history_.upper_bound(sof);
++ if (state == history_.begin()) return -ENODATA;
++ --state;
++ const ExposureProgram *program = program_ ? &*program_ : nullptr;
++ std::optional<ExposureProgram> historicalProgram;
++ if (program && state->second.ev != evStops_) {
++  historicalProgram = *program;
++  if (!historicalProgram->adjust(state->second.ev)) return -ERANGE;
++  program = &*historicalProgram;
++ }
++ setExposureCompensation(std::exp2(double(state->second.ev)));
+  population_ = 0;
+  std::copy(bins.begin(), bins.end(), bins_.begin());
+  for (uint32_t count : bins_) population_ += count;
+  if (!population_) return -ENODATA;
+  Histogram histogram(bins);
+- const auto [time, gain, quantization, digital] = calculateNewEv(controls::ConstraintNormal, controls::ExposureNormal,
+-  histogram, std::chrono::duration<double, std::micro>(exposureLines * lineUs_ * actualGain));
++ const auto current = std::chrono::duration<double, std::micro>(exposureLines * lineUs_ * actualGain);
++ auto allocation = [&]() {
++  if (!program) return calculateNewEv(controls::ConstraintNormal, controls::ExposureNormal, histogram, current);
++  auto target = calculateNewExposureValue(controls::ConstraintNormal, histogram, current);
++  AecExposureAllocation selected;
++  uint64_t period = state->second.mode == controls::FlickerManual ? uint64_t(state->second.periodUs) * 1000 : 0;
++  if (!program->allocate(std::chrono::duration<double, std::nano>(target).count(), period, &selected))
++   return std::tuple<utils::Duration, double, double, double>{ {}, 0, 0, 0 };
++  /* The common helper performs the final real line/gain quantization and
++   * range enforcement. A factory knee is not a sensor gain limit. */
++  std::array<std::pair<utils::Duration, double>, 1> stage{{
++   { std::chrono::duration<double, std::nano>(selected.exposureTimeNs), selected.gain }
++  }};
++  ExposureModeHelper quantizer(stage);
++  quantizer.configure(std::chrono::duration<double, std::micro>(lineUs_), helper_);
++  quantizer.setLimits(std::chrono::duration<double, std::micro>(minLines_ * lineUs_),
++   std::chrono::duration<double, std::micro>(maxLines_ * lineUs_), minGain_, maxGain_);
++  return quantizer.splitExposure(std::chrono::duration<double, std::nano>(
++   double(selected.exposureTimeNs) * selected.gain));
++ };
++ const auto [time, gain, quantization, digital] = allocation();
+  (void)quantization; (void)digital;
+  double timeUs = std::chrono::duration<double, std::micro>(time).count();
+  if (!std::isfinite(timeUs) || !std::isfinite(gain) || timeUs <= 0 || gain <= 0) return -ERANGE;
+  const uint32_t lines = std::clamp<int64_t>(std::llround(timeUs / lineUs_), minLines_, maxLines_);
+- const uint32_t code = helper_->gainCode(std::clamp(gain, minGain_, maxGain_));
++ const uint32_t code = std::clamp(helper_->gainCode(std::clamp(gain, minGain_, maxGain_)),
++  minimumGainCode_, maximumGainCode_);
+  const double quantizedGain = helper_->gain(code);
+  if (!std::isfinite(quantizedGain) || quantizedGain < minGain_ || quantizedGain > maxGain_) return -ERANGE;
+  *nextLines = lines; *nextCode = code;
+--- a/src/ipa/camss-vfe/hardware_agc.h
++++ b/src/ipa/camss-vfe/hardware_agc.h
+@@ -2,7 +2,9 @@
+ #pragma once
+ 
+ #include <array>
++#include <map>
+ #include "../libipa/agc_mean_luminance.h"
++#include "exposure_program.h"
+ #include <linux/qcom-camss-config.h>
+ 
+ namespace libcamera::ipa::camss {
+@@ -11,17 +13,32 @@
+ class HardwareAgc final : public AgcMeanLuminance
+ {
+ public:
+- int initialise(const ValueNode &tuning, double lineUs, int32_t minLines, int32_t maxLines,
+-                double minGain, double maxGain, const CameraSensorHelper *helper);
+- int calculate(Span<const uint32_t> bins, uint32_t exposureLines, uint32_t gainCode,
+-               uint32_t *nextLines, uint32_t *nextCode);
++	int initialise(const ValueNode &tuning, double lineUs, int32_t minLines, int32_t maxLines,
++		       double minGain, double maxGain, const CameraSensorHelper *helper,
++		       const ValueNode &program, uint64_t frameNs,
++		       uint32_t minimumGainCode, uint32_t maximumGainCode);
++	int calculate(uint32_t sof, Span<const uint32_t> bins, uint32_t exposureLines, uint32_t gainCode,
++		      uint32_t *nextLines, uint32_t *nextCode);
++	static bool algorithmControl(unsigned int id);
++	bool hasExposureProgram() const { return program_.has_value(); }
++	int validateControls(const ControlList &controls) const;
++	int applyControls(const ControlList &controls, uint32_t firstSof = 0);
++	int resetControls();
++	void metadata(uint32_t sof, ControlList *metadata) const;
+ private:
+- double estimateLuminance(double gain) const override;
+- std::array<uint32_t, CAMSS_STATS_BHIST_BINS> bins_{};
+- uint64_t population_ = 0;
+- double lineUs_ = 0;
+- int32_t minLines_ = 0, maxLines_ = 0;
+- double minGain_ = 0, maxGain_ = 0;
+- const CameraSensorHelper *helper_ = nullptr;
++	double estimateLuminance(double gain) const override;
++	std::array<uint32_t, CAMSS_STATS_BHIST_BINS> bins_{};
++	uint64_t population_ = 0;
++	double lineUs_ = 0;
++	int32_t minLines_ = 0, maxLines_ = 0;
++	double minGain_ = 0, maxGain_ = 0;
++	uint32_t minimumGainCode_ = 0, maximumGainCode_ = 0;
++	const CameraSensorHelper *helper_ = nullptr;
++	std::optional<ExposureProgram> program_;
++	float evStops_ = 0;
++	int32_t flickerMode_ = 0, flickerPeriodUs_ = 0;
++	struct State { float ev; int32_t mode, periodUs; };
++	std::map<uint32_t, State> history_;
+ };
+-}
++
++} /* namespace libcamera::ipa::camss */
+--- a/src/ipa/camss-vfe/meson.build
++++ b/src/ipa/camss-vfe/meson.build
+@@ -1,6 +1,6 @@
+ # SPDX-License-Identifier: CC0-1.0
+ ipa_name = 'ipa_camss_vfe'
+-mod = shared_module(ipa_name, ['camss.cpp', 'parameter_encoder.cpp', 'hardware_agc.cpp', 'hardware_awb.cpp', 'lens_shading.cpp', 'white_balance_reference.cpp', 'colour_correction_profile.cpp', 'lux_profile.cpp', 'dynamic_lens_shading.cpp', 'gamma_profile.cpp'],
++mod = shared_module(ipa_name, ['camss.cpp', 'parameter_encoder.cpp', 'hardware_agc.cpp', 'hardware_awb.cpp', 'lens_shading.cpp', 'white_balance_reference.cpp', 'colour_correction_profile.cpp', 'lux_profile.cpp', 'dynamic_lens_shading.cpp', 'exposure_program.cpp', 'gamma_profile.cpp'],
+     name_prefix : '',
+     include_directories : [ipa_includes],
+     dependencies : [libcamera_private, libipa_dep],
+--- /dev/null
++++ b/src/ipa/libipa/aec_antibanding.cpp
+@@ -0,0 +1,86 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#include "aec_antibanding.h"
++
++#include <cmath>
++#include <limits>
++
++namespace libcamera::ipa {
++
++bool aecApplyAntibanding(const AecAntibandingConfiguration &configuration,
++			const AecExposureAllocation &input,
++			AecExposureAllocation *output)
++{
++	if (!output || !std::isfinite(input.gain) || input.gain <= 0 ||
++	    !input.exposureTimeNs)
++		return false;
++	if (!configuration.enabled) {
++		*output = input;
++		return true;
++	}
++	if (!configuration.periodNs ||
++	    !std::isfinite(configuration.minimumPeriodFraction) ||
++	    configuration.minimumPeriodFraction < 0 ||
++	    !std::isfinite(configuration.minimumGain) ||
++	    configuration.minimumGain <= 0 ||
++	    configuration.minimumExposureTimeNs > configuration.maximumExposureTimeNs ||
++	    configuration.fpsMethod > AecAntibandingFpsMethod::MaximizeExposureTime)
++		return false;
++
++	const uint64_t period = configuration.periodNs;
++	const float time = input.exposureTimeNs;
++	const float threshold = configuration.minimumPeriodFraction * float(period);
++	if (configuration.maximumExposureTimeNs < period || threshold >= time) {
++		*output = input;
++		return true;
++	}
++
++	uint64_t maximum = configuration.maximumExposureTimeNs;
++	if (configuration.fpsMethod != AecAntibandingFpsMethod::StrictlyEnforceFps) {
++		if (configuration.minimumPreviewVerticalBlankingNs >
++		    std::numeric_limits<uint64_t>::max() - maximum)
++			return false;
++		maximum += configuration.minimumPreviewVerticalBlankingNs;
++	}
++	const uint64_t periods = input.exposureTimeNs / period;
++	/* The original candidate calculation uses signed 32-bit period counts.
++	 * Reject values outside that useful domain instead of reproducing signed
++	 * overflow or wrapped multiplication for impossible sensor exposures.
++	 */
++	if (periods >= uint64_t(std::numeric_limits<int32_t>::max()) ||
++	    period > std::numeric_limits<uint64_t>::max() / (periods + 1))
++		return false;
++
++	const uint64_t upperTime = (periods + 1) * period;
++	const uint64_t lowerTime = periods * period;
++	/* Division then multiplication matches the ordinary compensation path. */
++	const float upperGain = input.gain * (time / float(upperTime));
++	const float lowerGain = periods ? input.gain * (time / float(lowerTime)) : input.gain;
++	const bool upperValid = upperGain >= configuration.minimumGain &&
++		upperTime >= configuration.minimumExposureTimeNs && upperTime <= maximum;
++	const bool lowerValid = periods && lowerGain >= configuration.minimumGain &&
++		lowerTime >= configuration.minimumExposureTimeNs && lowerTime <= maximum;
++
++	AecExposureAllocation result = input;
++	if (upperValid || lowerValid) {
++		/* Equal distances select the upper period. Neither the shorter time
++		 * nor the smaller gain is an unconditional preference.
++		 */
++		const bool lower = lowerValid && (!upperValid ||
++			input.exposureTimeNs - lowerTime < upperTime - input.exposureTimeNs);
++		result.exposureTimeNs = lower ? lowerTime : upperTime;
++		result.gain = lower ? lowerGain : upperGain;
++		if (configuration.fpsMethod == AecAntibandingFpsMethod::MaximizeExposureTime &&
++		    result.exposureTimeNs > configuration.maximumExposureTimeNs) {
++			result.exposureTimeNs = configuration.maximumExposureTimeNs;
++			/* This separate path multiplies before division in the OEM. */
++			const float sensitivity = input.gain * time;
++			result.gain = sensitivity / float(result.exposureTimeNs);
++		}
++	}
++	if (!std::isfinite(result.gain) || result.gain <= 0)
++		return false;
++	*output = result;
++	return true;
++}
++
++} /* namespace libcamera::ipa */
+--- /dev/null
++++ b/src/ipa/libipa/aec_antibanding.h
+@@ -0,0 +1,35 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++
++#include <cstdint>
++
++#include "aec_exposure_table.h"
++
++namespace libcamera::ipa {
++
++enum class AecAntibandingFpsMethod : uint32_t {
++	LegacyAllowFpsToDrop,
++	StrictlyEnforceFps,
++	MaximizeExposureTime,
++};
++
++struct AecAntibandingConfiguration {
++	bool enabled;
++	uint64_t periodNs;
++	float minimumPeriodFraction;
++	float minimumGain;
++	uint64_t minimumExposureTimeNs;
++	uint64_t maximumExposureTimeNs;
++	uint64_t minimumPreviewVerticalBlankingNs;
++	AecAntibandingFpsMethod fpsMethod;
++};
++
++/* Adjust an already allocated exposure using the selected tuning policy.
++ * This preserves sensitivity through gain compensation. It does not detect
++ * flicker, quantize sensor lines, enforce maximum gain or program frame length.
++ */
++bool aecApplyAntibanding(const AecAntibandingConfiguration &configuration,
++			const AecExposureAllocation &input,
++			AecExposureAllocation *output);
++
++} /* namespace libcamera::ipa */
+--- /dev/null
++++ b/src/ipa/libipa/aec_exposure_table.cpp
+@@ -0,0 +1,123 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#include "aec_exposure_table.h"
++#include <algorithm>
++#include <cmath>
++#include <limits>
++#include <utility>
++
++namespace libcamera::ipa {
++bool AecExposureTable::configure(const std::vector<AecExposureKnee> &knees)
++{
++ if(knees.size()<2)return false;
++ for(size_t i=0;i<knees.size();i++) {
++  const auto &knee=knees[i];
++  if(!std::isfinite(knee.gain) || knee.gain<=0 || !knee.exposureTimeNs || !std::isfinite(knee.index) ||
++     static_cast<uint32_t>(knee.priority)>2 || (i && knee.index<knees[i-1].index))return false;
++ }
++ knees_=knees;return true;
++}
++
++bool AecExposureTable::allocate(float index,AecExposureAllocation *allocation) const
++{
++ if(!allocation || knees_.size()<2 || !std::isfinite(index))return false;
++ /* Match the OEM comparison/tie rules, including a requested negative zero. */
++ float selected=index>knees_.front().index?index:knees_.front().index;
++ selected=selected<knees_.back().index?selected:knees_.back().index;
++ auto upper=std::upper_bound(knees_.begin(),knees_.end(),selected,
++  [](float value,const AecExposureKnee &knee){return value<knee.index;});
++ size_t next=std::max<size_t>(upper-knees_.begin(),1);
++ const auto &base=knees_[next-1];
++ AecExposureAllocation result{base.gain,base.exposureTimeNs,selected};
++ float delta=selected-base.index;
++ if(delta>0) {
++  if(next>=knees_.size())return false;
++  const auto &limit=knees_[next];
++  float ratio=std::pow(1.03f,delta),gainRatio,timeRatio;
++  if(!std::isfinite(ratio))return false;
++  if(base.priority==AecExposurePriority::Gain) {
++   gainRatio=limit.gain/base.gain;
++   if(ratio<gainRatio){gainRatio=ratio;timeRatio=1.;}
++   else timeRatio=ratio/gainRatio;
++  } else {
++   /* The OEM treats the declared Maximum value as time priority too. */
++   float maximum=float(limit.exposureTimeNs)/float(base.exposureTimeNs);
++   timeRatio=std::min(ratio,maximum);
++   gainRatio=ratio<maximum?1.f:ratio/maximum;
++  }
++  result.gain=base.gain*gainRatio;
++  float increment=(timeRatio-1.f)*float(base.exposureTimeNs);
++  if(!std::isfinite(result.gain) || result.gain<=0 || !std::isfinite(increment) || increment>=0x1p64f)return false;
++  /* Match FCVTZU's zero for a negative increment. Retain the exact integer
++   * anchor and truncate only its float increment, then add in uint64. */
++  uint64_t extra=increment>0?uint64_t(increment):0;
++  if(extra>std::numeric_limits<uint64_t>::max()-base.exposureTimeNs)return false;
++  result.exposureTimeNs+=extra;
++ }
++ *allocation=result;return true;
++}
++
++bool AecExposureTable::frameTimeKnee(uint64_t maximumExposureTimeNs,AecExposureKnee *knee) const
++{
++ if(!knee || knees_.size()<2 || !maximumExposureTimeNs)return false;
++ float index=knees_.back().index;
++ if(knees_.back().exposureTimeNs>maximumExposureTimeNs) {
++  auto found=std::find_if(knees_.begin(),knees_.end(),[&](const auto &point){return point.exposureTimeNs>=maximumExposureTimeNs;});
++  if(found==knees_.end())return false;
++  size_t position=found-knees_.begin();
++  const auto &base=knees_[position?position-1:0];index=base.index;
++  constexpr double scale=77.898529052734375;
++  auto offset=[](float ratio){return float(std::log10(double(ratio))*scale);};
++  if(base.priority==AecExposurePriority::Gain) {
++   size_t next=position?position:1;
++   float ratio=knees_[next].gain/base.gain;index+=offset(ratio);
++  }
++  float ratio=float(maximumExposureTimeNs)/float(base.exposureTimeNs);index+=offset(ratio);
++ }
++ AecExposureAllocation allocation;
++ if(!allocate(index,&allocation))return false;
++ *knee={allocation.gain,allocation.exposureTimeNs,AecExposurePriority::Gain,allocation.index};return true;
++}
++
++bool AecExposureTable::activeProgram(const AecExposureAdjustment &adjustment,AecExposureProgram *program) const
++{
++ if(!program || !std::isfinite(adjustment.evStops) ||
++    (adjustment.capEvGain && (!std::isfinite(adjustment.maximumEvGain) || adjustment.maximumEvGain<=0)))return false;
++ AecExposureProgram result;
++ if(!frameTimeKnee(adjustment.maximumExposureTimeNs,&result.frameTimeKnee))return false;
++ float factor=float(std::exp2(double(adjustment.evStops)));
++ if(adjustment.capEvGain) {
++  float cap=adjustment.maximumEvGain/result.frameTimeKnee.gain;
++  factor=factor<cap?factor:cap;
++ }
++ if(!std::isfinite(factor) || factor<=0)return false;
++ constexpr double scale=77.898529052734375;
++ result.evIndexOffset=float(std::log10(double(factor))*scale);
++ float index=result.frameTimeKnee.index+result.evIndexOffset;
++ if(!std::isfinite(index))return false;
++ if(result.evIndexOffset<0) {
++  index=index>knees_.front().index?index:knees_.front().index;
++  AecExposureAllocation allocation;if(!allocate(index,&allocation))return false;
++  result.evKnee={allocation.gain,allocation.exposureTimeNs,AecExposurePriority::Gain,allocation.index};
++ } else {
++  float gain=result.frameTimeKnee.gain;
++  if(result.evIndexOffset>0 && !adjustment.hdrThreeExposure)gain=factor*gain;
++  if(!std::isfinite(gain) || gain<=0)return false;
++  result.evKnee={gain,result.frameTimeKnee.exposureTimeNs,AecExposurePriority::Gain,index};
++ }
++ result.knees=knees_;
++ if(result.frameTimeKnee.index<result.knees.back().index) {
++  auto found=std::lower_bound(result.knees.begin(),result.knees.end(),result.frameTimeKnee.index,
++   [](const AecExposureKnee &knee,float value){return knee.index<value;});
++  result.knees.erase(found,result.knees.end());result.knees.push_back(result.frameTimeKnee);
++ }
++ if(result.knees.back().index<result.evKnee.index)result.knees.push_back(result.evKnee);
++ const auto &last=result.knees.back();
++ if(last.gain<knees_.back().gain) {
++  float ratio=knees_.back().gain/last.gain;
++  float offset=float(std::log10(double(ratio))*scale);
++  float restored=last.index+offset;if(!std::isfinite(restored))return false;
++  result.knees.push_back({knees_.back().gain,last.exposureTimeNs,AecExposurePriority::Gain,restored});
++ }
++ *program=std::move(result);return true;
++}
++} /* namespace libcamera::ipa */
+--- /dev/null
++++ b/src/ipa/libipa/aec_exposure_table.h
+@@ -0,0 +1,49 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++#include <cstdint>
++#include <vector>
++
++namespace libcamera::ipa {
++enum class AecExposurePriority : uint32_t { Gain=0, Time=1, Maximum=2 };
++struct AecExposureKnee {
++ float gain;
++ uint64_t exposureTimeNs;
++ AecExposurePriority priority;
++ float index;
++};
++struct AecExposureAllocation {
++ float gain;
++ uint64_t exposureTimeNs;
++ float index;
++};
++struct AecExposureAdjustment {
++ uint64_t maximumExposureTimeNs;
++ float evStops;
++ bool capEvGain;
++ float maximumEvGain;
++ bool hdrThreeExposure;
++};
++struct AecExposureProgram {
++ AecExposureKnee frameTimeKnee;
++ AecExposureKnee evKnee;
++ float evIndexOffset;
++ std::vector<AecExposureKnee> knees;
++};
++
++/* Exposure indices use the factory logarithmic domain, not EV or physical lux.
++ * This class consumes an already selected table. Adjustment parameters,
++ * sensor limits and anti-banding are separate caller responsibilities. */
++class AecExposureTable {
++public:
++ bool configure(const std::vector<AecExposureKnee> &knees);
++ bool allocate(float index,AecExposureAllocation *allocation) const;
++ /* Reproduce the OEM float knee construction; this is not a final sensor
++  * time clamp. The caller must still apply the actual line/frame limits. */
++ bool frameTimeKnee(uint64_t maximumExposureTimeNs,AecExposureKnee *knee) const;
++ /* The caller decides whether table EV adjustment is enabled. These are
++  * table-building parameters; they do not apply scene EV to an AE target. */
++ bool activeProgram(const AecExposureAdjustment &adjustment,AecExposureProgram *program) const;
++private:
++ std::vector<AecExposureKnee> knees_;
++};
++} /* namespace libcamera::ipa */
+--- a/src/ipa/libipa/agc_mean_luminance.cpp
++++ b/src/ipa/libipa/agc_mean_luminance.cpp
+@@ -673,17 +673,18 @@
+  */
+ std::tuple<utils::Duration, double, double, double>
+ AgcMeanLuminance::calculateNewEv(uint32_t constraintModeIndex,
+-				 uint32_t exposureModeIndex,
+-				 const Histogram &yHist,
++				 uint32_t exposureModeIndex, const Histogram &yHist,
+ 				 utils::Duration effectiveExposureValue)
+ {
+-	/*
+-	 * The pipeline handler should validate that we have received an allowed
+-	 * value for AeExposureMode.
+-	 */
+-	std::shared_ptr<ExposureModeHelper> exposureModeHelper =
+-		exposureModeHelpers_.at(exposureModeIndex);
+-
++	auto helper = exposureModeHelpers_.at(exposureModeIndex);
++	return helper->splitExposure(calculateNewExposureValue(constraintModeIndex, yHist,
++							  effectiveExposureValue));
++}
++
++utils::Duration AgcMeanLuminance::calculateNewExposureValue(uint32_t constraintModeIndex,
++							const Histogram &yHist,
++							utils::Duration effectiveExposureValue)
++{
+ 	if (effectiveExposureValue == 0s) {
+ 		LOG(AgcMeanLuminance, Error)
+ 			<< "Effective exposure value is 0. This is a bug in AGC "
+@@ -693,7 +694,7 @@
+ 		 * doesn't get stuck with 0 in case the sensor driver allows a
+ 		 * min exposure of 0.
+ 		 */
+-		return exposureModeHelper->splitExposure(10ms);
++		return 10ms;
+ 	}
+ 
+ 	double gain = estimateInitialGain();
+@@ -715,7 +716,7 @@
+ 	newExposureValue = filterExposure(newExposureValue);
+ 
+ 	frameCount_++;
+-	return exposureModeHelper->splitExposure(newExposureValue);
++	return newExposureValue;
+ }
+ 
+ /**
+--- a/src/ipa/libipa/agc_mean_luminance.h
++++ b/src/ipa/libipa/agc_mean_luminance.h
+@@ -78,6 +78,11 @@
+ 	calculateNewEv(uint32_t constraintModeIndex, uint32_t exposureModeIndex,
+ 		       const Histogram &yHist, utils::Duration effectiveExposureValue);
+ 
++	/* Return the filtered total exposure before the exposure-mode allocator.
++	 * Custom allocators use this same target and convergence policy. */
++	utils::Duration calculateNewExposureValue(uint32_t constraintModeIndex,
++					const Histogram &yHist, utils::Duration effectiveExposureValue);
++
+ 	double effectiveYTarget() const;
+ 
+ 	void resetFrameCount()
+--- a/src/ipa/libipa/meson.build
++++ b/src/ipa/libipa/meson.build
+@@ -32,6 +32,8 @@
+     'colour_correction.cpp',
+     'gamma_curve.cpp',
+     'aec_lux.cpp',
++    'aec_exposure_table.cpp',
++    'aec_antibanding.cpp',
+     'aec_bayer_luma.cpp',
+     'lens_shading.cpp',
+     'lsc_resample.cpp',
+--- a/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
++++ b/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
+@@ -199,7 +199,7 @@
+  IPACameraSensorInfo info;
+  int ret = d->sensor_->sensorInfo(&info);
+  if (ret) return ret;
+- d->ipa_ = createIPA<ipa::camss::IPAProxyCamss>(0, 0);
++ d->ipa_ = createIPA<ipa::camss::IPAProxyCamss>(1, 1);
+  if (!d->ipa_) return -ENOENT;
+  const std::string profile=d->ipa_->configurationFile(d->sensor_->model()+".yaml");
+  CameraLens *lens=d->sensor_->focusLens();
+@@ -775,7 +775,7 @@
+   int ret = d->ipa_->convertControls(d->epoch_, request->controls(), &sensorControls);
+   if (ret) return ret;
+  }
+- const bool isp = request->controls().contains(controls::AwbEnable.id()) || request->controls().contains(controls::ColourGains.id()) || request->controls().contains(controls::ColourTemperature.id()) || request->controls().contains(controls::ColourCorrectionMatrix.id());
++ const bool isp = request->controls().contains(controls::AwbEnable.id()) || request->controls().contains(controls::ColourGains.id()) || request->controls().contains(controls::ColourTemperature.id()) || request->controls().contains(controls::ColourCorrectionMatrix.id()) || request->controls().contains(controls::ExposureValue.id()) || request->controls().contains(controls::AeFlickerMode.id()) || request->controls().contains(controls::AeFlickerPeriod.id());
+  if (isp && !d->ispHealthy_) return -EPIPE;
+  if (!sensorControls.empty() && (!d->delayedControls_ || !d->sensorContextHealthy_)) return -ENOTSUP;
+  if ((!sensorControls.empty() && d->sensorUpdates_.size() >= 8) || (isp && d->ispControls_.size() >= 8)) return -ENOSPC;
+@@ -1048,10 +1048,10 @@
+   if (std::any_of(pendingStats_.begin(), pendingStats_.end(), [](const auto &entry) { return entry.second.submitted; })) return;
+   auto &request = ispControls_.front();
+   ipa::camss::AutoIspUpdate update{};
+-  int ret = ipa_->applyIspControls(epoch_, request.controls, &update);
++  int ret = ipa_->applyIspControls(epoch_, uint32_t(std::max<int64_t>(0, int64_t(request.source) + *imageSequenceOffset_)), request.controls, &update);
+   if (ret == -EAGAIN) return;
+-  if (ret) { ispHealthy_=false; LOG(CamssVfe, Error) << "Runtime WB control failed: " << ret; return; }
+-  LOG(CamssVfe, Info) << "WB request epoch=" << epoch_ << " source=" << request.source << " revision=" << update.revision
++  if (ret) { ispHealthy_=false; LOG(CamssVfe, Error) << "Runtime algorithm control failed: " << ret; return; }
++  LOG(CamssVfe, Info) << "Algorithm request epoch=" << epoch_ << " source=" << request.source << " revision=" << update.revision
+    << " awb=" << (request.controls.contains(controls::AwbEnable.id()) ? int(*request.controls.get(controls::AwbEnable)) : -1);
+   ispControls_.pop_front();
+   if (update.valid) { queueIspUpdate(update); return; }

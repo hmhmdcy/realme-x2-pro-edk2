@@ -1,0 +1,22 @@
+from pathlib import Path
+import hashlib,json,re,tarfile,host
+ref=Path(__file__).resolve().parent;out=host.PRIVATE;host.download('/var/lib/samurai/k198-export/export-summary.json',out/'native-export-summary-private.json');receipt=json.loads((out/'native-export-summary-private.json').read_text());host.download('/var/lib/samurai/k198-export/evidence-private.tar.gz',out/'native-evidence-private.tar.gz');archive=out/'native-evidence-private.tar.gz';assert hashlib.sha256(archive.read_bytes()).hexdigest()==receipt['archive_sha256']
+with tarfile.open(archive) as tar:
+ manifest=json.load(tar.extractfile('manifest-private.json'));assert len(manifest)==receipt['files']
+ for n,h in manifest.items():assert hashlib.sha256(tar.extractfile(n).read()).hexdigest()==h
+ def get(n):return json.load(tar.extractfile(n))
+ trace=get('k198-camss-trace/summary.json');assert trace['root_trace_state_preserved'] and trace['private_trace_instance_removed'] and trace['capture_returncode']==1
+ entries=tar.extractfile('k198-camss-trace/regmap-clock-trace-private.txt').read().decode();assert re.search(r'entries-in-buffer/entries-written: 1762/1762',entries);assert 'regmap_reg_write: ad00000.clock-controller reg=c1c8 val=1' in entries
+ diagnostic=get('k198-tpg-clock-diagnostic/summary.json');low=get('k198-tpg-stock-low/summary.json');assert diagnostic['capture_returncode']==1 and low['capture_returncode']==0
+ for folder,state in [('k198-tpg-clock-diagnostic',False),('k198-tpg-stock-low',True)]:
+  before=tar.extractfile(folder+'/dmesg-before-private.txt').read();after=tar.extractfile(folder+'/dmesg-after-private.txt').read();delta=after[len(before):];assert b'clock-trace enabled name=soc_ahb rate=80000000 hw=0' in delta
+  assert (b'VFE reset timeout' in delta)==(not state)
+  if state:
+   log=tar.extractfile(folder+'/capture-private.log').read().decode();assert len(re.findall(r'^FRAME ',log,re.M))==3 and 'CAPTURE_RESULT success=1 cleanup_complete=1' in log
+ front=get('k198-front-capture-r1/summary.json');assert front['physical_image_capture'] and front['capture_returncode']==0 and front['camss_original_module_restored'] and front['camss_original_graph_restored'] and front['pins_restored_exact'] and front['pmic_after_restore']==front['before']['pmic'];frames=front['frames'];assert len(frames)==3 and [f['sequence'] for f in frames]==[0,1,2] and all(f['bytes']==2628608 and f['active_bytes_changed']/f['active_bytes']>.999 for f in frames) and all(a['timestamp_us']<b['timestamp_us'] for a,b in zip(frames,frames[1:]))
+ log=tar.extractfile('k198-front-capture-r1/capture-private.log').read().decode();assert 'PATTERNS sensor=0 csid=0 physical_link=enabled' in log and 'CAPTURE_RESULT success=1 cleanup_complete=1' in log;raw=tar.extractfile('k198-front-capture-r1/first-frame-private.raw').read();assert raw==(out/'first-front-frame-private.raw').read_bytes();assert len(raw)==2628608
+ for report in [trace,diagnostic,low,front]:assert all(v==0 for v in report['fault_delta'].values()) and report['taint']==512
+ health=get('k198-final-health/summary.json');assert health['physical_image_capture_proven'] and health['original_camss_module_restored'];(ref/'native-health-validation.json').write_text(json.dumps(health,indent=2)+'\n')
+ r=dict(stage=198,unmodified_max_clock_tpg_failed=True,clock_trace_max_950mhz_tpg_failed=True,temporary_max_400mhz_tpg_frames=3,temporary_max_400mhz_physical_imx471_frames=3,physical_frame_sequences=[0,1,2],physical_frame_timestamps_increase=True,physical_frame_bytes=2628608,active_pixels_over_99p9_percent_changed_from_distinct_prefill=True,sensor_and_csid_test_patterns_disabled=True,first_physical_raw_matches_host_copy=True,core_ahb_reads_disabled_even_when_frames_succeed=True,core_ahb_readback_alone_not_a_failure_cause_proof=True,source_of_high_rate_failure_still_needs_voltage_and_pll_separation=True,original_module_topology_pins_and_pmic_restored=True,raw_images_and_fingerprints_private=True)
+ (ref/'front-native-validation.json').write_text(json.dumps(r,indent=2)+'\n')
+public={k:v for k,v in receipt.items() if k!='archive_sha256'};public.update(host_archive_sha256_verified=True,archive_and_member_hashes_kept_private=True,all_member_hashes_verified=True,contains_private_physical_raw=True,all_attempts_retained=True,private_media_not_published=True);(ref/'evidence-export-validation.json').write_text(json.dumps(public,indent=2)+'\n');print(json.dumps(public))

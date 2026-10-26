@@ -1,0 +1,41 @@
+{
+  "schema": "usb500-r8-eud-off-migration-v1",
+  "passed": true,
+  "cases": 8,
+  "sequences": [
+    "actual exact R3/R8 SDP100 baseline and new module identities accepted",
+    "actual R8 loader rejects R7 manifest or mismatched new charger live note",
+    "actual adoption rejects old guard/440 flag or mismatched boot",
+    "actual worker begin accepts direct-root255 and rejects old guard/manifest/capture or out-of-byte port",
+    "actual R3 telemetry through unchanged SDP100 receiver",
+    "exact healthy Full remains eligible with unchanged receiver",
+    "real one500/finally100, no CHG/AUTO/INHIBIT, timeout/unknown/no-next-mutation bodies unchanged",
+    "host programs compile and fresh byte-port gate rejects256"
+  ],
+  "tested_files": {
+    "worker.py": "dacd8cb690a6c10f78a48a88797c4a3f9719f2b8173ee58eaad9cfe2ee36973f",
+    "r8-base.py": "3b4f1f41942379b18703bfbfc114fb8ba9e8d33d98265770aaaec975e58ee203",
+    "health.py": "a41942f21773c97b22d0b3760b1e256650f8e5506ee6cd0883db7145a39f4b4f"
+  },
+  "test_source_sha256": "944471602ac8730c561ea8a65a30b130937baf7377688da34b30661dd8e659ed",
+  "actual_r3_sha256": "a648abd2558d49f66f1d6c5e1088690826186aa7dff2609f708b49a1ff7b30fd",
+  "unchanged_control_functions": [
+    "configure",
+    "accepted",
+    "stable",
+    "transaction",
+    "gadget_state",
+    "write",
+    "net_command",
+    "network",
+    "check_window",
+    "event",
+    "finish",
+    "snapshot"
+  ],
+  "fake_register_edges": true,
+  "frozen_suites_rerun": false,
+  "device_access": false,
+  "usb_access": false,
+  "sdk_access": false
+}

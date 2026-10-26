@@ -1,0 +1,53 @@
+{
+  "passed": true,
+  "baseline": {
+    "core.c": {
+      "path": "E:\\RealmeX2Pro edk2\\reference\\charging-oem-audit-20261023\\apsd-integration\\current-r7\\snapshots\\drivers--usb--dwc3--core.c",
+      "sha256": "bd8a8aabf199952717926b8ee79562e283ed9cd6a1ee485d22cd52167ad7ffcf"
+    },
+    "core.h": {
+      "path": "E:\\RealmeX2Pro edk2\\reference\\charging-oem-audit-20261023\\apsd-integration\\current-r7\\snapshots\\drivers--usb--dwc3--core.h",
+      "sha256": "525c1d5d8d0e501f4a92ddd6232961542b5c04521f29a50b8acf9ee86c41373c"
+    },
+    "gadget.c": {
+      "path": "E:\\RealmeX2Pro edk2\\reference\\charging-oem-audit-20261023\\apsd-integration\\current-r7\\snapshots\\drivers--usb--dwc3--gadget.c",
+      "sha256": "9eec86e42945a786447e6a6548a25b495e29a01bed8e8fbfc13e02903e1ff0c5"
+    }
+  },
+  "candidate": {
+    "core.c": "6c8e5e33cc890afcfafbcbe2d339164a590edc0024fe41d3178f90f410790e20",
+    "core.h": "e2a21d2edaf0b48b91e77dc257287516e009859981c0370f747afd9898fbdb79",
+    "gadget.c": "228caf6f2dd3bfcec12fb1ec22b1f72eb1d5b02520d7917393a094a4ffab6fbf"
+  },
+  "all_other_core_and_gadget_bytes_identical": true,
+  "old_core_functions_byte_identical": [
+    "dwc3_suspend_common",
+    "dwc3_resume_common",
+    "dwc3_runtime_suspend",
+    "dwc3_runtime_resume",
+    "dwc3_runtime_idle",
+    "dwc3_pm_prepare",
+    "dwc3_pm_complete",
+    "dwc3_core_remove"
+  ],
+  "changed_core_functions": [
+    "dwc3_vbus_draw_work",
+    "dwc3_psy_notifier",
+    "dwc3_get_usb_power_supply",
+    "dwc3_pm_suspend",
+    "dwc3_pm_resume"
+  ],
+  "changed_gadget_function": "dwc3_gadget_vbus_draw",
+  "direct_complete_or_runtime_PM_changed": false,
+  "old_PHY_vbus_path_changed": false,
+  "gadget_closed_gate_errno": "-EBUSY; no storage, queue or later replay",
+  "provider_fixture_source_sha256": "ee0f0806c5a51576f10b299aca173c61ab2b4764a5954c1039d1c73327878a88",
+  "extracts": {
+    "actual-budget-core.inc": "a79f22372f94dc5a52c5e500adc3bd07b4753e44964eb326b38f235c3c3c5d4d",
+    "actual-budget-gadget.inc": "573f70fc8cdea6c8bfb47ee86896a840c2c34e147d252e1b8a5050ccf9d07860",
+    "actual-old-worker.inc": "e1f7c4a2ec4f4fee030b4b2fd2256400f64df3201353f063abfb61ee0690522f",
+    "actual-old-pm.inc": "fc3848f21e129e5a2fc294faca833c6e346fd6a9904cdb1171acb807eb329b6e",
+    "actual-provider.inc": "0bf535cdf30aacbeb7566b8628065275f7264fb77a10d05ac0b833de31d4ba1d"
+  },
+  "device_SDK_build_or_shared_source_accessed": false
+}

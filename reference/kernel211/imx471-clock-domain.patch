@@ -1,0 +1,23 @@
+--- a/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
++++ b/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
+@@ -1027,6 +1027,7 @@
+ 	cam_front: camera@10 {
+ 		compatible = "sony,imx471";
+ 		reg = <0x10>;
++		power-domains = <&camcc TITAN_TOP_GDSC>;
+ 		vana-supply = <&cam_front_vana>;
+ 		vdig-supply = <&cam_front_vdig>;
+ 		vif-supply = <&vreg_l1c_1p8>;
+--- a/Documentation/devicetree/bindings/media/i2c/sony,imx471.yaml
++++ b/Documentation/devicetree/bindings/media/i2c/sony,imx471.yaml
+@@ -27,6 +27,10 @@
+   clocks:
+     description: External input clock, 19.2 MHz
+     maxItems: 1
++
++  power-domains:
++    maxItems: 1
++    description: Power domain required by the sensor master-clock gate.
+ 
+   vana-supply:
+     description: Analog supply, 2.8 V

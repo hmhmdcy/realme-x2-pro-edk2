@@ -1,0 +1,132 @@
+{
+  "schema": "samurai-vendor-name-index-independent-review-v1",
+  "reviewed_at_utc": "2026-10-24T02:09:28.111600+00:00",
+  "disposition": "accepted_with_name_only_scope",
+  "source_sha256": "d0db963cd49b2e96a37be21c87ece1a24908968e0d546531c70520e5d562138b",
+  "inode_zero_patch_sha256": "afa5b56ecc8a23a8c94e1064e00a5cb0953785b896cfbcb08b520e2abeed0d3f",
+  "inputs": {
+    "E:/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/gauge-2719-vendor-name-index/index-vendor.py": {
+      "sha256": "d0db963cd49b2e96a37be21c87ece1a24908968e0d546531c70520e5d562138b",
+      "bytes": 6652
+    },
+    "E:/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/gauge-2719-vendor-name-index/inode-zero-fix.patch": {
+      "sha256": "afa5b56ecc8a23a8c94e1064e00a5cb0953785b896cfbcb08b520e2abeed0d3f",
+      "bytes": 2299
+    },
+    "E:/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/gauge-2719-vendor-name-index/first-pass-failure.json": {
+      "sha256": "6fd5ff0fa68af911a4284d8cddeb788e30cc234468d3cc9128323a28ccb6b86d",
+      "bytes": 604
+    },
+    "E:/edk2-samurai-out/charging-oem-audit-20261023/gauge-2719-vendor-name-index-private-01/index-source-used-private.py": {
+      "sha256": "4de24fb406923f8b10934d9dec61526ccc75ca9054673961adc18e5a62f600a5",
+      "bytes": 6325
+    },
+    "E:/edk2-samurai-out/charging-oem-audit-20261023/gauge-2719-vendor-name-index-private-01/result.json": {
+      "sha256": "89f4bbcafc1220f26f4320daf12b299d75ae19cc53d9950fe0f1c8136e2574c5",
+      "bytes": 415
+    },
+    "E:/edk2-samurai-out/charging-oem-audit-20261023/gauge-2719-vendor-name-index-private-01/commands.json": {
+      "sha256": "fae95c164e78cf8ad033c905f11cd20d650cb293210e685808f450f5819efc73",
+      "bytes": 547
+    },
+    "E:/edk2-samurai-out/charging-oem-audit-20261023/gauge-2719-vendor-name-index-private-01/failed-directory-stdout-private.txt": {
+      "sha256": "f217f56375984cc86c08e7a6d78dbef8d4539da620e430e6c967e68efda9576b",
+      "bytes": 93
+    },
+    "E:/edk2-samurai-out/charging-oem-audit-20261023/gauge-2719-vendor-name-index-private-01/failed-directory-stderr-private.txt": {
+      "sha256": "d1f395f3b25e168ae41957e6d34052c014f7ea951493daefffd1b986039396c8",
+      "bytes": 28
+    },
+    "E:/edk2-samurai-out/charging-oem-audit-20261023/gauge-2719-vendor-name-index-private-02/vendor-name-index.json": {
+      "sha256": "52d46e282f6a96445ff9e386b6894c5af2722cf64f4f838d52c6613ca4693aae",
+      "bytes": 480561
+    },
+    "E:/edk2-samurai-out/charging-oem-audit-20261023/gauge-2719-vendor-name-index-private-02/candidate-names.json": {
+      "sha256": "8e3576f8ac83a1f2082bd55ffd74f2665780560369c83acdc67d23d61bbede26",
+      "bytes": 812
+    },
+    "E:/edk2-samurai-out/charging-oem-audit-20261023/gauge-2719-vendor-name-index-private-02/result.json": {
+      "sha256": "046b47b25a919667014c799abe7aadd9b42428250fccaec207b802fb1f6e19f3",
+      "bytes": 1672
+    },
+    "E:/edk2-samurai-out/charging-oem-audit-20261023/gauge-2719-vendor-name-index-private-02/commands.json": {
+      "sha256": "f98be0bc9ad0a3bb953aa2fd3ba137e406ba3e0a3ad49a756bd3405d07db9933",
+      "bytes": 40954
+    }
+  },
+  "first_failure": {
+    "original_exec": 38427,
+    "original_exec_terminal1_reported_by_root": true,
+    "original_source_sha256": "4de24fb406923f8b10934d9dec61526ccc75ca9054673961adc18e5a62f600a5",
+    "retained_result_passed": false,
+    "original_children": [
+      867,
+      880
+    ],
+    "both_children_terminal0": true,
+    "precise_cause": "three unused inode-zero zero-metadata slots in /lost+found were rejected as invalid empty names",
+    "failed_stdout_sha256": "f217f56375984cc86c08e7a6d78dbef8d4539da620e430e6c967e68efda9576b"
+  },
+  "fix_scope": {
+    "only_skip_inode_zero_with_zero_mode_uid_gid_size": true,
+    "unexpected_inode_zero_metadata_still_rejected": true,
+    "allocated_entries_still_require_valid_name_and_type": true,
+    "skip_count_recorded_per_directory_and_total": true
+  },
+  "completed_result": {
+    "original_exec": 1079,
+    "original_exec_terminal0_reported_by_root": true,
+    "private_result_sha256": "046b47b25a919667014c799abe7aadd9b42428250fccaec207b802fb1f6e19f3",
+    "index_sha256": "52d46e282f6a96445ff9e386b6894c5af2722cf64f4f838d52c6613ca4693aae",
+    "directories_including_root": 129,
+    "entries": 2884,
+    "kinds": {
+      "directory": 128,
+      "regular": 2511,
+      "symlink": 245
+    },
+    "paths_unique": true,
+    "directory_commands_exactly_root_plus_index_directories": true,
+    "all_129_saved_children_terminal0": true,
+    "unused_slots": 3,
+    "unused_slot_directory": "/lost+found"
+  },
+  "readonly_scope": {
+    "debugfs_arguments": "-R ls -p <quoted-directory> <private-image>, no -w",
+    "image_SHA_required_before_listing": "905a0f0477b1edcd686fa059bfedc9aea79b6cc2107c472190d62f125abd7f0c",
+    "image_bytes": 1711276032,
+    "image_pre_post_metadata_unchanged": true,
+    "post_listing_full_image_SHA_recomputed": false,
+    "symlinks_not_recursed": true,
+    "mount_or_device_write": false
+  },
+  "name_result": {
+    "suffixes": [
+      ".bqz",
+      ".bqfs",
+      ".df.fs",
+      ".srec"
+    ],
+    "suffix_matches": [],
+    "regex_candidates": [
+      "/etc/charger_fstab.qti",
+      "/etc/init/vendor.qti.hardware.charger_monitor@1.0-service.rc",
+      "/lib/libbatterylistener.so",
+      "/lib64/libbatterylistener.so"
+    ]
+  },
+  "reviewer_actions": {
+    "source_and_small_index_receipts_read": true,
+    "large_image_or_payload_read": false,
+    "entry_point_tool_test_or_mount_executed": false,
+    "candidate_contents_or_build_prop_read": false,
+    "failed_run_or_original_source_modified": false
+  },
+  "limits": [
+    "This inventories names in the reachable directories of this one extracted vendor filesystem without following symlinks.",
+    "No filename hit for four suffixes does not prove absence in compressed, embedded, renamed, binary, symlink-target, other partition, or other OTA contents.",
+    "No precise 2719 pack/model identity or query protocol semantics is established.",
+    "Root is independently reading four candidate files and build.prop; their contents are not part of this review."
+  ],
+  "readme_sha256": "04128b636e84f1005c7c0df50e0ba7ae146451115780e62370fc43a88d570518"
+}

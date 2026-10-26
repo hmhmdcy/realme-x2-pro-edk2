@@ -1,0 +1,21 @@
+{
+  "status": "OFFLINE CANDIDATE ONLY",
+  "base_commit": "14b6fe1ee69cdd9182502629da9192156b9d206a",
+  "source_url": "https://raw.githubusercontent.com/qualcomm/qcom-usb-kernel-drivers/14b6fe1ee69cdd9182502629da9192156b9d206a/src/windows/wdfserial/QCPNP.c",
+  "source_sha256": "fc90dd37159ffac9e6ce21202f9edd436aa73014eedc2c8d1551fca9d51f4f64",
+  "patch_sha256": "2bd5bb620e04773c1f74991ce495895cde44a12f4fa04ea6651d48f27bb66713",
+  "target": "Qualcomm open-source wdfserial, not installed proprietary qcusbser 2.1.3.5",
+  "opt_in": "New experimental QCEudPreserveToggleOnOpen DWORD=1 AND USB VID 05c6 PID 9505; not an existing legacy-driver setting",
+  "scope": "Only file-create bulk resets bypassed; idle power reference, DTR/RTS, thread wake and request completion retained. Preparation/recovery resets untouched.",
+  "installed": false,
+  "registry_written": false,
+  "full_wdk_build": false,
+  "hardware_validated": false,
+  "limitations": [
+    "No physical DATA0/1/ACK measurement yet.",
+    "No supported no-reset setting identified in exact installed-driver audit.",
+    "WDF source candidate needs complete build, signing and separate controlled driver validation.",
+    "Power/resume/recovery paths still reset and require their own evidence.",
+    "Unrelated full-length OUT/ZLP XACT_ERROR mechanism not changed."
+  ]
+}

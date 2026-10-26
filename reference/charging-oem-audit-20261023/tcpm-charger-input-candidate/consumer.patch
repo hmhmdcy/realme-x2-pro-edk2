@@ -1,0 +1,150 @@
+--- a/drivers/power/supply/samurai-mp2650.c
++++ b/drivers/power/supply/samurai-mp2650.c
+@@ -16,6 +16,7 @@
+ #include "mp2650-core.h"
+ #include "charge-cycle.h"
+ #include "charge-cycle-hold.h"
++#include "negotiated-input.h"
+ #include "oem-full-cycle.h"
+ #include "gauge-i2c.h"
+ #include "charging-notify.h"
+@@ -31,6 +32,7 @@
+ struct sm_charger {
+ 	struct i2c_client *client, *gauge;
+ 	struct power_supply *input, *protection, *psy, *battery;
++	struct power_supply *typec;
+ 	char *battery_name;
+ 	struct mutex lock;
+ 	struct delayed_work work;
+@@ -114,9 +116,50 @@
+ 	return ret;
+ }
+ 
++/* There is no native->TCPM->native cycle: native supplies the default-Rp
++ * allowance; TCPM supplies the committed operating allowance to this charger.
++ * An opted-in but unavailable/transitioning supplier never falls back to a
++ * stale BC1.2 result. Physical online remains the independent native input.
++ */
++static int sm_read_typec_allowance(struct power_supply *psy,
++				 struct sm_input_allowance *a)
++{
++	int ret;
++
++	*a = (struct sm_input_allowance){ 0 };
++	ret = sm_psy_int(psy, POWER_SUPPLY_PROP_ONLINE, &a->online);
++	if (ret) return ret;
++	if (!a->online) return -ENODATA;
++	ret = sm_psy_int(psy, POWER_SUPPLY_PROP_USB_TYPE, &a->usb_type);
++	if (ret) return ret;
++	ret = sm_psy_int(psy, POWER_SUPPLY_PROP_CURRENT_NOW, &a->operating_ua);
++	if (ret) return ret;
++	ret = sm_psy_int(psy, POWER_SUPPLY_PROP_CURRENT_MAX, &a->maximum_ua);
++	if (ret) return ret;
++	return sm_psy_int(psy, POWER_SUPPLY_PROP_VOLTAGE_NOW, &a->voltage_uv);
++}
++
++static int sm_input_budget(struct sm_charger *c, struct sm_input_allowance *a)
++{
++	struct sm_input_allowance after;
++	int ret;
++
++	*a = (struct sm_input_allowance){ 0 };
++	if (!c->typec)
++		return sm_psy_int(c->input, POWER_SUPPLY_PROP_CURRENT_MAX, &a->operating_ua);
++	ret = sm_read_typec_allowance(c->typec, a);
++	if (ret) return ret;
++	ret = sm_read_typec_allowance(c->typec, &after);
++	if (ret) return ret;
++	if (!sm_input_allowance_equal(a, &after)) return -EAGAIN;
++	ret = sm_typec_allowance_current(a);
++	return ret < 0 ? ret : 0;
++}
++
+ static int sm_collect(struct sm_charger *c, struct sm_sample *s)
+ {
+-	int online, status, present, health, ret, budget_after, online_after;
++	int online, status, present, health, ret, online_after;
++	struct sm_input_allowance budget, budget_after;
+ 
+ 	*s = (struct sm_sample){ 0 };
+ 	c->source_inhibit = false;
+@@ -136,7 +179,8 @@
+ 		s->valid = s->protection_ok = 1;
+ 		return 0;
+ 	}
+-	ret = sm_psy_int(c->input, POWER_SUPPLY_PROP_CURRENT_MAX, &s->budget_ua);
++	ret = sm_input_budget(c, &budget);
++	s->budget_ua = budget.operating_ua;
+ 	if (ret) { c->source_inhibit = true; return ret; }
+ 	if (s->budget_ua < 50000) { c->source_inhibit = true; return -ENODATA; }
+ 	if (c->protection) {
+@@ -155,11 +199,11 @@
+ 	/* A changing source budget/attachment cannot authorize this sample. */
+ 	ret = sm_psy_int(c->input, POWER_SUPPLY_PROP_ONLINE, &online_after);
+ 	if (ret) { c->source_inhibit = true; return ret; }
+-	ret = sm_psy_int(c->input, POWER_SUPPLY_PROP_CURRENT_MAX, &budget_after);
++	ret = sm_input_budget(c, &budget_after);
+ 	if (ret) { c->source_inhibit = true; return ret; }
+ 	status = sm_read(c, 0x13);
+ 	if (status < 0) return status;
+-	if (!online_after || !(status & 2) || budget_after != s->budget_ua) {
++	if (!online_after || !(status & 2) || !sm_input_allowance_equal(&budget, &budget_after)) {
+ 		c->source_inhibit = true;
+ 		return -EAGAIN;
+ 	}
+@@ -363,7 +407,7 @@
+ static int sm_supply_changed(struct notifier_block *nb, unsigned long event, void *data)
+ {
+ 	struct sm_charger *c = container_of(nb, struct sm_charger, supply_notifier);
+-	if (event == PSY_EVENT_PROP_CHANGED && (data == c->input || data == c->protection) &&
++	if (event == PSY_EVENT_PROP_CHANGED && (data == c->input || data == c->protection || data == c->typec) &&
+ 	    !READ_ONCE(c->paused)) mod_delayed_work(system_wq, &c->work, 0);
+ 	return NOTIFY_DONE;
+ }
+@@ -558,6 +602,36 @@
+ 	 * is removed by the driver core on consumer unbind or failed probe.
+ 	 */
+ 	if (!psy->dev.parent) return ERR_PTR(-ENODEV);
++	link = device_link_add(dev, psy->dev.parent, DL_FLAG_AUTOREMOVE_CONSUMER);
++	if (!link) return ERR_PTR(-ENOMEM);
++	return psy;
++}
++
++/* Optional exact firmware reference to the real TCPM source PSY. This is
++ * not a lookup by a constructed supply name. The managed link and provider
++ * module reference use the same lifetime rules as the existing input path.
++ */
++static struct power_supply *sm_typec_supply(struct device *dev,
++					   struct power_supply *physical)
++{
++	struct power_supply *psy;
++	struct module *owner;
++	struct device_link *link;
++	int ret;
++
++	if (!device_property_present(dev, "typec-supply")) return NULL;
++	psy = devm_power_supply_get_by_reference(dev, "typec-supply");
++	if (IS_ERR(psy)) return psy;
++	if (!psy) return ERR_PTR(-EPROBE_DEFER);
++	if (psy == physical || !psy->dev.parent || psy->dev.parent == dev ||
++	    psy->desc->type != POWER_SUPPLY_TYPE_USB)
++		return ERR_PTR(-EXDEV);
++	owner = psy->dev.parent->driver ? psy->dev.parent->driver->owner : NULL;
++	if (owner) {
++		if (!try_module_get(owner)) return ERR_PTR(-ENODEV);
++		ret = devm_add_action_or_reset(dev, sm_put_module, owner);
++		if (ret) return ERR_PTR(ret);
++	}
+ 	link = device_link_add(dev, psy->dev.parent, DL_FLAG_AUTOREMOVE_CONSUMER);
+ 	if (!link) return ERR_PTR(-ENOMEM);
+ 	return psy;
+@@ -670,6 +744,9 @@
+ 	}
+ 	if (!c->input || (control && !c->protection))
+ 		return dev_err_probe(dev, -EINVAL, "control requires a real protection supply\n");
++	c->typec = sm_typec_supply(dev, c->input);
++	if (IS_ERR(c->typec))
++		return dev_err_probe(dev, PTR_ERR(c->typec), "Type-C source supply\n");
+ 	node = of_parse_phandle(dev->of_node, "battery-gauge", 0);
+ 	if (!node && runtime_board)
+ 		node = of_find_node_by_path("/soc@0/geniqup@cc0000/i2c@c94000/fuel-gauge@55");

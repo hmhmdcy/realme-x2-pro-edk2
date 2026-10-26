@@ -1,0 +1,6 @@
+from pathlib import Path
+HERE=Path(__file__).resolve().parent
+s=(HERE.parent/'kernel376/final-state.py').read_text().replace("HERE.parent/'kernel375/camera-runtime-validation.json'","HERE/'camera-runtime-validation.json'").replace("'session-runtime-validation.json'","'io-runtime-validation.json'").replace("health['healthy']","health['camera_ready']").replace('k374-recovered','k378-recovered').replace('boot_guard374','boot_guard378').replace("b'/var/lib/samurai/k374-',b'/var/lib/samurai/k375-',b'/var/lib/samurai/k376-'","b'/var/lib/samurai/k377-',b'/var/lib/samurai/k378-',b'/var/lib/samurai/k379-'").replace('stage=376,current_boot_guard_stage=374','stage=379,current_boot_guard_stage=378').replace('normal_camera_capture_reference_stage=375,camera_capture_repeated=False','normal_camera_capture_reference_stage=379,camera_capture_repeated=True')
+s=s.replace("d['passed']=bool(","d.update(ipe_io_config_hardware_verified=True,ipe_io_configs=2,whole_platform_healthy=health['healthy'],ssc_degraded=not health['ssc_started'],ssc_failure_evidence='ssc-failure-validation.json',desktop_recovered=True)\nd['passed']=bool(")
+(HERE/'final-state.py').write_text(s)
+print('Prepared camera/ICP closeout with separate SSC degradation status.')

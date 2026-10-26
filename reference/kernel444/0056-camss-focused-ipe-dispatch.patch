@@ -1,0 +1,125 @@
+--- a/include/libcamera/ipa/camss.mojom
++++ b/include/libcamera/ipa/camss.mojom
+@@ -68,7 +68,12 @@
+  processFocus(uint64 epoch, uint32 sof, libcamera.ControlList controls, bool valid, int32 score,
+               uint64 capturedMonotonic, SensorContext sensorContext)
+               => (int32 ret, libcamera.ControlList metadata, LensMove move);
+- [async] lensPositionApplied(uint64 epoch, uint32 serial, int32 status, uint64 monotonic);
++ prepareFocusedIpe(uint64 epoch, uint32 sof, uint64 token, libcamera.ControlList controls,
++                    bool valid, int32 score, uint64 capturedMonotonic, SensorContext sensorContext)
++                    => (int32 focusStatus, libcamera.ControlList metadata, LensMove move,
++                        bool tonePrepared, int32 toneStatus, array<uint8> parameters,
++                        uint64 revision, bool fresh);
++  [async] lensPositionApplied(uint64 epoch, uint32 serial, int32 status, uint64 monotonic);
+ 	prepareIpeParameters(uint64 epoch, uint32 sof, uint64 token) => (int32 ret, array<uint8> parameters, uint64 revision, bool fresh);
+ 	frameProcessed(uint64 epoch, uint32 sof, uint64 token, bool success);
+ 	stop();
+--- a/src/ipa/camss-vfe/camss.cpp
++++ b/src/ipa/camss-vfe/camss.cpp
+@@ -57,6 +57,10 @@
+ 	int frameMetadata(uint64_t epoch, uint32_t sof, const SensorContext &sensorContext, ControlList *metadata) override;
+  int processFocus(uint64_t epoch,uint32_t sof,const ControlList &controls,bool valid,int32_t score,
+                   uint64_t captured,const SensorContext &sensorContext,ControlList *metadata,LensMove *move) override;
++ int prepareFocusedIpe(uint64_t epoch,uint32_t sof,uint64_t token,const ControlList &controls,
++                       bool valid,int32_t score,uint64_t captured,const SensorContext &sensorContext,
++                       ControlList *metadata,LensMove *move,bool *tonePrepared,int32_t *toneStatus,
++                       std::vector<uint8_t> *parameters,uint64_t *revision,bool *fresh) override;
+  void lensPositionApplied(uint64_t epoch,uint32_t serial,int32_t status,uint64_t monotonic) override;
+ 	int prepareIpeParameters(uint64_t epoch, uint32_t sof, uint64_t token, std::vector<uint8_t> *parameters, uint64_t *revision, bool *fresh) override;
+ 	void frameProcessed(uint64_t epoch, uint32_t sof, uint64_t token, bool success) override;
+@@ -605,6 +609,25 @@
+  return 0;
+ }
+ 
++int IPACamss::prepareFocusedIpe(uint64_t epoch,uint32_t sof,uint64_t token,const ControlList &controls,
++                               bool valid,int32_t score,uint64_t captured,const SensorContext &sensorContext,
++                               ControlList *metadata,LensMove *move,bool *tonePrepared,int32_t *toneStatus,
++                               std::vector<uint8_t> *parameters,uint64_t *revision,bool *fresh)
++{
++ std::lock_guard<std::recursive_mutex> stateLock(stateMutex_);
++ if (!metadata || !move || !tonePrepared || !toneStatus || !parameters || !revision || !fresh)
++  return -EINVAL;
++ *tonePrepared=false;*toneStatus=0;parameters->clear();*revision=0;*fresh=false;
++ const int focusStatus=processFocus(epoch,sof,controls,valid,score,captured,sensorContext,metadata,move);
++ /* A lens move must retain the host's command/ACK before tone preparation.
++  * No algorithm or final-receipt history is bypassed by the common case. */
++ if (!move->valid) {
++  *tonePrepared=true;
++  *toneStatus=prepareIpeParameters(epoch,sof,token,parameters,revision,fresh);
++ }
++ return focusStatus;
++}
++
+ void IPACamss::lensPositionApplied(uint64_t epoch,uint32_t serial,int32_t status,uint64_t monotonic)
+ {
+  std::lock_guard<std::recursive_mutex> stateLock(stateMutex_);
+@@ -1135,7 +1158,7 @@
+ namespace libcamera {
+ extern "C" {
+ const IPAModuleInfo ipaModuleInfo = {
+-	IPA_MODULE_API_VERSION, 5, "camss-vfe", "camss-vfe",
++	IPA_MODULE_API_VERSION, 6, "camss-vfe", "camss-vfe",
+ };
+ IPAInterface *ipaCreate() { return new ipa::camss::IPACamss(); }
+ }
+--- a/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
++++ b/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
+@@ -227,7 +227,7 @@
+  IPACameraSensorInfo info;
+  int ret = d->sensor_->sensorInfo(&info);
+  if (ret) return ret;
+- d->ipa_ = createIPA<ipa::camss::IPAProxyCamss>(5, 5);
++ d->ipa_ = createIPA<ipa::camss::IPAProxyCamss>(6, 6);
+  if (!d->ipa_) return -ENOENT;
+  const std::string profile=d->ipa_->configurationFile(d->sensor_->model()+".yaml");
+  CameraLens *lens=d->sensor_->focusLens();
+@@ -1336,15 +1336,31 @@
+ 			LOG(CamssVfe, Warning) << "Image controls unavailable epoch=" << epoch_ << " sof=" << sequence;
+ 		}
+ 	}
+- if (lensActive_ && running_) {
++ std::vector<uint8_t> focusedTone;
++  uint64_t focusedRevision=0;bool focusedFresh=false,focusedPrepared=false;int32_t focusedToneStatus=0;
++  if (lensActive_ && running_) {
+   
+   StreamConfiguration focusConfig;focusConfig.pixelFormat=formats::NV12;focusConfig.size=output_;focusConfig.stride=outputStride_;
++  const auto focusBegin=std::chrono::steady_clock::now();
+   const auto score=measureFrameFocus(buffer,focusConfig);
++  const auto focusMeasured=std::chrono::steady_clock::now();
+   const auto found=sensorContexts_.find(sequence);
+   const ipa::camss::SensorContext context=found==sensorContexts_.end()?ipa::camss::SensorContext{}:found->second;
+   ControlList metadata(controls::controls);ipa::camss::LensMove move{};
+   uint64_t captured=buffer->_d()->timestampMonotonic()?buffer->metadata().timestamp:0;
+-  int ret=ipa_->processFocus(epoch_,sequence,request->controls(),score.has_value(),score.value_or(0),captured,context,&metadata,&move);
++  const bool combined=ipe_ && processedEnabled_ && buffer->metadata().status==FrameMetadata::FrameSuccess;
++  int ret;
++  if (combined)
++   ret=ipa_->prepareFocusedIpe(epoch_,sequence,requests_.at(request).ipeToken,request->controls(),
++                             score.has_value(),score.value_or(0),captured,context,&metadata,&move,
++                             &focusedPrepared,&focusedToneStatus,&focusedTone,&focusedRevision,&focusedFresh);
++  else
++   ret=ipa_->processFocus(epoch_,sequence,request->controls(),score.has_value(),score.value_or(0),captured,context,&metadata,&move);
++  const auto focusDispatched=std::chrono::steady_clock::now();
++  LOG(CamssVfe,Debug)<<"FRAME_IPA_PREPARE epoch="<<frameEpoch<<" sof="<<sequence<<" combined="<<combined
++   <<" focus-us="<<std::chrono::duration_cast<std::chrono::microseconds>(focusMeasured-focusBegin).count()
++   <<" dispatch-us="<<std::chrono::duration_cast<std::chrono::microseconds>(focusDispatched-focusMeasured).count()
++   <<" focus-status="<<ret<<" tone-prepared="<<focusedPrepared;
+   /* Isolated synchronous calls may dispatch stopDevice() while waiting. */
+   if (!ownsFrame()) return;
+   if (!ret) request->_d()->metadata().merge(metadata);
+@@ -1364,7 +1380,14 @@
+  if (ipe_ && processedEnabled_ && running_ && buffer->metadata().status==FrameMetadata::FrameSuccess) {
+   const uint64_t toneEpoch=epoch_;std::vector<uint8_t> tone;uint64_t toneRevision=0;bool toneFresh=false;
+   const uint64_t toneToken=requests_.at(request).ipeToken;
+-  int ret=ipa_->prepareIpeParameters(toneEpoch,sequence,toneToken,&tone,&toneRevision,&toneFresh);
++  const auto toneBegin=std::chrono::steady_clock::now();
++  int ret;
++  if (focusedPrepared) {
++   ret=focusedToneStatus;tone=std::move(focusedTone);toneRevision=focusedRevision;toneFresh=focusedFresh;
++  } else ret=ipa_->prepareIpeParameters(toneEpoch,sequence,toneToken,&tone,&toneRevision,&toneFresh);
++  LOG(CamssVfe,Debug)<<"TONE_IPA_PREPARE epoch="<<toneEpoch<<" sof="<<sequence<<" cached="<<focusedPrepared
++   <<" dispatch-us="<<std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now()-toneBegin).count()
++   <<" status="<<ret;
+   if (!ownsFrame()) return;
+   qcom_ipe_a5_frame_params packet{};
+   if(!ret && !tone.empty()) {

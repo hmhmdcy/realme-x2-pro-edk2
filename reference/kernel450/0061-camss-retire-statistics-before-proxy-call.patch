@@ -1,0 +1,26 @@
+--- a/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
++++ b/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
+@@ -1280,10 +1280,20 @@
+  } else {
+   LOG(CamssVfe, Warning) << "IPA rejected statistics epoch=" << epoch << " sof=" << sof << " status=" << statistics.status;
+  }
++ if (!running_ || epoch != epoch_) return;
+  while (histogramOrder_.size() > 32) {
+-  auto old=histograms_.find(histogramOrder_.front());
+-   if(old!=histograms_.end() && old->second.ipeToken)ipa_->frameProcessed(epoch_,old->first,old->second.ipeToken,false);
+-   histograms_.erase(histogramOrder_.front()); histogramOrder_.pop_front();
++  /* Retire local ownership before a synchronous isolated call can reenter.
++   * A nested statistics callback or stop must not resolve this token twice. */
++  const uint32_t oldSof=histogramOrder_.front();
++  histogramOrder_.pop_front();
++  auto old=histograms_.find(oldSof);
++  if(old==histograms_.end())continue;
++  const uint64_t token=old->second.ipeToken;
++  histograms_.erase(old);
++  if(token) {
++   ipa_->frameProcessed(epoch,oldSof,token,false);
++   if (!running_ || epoch != epoch_) return;
++  }
+  }
+  if (!running_ || epoch != epoch_) return;
+  if (!statistics.status && statistics.parametersKnown) queueIspUpdate(statistics.ispUpdate);

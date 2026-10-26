@@ -1,0 +1,25 @@
+{
+  "date": "2026-10-10",
+  "sources": [
+    {
+      "url": "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/usb/ns-usb-_urb_header",
+      "finding": "0x1e resets host data toggle and clears device halt; noncompliant device toggle preservation can drop the next packet. 0x30 preserves host toggle; 0x31 clears device halt without host toggle reset."
+    },
+    {
+      "url": "https://github.com/qualcomm/qcom-usb-kernel-drivers/blob/14b6fe1ee69cdd9182502629da9192156b9d206a/src/windows/wdfserial/QCPNP.c",
+      "sha256": "fc90dd37159ffac9e6ce21202f9edd436aa73014eedc2c8d1551fca9d51f4f64",
+      "finding": "Release source still resets bulk IN/OUT on FileCreate through WdfUsbTargetPipeResetSynchronously. A stock upgrade alone has no demonstrated no-reset fix."
+    },
+    {
+      "url": "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdfusb/nf-wdfusb-wdfusbtargetdevicegetdevicedescriptor",
+      "finding": "Descriptor access used by candidate exact VID/PID gating."
+    },
+    {
+      "url": "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdfregistry/nf-wdfregistry-wdfregistryqueryulong",
+      "finding": "DWORD query used by candidate opt-in, failures/defaults preserve existing reset behavior."
+    }
+  ],
+  "inference": "Odd failure plus pre-defined even success strongly supports ordinary-reopen toggle mismatch. Actual EUD DATA0/1 and ACK remain unmeasured; no installed repair.",
+  "no_supported_legacy_skip_reset_setting_identified": true,
+  "no_external_contact": true
+}

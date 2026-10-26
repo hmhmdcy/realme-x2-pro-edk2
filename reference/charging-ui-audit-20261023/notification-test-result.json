@@ -1,0 +1,41 @@
+{
+  "passed": true,
+  "cases": 54,
+  "stable_polls_checked": 100,
+  "scope": "Actual candidate notification/poll/resume functions with simulated kernel boundaries; no kernel-module/hardware acceptance",
+  "unchanged_functions": [
+    "sm_step_locked",
+    "sm_collect",
+    "sm_gauge_sample",
+    "sm_set_property",
+    "sm_supply_changed",
+    "sm_get_property",
+    "sm_suspend",
+    "sm_cleanup"
+  ],
+  "sanitizers": [
+    "ASan",
+    "UBSan"
+  ],
+  "command": [
+    "gcc",
+    "-std=c11",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-g",
+    "-fsanitize=address,undefined",
+    "-fno-omit-frame-pointer",
+    "-I/mnt/e/RealmeX2Pro edk2/reference/charging-ui-audit-20261023/candidate",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-ui-audit-20261023/test-notification-generated.c",
+    "-o",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-ui-audit-20261023/test-notification-bin"
+  ],
+  "tested_files": {
+    "candidate/samurai-mp2650.c": "4a4ec4ce3ea31313f4a7283eb6fd62cfa352f72ca71d561200a430bda5bd792b",
+    "candidate/charging-notify.h": "20a03e02c884a8e1c9307373e67f10ca5836cbd75a8507a08c7a18b3d436baba",
+    "test-notification.c.in": "86765c4ea6bfa171e64e7697827507d98623d1e543933fcaf23bdac79c32b8cc",
+    "test-notification-generated.c": "940392e8e5fd5dcaa19c83d60d47411014ff24b5ab1be5ad781fb48cd390c7bc",
+    "test-notification.py": "d96de408970a8904f9568c37e20950334298e243d8af2cf2a29648c9ec728639"
+  }
+}

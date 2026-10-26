@@ -1,0 +1,16 @@
+--- a/src/libcamera/software_isp/software_isp.cpp
++++ b/src/libcamera/software_isp/software_isp.cpp
+@@ -50,6 +50,13 @@
+ 							const CameraSensor *sensor)
+ {
+ 	const GlobalConfiguration &configuration = pipe->cameraManager()->_d()->configuration();
++	const auto heap = configuration.option<std::string>({ "software_isp", "dma_heap" });
++	if (heap == "system")
++		return DmaBufAllocator::DmaBufAllocatorFlag::SystemHeap;
++	if (heap && heap != "auto") {
++		LOG(SoftwareIsp, Error) << "Unsupported software ISP dma_heap selection";
++		return {};
++	}
+ 	if (sensor->model() == "imx471" && configuration.option<bool>(
+ 		    { "software_isp", "experimental_imx471_native_quad" }).value_or(false))
+ 		return DmaBufAllocator::DmaBufAllocatorFlag::SystemHeap;

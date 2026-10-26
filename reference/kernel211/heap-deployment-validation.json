@@ -1,0 +1,59 @@
+{
+  "stage": 211,
+  "heap_modules_loaded": true,
+  "normal_openrc_modules_load_config_installed": true,
+  "video_group_uaccess_rule_installed": true,
+  "heap_devices": [
+    {
+      "name": "reserved",
+      "mode": "0660",
+      "group": "video"
+    },
+    {
+      "name": "fastrpc-shared-pool",
+      "mode": "0660",
+      "group": "video"
+    },
+    {
+      "name": "default_cma_region",
+      "mode": "0660",
+      "group": "video"
+    },
+    {
+      "name": "system",
+      "mode": "0660",
+      "group": "video"
+    }
+  ],
+  "user_allocation": {
+    "uid": 10000,
+    "allocations": [
+      {
+        "heap": "reserved",
+        "bytes": 65536,
+        "allocate_map_cpu_sync_readback_close": true
+      },
+      {
+        "heap": "default_cma_region",
+        "bytes": 65536,
+        "allocate_map_cpu_sync_readback_close": true
+      },
+      {
+        "heap": "system",
+        "bytes": 65536,
+        "allocate_map_cpu_sync_readback_close": true
+      }
+    ]
+  },
+  "no_custom_allocator_or_fake_node_alias": true,
+  "sensor_stayed_suspended": true,
+  "taint": 0,
+  "fault_delta": {
+    "warning": 0,
+    "oops": 0,
+    "gpu": 0,
+    "slpi_fatal": 0,
+    "bluetooth": 0
+  },
+  "reboot_persistence_not_yet_tested": true
+}

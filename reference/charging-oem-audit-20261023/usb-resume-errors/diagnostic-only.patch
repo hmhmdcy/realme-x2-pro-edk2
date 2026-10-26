@@ -1,0 +1,49 @@
+--- a/drivers/usb/dwc3/dwc3-qcom-legacy.c
++++ b/drivers/usb/dwc3/dwc3-qcom-legacy.c
+@@ -434,7 +434,8 @@
+ 	for (i = 0; i < qcom->num_ports; i++) {
+ 		val = readl(qcom->qscratch_base + pwr_evnt_irq_stat_reg[i]);
+ 		if (!(val & PWR_EVNT_LPM_IN_L2_MASK))
+-			dev_err(qcom->dev, "port-%d HS-PHY not in L2\n", i + 1);
++			dev_err(qcom->dev, "port-%d HS-PHY not in L2: status=%#x wakeup=%d\n",
++			i + 1, val, wakeup);
+ 	}
+ 
+ 	for (i = qcom->num_clocks - 1; i >= 0; i--)
+--- a/drivers/usb/dwc3/core.c
++++ b/drivers/usb/dwc3/core.c
+@@ -2630,7 +2630,9 @@
+ 			return ret;
+ 
+ 		dwc3_set_prtcap(dwc, DWC3_GCTL_PRTCAP_DEVICE, true);
+-		dwc3_gadget_resume(dwc);
++		ret = dwc3_gadget_resume(dwc);
++		if (ret)
++			dev_err(dwc->dev, "gadget resume failed: %d\n", ret);
+ 		break;
+ 	case DWC3_GCTL_PRTCAP_HOST:
+ 		if (!PMSG_IS_AUTO(msg) &&
+@@ -2673,7 +2675,9 @@
+ 		if (dwc->current_otg_role == DWC3_OTG_ROLE_HOST) {
+ 			dwc3_otg_host_init(dwc);
+ 		} else if (dwc->current_otg_role == DWC3_OTG_ROLE_DEVICE) {
+-			dwc3_gadget_resume(dwc);
++			ret = dwc3_gadget_resume(dwc);
++			if (ret)
++				dev_err(dwc->dev, "gadget resume failed: %d\n", ret);
+ 		}
+ 
+ 		break;
+--- a/drivers/usb/dwc3/gadget.c
++++ b/drivers/usb/dwc3/gadget.c
+@@ -2813,7 +2813,9 @@
+ 		return ret;
+ 
+ 	dwc3_event_buffers_setup(dwc);
+-	__dwc3_gadget_start(dwc);
++	ret = __dwc3_gadget_start(dwc);
++	if (ret)
++		dev_err(dwc->dev, "gadget endpoint start failed: %d\n", ret);
+ 	return dwc3_gadget_run_stop(dwc, true);
+ }
+ 

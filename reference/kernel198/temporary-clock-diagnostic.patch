@@ -1,0 +1,70 @@
+diff --git a/drivers/media/platform/qcom/camss/camss.h b/drivers/media/platform/qcom/camss/camss.h
+--- a/drivers/media/platform/qcom/camss/camss.h
++++ b/drivers/media/platform/qcom/camss/camss.h
+@@ -165,6 +165,8 @@
+ 	void __iomem *(*get_base_address)(struct camss *camss, int id);
+ };
+ 
++void camss_trace_clocks(struct device *dev, struct camss_clock *clock,
++			int nclocks, const char *reason);
+ void camss_add_clock_margin(u64 *rate);
+ int camss_enable_clocks(int nclocks, struct camss_clock *clock,
+ 			struct device *dev);
+diff --git a/drivers/media/platform/qcom/camss/camss.c b/drivers/media/platform/qcom/camss/camss.c
+--- a/drivers/media/platform/qcom/camss/camss.c
++++ b/drivers/media/platform/qcom/camss/camss.c
+@@ -8,6 +8,7 @@
+  * Copyright (C) 2015-2018 Linaro Ltd.
+  */
+ #include <linux/clk.h>
++#include <linux/clk-provider.h>
+ #include <linux/interconnect.h>
+ #include <linux/media-bus-format.h>
+ #include <linux/media.h>
+@@ -4764,6 +4765,23 @@
+  *
+  * Return 0 on success or a negative error code otherwise
+  */
++static bool clock_trace;
++module_param(clock_trace, bool, 0444);
++MODULE_PARM_DESC(clock_trace, "Read clock state around camera power/reset");
++
++void camss_trace_clocks(struct device *dev, struct camss_clock *clock,
++			int nclocks, const char *reason)
++{
++	int i;
++
++	if (!clock_trace)
++		return;
++	for (i = 0; i < nclocks; i++)
++		dev_info(dev, "clock-trace %s name=%s rate=%lu hw=%d\n",
++			 reason, clock[i].name, clk_get_rate(clock[i].clk),
++			 __clk_is_enabled(clock[i].clk));
++}
++
+ int camss_enable_clocks(int nclocks, struct camss_clock *clock,
+ 			struct device *dev)
+ {
+@@ -4776,6 +4794,7 @@
+ 			dev_err(dev, "clock enable failed: %d\n", ret);
+ 			goto error;
+ 		}
++		camss_trace_clocks(dev, &clock[i], 1, "enabled");
+ 	}
+ 
+ 	return 0;
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe.c b/drivers/media/platform/qcom/camss/camss-vfe.c
+--- a/drivers/media/platform/qcom/camss/camss-vfe.c
++++ b/drivers/media/platform/qcom/camss/camss-vfe.c
+@@ -1107,7 +1107,11 @@
+ 		if (ret < 0)
+ 			goto error_pm_runtime_get;
+ 
++		camss_trace_clocks(vfe->camss->dev, vfe->clock, vfe->nclocks,
++				   "before-vfe-reset");
+ 		ret = vfe_reset(vfe);
++		camss_trace_clocks(vfe->camss->dev, vfe->clock, vfe->nclocks,
++				   "after-vfe-reset");
+ 		if (ret < 0)
+ 			goto error_reset;
+ 

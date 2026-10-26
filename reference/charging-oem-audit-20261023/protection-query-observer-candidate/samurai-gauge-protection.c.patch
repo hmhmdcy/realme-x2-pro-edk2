@@ -1,0 +1,147 @@
+--- r8/samurai-gauge-protection.c
++++ candidate/samurai-gauge-protection.c
+@@ -14,11 +14,30 @@
+ module_param(register_board, bool, 0444);
+ MODULE_PARM_DESC(register_board, "Create the RMX1931 observation device without changing DT");
+ 
++/* Fixed observation recipe, never a user-supplied MAC selector. */
++static const unsigned int sm_evidence_commands[] = {
++	0x0001, 0x0051, 0x0053, 0x0054, 0x0057, 0x0050, 0x0052, 0x0056,
++};
++enum sm_evidence_stage {
++	SM_EVIDENCE_NONE, SM_EVIDENCE_ID_FRAME, SM_EVIDENCE_ID_VALUE,
++	SM_EVIDENCE_BATTERY_BEFORE, SM_EVIDENCE_STATUS_FRAME,
++	SM_EVIDENCE_BATTERY_AFTER, SM_EVIDENCE_COMPLETE,
++};
++struct sm_mac_evidence {
++	bool attempted, terminal;
++	unsigned int stage, frames_attempted;
++	int error, battery_before, battery_after;
++	bool battery_before_valid, battery_after_valid;
++	u64 started_ns, battery_before_ns, battery_after_ns, ended_ns;
++	struct sm_mac_receipt frames[ARRAY_SIZE(sm_evidence_commands)];
++};
++
+ struct sm_protection {
+ 	struct i2c_client *gauge;
+ 	struct mutex lock;
+ 	unsigned int id, safety, permanent, operation, manufacturing;
+ 	int last_error;
++	struct sm_mac_evidence evidence;
+ };
+ 
+ static struct platform_device *sm_board;
+@@ -46,6 +65,101 @@
+ 	return ret;
+ }
+ 
++/* Caller holds p->lock. One attempt, including failure, per bound instance.
++ * Do not change normal health values/last_error, policy, latch or timer here.
++ */
++static int sm_protection_capture_locked(struct sm_protection *p)
++{
++	struct sm_mac_evidence *e = &p->evidence;
++	int ret;
++
++	if (e->attempted) return -EALREADY;
++	*e = (struct sm_mac_evidence){ .attempted = true };
++	e->started_ns = ktime_get_boottime_ns();
++	for (unsigned int i = 0; i < ARRAY_SIZE(sm_evidence_commands); i++) {
++		e->frames[i].command = sm_evidence_commands[i];
++		e->frames[i].expected_size = sm_mac_observe_data_size(sm_evidence_commands[i]);
++	}
++	i2c_lock_bus(p->gauge->adapter, I2C_LOCK_SEGMENT);
++	e->stage = SM_EVIDENCE_ID_FRAME;
++	e->frames_attempted = 1;
++	ret = sm_gauge_mac_observe_locked(p->gauge, 0x0001, &e->frames[0]);
++	if (ret) goto out;
++	e->stage = SM_EVIDENCE_ID_VALUE;
++	if (sm_le16(e->frames[0].raw + 2) != 0x2719) { ret = -ENODEV; goto out; }
++	e->stage = SM_EVIDENCE_BATTERY_BEFORE;
++	ret = sm_gauge_word_locked(p->gauge, 0x0a, false, 0);
++	e->battery_before_ns = ktime_get_boottime_ns();
++	if (ret < 0) goto out;
++	e->battery_before = ret; e->battery_before_valid = true;
++	for (unsigned int i = 1; i < ARRAY_SIZE(sm_evidence_commands); i++) {
++		e->stage = SM_EVIDENCE_STATUS_FRAME;
++		e->frames_attempted = i + 1;
++		ret = sm_gauge_mac_observe_locked(p->gauge, sm_evidence_commands[i], &e->frames[i]);
++		if (ret) goto out;
++	}
++	e->stage = SM_EVIDENCE_BATTERY_AFTER;
++	ret = sm_gauge_word_locked(p->gauge, 0x0a, false, 0);
++	e->battery_after_ns = ktime_get_boottime_ns();
++	if (ret < 0) goto out;
++	e->battery_after = ret; e->battery_after_valid = true;
++	ret = 0; e->stage = SM_EVIDENCE_COMPLETE;
++out:
++	i2c_unlock_bus(p->gauge->adapter, I2C_LOCK_SEGMENT);
++	e->error = ret; e->ended_ns = ktime_get_boottime_ns(); e->terminal = true;
++	return ret;
++}
++
++static ssize_t mac_evidence_capture_store(struct device *dev,
++	struct device_attribute *attr, const char *buf, size_t count)
++{
++	struct sm_protection *p = dev_get_drvdata(dev);
++	int ret;
++
++	if (!sysfs_streq(buf, "capture")) return -EINVAL;
++	mutex_lock(&p->lock);
++	ret = sm_protection_capture_locked(p);
++	mutex_unlock(&p->lock);
++	return ret ? ret : count;
++}
++static DEVICE_ATTR(mac_evidence_capture, 0200, NULL, mac_evidence_capture_store);
++
++/* Pure cached reads: even attempted=0 never starts an I2C transaction. */
++static ssize_t mac_evidence_show(struct device *dev,
++	struct device_attribute *attr, char *buf)
++{
++	struct sm_protection *p = dev_get_drvdata(dev);
++	struct sm_mac_evidence *e = &p->evidence;
++	ssize_t n;
++
++	mutex_lock(&p->lock);
++	n = sysfs_emit(buf, "schema=1 attempted=%d terminal=%d stage=%u error=%d "
++		"frames_attempted=%u started_ns=%llu ended_ns=%llu "
++		"battery_before_valid=%d battery_before=0x%x battery_before_ns=%llu "
++		"battery_after_valid=%d battery_after=0x%x battery_after_ns=%llu "
++		"compatibility_verified=0\n", e->attempted, e->terminal, e->stage, e->error,
++		e->frames_attempted, e->started_ns, e->ended_ns,
++		e->battery_before_valid, e->battery_before, e->battery_before_ns,
++		e->battery_after_valid, e->battery_after, e->battery_after_ns);
++	for (unsigned int i = 0; i < ARRAY_SIZE(sm_evidence_commands); i++) {
++		struct sm_mac_receipt *r = &e->frames[i];
++
++		n += sysfs_emit_at(buf, n, "frame=%u cmd=0x%04x attempted=%d expected_size=%d "
++			"select_attempted=%d select_rc=%d read_attempted=%d read_rc=%d "
++			"full_read=%d validate_attempted=%d validate_rc=%d "
++			"started_ns=%llu select_end_ns=%llu read_end_ns=%llu ended_ns=%llu raw=",
++			i, sm_evidence_commands[i], r->attempted, r->expected_size,
++			r->select_attempted, r->select_rc, r->read_attempted, r->read_rc,
++			r->full_read, r->validate_attempted, r->validate_rc,
++			r->started_ns, r->select_end_ns, r->read_end_ns, r->ended_ns);
++		if (r->full_read) n += sysfs_emit_at(buf, n, "%*phN\n", 36, r->raw);
++		else n += sysfs_emit_at(buf, n, "unavailable\n");
++	}
++	mutex_unlock(&p->lock);
++	return n;
++}
++static DEVICE_ATTR(mac_evidence, 0400, mac_evidence_show, NULL);
++
+ static int sm_protection_get(struct power_supply *psy,
+ 			     enum power_supply_property property,
+ 			     union power_supply_propval *value)
+@@ -84,7 +198,10 @@
+ 	return length;
+ }
+ static DEVICE_ATTR_RO(protection_state);
+-static struct attribute *sm_protection_attrs[] = { &dev_attr_protection_state.attr, NULL };
++static struct attribute *sm_protection_attrs[] = {
++	&dev_attr_protection_state.attr, &dev_attr_mac_evidence_capture.attr,
++	&dev_attr_mac_evidence.attr, NULL,
++};
+ static const struct attribute_group sm_protection_group = { .attrs = sm_protection_attrs };
+ static const enum power_supply_property sm_protection_properties[] = {
+ 	POWER_SUPPLY_PROP_PRESENT, POWER_SUPPLY_PROP_HEALTH, POWER_SUPPLY_PROP_MODEL_NAME,

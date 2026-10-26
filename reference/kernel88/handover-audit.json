@@ -1,0 +1,183 @@
+{
+  "audit": "PASS",
+  "scope": "offline build, preservation, firmware integrity and read-only handset handover",
+  "handset_kernel_build": 86,
+  "handset_boot_id": "32bf2d8f-8dde-47dc-9b88-e87db9e95198",
+  "handset_uptime_seconds": 3984.69,
+  "taint": 0,
+  "display_timeouts": 2,
+  "display_underruns": 0,
+  "display_snapshot_sha256": "550d76908bd09bb280f57a5937fce7ec0101e4c167fed850b42834085e53f2f2",
+  "preserved_source_count": 30,
+  "initramfs_files": 14,
+  "initramfs_links": 308,
+  "changed_source_paths": [
+    "arch/arm64/boot/dts/qcom/sm8150-samurai.dts"
+  ],
+  "configuration_changes": {
+    "QCOM_RPROC_COMMON": {
+      "before": "m",
+      "candidate": "y"
+    },
+    "ATH_COMMON": {
+      "before": "n",
+      "candidate": "y"
+    },
+    "RFKILL": {
+      "before": "m",
+      "candidate": "y"
+    },
+    "QCOM_QMI_HELPERS": {
+      "before": "m",
+      "candidate": "y"
+    },
+    "QCOM_SYSMON": {
+      "before": "m",
+      "candidate": "y"
+    },
+    "CRYPTO_CTR": {
+      "before": "m",
+      "candidate": "y"
+    },
+    "CRYPTO_GCM": {
+      "before": "m",
+      "candidate": "y"
+    },
+    "ATH10K_DEBUG": {
+      "before": "n",
+      "candidate": "y"
+    },
+    "ATH10K_LEDS": {
+      "before": "n",
+      "candidate": "y"
+    },
+    "MAC80211": {
+      "before": "m",
+      "candidate": "y"
+    },
+    "QCOM_PDR_MSG": {
+      "before": "m",
+      "candidate": "y"
+    },
+    "ATH10K": {
+      "before": "n",
+      "candidate": "y"
+    },
+    "ATH10K_DEBUGFS": {
+      "before": "n",
+      "candidate": "y"
+    },
+    "ATH10K_SNOC": {
+      "before": "n",
+      "candidate": "y"
+    },
+    "CRYPTO_CCM": {
+      "before": "m",
+      "candidate": "y"
+    },
+    "QCOM_Q6V5_PAS": {
+      "before": "m",
+      "candidate": "y"
+    },
+    "QCOM_PIL_INFO": {
+      "before": "m",
+      "candidate": "y"
+    },
+    "CRYPTO_LIB_ARC4": {
+      "before": "m",
+      "candidate": "y"
+    },
+    "ATH10K_CE": {
+      "before": "n",
+      "candidate": "y"
+    },
+    "QRTR_SMD": {
+      "before": "m",
+      "candidate": "y"
+    },
+    "QCOM_PD_MAPPER": {
+      "before": "m",
+      "candidate": "y"
+    },
+    "WLAN": {
+      "before": "n",
+      "candidate": "y"
+    },
+    "QCOM_Q6V5_COMMON": {
+      "before": "m",
+      "candidate": "y"
+    },
+    "CFG80211": {
+      "before": "m",
+      "candidate": "y"
+    },
+    "RPMSG_QCOM_GLINK_SMEM": {
+      "before": "m",
+      "candidate": "y"
+    },
+    "QRTR": {
+      "before": "m",
+      "candidate": "y"
+    },
+    "WLAN_VENDOR_ATH": {
+      "before": "n",
+      "candidate": "y"
+    }
+  },
+  "dtb_semantic_changes": [
+    {
+      "node": "/soc@0/remoteproc@4080000",
+      "property": "firmware-name",
+      "before_hex": "71636f6d2f736d383135302f6d6f64656d2e6d626e00",
+      "after_hex": "71636f6d2f736d383135302f7265616c6d652f73616d757261692f6d6f64656d2e6d647400"
+    },
+    {
+      "node": "/soc@0/remoteproc@4080000",
+      "property": "status",
+      "before_hex": "64697361626c656400",
+      "after_hex": "6f6b617900"
+    }
+  ],
+  "WiFi_node_enabled": false,
+  "candidate": {
+    "kernel_build": 89,
+    "bytes": 39160320,
+    "sha256": "02fbe7e5d20cc2a0f5b55e08511ee9a1a39d2c47516079569fe8dc2368360ea0",
+    "deployed": false,
+    "dtb_sha256": "7a5e5ffb15baf3548b92671fb6f638a587911b40e936ce2ddf92ff13728096d9",
+    "config_sha256": "981b4b828e5e6a8a108a7bff1c8fa7ccb8133abcf6ffd0ec0c631fbbca4f44ff",
+    "cpio_sha256": "74052b3e705e5af1c2268590206da264a339cf4e042e5ed601c54f56ad66b102"
+  },
+  "tools_test": {
+    "audit": "PASS",
+    "scope": "actual translator/WRQ functions with local filesystem and socket stub; no firmware runtime claim",
+    "compile_exit": 0,
+    "run_exit": 0,
+    "output": "PASS actual translator RRQ aliases and byte read; write flags/readwrite/traversal/symlinks denied; actual WRQ handler rejects; no target created\n",
+    "compile_log_sha256": "cfa61500e95bcbbe1f6059aff98d7f62c326eff5d33ebf13e71c146c672b08a0",
+    "run_log_sha256": "df706c278cf168369ace02e5f62d004379112057d7020cfb49daa3bc1b4b59e7",
+    "tools": {
+      "qrtr-lookup": {
+        "bytes": 851096,
+        "sha256": "11f5a225470b536b5dd0a9e181059447b696f4e89c2884ee28e5d6d48bb32074"
+      },
+      "tqftpserv-ro": {
+        "bytes": 922824,
+        "sha256": "274fd4fd849fb9e49853eefd7923f86a7554af9ecf664a324ae72b498f19ec18"
+      }
+    },
+    "firmware_count_verified": 33,
+    "firmware_runtime_verified": false
+  },
+  "MPSS_firmware_files_verified": 33,
+  "MPSS_relocated_span_bytes": 167772160,
+  "MPSS_runtime_verified": false,
+  "actual_chip_board_ID_known": false,
+  "wireless_scan_connection_traffic_verified": false,
+  "EDK2_firmware_DT_changed_or_built": false,
+  "new_partition_write_or_reboot": false,
+  "charging_control_verified": false,
+  "next_hardware_priority": "Wi-Fi",
+  "full_hardware_goal_completed": false,
+  "historical_85_86_87_manifests_unchanged": true
+}

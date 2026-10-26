@@ -1,0 +1,70 @@
+{
+  "passed": false,
+  "scope": "six new actual helper/poll/source/notifier/timing groups; fake OS and IO boundaries",
+  "tested_files": {
+    "reattach-observation.h": "49cb61042d431492d91ccad917f197cbbe2fff58bc53e378aeb92c573e9666c1",
+    "samurai-mp2650.c": "1c088829ff827cb8015cccafc1a7fc1cad5b519d5a91ba08abdebd1adeb5b4b1",
+    "source-reuse.json": "8366b7d197770537682f7a486ae013ae6e7536a20b4ff068bfdc2d950218ca19",
+    "test-observation.c": "8a6e6235128b208e0635296c23edef9bd8a6e687e85b7d580bac2bac37765805",
+    "test-observation.py": "0c643449b87db8425aad1bc0f273cb1b3ede364f458c728e9914c74852e25170",
+    "actual-poll.inc": "17f8108ba329b5415d550105b44dd9769bbabb02c46bad19133d6e304da5a590",
+    "actual-source.inc": "960a2d490b9911a7168c4f4790a213e5443e95d2ce18a0b37c96f342a3a7bfd2",
+    "actual-notifier.inc": "7ecebb26b197f54a4b63289554ce1e3c4da8ffb21d390a588bc7936d66e088d2"
+  },
+  "reused_headers": {
+    "oem-full-cycle.h": "91554031a1ea454e1a70fa8bae89316bd8770686c19c5a33ec6a1dbb06bdfba4",
+    "charge-cycle.h": "717e7ae2579cbf970f3802a21dcfa0fe0124e7fd236588661c613fcd3903e07b"
+  },
+  "unchanged_actual_functions": {
+    "sm_read": "7af4db1c572782c3b66bf67c7ddc8467c38a065ed1aacfe3900c0925cd7656a3",
+    "sm_write": "d85fac7bd72d2805a6f78668b5d2bfdeff0c556e3692e38d749e42f0733453d0",
+    "sm_gauge_sample": "35f4e3399a9590a5c0cf4a1a7e5fcf25d07bddcb5b2465bdb445b184e76933e5",
+    "sm_psy_int": "af1b79c92867d69b7303ecec6f1915ed4fd08d5bc2a14804e0bb51a5791f3265",
+    "sm_collect": "7864b25ced0cc15558ba3d0986e68acd58de18d346dcd2819a6e702a81eafbca",
+    "sm_supply_changed": "7ecebb26b197f54a4b63289554ce1e3c4da8ffb21d390a588bc7936d66e088d2",
+    "sm_adc": "397889b2a7ddc8777141993d99217fae74940edcf675a2d78737998ed85800e6",
+    "sm_get_property": "1ce1047705c18b4e748802ee575ac54d681aff6dbdfbdfa3ff9b900a1c597b9d",
+    "sm_set_property": "2d409e15861a2db06e2cd2ff58df84f630da9a77f9e872fb661430cd0f0a9e92",
+    "sm_writeable": "1125d5c5ba990f5fc47a7eeb25b07dc758e9ea7b9794a24c9a2cbbdffe64c9f6",
+    "sm_put_gauge": "8954a65f6a1e45b3c93fc48b071fd61b25d1c66284e6be15972ebcf6dbda9e15",
+    "sm_put_supply": "8c30f58ad6d8a3608cebbb7548293943a44e80e0266eeab29c175129bf4ec9ba",
+    "sm_put_module": "65b30a0b96dadd91bca286de1019ba626e530571de282646163bf09698de6ada",
+    "sm_cleanup": "ed582b12e51b81cb53d602a482d88e0909f4e786eb6f8ed4ddfc5562f7b0ee86",
+    "sm_battery_notify_target": "60a306d392ee101744822ab8deeb33e40a597c15bf16929888a056383fbb6d02",
+    "sm_probe": "870e10e2ad71a11365091a8effab63802d37c86164f76c0f67a64b8e186c913b",
+    "sm_suspend": "7699f575561018379b0090d8fa91fce0fb65d5e85f3fd1f90b71f2cf8a185da8",
+    "sm_resume": "fa94a2c5639e8352d7385c4d81ac8d5a72898a63aae251989ccda7704d296aaa",
+    "sm_shutdown": "4adcf04aff245523c31b3cfa0fb6c348923b4b79818c3cc1965a15f23220631d"
+  },
+  "exact_base_recovered_by_four_reverse_replacements": true,
+  "device_SDK_storageguard_kernel_module_build": false,
+  "old_suites_rerun": false,
+  "children": [
+    {
+      "argv": [
+        "wsl.exe",
+        "-d",
+        "Ubuntu",
+        "-u",
+        "root",
+        "--",
+        "gcc",
+        "-std=gnu11",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-g",
+        "-fsanitize=address,undefined",
+        "-fno-omit-frame-pointer",
+        "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/charger-reattach-observation-candidate/test-observation.c",
+        "-o",
+        "/mnt/e/edk2-samurai-out/charging-session-20261023/charger-reattach-observation-tests-01/test-observation"
+      ],
+      "owned_host_pid": 244556,
+      "terminal": true,
+      "returncode": 1,
+      "stdout": "",
+      "stderr": "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/charger-reattach-observation-candidate/test-observation.c: In function \u2018test_flap_deadline_and_fresh_rearm\u2019:\n/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/charger-reattach-observation-candidate/test-observation.c:89:70: error: operand of \u2018?:\u2019 changes signedness from \u2018int\u2019 to \u2018unsigned int\u2019 due to unsignedness of other operand [-Werror=sign-compare]\n   89 |                 sm_reattach_source(&s, NS + i * NS / 4, i % 3 == 0 ? -1 : i % 2);\n      |                                                                      ^~\ncc1: all warnings being treated as errors\n"
+    }
+  ]
+}

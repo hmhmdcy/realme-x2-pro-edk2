@@ -1,0 +1,107 @@
+{
+  "stage": 202,
+  "production_watch_scenarios": [
+    {
+      "name": "idle preflight then one active worker",
+      "started": [
+        {
+          "kind": "prepare",
+          "clock": 0.0,
+          "owner": ":a"
+        },
+        {
+          "kind": "assist",
+          "clock": 4.0,
+          "owner": ":a"
+        }
+      ],
+      "waited": [],
+      "passed": true
+    },
+    {
+      "name": "unsynchronized clock retries in ten seconds",
+      "started": [
+        {
+          "kind": "prepare",
+          "clock": 0.0,
+          "owner": ":a"
+        },
+        {
+          "kind": "prepare",
+          "clock": 12.0,
+          "owner": ":a"
+        }
+      ],
+      "waited": [],
+      "passed": true
+    },
+    {
+      "name": "late old owner completion cannot prepare new owner",
+      "started": [
+        {
+          "kind": "prepare",
+          "clock": 0.0,
+          "owner": ":a"
+        },
+        {
+          "kind": "prepare",
+          "clock": 6.0,
+          "owner": ":b"
+        }
+      ],
+      "waited": [],
+      "passed": true
+    },
+    {
+      "name": "GPS racing preparation gets regular active worker",
+      "started": [
+        {
+          "kind": "prepare",
+          "clock": 0.0,
+          "owner": ":a"
+        },
+        {
+          "kind": "assist",
+          "clock": 2.0,
+          "owner": ":a"
+        }
+      ],
+      "waited": [],
+      "passed": true
+    },
+    {
+      "name": "stop waits for in-flight UTC cleanup",
+      "started": [
+        {
+          "kind": "prepare",
+          "clock": 0.0,
+          "owner": ":a"
+        }
+      ],
+      "waited": [
+        0
+      ],
+      "passed": true
+    },
+    {
+      "name": "already active GPS never receives idle preflight",
+      "started": [
+        {
+          "kind": "assist",
+          "clock": 0.0,
+          "owner": ":a"
+        },
+        {
+          "kind": "prepare",
+          "clock": 6.0,
+          "owner": ":a"
+        }
+      ],
+      "waited": [],
+      "passed": true
+    }
+  ],
+  "retry_status_cases": 6,
+  "all_passed": true,
+  "hardware_qmi_not_simulated_as_hardware_success": true
+}

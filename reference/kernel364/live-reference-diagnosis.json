@@ -1,0 +1,12 @@
+{
+  "stage": 364,
+  "offline_merge_passed_but_live_reference_missing": true,
+  "live_framework_skips_existing_node_phandle_updates": true,
+  "first_probe_preserved_as_failure": true,
+  "second_probe_resolves_no_firmware_node": true,
+  "a5_cpu_started": false,
+  "driver_firmware_region_checks_relaxed": false,
+  "root_cause": "An overlay-local phandle on an __overlay__ root targeting an existing unreferenced board node is not installed in the live tree.",
+  "correction": "Give the disabled SoC ICP node its firmware memory-region in the static board DT, then use that existing reference in temporary diagnostics.",
+  "passed": true
+}

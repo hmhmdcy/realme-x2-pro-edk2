@@ -1,0 +1,556 @@
+--- a/drivers/media/i2c/imx471.c
++++ b/drivers/media/i2c/imx471.c
+@@ -10,6 +10,8 @@
+ #include <linux/delay.h>
+ #include <linux/i2c.h>
+ #include <linux/module.h>
++#include <linux/list.h>
++#include <linux/mutex.h>
+ #include <linux/mux/consumer.h>
+ #include <linux/of.h>
+ #include <linux/pinctrl/consumer.h>
+@@ -160,6 +162,8 @@
+ 	unsigned int default_mode_regs_length;
+ };
+ 
++struct imx471_shared;
++
+ struct imx471 {
+ 	struct v4l2_subdev sd;
+ 	struct media_pad pad;
+@@ -175,12 +179,7 @@
+ 	unsigned long link_freq_bitmap;
+ 
+ 	struct gpio_desc *reset_gpio;
+-	struct reset_control *reset;
+-	struct mux_state *route;
+-	unsigned long supply_mask;
+-	bool route_selected;
+-	bool reset_acquired;
+-	bool clock_enabled;
++	struct imx471_shared *shared;
+ 	struct regulator_bulk_data supplies[ARRAY_SIZE(imx471_supply_name)];
+ 	struct clk *img_clk;
+ 
+@@ -815,135 +814,267 @@
+ 	regulator_disable(sensor->supplies[IMX471_VIF].consumer);
+ }
+ 
+-/* Shared-route boards never use the legacy direct GPIO/pinctrl path. */
+-static int imx471_route_get(struct imx471 *sensor)
++/* Routed resources outlive sensor devres when shutdown cannot complete.
++ * Only this holder owns the routed handles. An unbound failed holder is
++ * deliberately retained, with its device and power-module references, until
++ * reboot. No worker or subsequent probe retries its hardware operations.
++ * Supplier devices must remain bound; consumer references cannot prohibit an
++ * administrator from forcibly removing a supplier or its parent controller.
++ */
++struct imx471_shared {
++	struct device *dev;
++	struct list_head entry;
++	struct mutex lock;
++	struct mux_state *route;
++	struct reset_control *reset;
++	struct clk *clock;
++	struct regulator *supplies[ARRAY_SIZE(imx471_supply_name)];
++	unsigned long supply_mask;
++	bool route_selected;
++	bool reset_acquired;
++	bool clock_enabled;
++	bool power_module_ref;
++	bool removing;
++	bool quarantined;
++};
++
++static LIST_HEAD(imx471_shared_holders);
++static DEFINE_MUTEX(imx471_shared_holders_lock);
++
++/* Caller owns h->lock. Pin before selecting or changing shared hardware. */
++static int imx471_shared_route_get(struct imx471_shared *h)
+ {
+ 	int ret;
+ 
+-	if (!sensor->route || sensor->route_selected)
++	if (h->route_selected)
+ 		return 0;
+-	ret = mux_state_try_select(sensor->route);
+-	if (!ret)
+-		sensor->route_selected = true;
+-	return ret;
+-}
+-
+-static void imx471_route_put(void *data)
+-{
+-	struct imx471 *sensor = data;
+-
+-	if (!sensor->route_selected)
+-		return;
+-	/* A failed shutdown must not hand live shared resources to a peer. */
+-	if (WARN_ON(sensor->supply_mask || sensor->clock_enabled ||
+-		    sensor->reset_acquired)) {
+-		dev_err(sensor->dev, "shared shutdown incomplete; route remains locked\n");
+-		return;
+-	}
+-	if (mux_state_deselect(sensor->route))
+-		dev_err(sensor->dev, "failed to leave shared route idle\n");
+-	sensor->route_selected = false;
+-}
+-
+-static int imx471_shared_power_off(struct imx471 *sensor)
++	if (!try_module_get(THIS_MODULE))
++		return -ENODEV;
++	h->power_module_ref = true;
++	ret = mux_state_try_select(h->route);
++	if (ret) {
++		h->power_module_ref = false;
++		module_put(THIS_MODULE);
++		return ret;
++	}
++	h->route_selected = true;
++	return 0;
++}
++
++/* Caller owns h->lock. No last handle is put before successful power-off. */
++static int imx471_shared_off_locked(struct imx471_shared *h)
+ {
+ 	static const unsigned int order[] = { IMX471_VDIG, IMX471_VANA, IMX471_VIF };
+ 	unsigned int i;
+ 	int ret;
+ 
+-	if (sensor->clock_enabled) {
+-		clk_disable_unprepare(sensor->img_clk);
+-		sensor->clock_enabled = false;
+-	}
+-	if (sensor->reset_acquired) {
+-		ret = reset_control_assert(sensor->reset);
++	if (h->clock_enabled) {
++		clk_disable_unprepare(h->clock);
++		h->clock_enabled = false;
++	}
++	if (h->reset_acquired) {
++		ret = reset_control_assert(h->reset);
+ 		if (ret)
+ 			return ret;
+ 	}
+ 	for (i = 0; i < ARRAY_SIZE(order); i++) {
+ 		unsigned int id = order[i];
+ 
+-		if (!(sensor->supply_mask & BIT(id)))
++		if (!(h->supply_mask & BIT(id)))
+ 			continue;
+-		ret = regulator_disable(sensor->supplies[id].consumer);
++		ret = regulator_disable(h->supplies[id]);
+ 		if (ret)
+ 			return ret;
+-		sensor->supply_mask &= ~BIT(id);
+-	}
+-	if (sensor->reset_acquired) {
+-		reset_control_release(sensor->reset);
+-		sensor->reset_acquired = false;
+-	}
+-	imx471_route_put(sensor);
++		h->supply_mask &= ~BIT(id);
++	}
++	if (h->reset_acquired) {
++		reset_control_release(h->reset);
++		h->reset_acquired = false;
++	}
++	if (h->route_selected) {
++		/* mux_state_deselect unlocks even on an idle-state error. Board DT
++		 * uses AS_IS; power is already off before the unlock in any case.
++		 */
++		ret = mux_state_deselect(h->route);
++		h->route_selected = false;
++		if (ret)
++			dev_err(h->dev, "shared route idle transition failed: %d\n", ret);
++	}
++	if (h->power_module_ref) {
++		h->power_module_ref = false;
++		module_put(THIS_MODULE);
++	}
+ 	return 0;
+ }
+ 
+-static int imx471_shared_power_on(struct imx471 *sensor)
++static int imx471_shared_power_off(struct imx471_shared *h)
++{
++	int ret;
++
++	mutex_lock(&h->lock);
++	ret = h->removing ? -ENODEV : imx471_shared_off_locked(h);
++	mutex_unlock(&h->lock);
++	return ret;
++}
++
++static int imx471_shared_power_on(struct imx471_shared *h)
+ {
+ 	static const unsigned int order[] = { IMX471_VIF, IMX471_VANA, IMX471_VDIG };
+ 	unsigned int i;
+ 	int ret, cleanup;
+ 
+-	if (sensor->supply_mask || sensor->clock_enabled || sensor->reset_acquired)
+-		return -EIO;
+-	ret = imx471_route_get(sensor);
+-	if (ret)
+-		return ret;
+-	ret = reset_control_acquire(sensor->reset);
+-	if (ret)
+-		goto error_power_off;
+-	sensor->reset_acquired = true;
+-	ret = reset_control_assert(sensor->reset);
+-	if (ret)
+-		goto error_power_off;
+-	ret = clk_set_rate(sensor->img_clk, IMX471_EXT_CLK);
+-	if (ret)
+-		goto error_power_off;
++	mutex_lock(&h->lock);
++	if (h->removing) {
++		ret = -ENODEV;
++		goto unlock;
++	}
++	if (h->supply_mask || h->clock_enabled || h->reset_acquired) {
++		ret = -EIO;
++		goto unlock;
++	}
++	ret = imx471_shared_route_get(h);
++	if (ret)
++		goto unlock;
++	ret = reset_control_acquire(h->reset);
++	if (ret)
++		goto power_off;
++	h->reset_acquired = true;
++	ret = reset_control_assert(h->reset);
++	if (ret)
++		goto power_off;
++	ret = clk_set_rate(h->clock, IMX471_EXT_CLK);
++	if (ret)
++		goto power_off;
+ 	for (i = 0; i < ARRAY_SIZE(order); i++) {
+ 		unsigned int id = order[i];
+ 
+-		ret = regulator_enable(sensor->supplies[id].consumer);
++		ret = regulator_enable(h->supplies[id]);
+ 		if (ret)
+-			goto error_power_off;
+-		sensor->supply_mask |= BIT(id);
++			goto power_off;
++		h->supply_mask |= BIT(id);
+ 		usleep_range(1000, 2000);
+ 	}
+-	ret = clk_prepare_enable(sensor->img_clk);
+-	if (ret)
+-		goto error_power_off;
+-	sensor->clock_enabled = true;
+-	ret = reset_control_deassert(sensor->reset);
+-	if (ret)
+-		goto error_power_off;
++	ret = clk_prepare_enable(h->clock);
++	if (ret)
++		goto power_off;
++	h->clock_enabled = true;
++	ret = reset_control_deassert(h->reset);
++	if (ret)
++		goto power_off;
+ 	usleep_range(10000, 15000);
++	goto unlock;
++
++power_off:
++	cleanup = imx471_shared_off_locked(h);
++	if (cleanup)
++		dev_err(h->dev, "shared power-on unwind failed: %d\n", cleanup);
++unlock:
++	mutex_unlock(&h->lock);
++	return ret;
++}
++
++/* Called only after PM disable/barrier, or before PM has ever been enabled.
++ * A failed shutdown does NOT drop the holder, handle, device, or module refs.
++ */
++static int imx471_shared_detach(struct imx471_shared *h)
++{
++	unsigned int i;
++	int ret;
++
++	mutex_lock(&h->lock);
++	h->removing = true;
++	ret = imx471_shared_off_locked(h);
++	if (ret) {
++		h->quarantined = true;
++		mutex_unlock(&h->lock);
++		dev_err(h->dev, "shared shutdown failed: %d; holder retained until reboot\n", ret);
++		return ret;
++	}
++	mutex_unlock(&h->lock);
++	for (i = 0; i < ARRAY_SIZE(h->supplies); i++)
++		if (h->supplies[i])
++			regulator_put(h->supplies[i]);
++	if (h->clock)
++		clk_put(h->clock);
++	if (h->reset)
++		reset_control_put(h->reset);
++	if (h->route)
++		mux_state_put(h->route);
++	mutex_lock(&imx471_shared_holders_lock);
++	list_del(&h->entry);
++	mutex_unlock(&imx471_shared_holders_lock);
++	mutex_destroy(&h->lock);
++	put_device(h->dev);
++	kfree(h);
+ 	return 0;
+-
+-error_power_off:
+-	cleanup = imx471_shared_power_off(sensor);
+-	if (cleanup)
+-		dev_err(sensor->dev, "shared power-on unwind failed: %d\n", cleanup);
+-	return ret;
+-}
+-
+-static int imx471_init_shared_route(struct imx471 *sensor)
+-{
++}
++
++static struct imx471_shared *imx471_shared_create(struct device *dev)
++{
++	struct imx471_shared *h, *existing;
++	unsigned int i;
+ 	int ret;
+ 
+-	if (!device_property_present(sensor->dev, "mux-states"))
+-		return 0;
+-	if (!dev_of_node(sensor->dev))
+-		return -EINVAL;
+-#if IS_ENABLED(CONFIG_MULTIPLEXER)
+-	sensor->route = devm_mux_state_get(sensor->dev, "csi-route");
+-	if (IS_ERR(sensor->route))
+-		return PTR_ERR(sensor->route);
+-#else
+-	return -EOPNOTSUPP;
+-#endif
+-	ret = imx471_route_get(sensor);
+-	if (ret)
+-		return ret == -EBUSY ? -EPROBE_DEFER : ret;
+-	return devm_add_action_or_reset(sensor->dev, imx471_route_put, sensor);
++	h = kzalloc(sizeof(*h), GFP_KERNEL);
++	if (!h)
++		return ERR_PTR(-ENOMEM);
++	h->dev = get_device(dev);
++	INIT_LIST_HEAD(&h->entry);
++	mutex_init(&h->lock);
++	mutex_lock(&imx471_shared_holders_lock);
++	list_for_each_entry(existing, &imx471_shared_holders, entry) {
++		if (existing->dev == dev) {
++			mutex_unlock(&imx471_shared_holders_lock);
++			mutex_destroy(&h->lock);
++			put_device(h->dev);
++			kfree(h);
++			return ERR_PTR(-EBUSY);
++		}
++	}
++	list_add_tail(&h->entry, &imx471_shared_holders);
++	mutex_unlock(&imx471_shared_holders_lock);
++	h->route = mux_state_get(dev, "csi-route");
++	if (IS_ERR(h->route)) {
++		ret = PTR_ERR(h->route);
++		h->route = NULL;
++		goto detach;
++	}
++	mutex_lock(&h->lock);
++	ret = imx471_shared_route_get(h);
++	mutex_unlock(&h->lock);
++	if (ret) {
++		if (ret == -EBUSY)
++			ret = -EPROBE_DEFER;
++		goto detach;
++	}
++	/* A provider's first GPIO setup may occur before consumer acquisition.
++	 * Both providers must be bootstrapped with every old consumer stopped.
++	 */
++	h->reset = reset_control_get_exclusive_released(dev, NULL);
++	if (IS_ERR(h->reset)) {
++		ret = PTR_ERR(h->reset);
++		h->reset = NULL;
++		goto detach;
++	}
++	h->clock = clk_get(dev, NULL);
++	if (IS_ERR(h->clock)) {
++		ret = PTR_ERR(h->clock);
++		h->clock = NULL;
++		goto detach;
++	}
++	for (i = 0; i < ARRAY_SIZE(h->supplies); i++) {
++		h->supplies[i] = regulator_get(dev, imx471_supply_name[i]);
++		if (IS_ERR(h->supplies[i])) {
++			ret = PTR_ERR(h->supplies[i]);
++			h->supplies[i] = NULL;
++			goto detach;
++		}
++	}
++	return h;
++
++detach:
++	imx471_shared_detach(h);
++	return ERR_PTR(ret);
+ }
+ 
+ static int imx471_power_off(struct device *dev)
+@@ -951,8 +1082,8 @@
+ 	struct v4l2_subdev *sd = dev_get_drvdata(dev);
+ 	struct imx471 *sensor = to_imx471(sd);
+ 
+-	if (sensor->route)
+-		return imx471_shared_power_off(sensor);
++	if (sensor->shared)
++		return imx471_shared_power_off(sensor->shared);
+ 
+ 	clk_disable_unprepare(sensor->img_clk);
+ 	gpiod_set_value_cansleep(sensor->reset_gpio, 1);
+@@ -968,8 +1099,8 @@
+ 	struct imx471 *sensor = to_imx471(sd);
+ 	int ret;
+ 
+-	if (sensor->route)
+-		return imx471_shared_power_on(sensor);
++	if (sensor->shared)
++		return imx471_shared_power_on(sensor->shared);
+ 
+ 	ret = pinctrl_pm_select_default_state(dev);
+ 	if (ret)
+@@ -1221,13 +1352,14 @@
+ 	struct clk *clk;
+ 	int ret;
+ 
+-	clk = devm_v4l2_sensor_clk_get(sensor->dev, NULL);
++	clk = sensor->shared ? sensor->shared->clock :
++		devm_v4l2_sensor_clk_get(sensor->dev, NULL);
+ 	if (IS_ERR(clk))
+ 		return dev_err_probe(sensor->dev, PTR_ERR(clk),
+ 				     "can't get clock frequency\n");
+ 
+ 	/* Shared clocks may only be changed while holding the route lease. */
+-	if (sensor->route) {
++	if (sensor->shared) {
+ 		ret = clk_set_rate(clk, IMX471_EXT_CLK);
+ 		if (ret)
+ 			return dev_err_probe(sensor->dev, ret, "failed to set shared clock\n");
+@@ -1283,50 +1415,49 @@
+ 
+ 	sensor->dev = &client->dev;
+ 
+-	ret = imx471_init_shared_route(sensor);
+-	if (ret)
+-		return dev_err_probe(sensor->dev, ret, "failed to acquire shared route\n");
++	if (device_property_present(sensor->dev, "mux-states")) {
++		if (!dev_of_node(sensor->dev))
++			return -EINVAL;
++		sensor->shared = imx471_shared_create(sensor->dev);
++		if (IS_ERR(sensor->shared))
++			return dev_err_probe(sensor->dev, PTR_ERR(sensor->shared),
++					     "failed to acquire shared resources\n");
++	}
+ 
+ 	ret = imx471_check_hwcfg(sensor);
+-	if (ret)
+-		return dev_err_probe(sensor->dev, ret,
+-				     "failed to check hwcfg: %d\n", ret);
+-
+-	ret = imx471_get_regulators(sensor->dev, sensor);
+-	if (ret)
+-		return dev_err_probe(sensor->dev, ret,
+-				     "failed to get regulators\n");
+-
+-	if (sensor->route) {
+-		/* reset-gpios fallback deduplicates the shared GPIO provider. */
+-		sensor->reset = devm_reset_control_get_exclusive_released(sensor->dev, NULL);
+-		if (IS_ERR(sensor->reset))
+-			return dev_err_probe(sensor->dev, PTR_ERR(sensor->reset),
+-					     "failed to get shared reset\n");
+-	} else {
+-		sensor->reset_gpio = devm_gpiod_get_optional(sensor->dev, "reset",
+-							     GPIOD_OUT_HIGH);
++	if (ret) {
++		dev_err_probe(sensor->dev, ret, "failed to check hwcfg: %d\n", ret);
++		goto error_shared_detach;
++	}
++
++	if (!sensor->shared) {
++		ret = imx471_get_regulators(sensor->dev, sensor);
++		if (ret)
++			return dev_err_probe(sensor->dev, ret, "failed to get regulators\n");
++		sensor->reset_gpio = devm_gpiod_get_optional(sensor->dev, "reset", GPIOD_OUT_HIGH);
+ 		if (IS_ERR(sensor->reset_gpio))
+ 			return dev_err_probe(sensor->dev, PTR_ERR(sensor->reset_gpio),
+ 					     "failed to get reset gpio\n");
+-	}
+-
+-	sensor->img_clk = devm_v4l2_sensor_clk_get(sensor->dev, NULL);
+-	if (IS_ERR(sensor->img_clk))
+-		return dev_err_probe(sensor->dev, PTR_ERR(sensor->img_clk),
+-				     "failed to get imaging clock\n");
++		sensor->img_clk = devm_v4l2_sensor_clk_get(sensor->dev, NULL);
++		if (IS_ERR(sensor->img_clk))
++			return dev_err_probe(sensor->dev, PTR_ERR(sensor->img_clk),
++					     "failed to get imaging clock\n");
++	}
+ 
+ 	v4l2_i2c_subdev_init(&sensor->sd, client, &imx471_subdev_ops);
+ 
+ 	sensor->regmap = devm_cci_regmap_init_i2c(client, 16);
+-	if (IS_ERR(sensor->regmap))
+-		return dev_err_probe(sensor->dev, PTR_ERR(sensor->regmap),
+-				     "failed to initialize CCI\n");
++	if (IS_ERR(sensor->regmap)) {
++		ret = dev_err_probe(sensor->dev, PTR_ERR(sensor->regmap),
++				    "failed to initialize CCI\n");
++		goto error_shared_detach;
++	}
+ 
+ 	ret = imx471_power_on(sensor->dev);
+-	if (ret)
+-		return dev_err_probe(sensor->dev, ret,
+-				     "failed to power on\n");
++	if (ret) {
++		dev_err_probe(sensor->dev, ret, "failed to power on\n");
++		goto error_shared_detach;
++	}
+ 
+ 	ret = imx471_identify_module(sensor);
+ 	if (ret) {
+@@ -1384,11 +1515,14 @@
+ 	v4l2_ctrl_handler_free(sensor->sd.ctrl_handler);
+ 
+ error_power_off:
+-	if (!imx471_power_off(sensor->dev))
++	if (!sensor->shared && !imx471_power_off(sensor->dev))
+ 		pm_runtime_set_suspended(sensor->dev);
+-	else
+-		dev_err(sensor->dev, "probe shutdown incomplete; routed candidate must not be deployed\n");
+-
++error_shared_detach:
++	if (sensor->shared) {
++		if (!imx471_shared_detach(sensor->shared))
++			pm_runtime_set_suspended(sensor->dev);
++		sensor->shared = NULL;
++	}
+ 	return ret;
+ }
+ 
+@@ -1404,13 +1538,13 @@
+ 
+ 	pm_runtime_disable(&client->dev);
+ 
+-	if (!pm_runtime_status_suspended(&client->dev) ||
+-	    (sensor->route && sensor->route_selected)) {
++	if (sensor->shared) {
++		if (!imx471_shared_detach(sensor->shared))
++			pm_runtime_set_suspended(&client->dev);
++		sensor->shared = NULL;
++	} else if (!pm_runtime_status_suspended(&client->dev)) {
+ 		imx471_power_off(&client->dev);
+-		if (sensor->route && sensor->route_selected)
+-			dev_err(&client->dev, "remove left shared route locked after shutdown failure\n");
+-		else
+-			pm_runtime_set_suspended(&client->dev);
++		pm_runtime_set_suspended(&client->dev);
+ 	}
+ }
+ 

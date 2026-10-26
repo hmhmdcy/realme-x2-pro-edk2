@@ -1,0 +1,51 @@
+{
+  "actual_c_harnesses": [
+    {
+      "name": "parser-frequency",
+      "actual_driver_functions_extracted_without_body_rewrite": true,
+      "compiler": "gcc -Wall -Wextra -Werror ASan UBSan; kernel-style unused-parameter, sign-compare and missing-field-initializers exclusions",
+      "cases": {
+        "parser_positive": 5,
+        "parser_negative": 18,
+        "frequency_oracle": 35,
+        "direct_frequency": 2,
+        "frequency_invalid": 6
+      },
+      "exit": 0,
+      "source_sha256": "506fa432594371417be9dab11d3bead41f13203188d4b5ee57267e4a8c8c82e9"
+    },
+    {
+      "name": "native-trio-trace",
+      "actual_driver_functions_extracted_without_body_rewrite": true,
+      "compiler": "gcc -Wall -Wextra -Werror ASan UBSan; kernel-style unused-parameter, sign-compare and missing-field-initializers exclusions",
+      "cases": {
+        "native_tuples": 129,
+        "ordered_trio_selections": 15,
+        "enable_trace_writes": 102,
+        "settle_bounds": 7,
+        "dphy_mask_regression": 1
+      },
+      "exit": 0,
+      "source_sha256": "73ab154fde8cc0d4c857c9d248b4d77cd374de4a036e1345eeac96bfd44086b0"
+    },
+    {
+      "name": "shared-power-faults",
+      "actual_driver_functions_extracted_without_body_rewrite": true,
+      "compiler": "gcc -Wall -Wextra -Werror ASan UBSan; kernel-style unused-parameter, sign-compare and missing-field-initializers exclusions",
+      "cases": {
+        "injected_failure_points": 4,
+        "full_on_off": 1,
+        "existing_dsi_reference_preserved": true
+      },
+      "exit": 0,
+      "source_sha256": "80e15b78244fc4b990ba040b6c951cc8ac27c975afef19252e39e3a6d9119841"
+    }
+  ],
+  "own_native_active_cphy_table_exact": true,
+  "reference_three_wrong_values_not_used": true,
+  "native_v11_data_rate_table_null_confirmed": true,
+  "source_only_not_hardware_test": true,
+  "settle_formula_hardware_unverified": true,
+  "cphy_clock_ratio_from_official_kernel_documentation": true,
+  "phone_unchanged": true
+}

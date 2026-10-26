@@ -1,0 +1,32 @@
+{
+  "stage": 293,
+  "failures_preserved": [
+    {
+      "operation": "first build preparation",
+      "failure": "Copied input-initramfs292-r2 path already existed; assertion stopped before config edits or build.",
+      "resolution": "Use new input-initramfs293/modules293, verify all six already preserved k292 R2 artifacts, then complete the new build."
+    },
+    {
+      "operation": "host wrong-kernel guard test",
+      "failure": "The optical probe was initially given --pattern, which exits with usage status 2 before its kernel guard.",
+      "resolution": "Use its actual --capture argument; both final binaries passed self-test and wrong-kernel exit 3. No phone access occurred in the failed test."
+    },
+    {
+      "operation": "pre-transition health reporting",
+      "failure": "All inspected checks passed, but writing the result failed because the new k293-tools directory was not yet created.",
+      "resolution": "Create the task directory under the verified boot and rerun the read-only checks; keep the resulting pre-transition receipt."
+    },
+    {
+      "operation": "first final health check",
+      "failure": "Phoc was absent. Later inspection proved a real default SSC FastRPC attach EPERM/exit4 failure, not merely a slow boot.",
+      "resolution": "Preserve failure context and restore desktop once via nodeps without retrying SSC or changing permanent dependency configuration. Final report explicitly has whole_system_healthy=false."
+    },
+    {
+      "operation": "first readiness diagnostic",
+      "failure": "Installed BusyBox ps does not support the wchan column.",
+      "resolution": "Use supported pid/ppid/comm/stat/etime columns. No service action was taken by this failed read-only diagnostic."
+    }
+  ],
+  "device_transitions": "One normal quiesce/restart/flash/reboot for k293; only logdump flashed. The preceding k292 deployment is separately recorded.",
+  "private_raw_logs_retained": true
+}

@@ -1,0 +1,44 @@
+{
+  "schema": "samurai-pd5v-context-r2-independent-review-v1",
+  "conclusion": "Original callback/context lifetime blocker closed; no additional blocker found in the affected software range",
+  "source_sha256": "19bb52a981b0a44ab4069013df5d866717e7870f2ab1fe86a9fb7eb8bc7e1b32",
+  "header_sha256": "30c92b72f2a5384cc51f2c0b1df9e98d277cb44d47ea4074d668fd715b869656",
+  "receipt_sha256": {
+    "test-result.json": "dd82be75633be45d2696d709462b22c4ea87db19a08452529ee79b4a2ed1d1f8",
+    "build-result.json": "a7a7b841f80dd73bf8cd1494cec36569f34ffeb128b076a39dceec522b63845b",
+    "result.json": "d7e90a8805213ee49166e1293b78444e09bfbbe686cb3146136175b8d7b84da2",
+    "delivery.json": "550d07b552413ac0b8995d2c5f400dc08cf89b6e2f99fcb17a9ac4a27a5603a3",
+    "r1-to-r2.patch": "024341cd32333859c8eb4620cc71ab889a24ba57df38b7589824ccdf320ca3a4",
+    "pd5v-owner.patch": "473905efef58262dd183fecccb6cc1a44c369415cc7db2048404f4f6455184ce",
+    "contract.json": "1bb530148c5c524742c522e4d58fd67162ae8e308de91c63f881bab965ddd9d7",
+    "unchanged-functions.json": "f0f91e8de64e0066b6d299e4098290fafa8c78a89abd9cfb62649fa23bed9351"
+  },
+  "actual_source_test_delivery_and_build_receipt_pins_match": true,
+  "parent_c_header_Makefile_identical_to_036": true,
+  "mandatory_missing_ops_and_failed_initial_get_zero_IO": true,
+  "successful_acquire_holds_real_primary_context_reference": true,
+  "quiesce_pins_under_component_lock_then_joins_and_puts_outside_locks": true,
+  "release_can_free_embedded_lease_without_subsequent_context_dereference": true,
+  "failed_extra_pin_blocks_PM_without_borrowed_callback_or_false_join": true,
+  "failed_remove_retains_retired_registry_and_context_power_refs_until_real_release": true,
+  "registry_to_component_nested_lock_reverse_found": false,
+  "affected_actual_test_groups": 8,
+  "author_tests_passed": true,
+  "author_objects_passed": true,
+  "objects_from_author_receipt": {
+    "qcom_pmic_typec_5v.o": {
+      "path": "/home/cy122/charging-management-20261023/pd5v-owner-context-r2/kbuild/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_5v.o",
+      "sha256": "e6dd8c4ac76f8d5e1cdf146a8d9b1d8bd0f35ed126cf7d2c2feb08522c8791df"
+    },
+    "qcom_pmic_typec.o": {
+      "path": "/home/cy122/charging-management-20261023/pd5v-owner-context-r2/kbuild/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec.o",
+      "sha256": "a578eef6b23940a725964a1c6da61c4dcef263cb179d05bdcff0b9539e3c6c06"
+    }
+  },
+  "reviewer_ran_tests_build_or_entrypoint": false,
+  "reviewer_device_SSH_SDK_Git_mutation_or_mount": false,
+  "original_seven_groups_rerun_by_reviewer": false,
+  "deterministic_interleave_and_fake_kernel_IO_not_full_concurrency_or_hardware_proof": true,
+  "deployment_or_complete_APSD_route_PD_approval": false,
+  "retained_scope": "Default-off internal same-Image API, no current consumers, no DT/Image/module deployment; physical/power/control sequence unchanged, client get must be real nonblocking/nonreentrant lifetime operation"
+}

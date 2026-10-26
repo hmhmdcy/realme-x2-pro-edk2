@@ -1,0 +1,41 @@
+{
+  "stage": 393,
+  "state": {
+    "stage": 393,
+    "pid": 11177,
+    "terminal": true,
+    "phase": "finished",
+    "before_old_epoch": {
+      "registered": true,
+      "users": 0,
+      "running": false,
+      "fatal": false,
+      "pinned": false,
+      "orphans": 0,
+      "jobs": 132,
+      "completed": 126,
+      "owner_refs": 0,
+      "first_error": -22,
+      "direct_completed": 126,
+      "cancelled": 4,
+      "failed": 2,
+      "starts": 20,
+      "stops": 20
+    },
+    "cleanup_failure": "Traceback (most recent call last):\n  File \"/var/lib/samurai/k393-deployment-r1/worker.py\", line 134, in <module>\n    if dev.exists():idle();owner_zero()\n                    ~~~~^^\n  File \"/var/lib/samurai/k393-deployment-r1/worker.py\", line 65, in idle\n    wait_idle();s=m2m();assert not any(s[k] for k in ['users','running','fatal','pinned','orphans']) and released(core());return s\n    ~~~~~~~~~^^\n  File \"/var/lib/samurai/k393-deployment-r1/worker.py\", line 56, in wait_idle\n    raise RuntimeError('Camera did not suspend')\nRuntimeError: Camera did not suspend\n",
+    "failure": "Traceback (most recent call last):\n  File \"/var/lib/samurai/k393-deployment-r1/worker.py\", line 106, in <module>\n    save('unloading-old-platform');unloaded=True;unload()\n                                                 ~~~~~~^^\n  File \"/var/lib/samurai/k393-deployment-r1/worker.py\", line 76, in unload\n    assert not dev.exists()\n           ^^^^^^^^^^^^^^^^\nAssertionError\n",
+    "installed": false,
+    "rollback": false,
+    "taint": 0,
+    "private_profiles_unchanged": true,
+    "services": {
+      "pipewire": [],
+      "wireplumber": []
+    },
+    "passed": false,
+    "new_fault_count": 0
+  },
+  "worker_live": false,
+  "client_live": false,
+  "collector_live": false
+}

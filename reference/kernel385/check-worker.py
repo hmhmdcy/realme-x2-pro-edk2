@@ -1,0 +1,54 @@
+"""Exercise actual worker decision/cleanup statements with injected sysfs providers."""
+from pathlib import Path
+import copy,json,os,tempfile,time
+import host
+HERE=Path(__file__).resolve().parent;P=host.PRIVATE;source=(HERE/'boot-worker.py').read_text()
+a=source.index(' held=bool(');b=source.index('\nexcept BaseException as error:',a);middle=source[a:b]
+a=source.index("   if result.get('phase')=='failed-held' and not cleanup_attempted:");b=source.index("   (ROOT/'sfr-private.txt')",a);fallback=source[a:b]
+body='def exercise(result):\n cleanup_attempted=False\n try:\n'+''.join(' '+line+'\n' for line in middle.splitlines())+' except BaseException as error:\n  observation["fixture_error"]=str(error)\n finally:\n'+''.join(line[1:]+'\n' for line in fallback.splitlines())+' return cleanup_attempted\n'
+held=dict(terminal=True,phase='failed-held',error=-121,cleanup_error=0,pc_error=0,cpu_release_attempted=True,cpu_enabled=False,irq_enabled=False,reset_asserted=True,power_held=True,backing_owned=True,mapped_bytes=6414336,remaining_groups=7,remaining_domains=7,init_response=3,init_done=False,ping_done=False,pc_done=False,fw_version=16777472,interrupts=0,messages=0,watchdogs=0,protocol_errors=0)
+good=dict(captured=True,owned_snapshot_acknowledged=True,snapshot_saved=True,snapshot=dict(code_page_match=True))
+rows=[]
+for case in ['held','code-mismatch','ack-failed','cleanup-failed','unknown-ownership','ready','pre-cpu-failed']:
+ root=Path(tempfile.mkdtemp(prefix='worker-'+case+'-',dir=P));initial=copy.deepcopy(held);collected=copy.deepcopy(good)
+ if case=='code-mismatch':collected.update(snapshot_saved=False,snapshot=dict(code_page_match=False))
+ if case=='ack-failed':collected['owned_snapshot_acknowledged']=False
+ if case=='unknown-ownership':initial['phase']='start';initial['cpu_enabled']=True
+ if case in ['ready','pre-cpu-failed']:
+  initial.update(phase='done',power_held=False,backing_owned=False,mapped_bytes=0,remaining_groups=0,remaining_domains=0,cpu_release_attempted=case=='ready')
+  collected=dict(captured=False,snapshot_saved=False)
+  if case=='ready':initial.update(io_configs=2,config_maps=2,config_unmaps=2,config_fw_mapped=False,scratch_bytes=[65536,65536],session_creates=2,session_destroys=2,session_peak=2,image_sessions=0,session_uncertain=False,image_frames=2,frames_completed=2,transfer_maps=2,transfer_unmaps=2,ipe_reset_acks=[3,3],engine_dma_capable=True,ipe_dma_pending=False,request_fw_mapped=False,image_bytes=460800,error=0,init_response=1,init_done=True,ping_done=True,pc_done=True,interrupts=3,messages=3)
+ if case=='ready':initial.update(test_width=640,test_height=480,test_port=9,test_cores=2,test_frames=2,test_uv_swap=True,frame_results=[{},{}])
+ (root/'collector-result.json').write_text(json.dumps(collected));events=[];observation={};live_state=copy.deepcopy(initial)
+ class Cleanup:
+  def write_text(self,text):
+   assert text=='1' and observation.get('cleanup_attempted'),events
+   events.append('cleanup-write')
+   if case=='cleanup-failed':raise OSError('injected cleanup failure')
+   live_state.update(phase='cleaned',power_held=False,backing_owned=False,mapped_bytes=0,remaining_groups=0,remaining_domains=0)
+ def path(value):
+  if value=='/sys/bus/platform/devices/ac10000.samurai-icp356-boot/image':
+   assert case=='ready'
+   return type('Image',(),{'read_bytes':lambda self:b'\x7c'*460800})()
+  assert value=='/sys/bus/platform/devices/ac10000.samurai-icp356-boot/cleanup';return Cleanup()
+ def save(phase,**values):events.append(phase);observation.update(phase=phase,**values)
+ def releasable(r):return r.get('terminal') and not any(r.get(k) for k in ['backing_owned','cpu_enabled','power_held','mapped_bytes','remaining_groups','remaining_domains'])
+ scope=dict(expected_frames=2,expected_image_bytes=460800,image_case=dict(width=640,height=480,port=9,cores=2,frames=2,uv_swap=True),ROOT=root,Path=path,json=json,os=os,time=time,collector=type('Collector',(),{'poll':lambda self:None})(),observation=observation,save=save,read_result=lambda:copy.deepcopy(live_state),releasable=releasable)
+ exec(compile(body,'actual-worker-block','exec'),scope)
+ thrown=False
+ try:scope['exercise'](copy.deepcopy(initial))
+ except OSError:thrown=True
+ expected=case not in ['unknown-ownership','ready','pre-cpu-failed']
+ assert events.count('cleanup-write')==int(expected),(case,events)
+ assert not thrown
+ if case=='cleanup-failed':assert 'injected cleanup failure' in observation['fixture_error'] and observation['cleanup_attempted']
+ if case=='held':assert observation['diagnostic_completed'] and not observation['firmware_handshake_passed']
+ if case=='code-mismatch':assert not observation['diagnostic_completed']
+ if case=='ready':assert observation['firmware_handshake_passed'] and observation['ipe_session_lifecycle_passed'] and observation['ipe_io_config_passed'] and observation['image_control_completion_passed'] and observation['passed']
+ if case in ['ready','pre-cpu-failed']:assert (root/'collector-stop').exists()
+ if case=='ready':assert (root/'ipe-output-private.nv12').read_bytes()==b'\x7c'*460800
+ rows.append(dict(case=case,cleanup_writes=events.count('cleanup-write'),passed=True))
+report=dict(stage=385,actual_worker_held_snapshot_cleanup_and_error_fallback_blocks=True,sysfs_and_module_providers_mocked=True,
+ tests=rows,cleanup_attempt_saved_before_write=True,no_cleanup_retry_after_started_attempt=True,
+ incomplete_ownership_never_assumed_released=True,handshake_not_claimed_for_collected_fault=True,phone_operations=False,passed=True)
+(HERE/'worker-validation.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))

@@ -1,0 +1,43 @@
+From: hmhmdcy <hmhmdcy@users.noreply.github.com>
+Subject: [PATCH] drm/dsi: match SOFEF03F stock EOT and noncontinuous clock configuration
+
+The stock panel does not request EOT append or forced HS clock. Match
+those flags and explicitly clear inherited controller and PHY forced
+clock requests for noncontinuous mode. The EOT-only candidate retained
+colored noise; adding noncontinuous mode produced an optically confirmed
+clean static-white image. Reboot and color acceptance are recorded in
+the session evidence, separately from scanout CRCs.
+
+Signed-off-by: hmhmdcy <hmhmdcy@users.noreply.github.com>
+
+diff --git a/drivers/gpu/drm/panel/panel-samsung-sofef03f.c b/drivers/gpu/drm/panel/panel-samsung-sofef03f.c
+--- a/drivers/gpu/drm/panel/panel-samsung-sofef03f.c
++++ b/drivers/gpu/drm/panel/panel-samsung-sofef03f.c
+@@ -282,7 +282,10 @@
+ 	mipi_dsi_set_drvdata(dsi, ctx);
+ 	dsi->lanes = 4;
+ 	dsi->format = MIPI_DSI_FMT_RGB888;
+-	dsi->mode_flags = MIPI_DSI_MODE_LPM | MIPI_DSI_MODE_DSC_ALL_SLICES_IN_PKT;
++	/* Stock host config disables EOT append and forced HS clock. */
++	dsi->mode_flags = MIPI_DSI_MODE_LPM | MIPI_DSI_MODE_NO_EOT_PACKET |
++			  MIPI_DSI_CLOCK_NON_CONTINUOUS |
++			  MIPI_DSI_MODE_DSC_ALL_SLICES_IN_PKT;
+ 	ctx->dsc.dsc_version_major = 1;
+ 	ctx->dsc.dsc_version_minor = 1;
+ 	ctx->dsc.slice_width = 540;
+diff --git a/drivers/gpu/drm/msm/dsi/dsi_host.c b/drivers/gpu/drm/msm/dsi/dsi_host.c
+--- a/drivers/gpu/drm/msm/dsi/dsi_host.c
++++ b/drivers/gpu/drm/msm/dsi/dsi_host.c
+@@ -928,6 +928,12 @@
+ 
+ 		dsi_write(msm_host, REG_DSI_LANE_CTRL,
+ 			lane_ctrl | DSI_LANE_CTRL_CLKLN_HS_FORCE_REQUEST);
++	} else {
++		/* Clear a continuous-clock request inherited from firmware. */
++		msm_dsi_phy_set_continuous_clock(phy, false);
++		lane_ctrl = dsi_read(msm_host, REG_DSI_LANE_CTRL);
++		lane_ctrl &= ~DSI_LANE_CTRL_CLKLN_HS_FORCE_REQUEST;
++		dsi_write(msm_host, REG_DSI_LANE_CTRL, lane_ctrl);
+ 	}
+ 
+ 	data |= DSI_CTRL_ENABLE;

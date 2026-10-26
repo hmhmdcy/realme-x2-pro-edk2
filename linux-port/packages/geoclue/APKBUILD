@@ -1,0 +1,52 @@
+# Contributor: Leo <thinkabit.ukim@gmail.com>
+# Upstream maintainer: Natanael Copa <ncopa@alpinelinux.org>
+maintainer="hmhmdcy <hmhmdcy@users.noreply.github.com>"
+pkgname=geoclue
+pkgver=2.8.2
+pkgrel=1
+pkgdesc="dbus geolocation service"
+url="https://gitlab.freedesktop.org/geoclue/geoclue/-/wikis/home"
+arch="all"
+license="LGPL-2.1-or-later"
+makedepends="
+	avahi-dev
+	gobject-introspection-dev
+	json-glib-dev
+	libnotify-dev
+	libsoup3-dev
+	meson
+	modemmanager-dev
+	vala
+	"
+subpackages="$pkgname-dev $pkgname-doc $pkgname-lang $pkgname-systemd"
+install="$pkgname.pre-install"
+source="https://gitlab.freedesktop.org/geoclue/geoclue/-/archive/$pkgver/geoclue-$pkgver.tar.bz2
+	geoclue-modem-location-lifecycle.patch
+	"
+
+build() {
+	abuild-meson \
+		-Db_lto=true \
+		-Ddbus-srv-user=geoclue \
+		-Ddbus-sys-dir=/usr/share/dbus-1/system.d \
+		-Dgtk-doc=false \
+		-Dintrospection=true \
+		-Ddefault-wifi-url=https://api.beacondb.net/v1/geolocate \
+		-Ddefault-wifi-submit-url=https://api.beacondb.net/v2/geosubmit \
+		-Dsystemd-system-unit-dir=/usr/lib/systemd/system \
+		build
+	meson compile -C build
+}
+
+check() {
+	meson test --print-errorlogs -C build
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C build
+}
+
+sha512sums="
+2499fc50803addca4415d18f37795d8193c4f20058c73544ca934df4c613e18d3c8006e0d8b750d7156d81cba22eab23932b75b5659b2e1dee7eaf11d00750b4  geoclue-2.8.2.tar.bz2
+859c8dc867bb2a6c90c3aadbb04a11c3726c786b3f4d7aa1917c1e45e150e32c602a4e49ca05b379ee1799b252a592a999542464988c7848223fc63894e0bfaf  geoclue-modem-location-lifecycle.patch
+"

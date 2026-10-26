@@ -1,0 +1,84 @@
+{
+  "passed": true,
+  "new_cases": 10,
+  "cases": [
+    {
+      "case": "actual full36 retains legacy size4 EMSGSIZE and validates observed payload3",
+      "passed": true
+    },
+    {
+      "case": "synthetic checksum mutation rejected by actual validator",
+      "passed": true
+    },
+    {
+      "case": "synthetic echo mutation rejected",
+      "passed": true
+    },
+    {
+      "case": "observed profile refuses declared length8 rather than silently widening",
+      "passed": true
+    },
+    {
+      "case": "short physical36 input rejected",
+      "passed": true
+    },
+    {
+      "case": "nonhex input rejected",
+      "passed": true
+    },
+    {
+      "case": "actual saved full batch remains stage4 error-90 and no trailing0A despite isolated R2 frame success",
+      "passed": true
+    },
+    {
+      "case": "mismatched original analysis input is not consumed",
+      "passed": true
+    },
+    {
+      "case": "R1 runtime expected_size cannot be rewritten to reinterpret report",
+      "passed": true
+    },
+    {
+      "case": "wrong new decoder binary identity rejected",
+      "passed": true
+    }
+  ],
+  "actual_C_header_sha256": "98148c0701d000c21c7a9be60d0d14e412887f90fc1b83d0a3de8168359c28df",
+  "actual_same_validator_used_for_both_lengths": true,
+  "diagnostic_decoder_sha256": "eca2a79f750cf65fdf24492bf06809854e50024211bcf48434c7a9c623f997f9",
+  "build": {
+    "argv": [
+      "gcc",
+      "-std=c11",
+      "-O2",
+      "-Wall",
+      "-Wextra",
+      "-Werror",
+      "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/protection-0056-2719-diagnostic-r2/frame-decoder-r2.c",
+      "-o",
+      "/home/cy122/charging-management-20261023/protection-0056-2719-diagnostic-r2-01/frame-decoder-r2"
+    ],
+    "pid": 765,
+    "terminal": true,
+    "returncode": 0,
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "original_inputs": {
+    "/mnt/e/edk2-samurai-out/charging-management-20261023/protection-capture/protection-capture-live-001/fetch-2bc101a4aee0be10-private/raw/cache-after-private.txt": "02c98143301bb5db896c6f535f490495428df8b8c6fd6ab3cdc69ca507a545a8",
+    "/mnt/e/edk2-samurai-out/charging-management-20261023/protection-capture/protection-capture-live-001/fetch-2bc101a4aee0be10-private/capture-analysis-private.json": "b669100ba79797d3b63ad93693ae42657cbc3daf2aed4e1482ae396eef54beaa",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/protection-query-observer-candidate/gauge-protocol.h": "98148c0701d000c21c7a9be60d0d14e412887f90fc1b83d0a3de8168359c28df",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/protection-evidence-parser-candidate/parse-evidence.py": "2ee04828775c330bfdafdca47e945645708f90e581c8939cd5932d6f8f1dc5b8",
+    "/home/cy122/charging-management-20261023/protection-evidence-parser-01/frame-decoder": "58aa5dcc9c15c571310d531d0b530ea024855b18fbcf95af6bb391d6d97e10f2"
+  },
+  "original_inputs_unchanged": true,
+  "private_output": "/home/cy122/charging-management-20261023/protection-0056-2719-diagnostic-r2-01",
+  "source_files": {
+    "frame-decoder-r2.c": "cbfcf900a10cb050a9fa30efc8ddf2b9e90291fe415d829b0a9745b1b2bb151a",
+    "analyze-saved.py": "fb4cfe3387435abc85ef7c4e3c9e11538482b08bb43b14d3664da7735b9ed09f",
+    "test-saved.py": "8090f6193f58c4b875765221e69c07525dc18612536e74793c596b79ef680d20"
+  },
+  "old_suites_rerun": false,
+  "new_queries_or_modules": false,
+  "device_accessed": false
+}

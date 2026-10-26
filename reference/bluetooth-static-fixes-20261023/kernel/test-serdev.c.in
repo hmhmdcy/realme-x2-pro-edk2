@@ -1,0 +1,178 @@
+/* Actual functions are inserted above main; kernel synchronization/work delivery
+ * is modeled with pthreads. No tty, Bluetooth socket or radio is opened. */
+#include <assert.h>
+#include <errno.h>
+#include <pthread.h>
+#include <stdatomic.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+#include <unistd.h>
+typedef uint8_t u8;
+#define BT_DBG(...) ((void)0)
+#define WARN_ON(x) assert(!(x))
+#define HCI_COMMAND_PKT 1
+#define HCI_ACLDATA_PKT 2
+#define HCI_SCODATA_PKT 3
+#define HCI_UART_PROTO_READY 2
+#define HCI_UART_REGISTERED 1
+#define HCI_UART_PROTO_INIT 4
+#define HCI_UART_SENDING 1
+#define HCI_UART_TX_WAKEUP 2
+#define HCI_QUIRK_NON_PERSISTENT_SETUP 1
+#define container_of(p,t,m) ((t *)((char *)(p)-offsetof(t,m)))
+#define hci_skb_pkt_type(s) ((s)->type)
+struct hci_uart;
+struct sk_buff {struct sk_buff *next; unsigned len,type;u8 data[8];};
+struct work_struct {
+ pthread_mutex_t mutex;pthread_cond_t cond;pthread_t thread;
+ void (*fn)(struct work_struct *);bool pending,running,stop;unsigned disabled;
+};
+struct hci_dev {struct hci_uart *hu;struct {unsigned cmd_tx,acl_tx,sco_tx,byte_tx,byte_rx;}stat;bool nonpersistent;int (*flush)(struct hci_dev *);};
+struct serdev_device {struct hci_uart *hu;};
+struct hci_uart_proto {
+ int (*close)(struct hci_uart *),(*flush)(struct hci_uart *),(*recv)(struct hci_uart *,const u8 *,size_t),(*enqueue)(struct hci_uart *,struct sk_buff *);
+ struct sk_buff *(*dequeue)(struct hci_uart *);
+};
+struct hci_uart {
+ struct serdev_device *serdev;struct hci_dev *hdev;_Atomic unsigned long flags,tx_state;
+ pthread_rwlock_t proto_lock;struct work_struct init_ready,write_work;
+ const struct hci_uart_proto *proto;struct sk_buff *tx_skb;
+};
+static bool test_bit(unsigned n,const _Atomic unsigned long *p){return !!(atomic_load(p)&(1UL<<n));}
+static void set_bit(unsigned n,_Atomic unsigned long *p){atomic_fetch_or(p,1UL<<n);}
+static void clear_bit(unsigned n,_Atomic unsigned long *p){atomic_fetch_and(p,~(1UL<<n));}
+static bool test_and_set_bit(unsigned n,_Atomic unsigned long *p){return !!(atomic_fetch_or(p,1UL<<n)&(1UL<<n));}
+static bool test_and_clear_bit(unsigned n,_Atomic unsigned long *p){return !!(atomic_fetch_and(p,~(1UL<<n))&(1UL<<n));}
+static void percpu_down_read(pthread_rwlock_t *p){assert(!pthread_rwlock_rdlock(p));}
+static void percpu_up_read(pthread_rwlock_t *p){assert(!pthread_rwlock_unlock(p));}
+static bool percpu_down_read_trylock(pthread_rwlock_t *p){return pthread_rwlock_tryrdlock(p)==0;}
+static void percpu_down_write(pthread_rwlock_t *p){assert(!pthread_rwlock_wrlock(p));}
+static void percpu_up_write(pthread_rwlock_t *p){assert(!pthread_rwlock_unlock(p));}
+static void percpu_free_rwsem(pthread_rwlock_t *p){assert(!pthread_rwlock_destroy(p));}
+static void *work_loop(void *p){
+ struct work_struct *w=p;assert(!pthread_mutex_lock(&w->mutex));
+ for(;;){
+  while(!w->pending&&!w->stop)assert(!pthread_cond_wait(&w->cond,&w->mutex));
+  if(w->stop)break;
+  w->pending=false;w->running=true;pthread_cond_broadcast(&w->cond);pthread_mutex_unlock(&w->mutex);
+  w->fn(w);
+  pthread_mutex_lock(&w->mutex);w->running=false;pthread_cond_broadcast(&w->cond);
+ }
+ pthread_mutex_unlock(&w->mutex);return NULL;
+}
+static void work_init(struct work_struct *w,void(*fn)(struct work_struct *)){
+ memset(w,0,sizeof(*w));pthread_mutex_init(&w->mutex,NULL);pthread_cond_init(&w->cond,NULL);w->fn=fn;assert(!pthread_create(&w->thread,NULL,work_loop,w));
+}
+static bool schedule_work(struct work_struct *w){
+ pthread_mutex_lock(&w->mutex);bool queued=!w->disabled&&!w->pending;
+ if(queued){w->pending=true;pthread_cond_broadcast(&w->cond);}pthread_mutex_unlock(&w->mutex);return queued;
+}
+static bool cancel_work_sync(struct work_struct *w){
+ pthread_mutex_lock(&w->mutex);bool was=w->pending;w->pending=false;
+ while(w->running)pthread_cond_wait(&w->cond,&w->mutex);
+ pthread_mutex_unlock(&w->mutex);return was;
+}
+static bool disable_work_sync(struct work_struct *w){
+ pthread_mutex_lock(&w->mutex);w->disabled++;bool was=w->pending;w->pending=false;pthread_cond_broadcast(&w->cond);
+ while(w->running)pthread_cond_wait(&w->cond,&w->mutex);
+ pthread_mutex_unlock(&w->mutex);return was;
+}
+static bool enable_work(struct work_struct *w){pthread_mutex_lock(&w->mutex);assert(w->disabled);bool enabled=!--w->disabled;pthread_mutex_unlock(&w->mutex);return enabled;}
+static void work_fini(struct work_struct *w){pthread_mutex_lock(&w->mutex);assert(!w->running&&!w->pending);w->stop=true;pthread_cond_broadcast(&w->cond);pthread_mutex_unlock(&w->mutex);pthread_join(w->thread,NULL);pthread_cond_destroy(&w->cond);pthread_mutex_destroy(&w->mutex);}
+static pthread_mutex_t state_mutex=PTHREAD_MUTEX_INITIALIZER,queue_mutex=PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t state_cond=PTHREAD_COND_INITIALIZER;
+static bool write_entered,allow_write,rx_entered,allow_rx,unregister_entered,freed_hdev,protocol_closed,flush_entered;
+static bool block_write,block_rx,partial_write,late_callback_checks;
+static unsigned allocated,freed,port_closes,closed_calls,recv_calls,enqueue_calls;
+static struct sk_buff *queue_head,*queue_tail;
+static struct hci_uart hu;
+static struct serdev_device sd;
+static struct sk_buff *new_skb(void){struct sk_buff *s=calloc(1,sizeof(*s));assert(s);s->len=2;s->type=HCI_ACLDATA_PKT;allocated++;return s;}
+static void kfree_skb(struct sk_buff *s){if(s){freed++;free(s);}}
+static void skb_pull(struct sk_buff *s,unsigned n){assert(n<=s->len);s->len-=n;}
+static struct hci_uart *hci_get_drvdata(struct hci_dev *h){return h->hu;}
+static struct hci_uart *serdev_device_get_drvdata(struct serdev_device *s){return s->hu;}
+static bool hci_test_quirk(struct hci_dev *h,int q){assert(q==HCI_QUIRK_NON_PERSISTENT_SETUP);return h->nonpersistent;}
+static int serdev_device_write_buf(struct serdev_device *s,const u8 *b,unsigned n){
+ (void)s;(void)b;pthread_mutex_lock(&state_mutex);write_entered=true;pthread_cond_broadcast(&state_cond);
+ while(block_write&&!allow_write)pthread_cond_wait(&state_cond,&state_mutex);
+ pthread_mutex_unlock(&state_mutex);return partial_write?1:(int)n;
+}
+static void serdev_device_write_flush(struct serdev_device *s){(void)s;pthread_mutex_lock(&state_mutex);flush_entered=true;pthread_cond_broadcast(&state_cond);pthread_mutex_unlock(&state_mutex);}
+static void serdev_device_close(struct serdev_device *s){(void)s;port_closes++;}
+static void hci_free_dev(struct hci_dev *h){
+ pthread_mutex_lock(&state_mutex);freed_hdev=true;free(h);
+ if(!FIXED){allow_write=true;allow_rx=true;pthread_cond_broadcast(&state_cond);}
+ pthread_mutex_unlock(&state_mutex);
+}
+static int hci_uart_tx_wakeup(struct hci_uart *);
+static int hci_uart_close(struct hci_dev *);
+static size_t hci_uart_receive_buf(struct serdev_device *,const u8 *,size_t);
+static int hci_uart_send_frame(struct hci_dev *,struct sk_buff *);
+static void hci_unregister_dev(struct hci_dev *h){
+ if(h->nonpersistent)hci_uart_close(h);
+ pthread_mutex_lock(&state_mutex);unregister_entered=true;pthread_cond_broadcast(&state_cond);pthread_mutex_unlock(&state_mutex);
+}
+static int proto_enqueue(struct hci_uart *h,struct sk_buff *s){(void)h;enqueue_calls++;pthread_mutex_lock(&queue_mutex);if(queue_tail)queue_tail->next=s;else queue_head=s;queue_tail=s;pthread_mutex_unlock(&queue_mutex);return 0;}
+static struct sk_buff *proto_dequeue(struct hci_uart *h){(void)h;pthread_mutex_lock(&queue_mutex);struct sk_buff *s=queue_head;if(s){queue_head=s->next;if(!queue_head)queue_tail=NULL;s->next=NULL;}pthread_mutex_unlock(&queue_mutex);return s;}
+static int proto_flush(struct hci_uart *h){struct sk_buff *s;while((s=proto_dequeue(h)))kfree_skb(s);return 0;}
+static int proto_recv(struct hci_uart *h,const u8 *b,size_t n){(void)h;(void)b;(void)n;pthread_mutex_lock(&state_mutex);recv_calls++;rx_entered=true;pthread_cond_broadcast(&state_cond);while(block_rx&&!allow_rx)pthread_cond_wait(&state_cond,&state_mutex);assert(!freed_hdev);pthread_mutex_unlock(&state_mutex);return 0;}
+static int proto_close(struct hci_uart *h){
+ closed_calls++;protocol_closed=true;
+ if(late_callback_checks){
+  unsigned before=recv_calls;u8 data=0;assert(!hci_uart_receive_buf(h->serdev,&data,1));assert(recv_calls==before);
+  struct sk_buff *s=new_skb();assert(hci_uart_send_frame(h->hdev,s)==-EUNATCH);kfree_skb(s);
+  hci_uart_tx_wakeup(h);pthread_mutex_lock(&h->write_work.mutex);assert(!h->write_work.pending&&!h->write_work.running);pthread_mutex_unlock(&h->write_work.mutex);
+ }
+ proto_flush(h);kfree_skb(h->tx_skb);h->tx_skb=NULL;return 0;
+}
+static const struct hci_uart_proto proto={.close=proto_close,.flush=proto_flush,.recv=proto_recv,.enqueue=proto_enqueue,.dequeue=proto_dequeue};
+static void init_noop(struct work_struct *w){(void)w;}
+static void wait_flag(bool *flag){
+ pthread_mutex_lock(&state_mutex);struct timespec limit;clock_gettime(CLOCK_REALTIME,&limit);limit.tv_sec+=5;
+ while(!*flag){int rc=pthread_cond_timedwait(&state_cond,&state_mutex,&limit);assert(!rc);}pthread_mutex_unlock(&state_mutex);
+}
+static void release_write(void){pthread_mutex_lock(&state_mutex);allow_write=true;pthread_cond_broadcast(&state_cond);pthread_mutex_unlock(&state_mutex);}
+static void wait_disabled(void){pthread_mutex_lock(&hu.write_work.mutex);struct timespec limit;clock_gettime(CLOCK_REALTIME,&limit);limit.tv_sec+=5;while(!hu.write_work.disabled)assert(!pthread_cond_timedwait(&hu.write_work.cond,&hu.write_work.mutex,&limit));pthread_mutex_unlock(&hu.write_work.mutex);}
+/* @ACTUAL_FUNCTIONS@ */
+static void fixture(void){
+ memset(&hu,0,sizeof(hu));memset(&sd,0,sizeof(sd));hu.hdev=calloc(1,sizeof(*hu.hdev));assert(hu.hdev);hu.hdev->hu=&hu;hu.hdev->flush=hci_uart_flush;hu.serdev=&sd;sd.hu=&hu;hu.proto=&proto;pthread_rwlock_init(&hu.proto_lock,NULL);set_bit(HCI_UART_PROTO_READY,&hu.flags);set_bit(HCI_UART_REGISTERED,&hu.flags);work_init(&hu.init_ready,init_noop);work_init(&hu.write_work,hci_uart_write_work);
+}
+static void finish(void){work_fini(&hu.write_work);work_fini(&hu.init_ready);assert(allocated==freed);}
+static void *unregister_thread(void *p){hci_uart_unregister_device(p);return NULL;}
+static void *flush_thread(void *p){hci_uart_flush(p);return NULL;}
+static void *rx_thread(void *p){(void)p;u8 b=0;assert(hci_uart_receive_buf(&sd,&b,1)==1);return NULL;}
+int main(int argc,char **argv){
+ assert(argc==2);fixture();pthread_t thread,rx;
+ if(!strcmp(argv[1],"writer")){
+  block_write=true;late_callback_checks=FIXED;proto_enqueue(&hu,new_skb());hci_uart_tx_wakeup(&hu);wait_flag(&write_entered);
+  assert(!pthread_create(&thread,NULL,unregister_thread,&hu));wait_flag(&unregister_entered);
+  if(FIXED){wait_disabled();assert(!freed_hdev&&!protocol_closed);release_write();}
+  pthread_join(thread,NULL);assert(freed_hdev&&protocol_closed&&port_closes==1&&hu.hdev==NULL);finish();
+ }else if(!strcmp(argv[1],"rx")){
+  block_rx=true;late_callback_checks=true;assert(!pthread_create(&rx,NULL,rx_thread,NULL));wait_flag(&rx_entered);
+  assert(!pthread_create(&thread,NULL,unregister_thread,&hu));wait_flag(&unregister_entered);
+  pthread_mutex_lock(&state_mutex);assert(!freed_hdev&&!protocol_closed);allow_rx=true;pthread_cond_broadcast(&state_cond);pthread_mutex_unlock(&state_mutex);
+  pthread_join(rx,NULL);pthread_join(thread,NULL);assert(freed_hdev&&closed_calls==1&&recv_calls==1);finish();
+ }else if(!strcmp(argv[1],"flush")){
+  block_write=partial_write=true;proto_enqueue(&hu,new_skb());hci_uart_tx_wakeup(&hu);wait_flag(&write_entered);
+  assert(!pthread_create(&thread,NULL,flush_thread,hu.hdev));
+  if(FIXED){wait_disabled();assert(!flush_entered);release_write();}else{wait_flag(&flush_entered);release_write();}
+  pthread_join(thread,NULL);cancel_work_sync(&hu.write_work);
+  bool clean=hu.tx_skb==NULL&&allocated==freed;
+  if(FIXED)assert(clean);else assert(!clean);
+  partial_write=block_write=false;hci_uart_unregister_device(&hu);if(!FIXED)hu.hdev=NULL;finish();
+ }else if(!strcmp(argv[1],"nonpersistent")){
+  hu.hdev->nonpersistent=true;late_callback_checks=true;hci_uart_unregister_device(&hu);assert(port_closes==1&&closed_calls==1&&hu.hdev==NULL);finish();
+ }else if(!strcmp(argv[1],"init_failed")){
+  /* Exact postcondition of the existing common init_work failure path. */
+  clear_bit(HCI_UART_REGISTERED,&hu.flags);clear_bit(HCI_UART_PROTO_READY,&hu.flags);free(hu.hdev);hu.hdev=NULL;
+  hci_uart_unregister_device(&hu);assert(closed_calls==0&&port_closes==1&&!freed_hdev);finish();
+ }else assert(false);
+ printf("{\"case\":\"%s\",\"fixed\":%s,\"allocations\":%u,\"frees\":%u,\"passed\":true}\n",argv[1],FIXED?"true":"false",allocated,freed);return 0;
+}

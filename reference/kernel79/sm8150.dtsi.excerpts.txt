@@ -1,0 +1,96 @@
+916: 		};
+917: 
+918: 		gpi_dma0: dma-controller@800000 {
+919: 			compatible = "qcom,sm8150-gpi-dma", "qcom,sdm845-gpi-dma";
+920: 			reg = <0 0x00800000 0 0x60000>;
+921: 			interrupts = <GIC_SPI 244 IRQ_TYPE_LEVEL_HIGH>,
+922: 				     <GIC_SPI 245 IRQ_TYPE_LEVEL_HIGH>,
+923: 				     <GIC_SPI 246 IRQ_TYPE_LEVEL_HIGH>,
+924: 				     <GIC_SPI 247 IRQ_TYPE_LEVEL_HIGH>,
+925: 				     <GIC_SPI 248 IRQ_TYPE_LEVEL_HIGH>,
+926: 				     <GIC_SPI 249 IRQ_TYPE_LEVEL_HIGH>,
+927: 				     <GIC_SPI 250 IRQ_TYPE_LEVEL_HIGH>,
+928: 				     <GIC_SPI 251 IRQ_TYPE_LEVEL_HIGH>,
+929: 				     <GIC_SPI 252 IRQ_TYPE_LEVEL_HIGH>,
+930: 				     <GIC_SPI 253 IRQ_TYPE_LEVEL_HIGH>,
+931: 				     <GIC_SPI 254 IRQ_TYPE_LEVEL_HIGH>,
+932: 				     <GIC_SPI 255 IRQ_TYPE_LEVEL_HIGH>,
+933: 				     <GIC_SPI 256 IRQ_TYPE_LEVEL_HIGH>;
+934: 			dma-channels = <13>;
+935: 			dma-channel-mask = <0xfa>;
+936: 			iommus = <&apps_smmu 0x00d6 0x0>;
+937: 			#dma-cells = <3>;
+938: 			status = "disabled";
+939: 		};
+977: 		};
+978: 
+979: 		qupv3_id_0: geniqup@8c0000 {
+980: 			compatible = "qcom,geni-se-qup";
+981: 			reg = <0x0 0x008c0000 0x0 0x6000>;
+982: 			clock-names = "m-ahb", "s-ahb";
+983: 			clocks = <&gcc GCC_QUPV3_WRAP_0_M_AHB_CLK>,
+984: 				 <&gcc GCC_QUPV3_WRAP_0_S_AHB_CLK>;
+985: 			iommus = <&apps_smmu 0xc3 0x0>;
+986: 			#address-cells = <2>;
+987: 			#size-cells = <2>;
+988: 			ranges;
+989: 			status = "disabled";
+990: 
+991: 			i2c0: i2c@880000 {
+992: 				compatible = "qcom,geni-i2c";
+993: 				reg = <0 0x00880000 0 0x4000>;
+994: 				clock-names = "se";
+995: 				clocks = <&gcc GCC_QUPV3_WRAP0_S0_CLK>;
+996: 				dmas = <&gpi_dma0 0 0 QCOM_GPI_I2C>,
+997: 				       <&gpi_dma0 1 0 QCOM_GPI_I2C>;
+998: 				dma-names = "tx", "rx";
+999: 				pinctrl-names = "default";
+1000: 				pinctrl-0 = <&qup_i2c0_default>;
+1023: 			};
+1024: 
+1025: 			i2c1: i2c@884000 {
+1026: 				compatible = "qcom,geni-i2c";
+1027: 				reg = <0 0x00884000 0 0x4000>;
+1028: 				clock-names = "se";
+1029: 				clocks = <&gcc GCC_QUPV3_WRAP0_S1_CLK>;
+1030: 				dmas = <&gpi_dma0 0 1 QCOM_GPI_I2C>,
+1031: 				       <&gpi_dma0 1 1 QCOM_GPI_I2C>;
+1032: 				dma-names = "tx", "rx";
+1033: 				pinctrl-names = "default";
+1034: 				pinctrl-0 = <&qup_i2c1_default>;
+1035: 				interrupts = <GIC_SPI 602 IRQ_TYPE_LEVEL_HIGH>;
+1036: 				#address-cells = <1>;
+1037: 				#size-cells = <0>;
+1038: 				status = "disabled";
+1039: 			};
+1040: 
+1041: 			spi1: spi@884000 {
+1042: 				compatible = "qcom,geni-spi";
+1043: 				reg = <0 0x00884000 0 0x4000>;
+1044: 				reg-names = "se";
+1045: 				clock-names = "se";
+1046: 				clocks = <&gcc GCC_QUPV3_WRAP0_S1_CLK>;
+2415: 			};
+2416: 
+2417: 			qup_i2c1_default: qup-i2c1-default-state {
+2418: 				pins = "gpio114", "gpio115";
+2419: 				function = "qup1";
+2420: 				drive-strength = <2>;
+2421: 				bias-disable;
+2422: 			};
+2423: 
+2424: 			qup_spi1_default: qup-spi1-default-state {
+2425: 				pins = "gpio114", "gpio115", "gpio116", "gpio117";
+2426: 				function = "qup1";
+2427: 				drive-strength = <6>;
+2428: 				bias-disable;
+2429: 			};
+2430: 
+2431: 			qup_i2c2_default: qup-i2c2-default-state {
+2432: 				pins = "gpio126", "gpio127";
+2433: 				function = "qup2";
+2434: 				drive-strength = <2>;
+2435: 				bias-disable;
+2436: 			};
+2437: 
+2438: 			qup_spi2_default: qup-spi2-default-state {

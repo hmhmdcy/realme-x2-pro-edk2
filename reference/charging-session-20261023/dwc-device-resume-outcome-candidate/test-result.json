@@ -1,0 +1,120 @@
+{
+  "passed": true,
+  "summaries": [
+    {
+      "passed": true,
+      "cases": 18,
+      "legacy_differential_scenarios": 16,
+      "PM_unwind_proved": false
+    },
+    {
+      "passed": true,
+      "cases": 1,
+      "host_stub_fully_initialized": true
+    }
+  ],
+  "phases": [
+    {
+      "phase": "test-outcome-compile",
+      "argv": [
+        "gcc",
+        "-std=c11",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-Wno-unused-function",
+        "-Wno-unused-parameter",
+        "-g",
+        "-O1",
+        "-fsanitize=address,undefined",
+        "-fno-omit-frame-pointer",
+        "-fno-pie",
+        "-no-pie",
+        "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/dwc-device-resume-outcome-candidate/test-outcome.c",
+        "-o",
+        "/home/cy122/charging-management-20261023/dwc-device-resume-outcome-test-01/test-outcome"
+      ],
+      "pid": 782,
+      "terminal": true,
+      "returncode": 0,
+      "seconds": 1.0165909600000003,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "phase": "test-outcome-run",
+      "argv": [
+        "/home/cy122/charging-management-20261023/dwc-device-resume-outcome-test-01/test-outcome"
+      ],
+      "pid": 789,
+      "terminal": true,
+      "returncode": 0,
+      "seconds": 0.016849520000000062,
+      "stdout_sha256": "8db009b5a616e15b48ba7d82dc7334922b3ed8d7cf4d7efcaaa1d21a6f2f5fd4",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "phase": "test-host-stub-compile",
+      "argv": [
+        "gcc",
+        "-std=c11",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-Wno-unused-function",
+        "-Wno-unused-parameter",
+        "-g",
+        "-O1",
+        "-fsanitize=address,undefined",
+        "-fno-omit-frame-pointer",
+        "-fno-pie",
+        "-no-pie",
+        "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/dwc-device-resume-outcome-candidate/test-host-stub.c",
+        "-o",
+        "/home/cy122/charging-management-20261023/dwc-device-resume-outcome-test-01/test-host-stub"
+      ],
+      "pid": 792,
+      "terminal": true,
+      "returncode": 0,
+      "seconds": 0.4055549110000003,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "phase": "test-host-stub-run",
+      "argv": [
+        "/home/cy122/charging-management-20261023/dwc-device-resume-outcome-test-01/test-host-stub"
+      ],
+      "pid": 799,
+      "terminal": true,
+      "returncode": 0,
+      "seconds": 0.011953762000000978,
+      "stdout_sha256": "1a0c8090a4c4413c15e58e7b4822c97c77d2b8a3e82cacbfef5cfdbf9a2f8bab",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "files": {
+    "prepare.py": "c485a3b399b29d0235d49d6db728d9370b8cab4106653d89adf9daebc0e3f24c",
+    "source-result.json": "a4a542836b77a4f4c394c134bf0df3a4453e4ec87b58e6a4ba1cd6e31d00fed2",
+    "gadget.c": "1080c78f3e29f1fd20ae5187e28ea114574e3131f24399647d2179e9be207859",
+    "core.h": "6f6ec74e6634edb25beba1dcc09b924f5c004bb9234dbae16044986a0196cc05",
+    "device-resume-outcome.patch": "fbe58a7ab4982eda5c6d796f9ea4ea4ec6c106454398ce45263d35fd87c29773",
+    "actual-functions.inc": "c8e07b5050326c6d0a3dfab277d79d83307401c2f33329aeda9d0bf0326e5364",
+    "previous-resume.inc": "219b8d4b4095c7dbdb5aa245741d3b0a54604bf07d2c2c72fe120bc2f050951d",
+    "host-stubs.inc": "d663cb6980d0f17bd81c8b15319295a3684f286244494e89d72625c11c59738e",
+    "test-outcome.c": "123d854c402a3ab2775e14815dd9e92809fd13d8c21089795653a732fc6dcc00",
+    "test-host-stub.c": "3f14fbb9179dfd0ee9286b555f3f3682958ce8553615705d124109189824e28b",
+    "test-outcome.py": "3ef212f8914d2ee740c857af3c65624e9093dd03a579026a16a9b5227a08fc7b"
+  },
+  "private_output": "/home/cy122/charging-management-20261023/dwc-device-resume-outcome-test-01",
+  "original_frozen_inputs_unchanged": true,
+  "new_outcome_cases": 18,
+  "HOST_stub_cases": 1,
+  "legacy_differential_scenarios": 16,
+  "old_7_15_13_24_20_126_suites_rerun": false,
+  "boundaries": "MMIO/endpoint/IRQ scheduling/PM state fake; exact candidate gadget functions and actual header stub",
+  "core_consumer_added": false,
+  "PM_unwind_proved": false,
+  "object_or_Image_built": false,
+  "device_SSH_USB_storage_helper_SDK_Git_used": false
+}

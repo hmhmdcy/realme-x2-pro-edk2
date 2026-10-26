@@ -1,0 +1,391 @@
+--- a/Documentation/devicetree/bindings/media/i2c/sony,imx471.yaml
++++ b/Documentation/devicetree/bindings/media/i2c/sony,imx471.yaml
+@@ -16,6 +16,16 @@
+ 
+ allOf:
+   - $ref: /schemas/media/video-interface-devices.yaml#
++  - if:
++      required: [mux-states]
++    then:
++      required: [mux-state-names, reset-gpios]
++      properties:
++        pinctrl-names: false
++        pinctrl-0: false
++        pinctrl-1: false
++        assigned-clocks: false
++        assigned-clock-rates: false
+ 
+ properties:
+   compatible:
+@@ -44,6 +54,14 @@
+   reset-gpios:
+     description: Active low XCLR reset
+     maxItems: 1
++
++  mux-states:
++    description: CSI route held exclusively over the complete powered interval.
++    maxItems: 1
++
++  mux-state-names:
++    items:
++      - const: csi-route
+ 
+   port:
+     $ref: /schemas/graph.yaml#/$defs/port-base
+--- a/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
++++ b/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
+@@ -987,43 +987,32 @@
+ 	};
+ };
+ 
++/* Provider bootstrap requires every legacy sensor consumer to be stopped.
++ * Shared pin configuration is permanent; only clock gates change at runtime.
++ */
+ &tlmm {
+-	cam_front_mclk_active: camera-front-mclk-active-state {
++	cam_front_mono_mclk: camera-front-mono-mclk-state {
+ 		pins = "gpio15";
+ 		function = "cam_mclk";
+ 		drive-strength = <2>;
+ 		bias-disable;
+ 	};
+ 
+-	cam_front_mclk_sleep: camera-front-mclk-sleep-state {
+-		pins = "gpio15";
+-		function = "gpio";
+-		drive-strength = <2>;
+-		bias-pull-down;
+-		input-enable;
+-	};
+-
+-	cam_front_select_active: camera-front-select-active-state {
+-		pins = "gpio29";
+-		function = "gpio";
++	cam_front_mono_gpio: camera-front-mono-gpio-state {
++		pins = "gpio29", "gpio12";
+ 		drive-strength = <2>;
+ 		bias-disable;
+-		output-high;
+-	};
+-
+-	cam_front_select_sleep: camera-front-select-sleep-state {
+-		pins = "gpio29";
+-		function = "gpio";
+-		drive-strength = <2>;
+-		bias-pull-down;
+-		output-low;
+-	};
+-
+-	cam_front_reset: camera-front-reset-state {
+-		pins = "gpio12";
+-		function = "gpio";
+-		drive-strength = <2>;
+-		bias-pull-down;
++	};
++};
++
++/ {
++	cam_front_mono_route: camera-route-mux {
++		compatible = "gpio-mux";
++		#mux-state-cells = <1>;
++		mux-gpios = <&tlmm 29 GPIO_ACTIVE_HIGH>;
++		/* Leave the route unchanged when the last powered consumer exits. */
++		pinctrl-names = "default";
++		pinctrl-0 = <&cam_front_mono_mclk &cam_front_mono_gpio>;
+ 	};
+ };
+ 
+@@ -1040,12 +1029,10 @@
+ 		vdig-supply = <&cam_front_vdig>;
+ 		vif-supply = <&vreg_l1c_1p8>;
+ 		clocks = <&camcc CAM_CC_MCLK2_CLK>;
+-		assigned-clocks = <&camcc CAM_CC_MCLK2_CLK>;
+-		assigned-clock-rates = <19200000>;
++		mux-states = <&cam_front_mono_route 1>;
++		mux-state-names = "csi-route";
+ 		reset-gpios = <&tlmm 12 GPIO_ACTIVE_LOW>;
+-		pinctrl-names = "default", "sleep";
+-		pinctrl-0 = <&cam_front_mclk_active &cam_front_select_active &cam_front_reset>;
+-		pinctrl-1 = <&cam_front_mclk_sleep &cam_front_select_sleep &cam_front_reset>;
++		/* No per-sensor shared pinctrl or automatic assigned-clock changes. */
+ 		orientation = <0>;
+ 
+ 		port {
+--- a/drivers/media/i2c/imx471.c
++++ b/drivers/media/i2c/imx471.c
+@@ -10,10 +10,13 @@
+ #include <linux/delay.h>
+ #include <linux/i2c.h>
+ #include <linux/module.h>
++#include <linux/mux/consumer.h>
+ #include <linux/of.h>
+ #include <linux/pinctrl/consumer.h>
+ #include <linux/pm_runtime.h>
+ #include <linux/regulator/consumer.h>
++#include <linux/reset.h>
++#include <linux/property.h>
+ #include <media/v4l2-cci.h>
+ #include <media/v4l2-ctrls.h>
+ #include <media/v4l2-subdev.h>
+@@ -172,6 +175,12 @@
+ 	unsigned long link_freq_bitmap;
+ 
+ 	struct gpio_desc *reset_gpio;
++	struct reset_control *reset;
++	struct mux_state *route;
++	unsigned long supply_mask;
++	bool route_selected;
++	bool reset_acquired;
++	bool clock_enabled;
+ 	struct regulator_bulk_data supplies[ARRAY_SIZE(imx471_supply_name)];
+ 	struct clk *img_clk;
+ 
+@@ -806,10 +815,144 @@
+ 	regulator_disable(sensor->supplies[IMX471_VIF].consumer);
+ }
+ 
++/* Shared-route boards never use the legacy direct GPIO/pinctrl path. */
++static int imx471_route_get(struct imx471 *sensor)
++{
++	int ret;
++
++	if (!sensor->route || sensor->route_selected)
++		return 0;
++	ret = mux_state_try_select(sensor->route);
++	if (!ret)
++		sensor->route_selected = true;
++	return ret;
++}
++
++static void imx471_route_put(void *data)
++{
++	struct imx471 *sensor = data;
++
++	if (!sensor->route_selected)
++		return;
++	/* A failed shutdown must not hand live shared resources to a peer. */
++	if (WARN_ON(sensor->supply_mask || sensor->clock_enabled ||
++		    sensor->reset_acquired)) {
++		dev_err(sensor->dev, "shared shutdown incomplete; route remains locked\n");
++		return;
++	}
++	if (mux_state_deselect(sensor->route))
++		dev_err(sensor->dev, "failed to leave shared route idle\n");
++	sensor->route_selected = false;
++}
++
++static int imx471_shared_power_off(struct imx471 *sensor)
++{
++	static const unsigned int order[] = { IMX471_VDIG, IMX471_VANA, IMX471_VIF };
++	unsigned int i;
++	int ret;
++
++	if (sensor->clock_enabled) {
++		clk_disable_unprepare(sensor->img_clk);
++		sensor->clock_enabled = false;
++	}
++	if (sensor->reset_acquired) {
++		ret = reset_control_assert(sensor->reset);
++		if (ret)
++			return ret;
++	}
++	for (i = 0; i < ARRAY_SIZE(order); i++) {
++		unsigned int id = order[i];
++
++		if (!(sensor->supply_mask & BIT(id)))
++			continue;
++		ret = regulator_disable(sensor->supplies[id].consumer);
++		if (ret)
++			return ret;
++		sensor->supply_mask &= ~BIT(id);
++	}
++	if (sensor->reset_acquired) {
++		reset_control_release(sensor->reset);
++		sensor->reset_acquired = false;
++	}
++	imx471_route_put(sensor);
++	return 0;
++}
++
++static int imx471_shared_power_on(struct imx471 *sensor)
++{
++	static const unsigned int order[] = { IMX471_VIF, IMX471_VANA, IMX471_VDIG };
++	unsigned int i;
++	int ret, cleanup;
++
++	if (sensor->supply_mask || sensor->clock_enabled || sensor->reset_acquired)
++		return -EIO;
++	ret = imx471_route_get(sensor);
++	if (ret)
++		return ret;
++	ret = reset_control_acquire(sensor->reset);
++	if (ret)
++		goto error_power_off;
++	sensor->reset_acquired = true;
++	ret = reset_control_assert(sensor->reset);
++	if (ret)
++		goto error_power_off;
++	ret = clk_set_rate(sensor->img_clk, IMX471_EXT_CLK);
++	if (ret)
++		goto error_power_off;
++	for (i = 0; i < ARRAY_SIZE(order); i++) {
++		unsigned int id = order[i];
++
++		ret = regulator_enable(sensor->supplies[id].consumer);
++		if (ret)
++			goto error_power_off;
++		sensor->supply_mask |= BIT(id);
++		usleep_range(1000, 2000);
++	}
++	ret = clk_prepare_enable(sensor->img_clk);
++	if (ret)
++		goto error_power_off;
++	sensor->clock_enabled = true;
++	ret = reset_control_deassert(sensor->reset);
++	if (ret)
++		goto error_power_off;
++	usleep_range(10000, 15000);
++	return 0;
++
++error_power_off:
++	cleanup = imx471_shared_power_off(sensor);
++	if (cleanup)
++		dev_err(sensor->dev, "shared power-on unwind failed: %d\n", cleanup);
++	return ret;
++}
++
++static int imx471_init_shared_route(struct imx471 *sensor)
++{
++	int ret;
++
++	if (!device_property_present(sensor->dev, "mux-states"))
++		return 0;
++	if (!dev_of_node(sensor->dev))
++		return -EINVAL;
++#if IS_ENABLED(CONFIG_MULTIPLEXER)
++	sensor->route = devm_mux_state_get(sensor->dev, "csi-route");
++	if (IS_ERR(sensor->route))
++		return PTR_ERR(sensor->route);
++#else
++	return -EOPNOTSUPP;
++#endif
++	ret = imx471_route_get(sensor);
++	if (ret)
++		return ret == -EBUSY ? -EPROBE_DEFER : ret;
++	return devm_add_action_or_reset(sensor->dev, imx471_route_put, sensor);
++}
++
+ static int imx471_power_off(struct device *dev)
+ {
+ 	struct v4l2_subdev *sd = dev_get_drvdata(dev);
+ 	struct imx471 *sensor = to_imx471(sd);
++
++	if (sensor->route)
++		return imx471_shared_power_off(sensor);
+ 
+ 	clk_disable_unprepare(sensor->img_clk);
+ 	gpiod_set_value_cansleep(sensor->reset_gpio, 1);
+@@ -824,6 +967,9 @@
+ 	struct v4l2_subdev *sd = dev_get_drvdata(dev);
+ 	struct imx471 *sensor = to_imx471(sd);
+ 	int ret;
++
++	if (sensor->route)
++		return imx471_shared_power_on(sensor);
+ 
+ 	ret = pinctrl_pm_select_default_state(dev);
+ 	if (ret)
+@@ -1079,6 +1225,13 @@
+ 	if (IS_ERR(clk))
+ 		return dev_err_probe(sensor->dev, PTR_ERR(clk),
+ 				     "can't get clock frequency\n");
++
++	/* Shared clocks may only be changed while holding the route lease. */
++	if (sensor->route) {
++		ret = clk_set_rate(clk, IMX471_EXT_CLK);
++		if (ret)
++			return dev_err_probe(sensor->dev, ret, "failed to set shared clock\n");
++	}
+ 
+ 	if (clk_get_rate(clk) != IMX471_EXT_CLK)
+ 		return dev_err_probe(sensor->dev, -EINVAL,
+@@ -1130,6 +1283,10 @@
+ 
+ 	sensor->dev = &client->dev;
+ 
++	ret = imx471_init_shared_route(sensor);
++	if (ret)
++		return dev_err_probe(sensor->dev, ret, "failed to acquire shared route\n");
++
+ 	ret = imx471_check_hwcfg(sensor);
+ 	if (ret)
+ 		return dev_err_probe(sensor->dev, ret,
+@@ -1140,11 +1297,19 @@
+ 		return dev_err_probe(sensor->dev, ret,
+ 				     "failed to get regulators\n");
+ 
+-	sensor->reset_gpio = devm_gpiod_get_optional(sensor->dev, "reset",
+-						     GPIOD_OUT_HIGH);
+-	if (IS_ERR(sensor->reset_gpio))
+-		return dev_err_probe(sensor->dev, PTR_ERR(sensor->reset_gpio),
+-				     "failed to get reset gpio\n");
++	if (sensor->route) {
++		/* reset-gpios fallback deduplicates the shared GPIO provider. */
++		sensor->reset = devm_reset_control_get_exclusive_released(sensor->dev, NULL);
++		if (IS_ERR(sensor->reset))
++			return dev_err_probe(sensor->dev, PTR_ERR(sensor->reset),
++					     "failed to get shared reset\n");
++	} else {
++		sensor->reset_gpio = devm_gpiod_get_optional(sensor->dev, "reset",
++							     GPIOD_OUT_HIGH);
++		if (IS_ERR(sensor->reset_gpio))
++			return dev_err_probe(sensor->dev, PTR_ERR(sensor->reset_gpio),
++					     "failed to get reset gpio\n");
++	}
+ 
+ 	sensor->img_clk = devm_v4l2_sensor_clk_get(sensor->dev, NULL);
+ 	if (IS_ERR(sensor->img_clk))
+@@ -1210,7 +1375,6 @@
+ 
+ error_v4l2_subdev_cleanup:
+ 	pm_runtime_disable(sensor->dev);
+-	pm_runtime_set_suspended(sensor->dev);
+ 	v4l2_subdev_cleanup(&sensor->sd);
+ 
+ error_media_entity_pm:
+@@ -1220,7 +1384,10 @@
+ 	v4l2_ctrl_handler_free(sensor->sd.ctrl_handler);
+ 
+ error_power_off:
+-	imx471_power_off(sensor->dev);
++	if (!imx471_power_off(sensor->dev))
++		pm_runtime_set_suspended(sensor->dev);
++	else
++		dev_err(sensor->dev, "probe shutdown incomplete; routed candidate must not be deployed\n");
+ 
+ 	return ret;
+ }
+@@ -1228,6 +1395,7 @@
+ static void imx471_remove(struct i2c_client *client)
+ {
+ 	struct v4l2_subdev *sd = i2c_get_clientdata(client);
++	struct imx471 *sensor = to_imx471(sd);
+ 
+ 	v4l2_async_unregister_subdev(sd);
+ 	v4l2_subdev_cleanup(sd);
+@@ -1236,9 +1404,13 @@
+ 
+ 	pm_runtime_disable(&client->dev);
+ 
+-	if (!pm_runtime_status_suspended(&client->dev)) {
++	if (!pm_runtime_status_suspended(&client->dev) ||
++	    (sensor->route && sensor->route_selected)) {
+ 		imx471_power_off(&client->dev);
+-		pm_runtime_set_suspended(&client->dev);
++		if (sensor->route && sensor->route_selected)
++			dev_err(&client->dev, "remove left shared route locked after shutdown failure\n");
++		else
++			pm_runtime_set_suspended(&client->dev);
+ 	}
+ }
+ 

@@ -1,0 +1,30 @@
+diff --git a/drivers/media/platform/qcom/camss/camss.c b/drivers/media/platform/qcom/camss/camss.c
+--- a/drivers/media/platform/qcom/camss/camss.c
++++ b/drivers/media/platform/qcom/camss/camss.c
+@@ -4982,7 +4982,8 @@
+ 			fwnode_property_present(ep, "lane-polarities")))
+ 		return -EINVAL;
+ 	if (!is_cphy) {
+-		if (mipi_csi2->clock_lane > 4)
++		/* Qualcomm 3-phase PHYs label the fixed D-PHY clock lane 7. */
++		if (mipi_csi2->clock_lane > 4 && mipi_csi2->clock_lane != 7)
+ 			return -EINVAL;
+ 		used = BIT(mipi_csi2->clock_lane);
+ 	}
+diff --git a/drivers/media/platform/qcom/camss/camss-csid-gen2.c b/drivers/media/platform/qcom/camss/camss-csid-gen2.c
+--- a/drivers/media/platform/qcom/camss/camss-csid-gen2.c
++++ b/drivers/media/platform/qcom/camss/camss-csid-gen2.c
+@@ -410,7 +410,12 @@
+ 	time = wait_for_completion_timeout(&csid->reset_complete,
+ 					   msecs_to_jiffies(CSID_RESET_TIMEOUT_MS));
+ 	if (!time) {
+-		dev_err(csid->camss->dev, "CSID reset timeout\n");
++		dev_err(csid->camss->dev,
++			"CSID%u reset timeout: version=%#x irq=%#x mask=%#x strobe=%#x\n",
++			csid->id, csid_hw_version(csid),
++			readl(csid->base + CSID_TOP_IRQ_STATUS),
++			readl(csid->base + CSID_TOP_IRQ_MASK),
++			readl(csid->base + CSID_RST_STROBES));
+ 		return -EIO;
+ 	}
+ 

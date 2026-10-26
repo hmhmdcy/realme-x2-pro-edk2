@@ -1,0 +1,177 @@
+--- a/sound/soc/codecs/wcd934x.c
++++ b/sound/soc/codecs/wcd934x.c
+@@ -1355,7 +1355,7 @@
+ 		}
+ 		ret = wcd934x_enable_ana_bias_and_sysclk(wcd);
+ 	} else {
+-		int val;
++		int val = 0;
+ 
+ 		regmap_read(wcd->regmap, WCD934X_CDC_CLK_RST_CTRL_SWR_CONTROL,
+ 			    &val);
+@@ -1403,8 +1403,12 @@
+ 	if (ret)
+ 		return ret;
+ 
+-	regmap_read(regmap, WCD934X_CHIP_TIER_CTRL_EFUSE_VAL_OUT14, &val1);
+-	regmap_read(regmap, WCD934X_CHIP_TIER_CTRL_EFUSE_VAL_OUT15, &val2);
++	ret = regmap_read(regmap, WCD934X_CHIP_TIER_CTRL_EFUSE_VAL_OUT14, &val1);
++	if (ret)
++		return ret;
++	ret = regmap_read(regmap, WCD934X_CHIP_TIER_CTRL_EFUSE_VAL_OUT15, &val2);
++	if (ret)
++		return ret;
+ 
+ 	version_mask |= (!!((u8)val1 & 0x80)) << DSD_DISABLED_MASK;
+ 	version_mask |= (!!((u8)val2 & 0x01)) << SLNQ_DISABLED_MASK;
+@@ -1430,34 +1434,45 @@
+ 	return 0;
+ }
+ 
+-static void wcd934x_enable_efuse_sensing(struct wcd934x_codec *wcd)
+-{
+-	int rc, val;
+-
+-	__wcd934x_cdc_mclk_enable(wcd, true);
+-
+-	regmap_update_bits(wcd->regmap,
+-			   WCD934X_CHIP_TIER_CTRL_EFUSE_CTL,
+-			   WCD934X_EFUSE_SENSE_STATE_MASK,
+-			   WCD934X_EFUSE_SENSE_STATE_DEF);
+-	regmap_update_bits(wcd->regmap,
+-			   WCD934X_CHIP_TIER_CTRL_EFUSE_CTL,
+-			   WCD934X_EFUSE_SENSE_EN_MASK,
+-			   WCD934X_EFUSE_SENSE_ENABLE);
++static int wcd934x_enable_efuse_sensing(struct wcd934x_codec *wcd)
++{
++	int ret, val;
++
++	ret = __wcd934x_cdc_mclk_enable(wcd, true);
++	if (ret)
++		return ret;
++
++	ret = regmap_update_bits(wcd->regmap,
++				 WCD934X_CHIP_TIER_CTRL_EFUSE_CTL,
++				 WCD934X_EFUSE_SENSE_STATE_MASK,
++				 WCD934X_EFUSE_SENSE_STATE_DEF);
++	if (ret)
++		goto disable_mclk;
++	ret = regmap_update_bits(wcd->regmap,
++				 WCD934X_CHIP_TIER_CTRL_EFUSE_CTL,
++				 WCD934X_EFUSE_SENSE_EN_MASK,
++				 WCD934X_EFUSE_SENSE_ENABLE);
++	if (ret)
++		goto disable_mclk;
+ 	/*
+ 	 * 5ms sleep required after enabling efuse control
+ 	 * before checking the status.
+ 	 */
+ 	usleep_range(5000, 5500);
+-	wcd934x_set_sido_input_src(wcd, SIDO_SOURCE_RCO_BG);
+-
+-	rc = regmap_read(wcd->regmap,
+-			 WCD934X_CHIP_TIER_CTRL_EFUSE_STATUS, &val);
+-	if (rc || (!(val & 0x01)))
+-		WARN(1, "%s: Efuse sense is not complete val=%x, ret=%d\n",
+-		     __func__, val, rc);
+-
++	ret = wcd934x_set_sido_input_src(wcd, SIDO_SOURCE_RCO_BG);
++	if (ret)
++		goto disable_mclk;
++
++	ret = regmap_read(wcd->regmap,
++			  WCD934X_CHIP_TIER_CTRL_EFUSE_STATUS, &val);
++	if (!ret && !(val & 0x01)) {
++		dev_err(wcd->dev, "Efuse sense is not complete: val=%x\n", val);
++		ret = -EIO;
++	}
++
++disable_mclk:
+ 	__wcd934x_cdc_mclk_enable(wcd, false);
++	return ret;
+ }
+ 
+ static int wcd934x_swrm_clock(struct wcd934x_codec *wcd, bool enable)
+@@ -2198,27 +2213,37 @@
+ 	return 0;
+ }
+ 
+-static void wcd934x_hw_init(struct wcd934x_codec *wcd)
++static int wcd934x_hw_init(struct wcd934x_codec *wcd)
+ {
+ 	struct regmap *rm = wcd->regmap;
++	int ret;
+ 
+ 	/* set SPKR rate to FS_2P4_3P072 */
+-	regmap_update_bits(rm, WCD934X_CDC_RX7_RX_PATH_CFG1, 0x08, 0x08);
+-	regmap_update_bits(rm, WCD934X_CDC_RX8_RX_PATH_CFG1, 0x08, 0x08);
++	ret = regmap_update_bits(rm, WCD934X_CDC_RX7_RX_PATH_CFG1, 0x08, 0x08);
++	if (ret)
++		return ret;
++	ret = regmap_update_bits(rm, WCD934X_CDC_RX8_RX_PATH_CFG1, 0x08, 0x08);
++	if (ret)
++		return ret;
+ 
+ 	/* Take DMICs out of reset */
+-	regmap_update_bits(rm, WCD934X_CPE_SS_DMIC_CFG, 0x80, 0x00);
++	return regmap_update_bits(rm, WCD934X_CPE_SS_DMIC_CFG, 0x80, 0x00);
+ }
+ 
+ static int wcd934x_comp_init(struct snd_soc_component *component)
+ {
+ 	struct wcd934x_codec *wcd = dev_get_drvdata(component->dev);
+ 
+-	wcd934x_hw_init(wcd);
+-	wcd934x_enable_efuse_sensing(wcd);
+-	wcd934x_get_version(wcd);
+-
+-	return 0;
++	int ret;
++
++	ret = wcd934x_hw_init(wcd);
++	if (ret)
++		return ret;
++	ret = wcd934x_enable_efuse_sensing(wcd);
++	if (ret)
++		return ret;
++
++	return wcd934x_get_version(wcd);
+ }
+ 
+ static irqreturn_t wcd934x_slim_irq_handler(int irq, void *data)
+@@ -2991,6 +3016,18 @@
+ 	snd_soc_component_init_regmap(component, wcd->regmap);
+ 	wcd->component = component;
+ 
++	if (READ_ONCE(wcd->sdev->status) != SLIM_DEVICE_STATUS_UP)
++		return -EPROBE_DEFER;
++
++	ret = wcd934x_comp_init(component);
++	if (ret) {
++		if (ret == -EREMOTEIO || ret == -ENOTCONN ||
++		    ret == -EHOSTDOWN || ret == -EAGAIN)
++			ret = -EPROBE_DEFER;
++		return dev_err_probe(component->dev, ret,
++				     "Failed to initialize WCD934x hardware\n");
++	}
++
+ 	/* Class-H Init*/
+ 	wcd->clsh_ctrl = wcd_clsh_ctrl_alloc(component, wcd->version);
+ 	if (IS_ERR(wcd->clsh_ctrl))
+@@ -2999,8 +3036,6 @@
+ 	/* Default HPH Mode to Class-H Low HiFi */
+ 	wcd->hph_mode = CLS_H_LOHIFI;
+ 
+-	wcd934x_comp_init(component);
+-
+ 	for (i = 0; i < NUM_CODEC_DAIS; i++)
+ 		INIT_LIST_HEAD(&wcd->dai[i].slim_ch_list);
+ 
+@@ -3008,6 +3043,7 @@
+ 	ret = wcd934x_init_dmic(component);
+ 	if (ret) {
+ 		dev_err(component->dev, "Failed to Initialize micbias\n");
++		wcd_clsh_ctrl_free(wcd->clsh_ctrl);
+ 		return ret;
+ 	}
+ 

@@ -1,0 +1,113 @@
+--- a/drivers/slimbus/qcom-ngd-ctrl.c
++++ b/drivers/slimbus/qcom-ngd-ctrl.c
+@@ -585,6 +585,9 @@
+ 						DMA_MEM_TO_DEV,
+ 						DMA_PREP_INTERRUPT);
+ 	if (!desc->desc) {
++		/* tx_lock serializes reservations; this slot was never queued. */
++		desc->comp = NULL;
++		ctrl->tx_tail = index;
+ 		dev_err(ctrl->dev, "unable to prepare channel\n");
+ 		spin_unlock_irqrestore(&ctrl->tx_buf_lock, flags);
+ 		return -EINVAL;
+@@ -802,19 +805,16 @@
+ 		 txn->mc <= SLIM_MSG_MC_RECONFIGURE_NOW))
+ 		return 0;
+ 
+-	if (txn->dt == SLIM_MSG_DEST_ENUMADDR)
+-		return -EPROTONOSUPPORT;
++	if (txn->dt == SLIM_MSG_DEST_ENUMADDR) {
++		ret = -EPROTONOSUPPORT;
++		goto err_free_tid;
++	}
+ 
+ 	if (txn->msg->num_bytes > SLIM_MSGQ_BUF_LEN ||
+ 			txn->rl > SLIM_MSGQ_BUF_LEN) {
+ 		dev_err(ctrl->dev, "msg exceeds HW limit\n");
+-		return -EINVAL;
+-	}
+-
+-	pbuf = qcom_slim_ngd_tx_msg_get(ctrl, txn->rl, &tx_sent);
+-	if (!pbuf) {
+-		dev_err(ctrl->dev, "Message buffer unavailable\n");
+-		return -ENOMEM;
++		ret = -EINVAL;
++		goto err_free_tid;
+ 	}
+ 
+ 	if (txn->mt == SLIM_MSG_MT_CORE &&
+@@ -859,6 +859,14 @@
+ 		txn->rl = txn->msg->num_bytes + 4;
+ 	}
+ 
++	mutex_lock(&ctrl->tx_lock);
++	pbuf = qcom_slim_ngd_tx_msg_get(ctrl, txn->rl, &tx_sent);
++	if (!pbuf) {
++		dev_err(ctrl->dev, "Message buffer unavailable\n");
++		ret = -ENOMEM;
++		goto err_unlock;
++	}
++
+ 	/* HW expects length field to be excluded */
+ 	txn->rl--;
+ 	puc = (u8 *)pbuf;
+@@ -884,12 +892,9 @@
+ 	if (txn->msg && txn->msg->wbuf)
+ 		memcpy(puc, txn->msg->wbuf, txn->msg->num_bytes);
+ 
+-	mutex_lock(&ctrl->tx_lock);
+ 	ret = qcom_slim_ngd_tx_msg_post(ctrl, pbuf, txn->rl);
+-	if (ret) {
+-		mutex_unlock(&ctrl->tx_lock);
+-		return ret;
+-	}
++	if (ret)
++		goto err_unlock;
+ 
+ 	time_left = wait_for_completion_timeout(&tx_sent, HZ);
+ 	if (!time_left) {
+@@ -911,6 +916,16 @@
+ 
+ 	mutex_unlock(&ctrl->tx_lock);
+ 	return 0;
++
++err_unlock:
++	mutex_unlock(&ctrl->tx_lock);
++err_free_tid:
++	/* Direct user-message callers own their TID and PM error unwind. */
++	if ((usr_msg || slim_tid_txn(txn->mt, txn->mc)) && txn->tid) {
++		slim_free_txn_tid(sctrl, txn);
++		txn->tid = 0;
++	}
++	return ret;
+ }
+ 
+ static int qcom_slim_ngd_xfer_msg_sync(struct slim_controller *ctrl,
+--- a/drivers/slimbus/messaging.c
++++ b/drivers/slimbus/messaging.c
+@@ -113,6 +113,9 @@
+ 	bool need_tid = false, clk_pause_msg = false;
+ 	int ret;
+ 	unsigned long time_left;
++
++	/* Also invalid on errors before TID allocation. */
++	txn->tid = 0;
+ 
+ 	/*
+ 	 * do not vote for runtime-PM if the transactions are part of clock
+@@ -132,14 +135,12 @@
+ 			goto slim_xfer_err;
+ 		}
+ 	}
+-	/* Initialize tid to invalid value */
+-	txn->tid = 0;
+ 	need_tid = slim_tid_txn(txn->mt, txn->mc);
+ 
+ 	if (need_tid) {
+ 		ret = slim_alloc_txn_tid(ctrl, txn);
+ 		if (ret)
+-			return ret;
++			goto slim_xfer_err;
+ 
+ 		if (!txn->msg->comp)
+ 			txn->comp = &done;

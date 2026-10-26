@@ -1,0 +1,146 @@
+{
+  "stage": 491,
+  "review": "independent offline prepared-r1 review",
+  "passed_for_current_offline_r1_scope": true,
+  "blocking_findings": [],
+  "worker_sha256": "96e4c899ddd706904b88d28518a4dd4d52955f973d50aa030f98a2636cc892bf",
+  "plan_sha256": "dd9dd1749ea74055ab8f0c1d805f2d2a81a56ab185085dc843870845e89b375a",
+  "source_drift_since_preparation": [],
+  "deployable": false,
+  "target_executed": false,
+  "sdk_accessed": false,
+  "transaction": {
+    "native_apk_forward_once": true,
+    "finite_cases": 8,
+    "frames_each": 12,
+    "mandatory_native_r33_r28_restore": true,
+    "ko_and_private_profiles_untouched": true,
+    "existing_r33_repository_preserved": true,
+    "unknown_child_observe_same_handle_no_replay": true
+  },
+  "source_gate_evidence": {
+    "camss_vfe.cpp": {
+      "sha256": "be3199aec5ad4c5ffc65043bded6ec85b37a3eeaf20db6087226543fc89ece19",
+      "gate_lines": [
+        133,
+        605,
+        624,
+        625,
+        628,
+        629,
+        630,
+        705,
+        727,
+        1424,
+        1425,
+        1433,
+        1553,
+        1555
+      ]
+    },
+    "camss_ipe.cpp": {
+      "sha256": "238c5ccd447a1383abca08fb4a407140346bfe850e311b9f5e44e986060cfbb7",
+      "gate_lines": [
+        45,
+        47,
+        82,
+        83,
+        84,
+        85,
+        131,
+        132,
+        133,
+        134,
+        144
+      ]
+    },
+    "camss_pd10.h": {
+      "sha256": "f0a832c97f4dae82ac442650f2e972a9c0961e1c5e5f548524761ea0ca517c7c",
+      "layout_lines": [
+        15,
+        21,
+        22,
+        23,
+        24
+      ]
+    },
+    "camss.cpp": {
+      "sha256": "d963f91d55b52b7693b73c6a05ad0ad282de47335592fb5c02821ddc9cb7520c",
+      "gate_lines": [
+        278,
+        287,
+        306,
+        377
+      ]
+    },
+    "ipe_tone_profile.cpp": {
+      "sha256": "e294f4e361168fa0e5df8c38c565d782514901398cf4f5ebdd3cb9ab56eefa1e",
+      "gate_lines": [
+        101,
+        130,
+        131,
+        227,
+        232,
+        249,
+        264,
+        277,
+        281,
+        284
+      ]
+    },
+    "ltm13_frame.cpp": {
+      "sha256": "91041da3d900b5dbedd1ac2d931f7be114bfb54135467e0df97df424bc2a2224",
+      "gate_lines": [
+        68,
+        70,
+        76
+      ]
+    },
+    "camss-icp-a5-m2m.c": {
+      "sha256": "5ad317caecd140fab8cda4eaaf28b4f4f670c42a6ba14ba021fe6e5df1723c11",
+      "gate_lines": [
+        346,
+        349,
+        350,
+        398
+      ],
+      "status_lines": [
+        1074,
+        1088,
+        1089,
+        1092,
+        1094
+      ]
+    },
+    "camss-icp-a5-ipe.c": {
+      "sha256": "d23236802835ecb84646f378880391f077b493dc9a386ec5e301d17519a0be6f",
+      "gate_lines": [
+        455,
+        460,
+        548
+      ]
+    }
+  },
+  "main_profile_sha256": "b5669d84977cbfa3c552485fed90157773f14b0427ef5ab7901f2cf0807138d6",
+  "main_factory_modes_dc_enabled": 2,
+  "gate": {
+    "pd10": "processed && ds4 && ipeTone; both finite output geometries supported",
+    "paired_input": "QN10 two planes and equal FULL/coarse kernel sequence required",
+    "hardware_dc": "ctx.coarse && params && LTM flag && iq.data_collection",
+    "factory_math": "preserves configured DC bit and sets LTM|GAMMA",
+    "bootstrap": "LTM flag absent; single-pass",
+    "hardware_pass_counter_available_in_m2m_status": false
+  },
+  "evidence_level": "Runtime same-SOF successful consumption plus frozen source/profile gate association; unchanged causal evidence reused from442, no new causal replay",
+  "limitations": [
+    "Offline unbound template only; no query/callback/target/SDK execution and no hardware installation result.",
+    "Exact r1 namespace only: callback hardcodes r1 root and cleanup prefix. prepare accepts r2/r3 but those are unsupported until a newly reviewed callback/template is prepared.",
+    "New boot requires a new formal-baseline preflight, current uname/boot guard and fresh combined owner/handoff; this deployable=false template is not authorization.",
+    "PD10_READY or QN10 alone does not prove DC. Driver use_coarse additionally requires validated LTM flag and data_collection.",
+    "Factory mathematical frames retain DC gate on; bootstrap packets have no LTM flag and are single-pass. Do not call all12 frames dual-pass.",
+    "No DC/pass/last_job counter is present in captured m2m_status, so job deltas alone cannot count actual DC passes.",
+    "Runtime audit joins delivered GST SOF to PD10 epoch/SOF/geometry, WB revision, GTM source histogram/cookie/generation, math revision and both successful receipts. Driver also rejects unequal FULL/coarse kernel sequence.",
+    "New491 short probes establish default installed paths/warnings and source-associated functional processing. They do not repeat PD10 black/white causality or measure image quality/permanent gap absence; unchanged causal evidence is reused from442."
+  ],
+  "private_review_sha256": "4e1080e27899f5e32840e7c31738c92d69b375fa5e80e1e678e632237f28a785"
+}

@@ -1,0 +1,122 @@
+--- a/drivers/mfd/qcom-pm8008.c
++++ b/drivers/mfd/qcom-pm8008.c
+@@ -11,6 +11,7 @@
+ #include <linux/irq.h>
+ #include <linux/irqdomain.h>
+ #include <linux/mfd/core.h>
++#include <linux/mfd/qcom-pm8008-imx319-lab.h>
+ #include <linux/module.h>
+ #include <linux/mutex.h>
+ #include <linux/property.h>
+@@ -210,6 +211,10 @@
+ static bool experimental_p_address_only;
+ module_param(experimental_p_address_only, bool, 0444);
+ MODULE_PARM_DESC(experimental_p_address_only, "Validate dependent rear PMIC identity without creating children");
++
++static bool experimental_p_imx319_power;
++module_param(experimental_p_imx319_power, bool, 0444);
++MODULE_PARM_DESC(experimental_p_imx319_power, "Enable strictly isolated P L1/L4 IMX319 laboratory regulators");
+ 
+ struct pm8008_reset {
+ 	struct device *dev;
+@@ -370,6 +375,20 @@
+ 		dev_err(reset->dev, "failed to hold consumer reset: %d\n", ret);
+ }
+ 
++static int pm8008_lab_assert_p_reset(void *data)
++{
++	struct pm8008_reset *reset = data;
++	int ret;
++
++	if (!reset || !reset->control || reset->gpio)
++		return -EINVAL;
++	ret = pm8008_set_reset(reset, true);
++	if (ret)
++		return ret;
++	ret = reset_control_status(reset->control);
++	return ret < 0 ? ret : ret == 1 ? 0 : -EIO;
++}
++
+ static int pm8008_read_identity(struct i2c_client *client, u16 address)
+ {
+ 	u8 reg[] = { 0x01, 0x00 }, data[6];
+@@ -482,9 +501,26 @@
+ 	supplier = pm8008_address_supplier_node(client);
+ 	if (IS_ERR(supplier))
+ 		return PTR_ERR(supplier);
+-	/* Incomplete rear VIN description: missing opt-in must never release P. */
+-	if (supplier && !experimental_p_address_only) {
+-		ret = -EOPNOTSUPP;
++	/* On this board factory-address P must never fall back to seven rails. */
++	if (of_machine_is_compatible("realme,samurai") &&
++	    client->addr == PM8008_FACTORY_ADDRESS && !supplier) {
++		ret = -EINVAL;
++		goto put_node;
++	}
++	/* Default-off, mutually exclusive lab profiles. Never reinterpret Q. */
++	if (supplier) {
++		if (experimental_p_address_only == experimental_p_imx319_power) {
++			ret = -EOPNOTSUPP;
++			goto put_node;
++		}
++		if (experimental_p_imx319_power !=
++		    device_property_present(dev, "realme,imx319-power-lab") ||
++		    (experimental_p_imx319_power && client->irq > 0)) {
++			ret = -EINVAL;
++			goto put_node;
++		}
++	} else if (device_property_present(dev, "realme,imx319-power-lab")) {
++		ret = -EINVAL;
+ 		goto put_node;
+ 	}
+ 	reset = devm_kzalloc(dev, sizeof(*reset), GFP_KERNEL);
+@@ -513,6 +549,8 @@
+ 	if (!ret && supplier)
+ 		ret = pm8008_read_identity(client, client->addr);
+ 	mutex_unlock(&pm8008_address_lock);
++	if (!ret && supplier)
++		dev_set_drvdata(dev, reset);
+ put_node:
+ 	of_node_put(supplier);
+ 	return ret;
+@@ -527,6 +565,9 @@
+ 	struct fwnode_handle *fwnode;
+ 	struct irq_domain *domain;
+ 	struct i2c_client *dummy;
++	struct pm8008_imx319_lab_state *lab;
++	struct pm8008_imx319_lab_data *lab_data;
++	struct mfd_cell lab_cell = { .name = "pm8008-reg-lab14" };
+ 	int num_cells;
+ 	char *name;
+ 	int ret;
+@@ -561,6 +602,30 @@
+ 	if (IS_ERR(regmap))
+ 		return PTR_ERR(regmap);
+ 
++
++	if (experimental_p_imx319_power &&
++	    device_property_present(dev, "qcom,address-setup-supplier")) {
++		lab = devm_kzalloc(dev, sizeof(*lab), GFP_KERNEL);
++		if (!lab)
++			return -ENOMEM;
++		lab_data = devm_kzalloc(dev, sizeof(*lab_data), GFP_KERNEL);
++		if (!lab_data)
++			return -ENOMEM;
++		lab->magic = PM8008_IMX319_LAB_MAGIC;
++		lab->parent = dev;
++		lab->primary = regmap;
++		lab->secondary = regmap2;
++		lab->mask = PM8008_IMX319_LAB_MASK;
++		mutex_init(&lab->lock);
++		lab->assert_p_reset = pm8008_lab_assert_p_reset;
++		lab->reset_cookie = dev_get_drvdata(dev);
++		lab_data->state = lab;
++		lab_cell.platform_data = lab_data;
++		lab_cell.pdata_size = sizeof(*lab_data);
++		/* Child receives a pointer; fault survives child unbind/reprobe. */
++		return devm_mfd_add_devices(dev, PLATFORM_DEVID_AUTO, &lab_cell,
++					    1, NULL, 0, NULL);
++	}
+ 
+ 	if (client->irq > 0) {
+ 		name = devm_kasprintf(dev, GFP_KERNEL, "%pOF-internal", dev->of_node);

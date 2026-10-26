@@ -1,0 +1,77 @@
+{
+  "stage": 361,
+  "actual_aarch64_shared_library": true,
+  "baseline_reproduces_nested_failure": true,
+  "baseline_simple_dispatch_passes": true,
+  "fixed_nested_levels_and_timer_unregister_pass": true,
+  "rearm_after_cleanup_verified": true,
+  "assertion_not_removed": true,
+  "tests": [
+    {
+      "library": "old",
+      "depth": 1,
+      "timer_unregister": false,
+      "exit_code": 0,
+      "expected_pass": true,
+      "matched_expectation": true
+    },
+    {
+      "library": "old",
+      "depth": 2,
+      "timer_unregister": false,
+      "exit_code": -11,
+      "expected_pass": false,
+      "matched_expectation": true
+    },
+    {
+      "library": "old",
+      "depth": 3,
+      "timer_unregister": false,
+      "exit_code": -11,
+      "expected_pass": false,
+      "matched_expectation": true
+    },
+    {
+      "library": "old",
+      "depth": 2,
+      "timer_unregister": true,
+      "exit_code": -11,
+      "expected_pass": false,
+      "matched_expectation": true
+    },
+    {
+      "library": "new",
+      "depth": 1,
+      "timer_unregister": false,
+      "exit_code": 0,
+      "expected_pass": true,
+      "matched_expectation": true
+    },
+    {
+      "library": "new",
+      "depth": 2,
+      "timer_unregister": false,
+      "exit_code": 0,
+      "expected_pass": true,
+      "matched_expectation": true
+    },
+    {
+      "library": "new",
+      "depth": 3,
+      "timer_unregister": false,
+      "exit_code": 0,
+      "expected_pass": true,
+      "matched_expectation": true
+    },
+    {
+      "library": "new",
+      "depth": 2,
+      "timer_unregister": true,
+      "exit_code": 0,
+      "expected_pass": true,
+      "matched_expectation": true
+    }
+  ],
+  "sdk_binds_unmounted": true,
+  "passed": true
+}

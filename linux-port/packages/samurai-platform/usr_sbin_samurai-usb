@@ -1,0 +1,73 @@
+#!/bin/sh
+# CDC NCM only; SSH is owned by the separate distro sshd service.
+set -eu
+g=/sys/kernel/config/usb_gadget/samurai
+udc=a600000.usb
+address=169.254.42.1
+tr '\0' '\n' < /proc/device-tree/compatible | grep -qx realme,samurai
+status() {
+ cat /sys/class/udc/$udc/state /sys/class/udc/$udc/current_speed
+ [ ! -d "$g" ] || cat "$g/UDC"
+ ip addr show usb0
+}
+action=start
+[ "$#" -eq 0 ] || action=$1
+case "$action" in
+ status) status; exit ;;
+ start) ;;
+ *) echo 'Use start or status' >&2; exit 2 ;;
+esac
+mkdir -p /run
+mkdir /run/samurai-usb.lock || { echo 'USB initializer already active' >&2; exit 1; }
+trap 'rmdir /run/samurai-usb.lock' EXIT
+count=0
+while [ ! -e "/sys/class/udc/$udc" ]; do
+ count=$((count + 1)); [ "$count" -le 30 ] || exit 1; sleep 1
+done
+[ -d /sys/kernel/config/usb_gadget ] || mount -t configfs configfs /sys/kernel/config
+if [ ! -d "$g" ]; then
+ test -s /etc/machine-id
+ serial=$(sha256sum /etc/machine-id | cut -c1-16)
+ octets=$(printf '%s' "$serial" | cut -c1-8 | sed 's/../&:/g')
+ mkdir "$g"
+ echo 0x0525 > "$g/idVendor"
+ echo 0xa4a1 > "$g/idProduct"
+ echo 0xef > "$g/bDeviceClass"
+ echo 2 > "$g/bDeviceSubClass"
+ echo 1 > "$g/bDeviceProtocol"
+ mkdir "$g/strings/0x409"
+ echo "$serial" > "$g/strings/0x409/serialnumber"
+ echo samurai > "$g/strings/0x409/manufacturer"
+ echo SamuraiNCM > "$g/strings/0x409/product"
+ mkdir "$g/configs/c.1"
+ echo 500 > "$g/configs/c.1/MaxPower"
+ mkdir "$g/functions/ncm.usb0"
+ echo "02:$octets"01 > "$g/functions/ncm.usb0/dev_addr"
+ echo "02:$octets"02 > "$g/functions/ncm.usb0/host_addr"
+ ln -s "$g/functions/ncm.usb0" "$g/configs/c.1/ncm.usb0"
+fi
+# The initramfs may already own this exact gadget. Preserve its USB identity;
+# a changed power request needs a fresh host configuration before it is usable.
+test "$(cat "$g/idVendor")" = 0x0525
+test "$(cat "$g/idProduct")" = 0xa4a1
+test "$(cat "$g/strings/0x409/product")" = SamuraiNCM
+test -L "$g/configs/c.1/ncm.usb0"
+power=$(cat "$g/configs/c.1/MaxPower")
+if [ "$power" != 500 ]; then
+ bound=$(cat "$g/UDC")
+ if [ -n "$bound" ]; then printf '\n' > "$g/UDC"; fi
+ bound=$(cat "$g/UDC")
+ test -z "$bound"
+ echo 500 > "$g/configs/c.1/MaxPower"
+ sleep 2
+fi
+bound=$(cat "$g/UDC")
+if [ -z "$bound" ]; then echo "$udc" > "$g/UDC"; fi
+bound=$(cat "$g/UDC")
+test "$bound" = "$udc"
+interface=$(cat "$g/functions/ncm.usb0/ifname")
+ip link set "$interface" up
+if ! ip -4 addr show dev "$interface" | grep -q "inet $address/16 "; then
+ ip addr add "$address/16" dev "$interface"
+fi
+echo "CDC NCM $interface/$address ready; distro sshd provides SSH"

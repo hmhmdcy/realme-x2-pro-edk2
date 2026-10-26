@@ -1,0 +1,3259 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * camss-vfe.c
+ *
+ * Qualcomm MSM Camera Subsystem - VFE (Video Front End) Module
+ *
+ * Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+ * Copyright (C) 2015-2018 Linaro Ltd.
+ */
+#include <linux/clk.h>
+#include <linux/completion.h>
+#include <linux/interrupt.h>
+#include <linux/iommu.h>
+#include <linux/mutex.h>
+#include <linux/of.h>
+#include <linux/platform_device.h>
+#include <linux/pm_domain.h>
+#include <linux/pm_runtime.h>
+#include <linux/spinlock_types.h>
+#include <linux/spinlock.h>
+#include <media/media-entity.h>
+#include <media/v4l2-device.h>
+#include <media/v4l2-event.h>
+#include <media/v4l2-isp.h>
+#include <media/v4l2-subdev.h>
+#include <linux/qcom-camss-config.h>
+
+#include "camss-vfe.h"
+#include "camss.h"
+
+#define MSM_VFE_NAME "msm_vfe"
+
+/* VFE reset timeout */
+#define VFE_RESET_TIMEOUT_MS 50
+
+#define SCALER_RATIO_MAX 16
+
+#define VFE_HW_VERSION		0x0
+#define		HW_VERSION_STEPPING	0
+#define		HW_VERSION_REVISION	16
+#define		HW_VERSION_GENERATION	28
+
+static const struct camss_format_info formats_rdi_8x16[] = {
+	{ MEDIA_BUS_FMT_UYVY8_1X16, 8, V4L2_PIX_FMT_UYVY, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 16) },
+	{ MEDIA_BUS_FMT_VYUY8_1X16, 8, V4L2_PIX_FMT_VYUY, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 16) },
+	{ MEDIA_BUS_FMT_YUYV8_1X16, 8, V4L2_PIX_FMT_YUYV, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 16) },
+	{ MEDIA_BUS_FMT_YVYU8_1X16, 8, V4L2_PIX_FMT_YVYU, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 16) },
+	{ MEDIA_BUS_FMT_SBGGR8_1X8, 8, V4L2_PIX_FMT_SBGGR8, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 8) },
+	{ MEDIA_BUS_FMT_SGBRG8_1X8, 8, V4L2_PIX_FMT_SGBRG8, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 8) },
+	{ MEDIA_BUS_FMT_SGRBG8_1X8, 8, V4L2_PIX_FMT_SGRBG8, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 8) },
+	{ MEDIA_BUS_FMT_SRGGB8_1X8, 8, V4L2_PIX_FMT_SRGGB8, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 8) },
+	{ MEDIA_BUS_FMT_SBGGR10_1X10, 10, V4L2_PIX_FMT_SBGGR10P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 10) },
+	{ MEDIA_BUS_FMT_SGBRG10_1X10, 10, V4L2_PIX_FMT_SGBRG10P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 10) },
+	{ MEDIA_BUS_FMT_SGRBG10_1X10, 10, V4L2_PIX_FMT_SGRBG10P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 10) },
+	{ MEDIA_BUS_FMT_SRGGB10_1X10, 10, V4L2_PIX_FMT_SRGGB10P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 10) },
+	{ MEDIA_BUS_FMT_SBGGR12_1X12, 12, V4L2_PIX_FMT_SBGGR12P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 12) },
+	{ MEDIA_BUS_FMT_SGBRG12_1X12, 12, V4L2_PIX_FMT_SGBRG12P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 12) },
+	{ MEDIA_BUS_FMT_SGRBG12_1X12, 12, V4L2_PIX_FMT_SGRBG12P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 12) },
+	{ MEDIA_BUS_FMT_SRGGB12_1X12, 12, V4L2_PIX_FMT_SRGGB12P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 12) },
+	{ MEDIA_BUS_FMT_Y10_1X10, 10, V4L2_PIX_FMT_Y10P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 10) },
+};
+
+static const struct camss_format_info formats_rdi_8x96[] = {
+	{ MEDIA_BUS_FMT_UYVY8_1X16, 8, V4L2_PIX_FMT_UYVY, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 16) },
+	{ MEDIA_BUS_FMT_VYUY8_1X16, 8, V4L2_PIX_FMT_VYUY, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 16) },
+	{ MEDIA_BUS_FMT_YUYV8_1X16, 8, V4L2_PIX_FMT_YUYV, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 16) },
+	{ MEDIA_BUS_FMT_YVYU8_1X16, 8, V4L2_PIX_FMT_YVYU, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 16) },
+	{ MEDIA_BUS_FMT_SBGGR8_1X8, 8, V4L2_PIX_FMT_SBGGR8, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 8) },
+	{ MEDIA_BUS_FMT_SGBRG8_1X8, 8, V4L2_PIX_FMT_SGBRG8, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 8) },
+	{ MEDIA_BUS_FMT_SGRBG8_1X8, 8, V4L2_PIX_FMT_SGRBG8, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 8) },
+	{ MEDIA_BUS_FMT_SRGGB8_1X8, 8, V4L2_PIX_FMT_SRGGB8, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 8) },
+	{ MEDIA_BUS_FMT_SBGGR10_1X10, 10, V4L2_PIX_FMT_SBGGR10P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 10) },
+	{ MEDIA_BUS_FMT_SGBRG10_1X10, 10, V4L2_PIX_FMT_SGBRG10P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 10) },
+	{ MEDIA_BUS_FMT_SGRBG10_1X10, 10, V4L2_PIX_FMT_SGRBG10P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 10) },
+	{ MEDIA_BUS_FMT_SRGGB10_1X10, 10, V4L2_PIX_FMT_SRGGB10P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 10) },
+	{ MEDIA_BUS_FMT_SBGGR10_2X8_PADHI_LE, 16, V4L2_PIX_FMT_SBGGR10, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 16) },
+	{ MEDIA_BUS_FMT_SBGGR12_1X12, 12, V4L2_PIX_FMT_SBGGR12P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 12) },
+	{ MEDIA_BUS_FMT_SGBRG12_1X12, 12, V4L2_PIX_FMT_SGBRG12P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 12) },
+	{ MEDIA_BUS_FMT_SGRBG12_1X12, 12, V4L2_PIX_FMT_SGRBG12P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 12) },
+	{ MEDIA_BUS_FMT_SRGGB12_1X12, 12, V4L2_PIX_FMT_SRGGB12P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 12) },
+	{ MEDIA_BUS_FMT_SBGGR14_1X14, 14, V4L2_PIX_FMT_SBGGR14P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 14) },
+	{ MEDIA_BUS_FMT_SGBRG14_1X14, 14, V4L2_PIX_FMT_SGBRG14P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 14) },
+	{ MEDIA_BUS_FMT_SGRBG14_1X14, 14, V4L2_PIX_FMT_SGRBG14P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 14) },
+	{ MEDIA_BUS_FMT_SRGGB14_1X14, 14, V4L2_PIX_FMT_SRGGB14P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 14) },
+	{ MEDIA_BUS_FMT_Y10_1X10, 10, V4L2_PIX_FMT_Y10P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 10) },
+	{ MEDIA_BUS_FMT_Y10_2X8_PADHI_LE, 16, V4L2_PIX_FMT_Y10, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 16) },
+};
+
+static const struct camss_format_info formats_rdi_845[] = {
+	{ MEDIA_BUS_FMT_UYVY8_1X16, 8, V4L2_PIX_FMT_UYVY, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 16) },
+	{ MEDIA_BUS_FMT_VYUY8_1X16, 8, V4L2_PIX_FMT_VYUY, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 16) },
+	{ MEDIA_BUS_FMT_YUYV8_1X16, 8, V4L2_PIX_FMT_YUYV, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 16) },
+	{ MEDIA_BUS_FMT_YVYU8_1X16, 8, V4L2_PIX_FMT_YVYU, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 16) },
+	{ MEDIA_BUS_FMT_SBGGR8_1X8, 8, V4L2_PIX_FMT_SBGGR8, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 8) },
+	{ MEDIA_BUS_FMT_SGBRG8_1X8, 8, V4L2_PIX_FMT_SGBRG8, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 8) },
+	{ MEDIA_BUS_FMT_SGRBG8_1X8, 8, V4L2_PIX_FMT_SGRBG8, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 8) },
+	{ MEDIA_BUS_FMT_SRGGB8_1X8, 8, V4L2_PIX_FMT_SRGGB8, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 8) },
+	{ MEDIA_BUS_FMT_SBGGR10_1X10, 10, V4L2_PIX_FMT_SBGGR10P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 10) },
+	{ MEDIA_BUS_FMT_SGBRG10_1X10, 10, V4L2_PIX_FMT_SGBRG10P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 10) },
+	{ MEDIA_BUS_FMT_SGRBG10_1X10, 10, V4L2_PIX_FMT_SGRBG10P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 10) },
+	{ MEDIA_BUS_FMT_SRGGB10_1X10, 10, V4L2_PIX_FMT_SRGGB10P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 10) },
+	{ MEDIA_BUS_FMT_SBGGR10_2X8_PADHI_LE, 16, V4L2_PIX_FMT_SBGGR10, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 16) },
+	{ MEDIA_BUS_FMT_SBGGR12_1X12, 12, V4L2_PIX_FMT_SBGGR12P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 12) },
+	{ MEDIA_BUS_FMT_SGBRG12_1X12, 12, V4L2_PIX_FMT_SGBRG12P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 12) },
+	{ MEDIA_BUS_FMT_SGRBG12_1X12, 12, V4L2_PIX_FMT_SGRBG12P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 12) },
+	{ MEDIA_BUS_FMT_SRGGB12_1X12, 12, V4L2_PIX_FMT_SRGGB12P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 12) },
+	{ MEDIA_BUS_FMT_SBGGR14_1X14, 14, V4L2_PIX_FMT_SBGGR14P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 14) },
+	{ MEDIA_BUS_FMT_SGBRG14_1X14, 14, V4L2_PIX_FMT_SGBRG14P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 14) },
+	{ MEDIA_BUS_FMT_SGRBG14_1X14, 14, V4L2_PIX_FMT_SGRBG14P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 14) },
+	{ MEDIA_BUS_FMT_SRGGB14_1X14, 14, V4L2_PIX_FMT_SRGGB14P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 14) },
+	{ MEDIA_BUS_FMT_Y8_1X8, 8, V4L2_PIX_FMT_GREY, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 8) },
+	{ MEDIA_BUS_FMT_Y10_1X10, 10, V4L2_PIX_FMT_Y10P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 10) },
+	{ MEDIA_BUS_FMT_Y10_2X8_PADHI_LE, 16, V4L2_PIX_FMT_Y10, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 16) },
+};
+
+static const struct camss_format_info formats_pix_845[] = {
+	/* Passthrought formats */
+	{ MEDIA_BUS_FMT_UYVY8_1X16, 8, V4L2_PIX_FMT_UYVY, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 16) },
+	{ MEDIA_BUS_FMT_VYUY8_1X16, 8, V4L2_PIX_FMT_VYUY, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 16) },
+	{ MEDIA_BUS_FMT_YUYV8_1X16, 8, V4L2_PIX_FMT_YUYV, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 16) },
+	{ MEDIA_BUS_FMT_YVYU8_1X16, 8, V4L2_PIX_FMT_YVYU, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 16) },
+	{ MEDIA_BUS_FMT_SBGGR8_1X8, 8, V4L2_PIX_FMT_SBGGR8, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 8) },
+	{ MEDIA_BUS_FMT_SGBRG8_1X8, 8, V4L2_PIX_FMT_SGBRG8, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 8) },
+	{ MEDIA_BUS_FMT_SGRBG8_1X8, 8, V4L2_PIX_FMT_SGRBG8, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 8) },
+	{ MEDIA_BUS_FMT_SRGGB8_1X8, 8, V4L2_PIX_FMT_SRGGB8, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 8) },
+	{ MEDIA_BUS_FMT_SBGGR10_1X10, 10, V4L2_PIX_FMT_SBGGR10P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 10) },
+	{ MEDIA_BUS_FMT_SGBRG10_1X10, 10, V4L2_PIX_FMT_SGBRG10P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 10) },
+	{ MEDIA_BUS_FMT_SGRBG10_1X10, 10, V4L2_PIX_FMT_SGRBG10P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 10) },
+	{ MEDIA_BUS_FMT_SRGGB10_1X10, 10, V4L2_PIX_FMT_SRGGB10P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 10) },
+	{ MEDIA_BUS_FMT_SBGGR10_2X8_PADHI_LE, 16, V4L2_PIX_FMT_SBGGR10, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 16) },
+	{ MEDIA_BUS_FMT_SBGGR12_1X12, 12, V4L2_PIX_FMT_SBGGR12P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 12) },
+	{ MEDIA_BUS_FMT_SGBRG12_1X12, 12, V4L2_PIX_FMT_SGBRG12P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 12) },
+	{ MEDIA_BUS_FMT_SGRBG12_1X12, 12, V4L2_PIX_FMT_SGRBG12P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 12) },
+	{ MEDIA_BUS_FMT_SRGGB12_1X12, 12, V4L2_PIX_FMT_SRGGB12P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 12) },
+	{ MEDIA_BUS_FMT_SBGGR14_1X14, 14, V4L2_PIX_FMT_SBGGR14P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 14) },
+	{ MEDIA_BUS_FMT_SGBRG14_1X14, 14, V4L2_PIX_FMT_SGBRG14P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 14) },
+	{ MEDIA_BUS_FMT_SGRBG14_1X14, 14, V4L2_PIX_FMT_SGRBG14P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 14) },
+	{ MEDIA_BUS_FMT_SRGGB14_1X14, 14, V4L2_PIX_FMT_SRGGB14P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 14) },
+	{ MEDIA_BUS_FMT_Y8_1X8, 8, V4L2_PIX_FMT_GREY, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 8) },
+	{ MEDIA_BUS_FMT_Y10_1X10, 10, V4L2_PIX_FMT_Y10P, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 10) },
+	{ MEDIA_BUS_FMT_Y10_2X8_PADHI_LE, 16, V4L2_PIX_FMT_Y10, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 16) },
+
+	/* 4:2:0 Bayer to YUV */
+	{ MEDIA_BUS_FMT_YUYV8_1_5X8, 8, V4L2_PIX_FMT_NV12, 1,
+	  PER_PLANE_DATA(0, 1, 1, 2, 3, 8) },
+	{ MEDIA_BUS_FMT_YVYU8_1_5X8, 8, V4L2_PIX_FMT_NV12, 1,
+	  PER_PLANE_DATA(0, 1, 1, 2, 3, 8) },
+	{ MEDIA_BUS_FMT_UYVY8_1_5X8, 8, V4L2_PIX_FMT_NV12, 1,
+	  PER_PLANE_DATA(0, 1, 1, 2, 3, 8) },
+	{ MEDIA_BUS_FMT_VYUY8_1_5X8, 8, V4L2_PIX_FMT_NV12, 1,
+	  PER_PLANE_DATA(0, 1, 1, 2, 3, 8) },
+	{ MEDIA_BUS_FMT_YUYV8_1_5X8, 8, V4L2_PIX_FMT_NV21, 1,
+	  PER_PLANE_DATA(0, 1, 1, 2, 3, 8) },
+	{ MEDIA_BUS_FMT_YVYU8_1_5X8, 8, V4L2_PIX_FMT_NV21, 1,
+	  PER_PLANE_DATA(0, 1, 1, 2, 3, 8) },
+	{ MEDIA_BUS_FMT_UYVY8_1_5X8, 8, V4L2_PIX_FMT_NV21, 1,
+	  PER_PLANE_DATA(0, 1, 1, 2, 3, 8) },
+	{ MEDIA_BUS_FMT_VYUY8_1_5X8, 8, V4L2_PIX_FMT_NV21, 1,
+	  PER_PLANE_DATA(0, 1, 1, 2, 3, 8) },
+
+	/* 4:2:2 Bayer to YUV */
+	{ MEDIA_BUS_FMT_YUYV8_1X16, 8, V4L2_PIX_FMT_NV16, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 2, 8) },
+	{ MEDIA_BUS_FMT_YVYU8_1X16, 8, V4L2_PIX_FMT_NV16, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 2, 8) },
+	{ MEDIA_BUS_FMT_UYVY8_1X16, 8, V4L2_PIX_FMT_NV16, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 2, 8) },
+	{ MEDIA_BUS_FMT_VYUY8_1X16, 8, V4L2_PIX_FMT_NV16, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 2, 8) },
+	{ MEDIA_BUS_FMT_YUYV8_1X16, 8, V4L2_PIX_FMT_NV61, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 2, 8) },
+	{ MEDIA_BUS_FMT_YVYU8_1X16, 8, V4L2_PIX_FMT_NV61, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 2, 8) },
+	{ MEDIA_BUS_FMT_UYVY8_1X16, 8, V4L2_PIX_FMT_NV61, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 2, 8) },
+	{ MEDIA_BUS_FMT_VYUY8_1X16, 8, V4L2_PIX_FMT_NV61, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 2, 8) },
+};
+
+static const struct camss_format_info formats_pix_8x16[] = {
+	{ MEDIA_BUS_FMT_YUYV8_1_5X8, 8, V4L2_PIX_FMT_NV12, 1,
+	  PER_PLANE_DATA(0, 1, 1, 2, 3, 8) },
+	{ MEDIA_BUS_FMT_YVYU8_1_5X8, 8, V4L2_PIX_FMT_NV12, 1,
+	  PER_PLANE_DATA(0, 1, 1, 2, 3, 8) },
+	{ MEDIA_BUS_FMT_UYVY8_1_5X8, 8, V4L2_PIX_FMT_NV12, 1,
+	  PER_PLANE_DATA(0, 1, 1, 2, 3, 8) },
+	{ MEDIA_BUS_FMT_VYUY8_1_5X8, 8, V4L2_PIX_FMT_NV12, 1,
+	  PER_PLANE_DATA(0, 1, 1, 2, 3, 8) },
+	{ MEDIA_BUS_FMT_YUYV8_1_5X8, 8, V4L2_PIX_FMT_NV21, 1,
+	  PER_PLANE_DATA(0, 1, 1, 2, 3, 8) },
+	{ MEDIA_BUS_FMT_YVYU8_1_5X8, 8, V4L2_PIX_FMT_NV21, 1,
+	  PER_PLANE_DATA(0, 1, 1, 2, 3, 8) },
+	{ MEDIA_BUS_FMT_UYVY8_1_5X8, 8, V4L2_PIX_FMT_NV21, 1,
+	  PER_PLANE_DATA(0, 1, 1, 2, 3, 8) },
+	{ MEDIA_BUS_FMT_VYUY8_1_5X8, 8, V4L2_PIX_FMT_NV21, 1,
+	  PER_PLANE_DATA(0, 1, 1, 2, 3, 8) },
+	{ MEDIA_BUS_FMT_YUYV8_1X16, 8, V4L2_PIX_FMT_NV16, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 2, 8) },
+	{ MEDIA_BUS_FMT_YVYU8_1X16, 8, V4L2_PIX_FMT_NV16, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 2, 8) },
+	{ MEDIA_BUS_FMT_UYVY8_1X16, 8, V4L2_PIX_FMT_NV16, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 2, 8) },
+	{ MEDIA_BUS_FMT_VYUY8_1X16, 8, V4L2_PIX_FMT_NV16, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 2, 8) },
+	{ MEDIA_BUS_FMT_YUYV8_1X16, 8, V4L2_PIX_FMT_NV61, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 2, 8) },
+	{ MEDIA_BUS_FMT_YVYU8_1X16, 8, V4L2_PIX_FMT_NV61, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 2, 8) },
+	{ MEDIA_BUS_FMT_UYVY8_1X16, 8, V4L2_PIX_FMT_NV61, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 2, 8) },
+	{ MEDIA_BUS_FMT_VYUY8_1X16, 8, V4L2_PIX_FMT_NV61, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 2, 8) },
+};
+
+static const struct camss_format_info formats_pix_8x96[] = {
+	{ MEDIA_BUS_FMT_YUYV8_1_5X8, 8, V4L2_PIX_FMT_NV12, 1,
+	  PER_PLANE_DATA(0, 1, 1, 2, 3, 8) },
+	{ MEDIA_BUS_FMT_YVYU8_1_5X8, 8, V4L2_PIX_FMT_NV12, 1,
+	  PER_PLANE_DATA(0, 1, 1, 2, 3, 8) },
+	{ MEDIA_BUS_FMT_UYVY8_1_5X8, 8, V4L2_PIX_FMT_NV12, 1,
+	  PER_PLANE_DATA(0, 1, 1, 2, 3, 8) },
+	{ MEDIA_BUS_FMT_VYUY8_1_5X8, 8, V4L2_PIX_FMT_NV12, 1,
+	  PER_PLANE_DATA(0, 1, 1, 2, 3, 8) },
+	{ MEDIA_BUS_FMT_YUYV8_1_5X8, 8, V4L2_PIX_FMT_NV21, 1,
+	  PER_PLANE_DATA(0, 1, 1, 2, 3, 8) },
+	{ MEDIA_BUS_FMT_YVYU8_1_5X8, 8, V4L2_PIX_FMT_NV21, 1,
+	  PER_PLANE_DATA(0, 1, 1, 2, 3, 8) },
+	{ MEDIA_BUS_FMT_UYVY8_1_5X8, 8, V4L2_PIX_FMT_NV21, 1,
+	  PER_PLANE_DATA(0, 1, 1, 2, 3, 8) },
+	{ MEDIA_BUS_FMT_VYUY8_1_5X8, 8, V4L2_PIX_FMT_NV21, 1,
+	  PER_PLANE_DATA(0, 1, 1, 2, 3, 8) },
+	{ MEDIA_BUS_FMT_YUYV8_1X16, 8, V4L2_PIX_FMT_NV16, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 2, 8) },
+	{ MEDIA_BUS_FMT_YVYU8_1X16, 8, V4L2_PIX_FMT_NV16, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 2, 8) },
+	{ MEDIA_BUS_FMT_UYVY8_1X16, 8, V4L2_PIX_FMT_NV16, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 2, 8) },
+	{ MEDIA_BUS_FMT_VYUY8_1X16, 8, V4L2_PIX_FMT_NV16, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 2, 8) },
+	{ MEDIA_BUS_FMT_YUYV8_1X16, 8, V4L2_PIX_FMT_NV61, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 2, 8) },
+	{ MEDIA_BUS_FMT_YVYU8_1X16, 8, V4L2_PIX_FMT_NV61, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 2, 8) },
+	{ MEDIA_BUS_FMT_UYVY8_1X16, 8, V4L2_PIX_FMT_NV61, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 2, 8) },
+	{ MEDIA_BUS_FMT_VYUY8_1X16, 8, V4L2_PIX_FMT_NV61, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 2, 8) },
+	{ MEDIA_BUS_FMT_UYVY8_1X16, 8, V4L2_PIX_FMT_UYVY, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 16) },
+	{ MEDIA_BUS_FMT_VYUY8_1X16, 8, V4L2_PIX_FMT_VYUY, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 16) },
+	{ MEDIA_BUS_FMT_YUYV8_1X16, 8, V4L2_PIX_FMT_YUYV, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 16) },
+	{ MEDIA_BUS_FMT_YVYU8_1X16, 8, V4L2_PIX_FMT_YVYU, 1,
+	  PER_PLANE_DATA(0, 1, 1, 1, 1, 16) },
+};
+
+
+const struct camss_formats vfe_formats_rdi_8x16 = {
+	.nformats = ARRAY_SIZE(formats_rdi_8x16),
+	.formats = formats_rdi_8x16
+};
+
+const struct camss_formats vfe_formats_pix_8x16 = {
+	.nformats = ARRAY_SIZE(formats_pix_8x16),
+	.formats = formats_pix_8x16
+};
+
+const struct camss_formats vfe_formats_rdi_8x96 = {
+	.nformats = ARRAY_SIZE(formats_rdi_8x96),
+	.formats = formats_rdi_8x96
+};
+
+const struct camss_formats vfe_formats_pix_8x96 = {
+	.nformats = ARRAY_SIZE(formats_pix_8x96),
+	.formats = formats_pix_8x96
+};
+
+const struct camss_formats vfe_formats_rdi_845 = {
+	.nformats = ARRAY_SIZE(formats_rdi_845),
+	.formats = formats_rdi_845
+};
+
+const struct camss_formats vfe_formats_pix_845 = {
+	.nformats = ARRAY_SIZE(formats_pix_845),
+	.formats = formats_pix_845
+};
+
+u32 vfe_bus_v3_packer_fmt(u32 v4l2_fmt, u8 plane, u8 align_shift)
+{
+	switch (v4l2_fmt) {
+	case V4L2_PIX_FMT_NV12:
+	case V4L2_PIX_FMT_NV12M:
+	case V4L2_PIX_FMT_NV16:
+		return VFE_BUS_WM_PACKER_FMT_V3_PLAIN_8_LSB_MSB_10;
+	case V4L2_PIX_FMT_NV21:
+	case V4L2_PIX_FMT_NV21M:
+	case V4L2_PIX_FMT_NV61:
+		return plane ? VFE_BUS_WM_PACKER_FMT_V3_PLAIN_8_LSB_MSB_10_ODD_EVEN
+			     : VFE_BUS_WM_PACKER_FMT_V3_PLAIN_8_LSB_MSB_10;
+
+	case V4L2_PIX_FMT_SRGGB10P:
+	case V4L2_PIX_FMT_SGRBG10P:
+	case V4L2_PIX_FMT_SGBRG10P:
+	case V4L2_PIX_FMT_SBGGR10P:
+		return VFE_BUS_WM_PACKER_FMT_V3_MIPI10;
+	case V4L2_PIX_FMT_SRGGB12P:
+	case V4L2_PIX_FMT_SGRBG12P:
+	case V4L2_PIX_FMT_SGBRG12P:
+	case V4L2_PIX_FMT_SBGGR12P:
+		return VFE_BUS_WM_PACKER_FMT_V3_MIPI12;
+	case V4L2_PIX_FMT_SRGGB14P:
+	case V4L2_PIX_FMT_SGRBG14P:
+	case V4L2_PIX_FMT_SGBRG14P:
+	case V4L2_PIX_FMT_SBGGR14P:
+		return VFE_BUS_WM_PACKER_FMT_V3_MIPI14;
+
+	case V4L2_PIX_FMT_SRGGB10:
+	case V4L2_PIX_FMT_SGRBG10:
+	case V4L2_PIX_FMT_SGBRG10:
+	case V4L2_PIX_FMT_SBGGR10:
+		return VFE_BUS_WM_PACKER_FMT_V3_PLAIN_16_10BPP |
+		       BIT(align_shift);
+	case V4L2_PIX_FMT_SRGGB12:
+	case V4L2_PIX_FMT_SGRBG12:
+	case V4L2_PIX_FMT_SGBRG12:
+	case V4L2_PIX_FMT_SBGGR12:
+		return VFE_BUS_WM_PACKER_FMT_V3_PLAIN_16_12BPP |
+		       BIT(align_shift);
+
+	case V4L2_PIX_FMT_SRGGB8:
+	case V4L2_PIX_FMT_SGRBG8:
+	case V4L2_PIX_FMT_SGBRG8:
+	case V4L2_PIX_FMT_SBGGR8:
+		return VFE_BUS_WM_PACKER_FMT_V3_PLAIN_8;
+	}
+
+	WARN_ONCE(1, "no packer format for 0x%08x\n", v4l2_fmt);
+	return VFE_BUS_WM_PACKER_FMT_V3_PLAIN_128;
+}
+
+static u32 __vfe_src_pad_default(unsigned int index, u32 sink_code)
+{
+	if (index > 0)
+		return 0;
+
+	return sink_code;
+}
+
+static u32 vfe_src_pad_code(struct vfe_line *line, u32 sink_code,
+			    unsigned int index, u32 src_req_code)
+{
+	struct vfe_device *vfe = to_vfe(line);
+	const struct camss_formats *out = vfe->res->formats_pix_out;
+	unsigned int i;
+
+	if (line->is_pix && out) {
+		for (i = 0; i < out->nformats; i++)
+			if (out->formats[i].code == src_req_code)
+				return src_req_code;
+		return index < out->nformats ? out->formats[index].code : 0;
+	}
+
+	switch (vfe->camss->res->version) {
+	case CAMSS_8x16:
+	case CAMSS_8x39:
+	case CAMSS_8x53:
+		switch (sink_code) {
+		case MEDIA_BUS_FMT_YUYV8_1X16:
+		{
+			u32 src_code[] = {
+				MEDIA_BUS_FMT_YUYV8_1X16,
+				MEDIA_BUS_FMT_YUYV8_1_5X8,
+			};
+
+			return camss_format_find_code(src_code, ARRAY_SIZE(src_code),
+						      index, src_req_code);
+		}
+		case MEDIA_BUS_FMT_YVYU8_1X16:
+		{
+			u32 src_code[] = {
+				MEDIA_BUS_FMT_YVYU8_1X16,
+				MEDIA_BUS_FMT_YVYU8_1_5X8,
+			};
+
+			return camss_format_find_code(src_code, ARRAY_SIZE(src_code),
+						      index, src_req_code);
+		}
+		case MEDIA_BUS_FMT_UYVY8_1X16:
+		{
+			u32 src_code[] = {
+				MEDIA_BUS_FMT_UYVY8_1X16,
+				MEDIA_BUS_FMT_UYVY8_1_5X8,
+			};
+
+			return camss_format_find_code(src_code, ARRAY_SIZE(src_code),
+						      index, src_req_code);
+		}
+		case MEDIA_BUS_FMT_VYUY8_1X16:
+		{
+			u32 src_code[] = {
+				MEDIA_BUS_FMT_VYUY8_1X16,
+				MEDIA_BUS_FMT_VYUY8_1_5X8,
+			};
+
+			return camss_format_find_code(src_code, ARRAY_SIZE(src_code),
+						      index, src_req_code);
+		}
+		default:
+			return __vfe_src_pad_default(index, sink_code);
+		}
+		break;
+	default:
+		switch (sink_code) {
+		case MEDIA_BUS_FMT_YUYV8_1X16:
+		{
+			u32 src_code[] = {
+				MEDIA_BUS_FMT_YUYV8_1X16,
+				MEDIA_BUS_FMT_YVYU8_1X16,
+				MEDIA_BUS_FMT_UYVY8_1X16,
+				MEDIA_BUS_FMT_VYUY8_1X16,
+				MEDIA_BUS_FMT_YUYV8_1_5X8,
+			};
+
+			return camss_format_find_code(src_code, ARRAY_SIZE(src_code),
+						      index, src_req_code);
+		}
+		case MEDIA_BUS_FMT_YVYU8_1X16:
+		{
+			u32 src_code[] = {
+				MEDIA_BUS_FMT_YVYU8_1X16,
+				MEDIA_BUS_FMT_YUYV8_1X16,
+				MEDIA_BUS_FMT_UYVY8_1X16,
+				MEDIA_BUS_FMT_VYUY8_1X16,
+				MEDIA_BUS_FMT_YVYU8_1_5X8,
+			};
+
+			return camss_format_find_code(src_code, ARRAY_SIZE(src_code),
+						      index, src_req_code);
+		}
+		case MEDIA_BUS_FMT_UYVY8_1X16:
+		{
+			u32 src_code[] = {
+				MEDIA_BUS_FMT_UYVY8_1X16,
+				MEDIA_BUS_FMT_YUYV8_1X16,
+				MEDIA_BUS_FMT_YVYU8_1X16,
+				MEDIA_BUS_FMT_VYUY8_1X16,
+				MEDIA_BUS_FMT_UYVY8_1_5X8,
+			};
+
+			return camss_format_find_code(src_code, ARRAY_SIZE(src_code),
+						      index, src_req_code);
+		}
+		case MEDIA_BUS_FMT_VYUY8_1X16:
+		{
+			u32 src_code[] = {
+				MEDIA_BUS_FMT_VYUY8_1X16,
+				MEDIA_BUS_FMT_YUYV8_1X16,
+				MEDIA_BUS_FMT_YVYU8_1X16,
+				MEDIA_BUS_FMT_UYVY8_1X16,
+				MEDIA_BUS_FMT_VYUY8_1_5X8,
+			};
+
+			return camss_format_find_code(src_code, ARRAY_SIZE(src_code),
+						      index, src_req_code);
+		}
+		case MEDIA_BUS_FMT_SBGGR8_1X8:
+		case MEDIA_BUS_FMT_SGBRG8_1X8:
+		case MEDIA_BUS_FMT_SGRBG8_1X8:
+		case MEDIA_BUS_FMT_SRGGB8_1X8:
+		case MEDIA_BUS_FMT_SBGGR10_1X10:
+		case MEDIA_BUS_FMT_SGBRG10_1X10:
+		case MEDIA_BUS_FMT_SGRBG10_1X10:
+		case MEDIA_BUS_FMT_SRGGB10_1X10:
+		case MEDIA_BUS_FMT_SBGGR12_1X12:
+		case MEDIA_BUS_FMT_SGBRG12_1X12:
+		case MEDIA_BUS_FMT_SGRBG12_1X12:
+		case MEDIA_BUS_FMT_SRGGB12_1X12:
+		case MEDIA_BUS_FMT_SBGGR14_1X14:
+		case MEDIA_BUS_FMT_SGBRG14_1X14:
+		case MEDIA_BUS_FMT_SGRBG14_1X14:
+		case MEDIA_BUS_FMT_SRGGB14_1X14:
+		case MEDIA_BUS_FMT_Y8_1X8:
+		case MEDIA_BUS_FMT_Y10_1X10:
+		{
+			if (!line->is_pix)
+				return __vfe_src_pad_default(index, sink_code);
+
+			u32 src_code[] = {
+				sink_code,
+				MEDIA_BUS_FMT_UYVY8_1X16,
+				MEDIA_BUS_FMT_VYUY8_1X16,
+				MEDIA_BUS_FMT_YUYV8_1X16,
+				MEDIA_BUS_FMT_YVYU8_1X16,
+				MEDIA_BUS_FMT_UYVY8_1_5X8,
+				MEDIA_BUS_FMT_VYUY8_1_5X8,
+				MEDIA_BUS_FMT_YUYV8_1_5X8,
+				MEDIA_BUS_FMT_YVYU8_1_5X8,
+			};
+
+			return camss_format_find_code(src_code, ARRAY_SIZE(src_code),
+						      index, src_req_code);
+		}
+		default:
+			return __vfe_src_pad_default(index, sink_code);
+		}
+		break;
+	}
+	return 0;
+}
+
+/*
+ * vfe_hw_version - Process write master done interrupt
+ * @vfe: VFE Device
+ *
+ * Return vfe hw version
+ */
+u32 vfe_hw_version(struct vfe_device *vfe)
+{
+	u32 hw_version = readl_relaxed(vfe->base + VFE_HW_VERSION);
+
+	u32 gen = (hw_version >> HW_VERSION_GENERATION) & 0xF;
+	u32 rev = (hw_version >> HW_VERSION_REVISION) & 0xFFF;
+	u32 step = (hw_version >> HW_VERSION_STEPPING) & 0xFFFF;
+
+	dev_dbg(vfe->camss->dev, "VFE:%d HW Version = %u.%u.%u\n",
+		vfe->id, gen, rev, step);
+
+	return hw_version;
+}
+
+/*
+ * vfe_buf_done - Process write master done interrupt
+ * @vfe: VFE Device
+ * @wm: Write master id
+ */
+static const struct v4l2_isp_stats_block_type_info vfe_stats_block_info[] = {
+	[CAMSS_STATS_AEC_BHIST] = { .size = sizeof(struct camss_stats_bhist) },
+};
+
+/*
+ * vfe_alloc_stats - Allocate the write master target of a statistics output
+ * @vfe: VFE device
+ * @output: statistics output
+ *
+ * Write master addresses are 256 byte aligned and the v4l2-isp block payloads
+ * are not, so statistics are written to a kernel buffer and copied into the
+ * userspace buffer when their completion group fires.
+ *
+ * Return 0 on success or -ENOMEM
+ */
+int vfe_alloc_stats(struct vfe_device *vfe, struct vfe_output *output)
+{
+	if (!output->dma_size)
+		output->dma_size = sizeof_field(struct camss_stats_bhist, bins);
+	if (!output->stats_payload_size)
+		output->stats_payload_size = sizeof(struct camss_stats_bhist);
+	output->dma_vaddr = dmam_alloc_coherent(vfe->camss->dev,
+						output->dma_size,
+						&output->dma_addr, GFP_KERNEL);
+
+	return output->dma_vaddr ? 0 : -ENOMEM;
+}
+
+/*
+ * vfe_stats_fill - Serialise a frame's statistics into a userspace buffer
+ * @vfe: VFE device
+ * @output: statistics output
+ * @buf: buffer to fill
+ *
+ * Runs from the completion of the statistics group, a frame before the write
+ * master writes the kernel buffer again.
+ */
+static void vfe_stats_fill(struct vfe_device *vfe, struct vfe_output *output,
+			   struct camss_buffer *buf)
+{
+	struct v4l2_isp_buffer *stats = vb2_plane_vaddr(&buf->vb.vb2_buf, 0);
+	struct v4l2_isp_block_header *block;
+	struct camss_stats_bhist *bhist;
+
+	v4l2_isp_stats_init_buffer(stats, V4L2_ISP_VERSION_V1);
+	if (vfe->res->hw_ops->vfe_stats_fill) {
+		vfe->res->hw_ops->vfe_stats_fill(vfe, output, stats);
+		goto done;
+	}
+
+	block = v4l2_isp_stats_init_block(vfe->camss->dev, stats,
+					  vfe_stats_block_info,
+					  ARRAY_SIZE(vfe_stats_block_info),
+					  CAMSS_STATS_AEC_BHIST,
+					  CAMSS_STATS_MAX_PAYLOAD);
+	if (!IS_ERR(block)) {
+		bhist = container_of(block, struct camss_stats_bhist, header);
+		memcpy(bhist->bins, output->dma_vaddr, sizeof(bhist->bins));
+	}
+
+done:
+	vb2_set_plane_payload(&buf->vb.vb2_buf, 0,
+			      v4l2_isp_buffer_size(stats->data_size));
+}
+
+/*
+ * vfe_params_prepare - Validate a parameters buffer when it is prepared
+ * @vid: video node
+ * @buf: buffer, whose kernel copy buf->meta is validated
+ *
+ * Return 0 on success or a negative error code otherwise
+ */
+int vfe_params_prepare(struct camss_video *vid, struct camss_buffer *buf)
+{
+	struct vfe_output *output = container_of(vid, struct vfe_output,
+						 video_out);
+	struct vfe_device *vfe = to_vfe(output->line);
+	const struct vfe_hw_ops *ops = vfe->res->hw_ops;
+	struct vb2_buffer *vb = &buf->vb.vb2_buf;
+	int ret;
+
+	if (vid->type != V4L2_BUF_TYPE_META_OUTPUT)
+		return 0;
+
+	ret = v4l2_isp_params_validate_buffer_size(vfe->camss->dev, vb,
+						   vid->active_fmt.fmt.meta.buffersize);
+	if (ret)
+		return ret;
+
+	ret = v4l2_isp_params_validate_buffer(vfe->camss->dev, vb, buf->meta,
+					      ops->params_info,
+					      ops->params_num_types);
+	if (ret)
+		return ret;
+	return ops->params_validate ? ops->params_validate(output->line, buf->meta) : 0;
+}
+
+static struct vfe_output *vfe_params_output(struct vfe_line *line)
+{
+	unsigned int o;
+
+	for (o = 1; o < line->num_outputs; o++)
+		if (line->output[o].pad == MSM_VFE_PAD_SINK_PARAMS)
+			return &line->output[o];
+
+	return NULL;
+}
+
+/*
+ * vfe_params_apply_next - Apply the oldest queued parameters buffer
+ * @vfe: VFE device
+ * @line: VFE line
+ * @sequence: sequence number of the first frame the parameters can affect
+ *
+ * Called with output_lock held.
+ *
+ * Return the applied buffer for the caller to complete once the lock is
+ * dropped, or NULL if none was queued
+ */
+static struct camss_buffer *vfe_params_apply_next(struct vfe_device *vfe,
+						  struct vfe_line *line,
+						  u32 sequence)
+{
+	const struct vfe_hw_ops *ops = vfe->res->hw_ops;
+	struct vfe_output *params = vfe_params_output(line);
+	struct camss_buffer *buf;
+
+	if (!params || !ops->vfe_params_apply)
+		return NULL;
+
+	buf = vfe_buf_get_pending(params);
+	if (!buf)
+		return NULL;
+
+	ops->vfe_params_apply(vfe, line, buf->meta);
+
+	buf->vb.vb2_buf.timestamp = ktime_get_ns();
+	buf->vb.sequence = sequence;
+
+	return buf;
+}
+
+/* Line start: apply every queued parameters buffer, oldest first */
+void vfe_params_apply_queued(struct vfe_device *vfe,
+				    struct vfe_line *line)
+{
+	struct camss_buffer *buf;
+	unsigned long flags;
+
+	for (;;) {
+		spin_lock_irqsave(&vfe->output_lock, flags);
+		buf = vfe_params_apply_next(vfe, line, 0);
+		spin_unlock_irqrestore(&vfe->output_lock, flags);
+
+		if (!buf)
+			break;
+
+		vb2_buffer_done(&buf->vb.vb2_buf, VB2_BUF_STATE_DONE);
+	}
+}
+
+/*
+ * vfe_output_done - Retire the filled buffer of one output
+ * @vfe: VFE device
+ * @line: VFE line
+ * @output: VFE output whose write masters completed a frame
+ * @ts: completion timestamp
+ *
+ * Called with output_lock held. Hands the next pending buffer to the write
+ * masters.
+ *
+ * Return the filled buffer for the caller to complete once the lock is
+ * dropped, or NULL if none was queued
+ */
+static struct camss_buffer *vfe_output_done(struct vfe_device *vfe,
+					    struct vfe_line *line,
+					    struct vfe_output *output, u64 ts)
+{
+	const struct vfe_hw_ops *ops = vfe->res->hw_ops;
+	struct camss_buffer *ready_buf;
+	u32 index;
+
+	ready_buf = output->buf[0];
+	if (!ready_buf) {
+		/* only the first output must keep up; the others may starve */
+		if (output == &line->output[0])
+			dev_err_ratelimited(vfe->camss->dev,
+					    "Missing ready buf %d!\n",
+					    output->state);
+		return NULL;
+	}
+
+	ready_buf->vb.vb2_buf.timestamp = ts;
+	if (line->is_pix && vfe->camss->res->version == CAMSS_8150) {
+		if (ready_buf->sof_valid)
+			output->sequence = ready_buf->vb.sequence + 1;
+		else
+			dev_err_ratelimited(vfe->camss->dev,
+					    "Missing SOF tag for completed PIX buffer\n");
+	} else {
+		ready_buf->vb.sequence = output->sequence++;
+	}
+
+	if (output->pad == MSM_VFE_PAD_SRC_STATS)
+		vfe_stats_fill(vfe, output, ready_buf);
+
+	index = 0;
+	output->buf[0] = output->buf[1];
+	if (output->buf[0])
+		index = 1;
+
+	output->buf[index] = vfe_buf_get_pending(output);
+
+	if (output->buf[index]) {
+		if (ops->vfe_output_update)
+			ops->vfe_output_update(vfe, output, output->buf[index]);
+		else
+			ops->vfe_wm_update(vfe, output->wm[0].bus_client,
+					   output->buf[index]->addr[0],
+					   line);
+		ops->reg_update(vfe, line->id);
+	} else {
+		output->gen2.active_num--;
+	}
+
+	return ready_buf;
+}
+
+/*
+ * vfe_buf_done - Complete the outputs whose completion groups fired
+ * @vfe: VFE device
+ * @wm: port the completion arrived on
+ * @buf_done_info: completion status, one bit per completion group
+ *
+ * An RDI line has one output. The outputs of a pixel line each complete on
+ * their own group, the image on one and statistics on another, when the
+ * completion carries per-group status.
+ */
+void vfe_buf_done(struct vfe_device *vfe, int wm, struct camss_buf_done_info *buf_done_info)
+{
+	struct camss_buffer *ready[MSM_VFE_NUM_OUTPUTS] = { };
+	struct camss_buffer *params = NULL;
+	struct vfe_line *line;
+	unsigned long flags;
+	unsigned int o;
+	bool sof_tracking = false;
+	u64 ts = ktime_get_ns();
+
+	spin_lock_irqsave(&vfe->output_lock, flags);
+
+	if (vfe->wm_output_map[wm] == VFE_LINE_NONE) {
+		dev_err_ratelimited(vfe->camss->dev,
+				    "Received wm done for unmapped index\n");
+		goto out_unlock;
+	}
+	line = &vfe->line[vfe->wm_output_map[wm]];
+	sof_tracking = line->is_pix && vfe->camss->res->version == CAMSS_8150;
+
+	/* Without per-group status (RDI lines, TFE) there is a single output */
+	if (!line->is_pix || !buf_done_info || !buf_done_info->status) {
+		ready[0] = vfe_output_done(vfe, line, &line->output[0], ts);
+	} else {
+		for (o = 0; o < line->num_outputs; o++) {
+			struct vfe_output *output = &line->output[o];
+
+			if (output->state != VFE_OUTPUT_ON || !output->wm_num ||
+			    !(buf_done_info->status & BIT(output->comp_group)))
+				continue;
+
+			ready[o] = vfe_output_done(vfe, line, output, ts);
+		}
+
+		/* one parameters buffer per completed image frame */
+		if (ready[0]) {
+			u32 sequence = sof_tracking ? line->output[0].sof_sequence :
+						      line->output[0].sequence;
+
+			params = vfe_params_apply_next(vfe, line, sequence);
+			if (params)
+				vfe->res->hw_ops->reg_update(vfe, line->id);
+		}
+	}
+
+out_unlock:
+	spin_unlock_irqrestore(&vfe->output_lock, flags);
+
+	for (o = 0; o < MSM_VFE_NUM_OUTPUTS; o++) {
+		if (!ready[o])
+			continue;
+		/* A completion counter cannot establish an input-frame identity. */
+		vb2_buffer_done(&ready[o]->vb.vb2_buf,
+				sof_tracking && !ready[o]->sof_valid ?
+				VB2_BUF_STATE_ERROR : VB2_BUF_STATE_DONE);
+	}
+
+	if (params)
+		vb2_buffer_done(&params->vb.vb2_buf, VB2_BUF_STATE_DONE);
+}
+
+/*
+ * The first output starts the line. The others run only while their video
+ * node is streaming, and only if they write to memory.
+ */
+static bool vfe_output_wanted(struct vfe_line *line, struct vfe_output *output)
+{
+	if (output == &line->output[0])
+		return true;
+
+	return output->wm_num && vb2_is_streaming(&output->video_out.vb2_q);
+}
+
+/* Keep active auxiliary buffers queued while only the image stream stops. */
+static void vfe_requeue_active_buffers(struct vfe_output *output)
+{
+	int i;
+
+	for (i = CAMSS_INIT_BUF_COUNT - 1; i >= 0; i--) {
+		struct camss_buffer *buf = output->buf[i];
+
+		if (!buf)
+			continue;
+		buf->sof_valid = false;
+		list_add(&buf->queue, &output->pending_bufs);
+		output->buf[i] = NULL;
+	}
+	output->gen2.active_num = 0;
+}
+
+/* Called with output_lock held, before any owned buffers can be recycled. */
+static void vfe_stop_one_output(struct vfe_line *line, struct vfe_output *output)
+{
+	struct vfe_device *vfe = to_vfe(line);
+	const struct vfe_hw_ops *ops = vfe->res->hw_ops;
+	unsigned int i;
+
+	if (ops->vfe_output_stop)
+		ops->vfe_output_stop(vfe, output);
+	else
+		for (i = 0; i < output->wm_num; i++)
+			ops->vfe_wm_stop(vfe, output->wm[i].bus_client, line);
+}
+
+static int vfe_enable_one_output(struct vfe_line *line, struct vfe_output *output)
+{
+	struct vfe_device *vfe = to_vfe(line);
+	const struct vfe_hw_ops *ops = vfe->res->hw_ops;
+	unsigned int i;
+	int ret;
+
+	if (ops->vfe_output_prepare) {
+		ret = ops->vfe_output_prepare(vfe, output);
+		if (ret)
+			return ret;
+	}
+	if (output->state > VFE_OUTPUT_RESERVED) {
+		dev_err(vfe->camss->dev,
+			"Output is not in reserved state %d\n",
+			output->state);
+		return -EINVAL;
+	}
+
+	WARN_ON(output->gen2.active_num);
+
+	output->state = VFE_OUTPUT_ON;
+
+	output->sequence = 0;
+	output->sof_sequence = 0;
+	output->wait_reg_update = 0;
+	reinit_completion(&output->reg_update);
+
+	if (ops->vfe_output_start)
+		ops->vfe_output_start(vfe, output);
+	else
+		ops->vfe_wm_start(vfe, output->wm[0].bus_client, line);
+
+	for (i = 0; i < CAMSS_INIT_BUF_COUNT; i++) {
+		output->buf[i] = vfe_buf_get_pending(output);
+		if (!output->buf[i])
+			break;
+		output->gen2.active_num++;
+		if (ops->vfe_output_update)
+			ops->vfe_output_update(vfe, output, output->buf[i]);
+		else
+			ops->vfe_wm_update(vfe, output->wm[0].bus_client,
+					   output->buf[i]->addr[0], line);
+		ops->reg_update(vfe, line->id);
+	}
+
+	return 0;
+}
+
+/* The image owns the line; metadata controls only its own DMA output. */
+int vfe_start_metadata_v2(struct camss_video *vid)
+{
+	struct vfe_output *output = container_of(vid, struct vfe_output, video_out);
+	struct vfe_line *line = output->line;
+	struct vfe_device *vfe = to_vfe(line);
+	unsigned long flags;
+	int ret = 0;
+
+	if (output->pad != MSM_VFE_PAD_SRC_STATS || !output->wm_num)
+		return 0;
+
+	spin_lock_irqsave(&vfe->output_lock, flags);
+	if (line->output[0].state == VFE_OUTPUT_ON) {
+		ret = vfe_enable_one_output(line, output);
+		if (!ret) {
+			output->sequence = line->output[0].sequence;
+			vfe->res->hw_ops->reg_update(vfe, line->id);
+		}
+	}
+	spin_unlock_irqrestore(&vfe->output_lock, flags);
+
+	return ret;
+}
+
+void vfe_stop_metadata_v2(struct camss_video *vid)
+{
+	struct vfe_output *output = container_of(vid, struct vfe_output, video_out);
+	struct vfe_line *line = output->line;
+	struct vfe_device *vfe = to_vfe(line);
+	const struct vfe_hw_ops *ops = vfe->res->hw_ops;
+	unsigned long flags;
+	unsigned int i;
+
+	if (output->pad != MSM_VFE_PAD_SRC_STATS || !output->wm_num)
+		return;
+
+	spin_lock_irqsave(&vfe->output_lock, flags);
+	if (output->state == VFE_OUTPUT_ON) {
+		if (ops->vfe_output_stop)
+			ops->vfe_output_stop(vfe, output);
+		else
+			for (i = 0; i < output->wm_num; i++)
+				ops->vfe_wm_stop(vfe, output->wm[i].bus_client, line);
+		output->state = VFE_OUTPUT_OFF;
+		ops->reg_update(vfe, line->id);
+	}
+	spin_unlock_irqrestore(&vfe->output_lock, flags);
+}
+
+int vfe_enable_output_v2(struct vfe_line *line)
+{
+	struct vfe_device *vfe = to_vfe(line);
+	const struct vfe_hw_ops *ops = vfe->res->hw_ops;
+	struct media_pad *sensor_pad;
+	unsigned long flags;
+	unsigned int frame_skip = 0;
+	unsigned int i;
+	int ret = 0;
+
+	sensor_pad = camss_find_sensor_pad(&line->subdev.entity);
+	if (sensor_pad) {
+		struct v4l2_subdev *subdev =
+			media_entity_to_v4l2_subdev(sensor_pad->entity);
+
+		v4l2_subdev_call(subdev, sensor, g_skip_frames, &frame_skip);
+		/* Max frame skip is 29 frames */
+		if (frame_skip > VFE_FRAME_DROP_VAL - 1)
+			frame_skip = VFE_FRAME_DROP_VAL - 1;
+	}
+
+	spin_lock_irqsave(&vfe->output_lock, flags);
+
+	ops->reg_update_clear(vfe, line->id);
+
+	for (i = 0; i < line->num_outputs; i++) {
+		if (!vfe_output_wanted(line, &line->output[i]))
+			continue;
+
+		ret = vfe_enable_one_output(line, &line->output[i]);
+		if (ret)
+			break;
+	}
+
+	if (ret) {
+		bool stopped = false;
+
+		while (i--) {
+			struct vfe_output *output = &line->output[i];
+
+			if (output->state != VFE_OUTPUT_ON)
+				continue;
+			vfe_stop_one_output(line, output);
+			vfe_requeue_active_buffers(output);
+			output->state = VFE_OUTPUT_OFF;
+			stopped = true;
+		}
+		if (stopped)
+			ops->reg_update(vfe, line->id);
+	}
+
+	spin_unlock_irqrestore(&vfe->output_lock, flags);
+
+	return ret;
+}
+
+/*
+ * vfe_queue_buffer_v2 - Add empty buffer
+ * @vid: Video device structure
+ * @buf: Buffer to be enqueued
+ *
+ * Add an empty buffer - depending on the current number of buffers it will be
+ * put in pending buffer queue or directly given to the hardware to be filled.
+ *
+ * Return 0 on success or a negative error code otherwise
+ */
+int vfe_queue_buffer_v2(struct camss_video *vid,
+			struct camss_buffer *buf)
+{
+	struct vfe_output *output = container_of(vid, struct vfe_output, video_out);
+	struct vfe_line *line = output->line;
+	struct vfe_device *vfe = to_vfe(line);
+	const struct vfe_hw_ops *ops = vfe->res->hw_ops;
+	unsigned long flags;
+
+	spin_lock_irqsave(&vfe->output_lock, flags);
+	buf->sof_valid = false;
+
+	if (output->state == VFE_OUTPUT_ON &&
+	    output->gen2.active_num < 2) {
+		output->buf[output->gen2.active_num++] = buf;
+		if (ops->vfe_output_update)
+			ops->vfe_output_update(vfe, output, buf);
+		else
+			ops->vfe_wm_update(vfe, output->wm[0].bus_client,
+					   buf->addr[0], line);
+		ops->reg_update(vfe, line->id);
+	} else {
+		vfe_buf_add_pending(output, buf);
+	}
+
+	spin_unlock_irqrestore(&vfe->output_lock, flags);
+
+	return 0;
+}
+
+/*
+ * vfe_enable_v2 - Enable streaming on VFE line
+ * @line: VFE line
+ *
+ * Return 0 on success or a negative error code otherwise
+ */
+int vfe_enable_v2(struct vfe_line *line)
+{
+	struct vfe_device *vfe = to_vfe(line);
+	const struct vfe_hw_ops *ops = vfe->res->hw_ops;
+	int ret;
+
+	mutex_lock(&vfe->stream_lock);
+
+	if (vfe->res->hw_ops->enable_irq)
+		ops->enable_irq(vfe);
+
+	vfe->stream_count++;
+
+	mutex_unlock(&vfe->stream_lock);
+
+	ret = vfe_get_output_v2(line);
+	if (ret < 0)
+		goto error_get_output;
+
+	if (ops->vfe_line_prepare) {
+		ret = ops->vfe_line_prepare(line);
+		if (ret)
+			goto error_enable_output;
+	}
+
+	/* queued parameters override the defaults the line starts with */
+	if (line->is_pix)
+		vfe_params_apply_queued(vfe, line);
+
+	ret = vfe_enable_output_v2(line);
+	if (ret < 0)
+		goto error_enable_output;
+
+	vfe->was_streaming = 1;
+
+	return 0;
+
+error_enable_output:
+	vfe_put_output(line);
+
+error_get_output:
+	mutex_lock(&vfe->stream_lock);
+
+	vfe->stream_count--;
+
+	mutex_unlock(&vfe->stream_lock);
+
+	return ret;
+}
+
+/*
+ * vfe_get_output_v2 - Get vfe output port for corresponding VFE line
+ * @line: VFE line
+ *
+ * Return 0 on success or a negative error code otherwise
+ */
+int vfe_get_output_v2(struct vfe_line *line)
+{
+	struct vfe_device *vfe = to_vfe(line);
+	struct vfe_output *output;
+	unsigned long flags;
+
+	spin_lock_irqsave(&vfe->output_lock, flags);
+
+	output = &line->output[0];
+	if (output->state > VFE_OUTPUT_RESERVED) {
+		dev_err(vfe->camss->dev, "Output is running\n");
+		goto error;
+	}
+
+	vfe->wm_output_map[line->id] = line->id;
+
+	output->drop_update_idx = 0;
+
+	spin_unlock_irqrestore(&vfe->output_lock, flags);
+
+	return 0;
+
+error:
+	spin_unlock_irqrestore(&vfe->output_lock, flags);
+	output->state = VFE_OUTPUT_OFF;
+
+	return -EINVAL;
+}
+
+int vfe_reset(struct vfe_device *vfe)
+{
+	unsigned long time;
+
+	reinit_completion(&vfe->reset_complete);
+
+	vfe->res->hw_ops->global_reset(vfe);
+
+	time = wait_for_completion_timeout(&vfe->reset_complete,
+		msecs_to_jiffies(VFE_RESET_TIMEOUT_MS));
+	if (!time) {
+		dev_err(vfe->camss->dev, "VFE reset timeout\n");
+		return -EIO;
+	}
+
+	return 0;
+}
+
+static void vfe_init_outputs(struct vfe_device *vfe)
+{
+	int i, o;
+
+	for (i = 0; i < vfe->res->line_num; i++) {
+		for (o = 0; o < MSM_VFE_NUM_OUTPUTS; o++) {
+			struct vfe_output *output = &vfe->line[i].output[o];
+
+			output->state = VFE_OUTPUT_OFF;
+			output->buf[0] = NULL;
+			output->buf[1] = NULL;
+			INIT_LIST_HEAD(&output->pending_bufs);
+		}
+	}
+}
+
+static void vfe_reset_output_maps(struct vfe_device *vfe)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(vfe->wm_output_map); i++)
+		vfe->wm_output_map[i] = VFE_LINE_NONE;
+}
+
+int vfe_reserve_wm(struct vfe_device *vfe, enum vfe_line_id line_id)
+{
+	int ret = -EBUSY;
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(vfe->wm_output_map); i++) {
+		if (vfe->wm_output_map[i] == VFE_LINE_NONE) {
+			vfe->wm_output_map[i] = line_id;
+			ret = i;
+			break;
+		}
+	}
+
+	return ret;
+}
+
+int vfe_release_wm(struct vfe_device *vfe, u8 wm)
+{
+	if (wm >= ARRAY_SIZE(vfe->wm_output_map))
+		return -EINVAL;
+
+	vfe->wm_output_map[wm] = VFE_LINE_NONE;
+
+	return 0;
+}
+
+struct camss_buffer *vfe_buf_get_pending(struct vfe_output *output)
+{
+	struct camss_buffer *buffer = NULL;
+
+	if (!list_empty(&output->pending_bufs)) {
+		buffer = list_first_entry(&output->pending_bufs,
+					  struct camss_buffer,
+					  queue);
+		list_del(&buffer->queue);
+	}
+
+	return buffer;
+}
+
+void vfe_buf_add_pending(struct vfe_output *output,
+			 struct camss_buffer *buffer)
+{
+	INIT_LIST_HEAD(&buffer->queue);
+	list_add_tail(&buffer->queue, &output->pending_bufs);
+}
+
+/*
+ * vfe_buf_flush_pending - Flush all pending buffers.
+ * @output: VFE output
+ * @state: vb2 buffer state
+ */
+static void vfe_buf_flush_pending(struct vfe_output *output,
+				  enum vb2_buffer_state state)
+{
+	struct camss_buffer *buf;
+	struct camss_buffer *t;
+
+	list_for_each_entry_safe(buf, t, &output->pending_bufs, queue) {
+		list_del(&buf->queue);
+		if (buf->vb.vb2_buf.state == VB2_BUF_STATE_ACTIVE)
+			vb2_buffer_done(&buf->vb.vb2_buf, state);
+	}
+}
+
+int vfe_put_output(struct vfe_line *line)
+{
+	struct vfe_device *vfe = to_vfe(line);
+	struct vfe_output *output = &line->output[0];
+	unsigned long flags;
+	unsigned int i;
+
+	spin_lock_irqsave(&vfe->output_lock, flags);
+
+	for (i = 0; i < output->wm_num; i++)
+		vfe_release_wm(vfe, output->wm[i].bus_client);
+
+	for (i = 0; i < line->num_outputs; i++)
+		line->output[i].state = VFE_OUTPUT_OFF;
+
+	spin_unlock_irqrestore(&vfe->output_lock, flags);
+	return 0;
+}
+
+static void vfe_disable_output(struct vfe_line *line)
+{
+	struct vfe_device *vfe = to_vfe(line);
+	unsigned long flags;
+	unsigned int o;
+
+	spin_lock_irqsave(&vfe->output_lock, flags);
+	for (o = 0; o < line->num_outputs; o++) {
+		struct vfe_output *output = &line->output[o];
+
+		/* the first output is always on; the others only if they streamed */
+		if (o && output->state != VFE_OUTPUT_ON)
+			continue;
+
+		vfe_stop_one_output(line, output);
+		if (o && output->video_out.type == V4L2_BUF_TYPE_META_CAPTURE)
+			vfe_requeue_active_buffers(output);
+		else
+			output->gen2.active_num = 0;
+		output->state = VFE_OUTPUT_OFF;
+	}
+	spin_unlock_irqrestore(&vfe->output_lock, flags);
+
+}
+
+/*
+ * vfe_disable - Disable streaming on VFE line
+ * @line: VFE line
+ *
+ * Return 0 on success or a negative error code otherwise
+ */
+int vfe_disable(struct vfe_line *line)
+{
+	struct vfe_device *vfe = to_vfe(line);
+	int ret = 0;
+
+	vfe_disable_output(line);
+	vfe_put_output(line);
+
+	mutex_lock(&vfe->stream_lock);
+
+	if (--vfe->stream_count == 0)
+		ret = vfe_reset(vfe);
+
+	mutex_unlock(&vfe->stream_lock);
+
+	return ret;
+}
+
+/**
+ * vfe_isr_comp_done() - Process composite image done interrupt
+ * @vfe: VFE Device
+ * @comp: Composite image id
+ */
+void vfe_isr_comp_done(struct vfe_device *vfe, u8 comp)
+{
+	unsigned int i;
+
+	for (i = 0; i < ARRAY_SIZE(vfe->wm_output_map); i++)
+		if (vfe->wm_output_map[i] != VFE_LINE_NONE &&
+		    vfe->line[vfe->wm_output_map[i]].is_pix) {
+			vfe->isr_ops.wm_done(vfe, i);
+			break;
+		}
+}
+
+void vfe_isr_reset_ack(struct vfe_device *vfe)
+{
+	complete(&vfe->reset_complete);
+}
+
+/*
+ * vfe_pm_domain_off - Disable power domains specific to this VFE.
+ * @vfe: VFE Device
+ */
+void vfe_pm_domain_off(struct vfe_device *vfe)
+{
+	if (!vfe->genpd)
+		return;
+
+	device_link_del(vfe->genpd_link);
+	vfe->genpd_link = NULL;
+}
+
+/*
+ * vfe_pm_domain_on - Enable power domains specific to this VFE.
+ * @vfe: VFE Device
+ */
+int vfe_pm_domain_on(struct vfe_device *vfe)
+{
+	struct camss *camss = vfe->camss;
+
+	if (!vfe->genpd)
+		return 0;
+
+	vfe->genpd_link = device_link_add(camss->dev, vfe->genpd,
+					  DL_FLAG_STATELESS |
+					  DL_FLAG_PM_RUNTIME |
+					  DL_FLAG_RPM_ACTIVE);
+	if (!vfe->genpd_link)
+		return -EINVAL;
+
+	return 0;
+}
+
+static int vfe_match_clock_names(struct vfe_device *vfe,
+				 struct camss_clock *clock)
+{
+	char vfe_name[7]; /* vfeXXX\0 */
+	char vfe_lite_name[12]; /* vfe_liteXXX\0 */
+
+	snprintf(vfe_name, sizeof(vfe_name), "vfe%d", vfe->id);
+	snprintf(vfe_lite_name, sizeof(vfe_lite_name), "vfe_lite%d", vfe->id);
+
+	return (!strcmp(clock->name, vfe_name) ||
+		!strcmp(clock->name, vfe_lite_name) ||
+		!strcmp(clock->name, "vfe_lite") ||
+		!strcmp(clock->name, "camnoc_axi") ||
+		!strcmp(clock->name, "camnoc_rt_axi"));
+}
+
+/*
+ * vfe_check_clock_levels - Calculate and set clock rates on VFE module
+ * @clock: clocks data
+ *
+ * Return false if there is no non-zero clock level and true otherwise.
+ */
+static bool vfe_check_clock_levels(struct camss_clock *clock)
+{
+	int i;
+
+	for (i = 0; i < clock->nfreqs; i++)
+		if (clock->freq[i])
+			return true;
+	return false;
+}
+
+/*
+ * vfe_pix_ppc - Pixels the pixel path consumes per VFE clock
+ * @vfe: VFE device
+ *
+ * The VFE 4.x and TFE pixel paths take one pixel per clock, the SM8650 IFE
+ * pixel path two.
+ */
+static u32 vfe_pix_ppc(struct vfe_device *vfe)
+{
+	switch (vfe->camss->res->version) {
+	case CAMSS_8650:
+		return 2;
+	default:
+		return 1;
+	}
+}
+
+/*
+ * vfe_set_clock_rates - Calculate and set clock rates on VFE module
+ * @vfe: VFE device
+ *
+ * Return 0 on success or a negative error code otherwise
+ */
+static int vfe_set_clock_rates(struct vfe_device *vfe)
+{
+	struct device *dev = vfe->camss->dev;
+	u64 pixel_clock[VFE_LINE_NUM_MAX];
+	int i, j;
+	int ret;
+
+	for (i = VFE_LINE_RDI0; i < vfe->res->line_num; i++) {
+		struct vfe_line *line = &vfe->line[i];
+		u8 bpp = camss_format_get_bpp(line->formats, line->nformats,
+					     line->fmt[MSM_VFE_PAD_SINK].code);
+
+		ret = camss_get_link_pixel_rate(&line->subdev.entity, bpp,
+					       &pixel_clock[i]);
+		if (ret)
+			pixel_clock[i] = 0;
+	}
+
+	for (i = 0; i < vfe->nclocks; i++) {
+		struct camss_clock *clock = &vfe->clock[i];
+
+		if (vfe_match_clock_names(vfe, clock) && vfe_check_clock_levels(clock)) {
+			u64 min_rate = 0;
+			long rate;
+
+			for (j = VFE_LINE_RDI0; j < vfe->res->line_num; j++) {
+				u32 tmp;
+				u8 bpp;
+
+				if (vfe->line[j].is_pix) {
+					tmp = div_u64(pixel_clock[j], vfe_pix_ppc(vfe));
+				} else {
+					struct vfe_line *l = &vfe->line[j];
+
+					bpp = camss_format_get_bpp(l->formats,
+								   l->nformats,
+								   l->fmt[MSM_VFE_PAD_SINK].code);
+					tmp = pixel_clock[j] * bpp / 64;
+				}
+
+				if (min_rate < tmp)
+					min_rate = tmp;
+			}
+
+			camss_add_clock_margin(&min_rate);
+
+			for (j = 0; j < clock->nfreqs; j++)
+				if (min_rate < clock->freq[j])
+					break;
+
+			if (j == clock->nfreqs) {
+				dev_err(dev,
+					"Pixel clock is too high for VFE");
+				return -EINVAL;
+			}
+
+			/* if sensor pixel clock is not available */
+			/* set highest possible VFE clock rate */
+			if (min_rate == 0)
+				j = clock->nfreqs - 1;
+
+			rate = clk_round_rate(clock->clk, clock->freq[j]);
+			if (rate < 0) {
+				dev_err(dev, "clk round rate failed: %ld\n",
+					rate);
+				return -EINVAL;
+			}
+
+			ret = clk_set_rate(clock->clk, rate);
+			if (ret < 0) {
+				dev_err(dev, "clk set rate failed: %d\n", ret);
+				return ret;
+			}
+		}
+	}
+
+	return 0;
+}
+
+/*
+ * vfe_check_clock_rates - Check current clock rates on VFE module
+ * @vfe: VFE device
+ *
+ * Return 0 if current clock rates are suitable for a new pipeline
+ * or a negative error code otherwise
+ */
+static int vfe_check_clock_rates(struct vfe_device *vfe)
+{
+	u64 pixel_clock[VFE_LINE_NUM_MAX];
+	int i, j;
+	int ret;
+
+	for (i = VFE_LINE_RDI0; i < vfe->res->line_num; i++) {
+		struct vfe_line *line = &vfe->line[i];
+		u8 bpp = camss_format_get_bpp(line->formats, line->nformats,
+					     line->fmt[MSM_VFE_PAD_SINK].code);
+
+		ret = camss_get_link_pixel_rate(&line->subdev.entity, bpp,
+					       &pixel_clock[i]);
+		if (ret)
+			pixel_clock[i] = 0;
+	}
+
+	for (i = 0; i < vfe->nclocks; i++) {
+		struct camss_clock *clock = &vfe->clock[i];
+
+		if (vfe_match_clock_names(vfe, clock) && vfe_check_clock_levels(clock)) {
+			u64 min_rate = 0;
+			unsigned long rate;
+
+			for (j = VFE_LINE_RDI0; j < vfe->res->line_num; j++) {
+				u32 tmp;
+				u8 bpp;
+
+				if (vfe->line[j].is_pix) {
+					tmp = div_u64(pixel_clock[j], vfe_pix_ppc(vfe));
+				} else {
+					struct vfe_line *l = &vfe->line[j];
+
+					bpp = camss_format_get_bpp(l->formats,
+								   l->nformats,
+								   l->fmt[MSM_VFE_PAD_SINK].code);
+					tmp = pixel_clock[j] * bpp / 64;
+				}
+
+				if (min_rate < tmp)
+					min_rate = tmp;
+			}
+
+			camss_add_clock_margin(&min_rate);
+
+			rate = clk_get_rate(clock->clk);
+			if (rate < min_rate)
+				return -EBUSY;
+		}
+	}
+
+	return 0;
+}
+
+/*
+ * vfe_get - Power up and reset VFE module
+ * @vfe: VFE Device
+ *
+ * Return 0 on success or a negative error code otherwise
+ */
+int vfe_get(struct vfe_device *vfe)
+{
+	int ret;
+
+	mutex_lock(&vfe->power_lock);
+
+	if (vfe->power_count == 0) {
+		ret = vfe->res->hw_ops->pm_domain_on(vfe);
+		if (ret < 0)
+			goto error_pm_domain;
+
+		ret = pm_runtime_resume_and_get(vfe->camss->dev);
+		if (ret < 0)
+			goto error_domain_off;
+
+		ret = vfe_set_clock_rates(vfe);
+		if (ret < 0)
+			goto error_pm_runtime_get;
+
+		ret = camss_enable_clocks(vfe->nclocks, vfe->clock,
+					  vfe->camss->dev);
+		if (ret < 0)
+			goto error_pm_runtime_get;
+
+		ret = vfe_reset(vfe);
+		if (ret < 0)
+			goto error_reset;
+
+		vfe_reset_output_maps(vfe);
+
+		vfe_init_outputs(vfe);
+
+		vfe->res->hw_ops->hw_version(vfe);
+	} else {
+		ret = vfe_check_clock_rates(vfe);
+		if (ret < 0)
+			goto error_pm_domain;
+	}
+	vfe->power_count++;
+
+	mutex_unlock(&vfe->power_lock);
+
+	return 0;
+
+error_reset:
+	camss_disable_clocks(vfe->nclocks, vfe->clock);
+
+error_pm_runtime_get:
+	pm_runtime_put_sync(vfe->camss->dev);
+error_domain_off:
+	vfe->res->hw_ops->pm_domain_off(vfe);
+
+error_pm_domain:
+	mutex_unlock(&vfe->power_lock);
+
+	return ret;
+}
+
+/*
+ * vfe_put - Power down VFE module
+ * @vfe: VFE Device
+ */
+void vfe_put(struct vfe_device *vfe)
+{
+	mutex_lock(&vfe->power_lock);
+
+	if (vfe->power_count == 0) {
+		dev_err(vfe->camss->dev, "vfe power off on power_count == 0\n");
+		goto exit;
+	} else if (vfe->power_count == 1) {
+		if (vfe->was_streaming) {
+			vfe->was_streaming = 0;
+			vfe->res->hw_ops->vfe_halt(vfe);
+		}
+		camss_disable_clocks(vfe->nclocks, vfe->clock);
+		pm_runtime_put_sync(vfe->camss->dev);
+		vfe->res->hw_ops->pm_domain_off(vfe);
+	}
+
+	vfe->power_count--;
+
+exit:
+	mutex_unlock(&vfe->power_lock);
+}
+
+/*
+ * vfe_flush_buffers - Return all vb2 buffers
+ * @vid: Video device structure
+ * @state: vb2 buffer state of the returned buffers
+ *
+ * Return all buffers to vb2. This includes queued pending buffers (still
+ * unused) and any buffers given to the hardware but again still not used.
+ *
+ * Return 0 on success or a negative error code otherwise
+ */
+int vfe_flush_buffers(struct camss_video *vid,
+		      enum vb2_buffer_state state)
+{
+	struct vfe_output *output = container_of(vid, struct vfe_output, video_out);
+	struct vfe_line *line = output->line;
+	struct vfe_device *vfe = to_vfe(line);
+	struct camss_buffer *buf0, *buf1, *last;
+	unsigned long flags;
+
+	spin_lock_irqsave(&vfe->output_lock, flags);
+
+	buf0 = output->buf[0];
+	buf1 = output->buf[1];
+	last = output->last_buffer;
+	output->buf[0] = NULL;
+	output->buf[1] = NULL;
+	output->last_buffer = NULL;
+	/* Keep gen1 union state intact; every gen2 metadata output is reset. */
+	if (!vfe->ops_gen1)
+		output->gen2.active_num = 0;
+
+	vfe_buf_flush_pending(output, state);
+	if (buf0 && buf0->vb.vb2_buf.state == VB2_BUF_STATE_ACTIVE)
+		vb2_buffer_done(&buf0->vb.vb2_buf, state);
+	if (buf1 && buf1 != buf0 &&
+	    buf1->vb.vb2_buf.state == VB2_BUF_STATE_ACTIVE)
+		vb2_buffer_done(&buf1->vb.vb2_buf, state);
+	if (last && last != buf0 && last != buf1 &&
+	    last->vb.vb2_buf.state == VB2_BUF_STATE_ACTIVE)
+		vb2_buffer_done(&last->vb.vb2_buf, state);
+
+	spin_unlock_irqrestore(&vfe->output_lock, flags);
+
+	return 0;
+}
+
+/*
+ * vfe_set_power - Power on/off VFE module
+ * @sd: VFE V4L2 subdevice
+ * @on: Requested power state
+ *
+ * Return 0 on success or a negative error code otherwise
+ */
+static int vfe_set_power(struct v4l2_subdev *sd, int on)
+{
+	struct vfe_line *line = v4l2_get_subdevdata(sd);
+	struct vfe_device *vfe = to_vfe(line);
+	int ret;
+
+	if (on) {
+		ret = vfe_get(vfe);
+		if (ret < 0)
+			return ret;
+	} else {
+		vfe_put(vfe);
+	}
+
+	return 0;
+}
+
+/*
+ * vfe_set_stream - Enable/disable streaming on VFE module
+ * @sd: VFE V4L2 subdevice
+ * @enable: Requested streaming state
+ *
+ * Main configuration of VFE module is triggered here.
+ *
+ * Return 0 on success or a negative error code otherwise
+ */
+static int vfe_set_stream(struct v4l2_subdev *sd, int enable)
+{
+	struct vfe_line *line = v4l2_get_subdevdata(sd);
+	struct vfe_device *vfe = to_vfe(line);
+	int ret;
+
+	if (enable) {
+		line->output[0].state = VFE_OUTPUT_RESERVED;
+		ret = vfe->res->hw_ops->vfe_enable(line);
+		if (ret < 0)
+			dev_err(vfe->camss->dev,
+				"Failed to enable vfe outputs\n");
+	} else {
+		ret = vfe->res->hw_ops->vfe_disable(line);
+		if (ret < 0)
+			dev_err(vfe->camss->dev,
+				"Failed to disable vfe outputs\n");
+	}
+
+	return ret;
+}
+
+/* Sparse PIX outputs retain their shared pad numbers, but not formats. */
+static bool vfe_pad_supported(const struct vfe_line *line, unsigned int pad)
+{
+	unsigned int o;
+
+	if (pad >= line->num_pads)
+		return false;
+	if (pad == MSM_VFE_PAD_SINK || pad == MSM_VFE_PAD_SRC)
+		return true;
+
+	for (o = 1; o < line->num_outputs; o++)
+		if (line->output[o].pad == pad)
+			return true;
+
+	return false;
+}
+
+/*
+ * __vfe_get_format - Get pointer to format structure
+ * @line: VFE line
+ * @sd_state: V4L2 subdev state
+ * @pad: pad from which format is requested
+ * @which: TRY or ACTIVE format
+ *
+ * Return pointer to TRY or ACTIVE format structure
+ */
+static struct v4l2_mbus_framefmt *
+__vfe_get_format(struct vfe_line *line,
+		 struct v4l2_subdev_state *sd_state,
+		 unsigned int pad,
+		 enum v4l2_subdev_format_whence which)
+{
+	if (!vfe_pad_supported(line, pad))
+		return NULL;
+
+	if (which == V4L2_SUBDEV_FORMAT_TRY)
+		return v4l2_subdev_state_get_format(sd_state, pad);
+
+	return &line->fmt[pad];
+}
+
+/*
+ * __vfe_get_compose - Get pointer to compose selection structure
+ * @line: VFE line
+ * @sd_state: V4L2 subdev state
+ * @which: TRY or ACTIVE format
+ *
+ * Return pointer to TRY or ACTIVE compose rectangle structure
+ */
+static struct v4l2_rect *
+__vfe_get_compose(struct vfe_line *line,
+		  struct v4l2_subdev_state *sd_state,
+		  enum v4l2_subdev_format_whence which)
+{
+	if (which == V4L2_SUBDEV_FORMAT_TRY)
+		return v4l2_subdev_state_get_compose(sd_state,
+						     MSM_VFE_PAD_SINK);
+
+	return &line->compose;
+}
+
+/*
+ * __vfe_get_crop - Get pointer to crop selection structure
+ * @line: VFE line
+ * @sd_state: V4L2 subdev state
+ * @which: TRY or ACTIVE format
+ *
+ * Return pointer to TRY or ACTIVE crop rectangle structure
+ */
+static struct v4l2_rect *
+__vfe_get_crop(struct vfe_line *line,
+	       struct v4l2_subdev_state *sd_state,
+	       enum v4l2_subdev_format_whence which)
+{
+	if (which == V4L2_SUBDEV_FORMAT_TRY)
+		return v4l2_subdev_state_get_crop(sd_state, MSM_VFE_PAD_SRC);
+
+	return &line->crop;
+}
+
+/*
+ * vfe_try_format - Handle try format by pad subdev method
+ * @line: VFE line
+ * @sd_state: V4L2 subdev state
+ * @pad: pad on which format is requested
+ * @fmt: pointer to v4l2 format structure
+ * @which: wanted subdev format
+ */
+static void vfe_try_format(struct vfe_line *line,
+			   struct v4l2_subdev_state *sd_state,
+			   unsigned int pad,
+			   struct v4l2_mbus_framefmt *fmt,
+			   enum v4l2_subdev_format_whence which)
+{
+	struct v4l2_mbus_framefmt *src;
+	unsigned int i;
+	u32 code;
+	u32 w, h;
+
+	switch (pad) {
+	case MSM_VFE_PAD_SINK:
+		/* Set format on sink pad */
+
+		for (i = 0; i < line->nformats; i++)
+			if (fmt->code == line->formats[i].code)
+				break;
+
+		/* A processed-only PIX input must fall back to a supported Bayer code. */
+		if (i >= line->nformats) {
+			if (line->is_pix && to_vfe(line)->res->formats_pix_out)
+				fmt->code = line->formats[0].code;
+			else
+				fmt->code = MEDIA_BUS_FMT_UYVY8_1X16;
+		}
+
+		fmt->width = clamp_t(u32, fmt->width, 1, 8191);
+		fmt->height = clamp_t(u32, fmt->height, 1, 8191);
+		if (line->is_pix && to_vfe(line)->res->pix_sink_frame_sizes) {
+			const struct v4l2_frmsize_stepwise *s =
+				to_vfe(line)->res->pix_sink_frame_sizes;
+
+			fmt->width = clamp_t(u32, fmt->width, s->min_width, s->max_width);
+			fmt->height = clamp_t(u32, fmt->height, s->min_height, s->max_height);
+			fmt->width -= (fmt->width - s->min_width) % s->step_width;
+			fmt->height -= (fmt->height - s->min_height) % s->step_height;
+		}
+
+		fmt->field = V4L2_FIELD_NONE;
+		fmt->colorspace = V4L2_COLORSPACE_SRGB;
+
+		break;
+
+	case MSM_VFE_PAD_SRC:
+		/* Set and return a format same as sink pad */
+		code = fmt->code;
+
+		*fmt = *__vfe_get_format(line, sd_state, MSM_VFE_PAD_SINK,
+					 which);
+
+		fmt->code = vfe_src_pad_code(line, fmt->code, 0, code);
+
+		if (line->is_pix) {
+			struct v4l2_rect *rect;
+
+			rect = __vfe_get_crop(line, sd_state, which);
+
+			fmt->width = rect->width;
+			fmt->height = rect->height;
+		}
+
+		break;
+
+	case MSM_VFE_PAD_SRC_DS4:
+	case MSM_VFE_PAD_SRC_DS16:
+		src = __vfe_get_format(line, sd_state, MSM_VFE_PAD_SRC, which);
+		w = ALIGN(src->width, 8) / 4;
+		h = ALIGN(src->height, 8) / 4;
+
+		if (pad == MSM_VFE_PAD_SRC_DS16) {
+			w = (w / 4) & ~1u;
+			h = (h / 4) & ~1u;
+		}
+		*fmt = *src;
+		fmt->width = w;
+		fmt->height = h;
+
+		break;
+	case MSM_VFE_PAD_SRC_STATS:
+	case MSM_VFE_PAD_SINK_PARAMS:
+		memset(fmt, 0, sizeof(*fmt));
+		fmt->code = MEDIA_BUS_FMT_METADATA_FIXED;
+		fmt->field = V4L2_FIELD_NONE;
+		return;
+	}
+
+	fmt->colorspace = V4L2_COLORSPACE_SRGB;
+}
+
+/*
+ * vfe_try_compose - Handle try compose selection by pad subdev method
+ * @line: VFE line
+ * @sd_state: V4L2 subdev state
+ * @rect: pointer to v4l2 rect structure
+ * @which: wanted subdev format
+ */
+static void vfe_try_compose(struct vfe_line *line,
+			    struct v4l2_subdev_state *sd_state,
+			    struct v4l2_rect *rect,
+			    enum v4l2_subdev_format_whence which)
+{
+	struct v4l2_mbus_framefmt *fmt;
+
+	fmt = __vfe_get_format(line, sd_state, MSM_VFE_PAD_SINK, which);
+
+	if (rect->width > fmt->width)
+		rect->width = fmt->width;
+
+	if (rect->height > fmt->height)
+		rect->height = fmt->height;
+
+	if (fmt->width > rect->width * SCALER_RATIO_MAX)
+		rect->width = (fmt->width + SCALER_RATIO_MAX - 1) /
+							SCALER_RATIO_MAX;
+
+	rect->width &= ~0x1;
+
+	if (fmt->height > rect->height * SCALER_RATIO_MAX)
+		rect->height = (fmt->height + SCALER_RATIO_MAX - 1) /
+							SCALER_RATIO_MAX;
+
+	if (rect->width < 16)
+		rect->width = 16;
+
+	if (rect->height < 4)
+		rect->height = 4;
+
+	if (to_vfe(line)->res->pix_frame_sizes) {
+		const struct v4l2_frmsize_stepwise *s = to_vfe(line)->res->pix_frame_sizes;
+
+		rect->width = clamp_t(u32, rect->width, s->min_width, s->max_width);
+		rect->height = clamp_t(u32, rect->height, s->min_height, s->max_height);
+		rect->width -= (rect->width - s->min_width) % s->step_width;
+		rect->height -= (rect->height - s->min_height) % s->step_height;
+	}
+	/* Compose describes scaling of the full input, not a crop origin. */
+	if (to_vfe(line)->res->pix_no_crop) {
+		rect->left = 0;
+		rect->top = 0;
+	}
+}
+
+/*
+ * vfe_try_crop - Handle try crop selection by pad subdev method
+ * @line: VFE line
+ * @sd_state: V4L2 subdev state
+ * @rect: pointer to v4l2 rect structure
+ * @which: wanted subdev format
+ */
+static void vfe_try_crop(struct vfe_line *line,
+			 struct v4l2_subdev_state *sd_state,
+			 struct v4l2_rect *rect,
+			 enum v4l2_subdev_format_whence which)
+{
+	struct v4l2_rect *compose;
+
+	compose = __vfe_get_compose(line, sd_state, which);
+
+	if (to_vfe(line)->res->pix_no_crop) {
+		*rect = *compose;
+		return;
+	}
+
+	if (rect->width > compose->width)
+		rect->width = compose->width;
+
+	if (rect->width + rect->left > compose->width)
+		rect->left = compose->width - rect->width;
+
+	if (rect->height > compose->height)
+		rect->height = compose->height;
+
+	if (rect->height + rect->top > compose->height)
+		rect->top = compose->height - rect->height;
+
+	/* wm in line based mode writes multiple of 16 horizontally */
+	rect->left += (rect->width & 0xf) >> 1;
+	rect->width &= ~0xf;
+
+	if (rect->width < 16) {
+		rect->left = 0;
+		rect->width = 16;
+	}
+
+	if (rect->height < 4) {
+		rect->top = 0;
+		rect->height = 4;
+	}
+}
+
+/*
+ * vfe_enum_mbus_code - Handle pixel format enumeration
+ * @sd: VFE V4L2 subdevice
+ * @sd_state: V4L2 subdev state
+ * @code: pointer to v4l2_subdev_mbus_code_enum structure
+ *
+ * return -EINVAL or zero on success
+ */
+static int vfe_enum_mbus_code(struct v4l2_subdev *sd,
+			      struct v4l2_subdev_state *sd_state,
+			      struct v4l2_subdev_mbus_code_enum *code)
+{
+	struct vfe_line *line = v4l2_get_subdevdata(sd);
+
+	if (!vfe_pad_supported(line, code->pad))
+		return -EINVAL;
+
+	switch (code->pad) {
+	case MSM_VFE_PAD_SRC_DS4:
+	case MSM_VFE_PAD_SRC_DS16:
+		if (code->index)
+			return -EINVAL;
+		code->code = __vfe_get_format(line, sd_state, MSM_VFE_PAD_SRC,
+					      code->which)->code;
+		return 0;
+	case MSM_VFE_PAD_SRC_STATS:
+	case MSM_VFE_PAD_SINK_PARAMS:
+		if (code->index)
+			return -EINVAL;
+		code->code = MEDIA_BUS_FMT_METADATA_FIXED;
+		return 0;
+	}
+
+	if (code->pad == MSM_VFE_PAD_SINK) {
+		if (code->index >= line->nformats)
+			return -EINVAL;
+
+		code->code = line->formats[code->index].code;
+	} else {
+		struct v4l2_mbus_framefmt *sink_fmt;
+
+		sink_fmt = __vfe_get_format(line, sd_state, MSM_VFE_PAD_SINK,
+					    code->which);
+
+		code->code = vfe_src_pad_code(line, sink_fmt->code,
+					      code->index, 0);
+		if (!code->code)
+			return -EINVAL;
+	}
+
+	return 0;
+}
+
+/*
+ * vfe_enum_frame_size - Handle frame size enumeration
+ * @sd: VFE V4L2 subdevice
+ * @sd_state: V4L2 subdev state
+ * @fse: pointer to v4l2_subdev_frame_size_enum structure
+ *
+ * Return -EINVAL or zero on success
+ */
+static int vfe_enum_frame_size(struct v4l2_subdev *sd,
+			       struct v4l2_subdev_state *sd_state,
+			       struct v4l2_subdev_frame_size_enum *fse)
+{
+	struct vfe_line *line = v4l2_get_subdevdata(sd);
+	struct v4l2_mbus_framefmt format;
+
+	if (!vfe_pad_supported(line, fse->pad))
+		return -EINVAL;
+
+	/* Metadata has no frame size */
+	if (fse->pad == MSM_VFE_PAD_SRC_STATS ||
+	    fse->pad == MSM_VFE_PAD_SINK_PARAMS)
+		return -ENOTTY;
+
+	if (fse->index != 0)
+		return -EINVAL;
+
+	format.code = fse->code;
+	format.width = 1;
+	format.height = 1;
+	vfe_try_format(line, sd_state, fse->pad, &format, fse->which);
+	fse->min_width = format.width;
+	fse->min_height = format.height;
+
+	if (format.code != fse->code)
+		return -EINVAL;
+
+	format.code = fse->code;
+	format.width = -1;
+	format.height = -1;
+	vfe_try_format(line, sd_state, fse->pad, &format, fse->which);
+	fse->max_width = format.width;
+	fse->max_height = format.height;
+
+	return 0;
+}
+
+/*
+ * vfe_get_format - Handle get format by pads subdev method
+ * @sd: VFE V4L2 subdevice
+ * @sd_state: V4L2 subdev state
+ * @fmt: pointer to v4l2 subdev format structure
+ *
+ * Return -EINVAL or zero on success
+ */
+static int vfe_get_format(struct v4l2_subdev *sd,
+			  struct v4l2_subdev_state *sd_state,
+			  struct v4l2_subdev_format *fmt)
+{
+	struct vfe_line *line = v4l2_get_subdevdata(sd);
+	struct v4l2_mbus_framefmt *format;
+
+	format = __vfe_get_format(line, sd_state, fmt->pad, fmt->which);
+	if (format == NULL)
+		return -EINVAL;
+
+	/* Every pad past the src - downscalers, stats, params don't get assigned */
+	if (fmt->pad > MSM_VFE_PAD_SRC)
+		vfe_try_format(line, sd_state, fmt->pad, &fmt->format, fmt->which);
+	else
+		fmt->format = *format;
+
+	return 0;
+}
+
+static int vfe_set_selection(struct v4l2_subdev *sd,
+			     struct v4l2_subdev_state *sd_state,
+			     struct v4l2_subdev_selection *sel);
+
+/*
+ * vfe_set_format - Handle set format by pads subdev method
+ * @sd: VFE V4L2 subdevice
+ * @sd_state: V4L2 subdev state
+ * @fmt: pointer to v4l2 subdev format structure
+ *
+ * Return -EINVAL or zero on success
+ */
+static int vfe_set_format(struct v4l2_subdev *sd,
+			  struct v4l2_subdev_state *sd_state,
+			  struct v4l2_subdev_format *fmt)
+{
+	struct vfe_line *line = v4l2_get_subdevdata(sd);
+	struct v4l2_mbus_framefmt *format;
+
+	format = __vfe_get_format(line, sd_state, fmt->pad, fmt->which);
+	if (format == NULL)
+		return -EINVAL;
+
+	vfe_try_format(line, sd_state, fmt->pad, &fmt->format, fmt->which);
+	*format = fmt->format;
+
+	if (fmt->pad == MSM_VFE_PAD_SINK) {
+		struct v4l2_subdev_selection sel = { 0 };
+		int ret;
+
+		/* Propagate the format from sink to source */
+		format = __vfe_get_format(line, sd_state, MSM_VFE_PAD_SRC,
+					  fmt->which);
+
+		*format = fmt->format;
+		vfe_try_format(line, sd_state, MSM_VFE_PAD_SRC, format,
+			       fmt->which);
+
+		if (!line->is_pix)
+			return 0;
+
+		/* Reset sink pad compose selection */
+		sel.which = fmt->which;
+		sel.pad = MSM_VFE_PAD_SINK;
+		sel.target = V4L2_SEL_TGT_COMPOSE;
+		sel.r.width = fmt->format.width;
+		sel.r.height = fmt->format.height;
+		ret = vfe_set_selection(sd, sd_state, &sel);
+		if (ret < 0)
+			return ret;
+	}
+
+	return 0;
+}
+
+/*
+ * vfe_get_selection - Handle get selection by pads subdev method
+ * @sd: VFE V4L2 subdevice
+ * @sd_state: V4L2 subdev state
+ * @sel: pointer to v4l2 subdev selection structure
+ *
+ * Return -EINVAL or zero on success
+ */
+static int vfe_get_selection(struct v4l2_subdev *sd,
+			     struct v4l2_subdev_state *sd_state,
+			     struct v4l2_subdev_selection *sel)
+{
+	struct vfe_line *line = v4l2_get_subdevdata(sd);
+	struct v4l2_subdev_format fmt = { 0 };
+	struct v4l2_rect *rect;
+	int ret;
+
+	if (!line->is_pix)
+		return -EINVAL;
+
+	if (sel->pad == MSM_VFE_PAD_SINK)
+		switch (sel->target) {
+		case V4L2_SEL_TGT_COMPOSE_BOUNDS:
+			fmt.pad = sel->pad;
+			fmt.which = sel->which;
+			ret = vfe_get_format(sd, sd_state, &fmt);
+			if (ret < 0)
+				return ret;
+
+			sel->r.left = 0;
+			sel->r.top = 0;
+			sel->r.width = fmt.format.width;
+			sel->r.height = fmt.format.height;
+			break;
+		case V4L2_SEL_TGT_COMPOSE:
+			rect = __vfe_get_compose(line, sd_state, sel->which);
+			if (rect == NULL)
+				return -EINVAL;
+
+			sel->r = *rect;
+			break;
+		default:
+			return -EINVAL;
+		}
+	else if (sel->pad == MSM_VFE_PAD_SRC)
+		switch (sel->target) {
+		case V4L2_SEL_TGT_CROP_BOUNDS:
+			rect = __vfe_get_compose(line, sd_state, sel->which);
+			if (rect == NULL)
+				return -EINVAL;
+
+			sel->r.left = rect->left;
+			sel->r.top = rect->top;
+			sel->r.width = rect->width;
+			sel->r.height = rect->height;
+			break;
+		case V4L2_SEL_TGT_CROP:
+			rect = __vfe_get_crop(line, sd_state, sel->which);
+			if (rect == NULL)
+				return -EINVAL;
+
+			sel->r = *rect;
+			break;
+		default:
+			return -EINVAL;
+		}
+	else
+		return -EINVAL;
+
+	return 0;
+}
+
+/*
+ * vfe_set_selection - Handle set selection by pads subdev method
+ * @sd: VFE V4L2 subdevice
+ * @sd_state: V4L2 subdev state
+ * @sel: pointer to v4l2 subdev selection structure
+ *
+ * Return -EINVAL or zero on success
+ */
+static int vfe_set_selection(struct v4l2_subdev *sd,
+			     struct v4l2_subdev_state *sd_state,
+			     struct v4l2_subdev_selection *sel)
+{
+	struct vfe_line *line = v4l2_get_subdevdata(sd);
+	struct v4l2_rect *rect;
+	int ret;
+
+	if (!line->is_pix)
+		return -EINVAL;
+
+	if (sel->target == V4L2_SEL_TGT_COMPOSE &&
+		sel->pad == MSM_VFE_PAD_SINK) {
+		struct v4l2_subdev_selection crop = { 0 };
+
+		rect = __vfe_get_compose(line, sd_state, sel->which);
+		if (rect == NULL)
+			return -EINVAL;
+
+		vfe_try_compose(line, sd_state, &sel->r, sel->which);
+		*rect = sel->r;
+
+		/* Reset source crop selection */
+		crop.which = sel->which;
+		crop.pad = MSM_VFE_PAD_SRC;
+		crop.target = V4L2_SEL_TGT_CROP;
+		crop.r = *rect;
+		ret = vfe_set_selection(sd, sd_state, &crop);
+	} else if (sel->target == V4L2_SEL_TGT_CROP &&
+		sel->pad == MSM_VFE_PAD_SRC) {
+		struct v4l2_subdev_format fmt = { 0 };
+
+		rect = __vfe_get_crop(line, sd_state, sel->which);
+		if (rect == NULL)
+			return -EINVAL;
+
+		vfe_try_crop(line, sd_state, &sel->r, sel->which);
+		*rect = sel->r;
+
+		/* Reset source pad format width and height */
+		fmt.which = sel->which;
+		fmt.pad = MSM_VFE_PAD_SRC;
+		ret = vfe_get_format(sd, sd_state, &fmt);
+		if (ret < 0)
+			return ret;
+
+		fmt.format.width = rect->width;
+		fmt.format.height = rect->height;
+		ret = vfe_set_format(sd, sd_state, &fmt);
+	} else {
+		ret = -EINVAL;
+	}
+
+	return ret;
+}
+
+/*
+ * vfe_init_formats - Initialize formats on all pads
+ * @sd: VFE V4L2 subdevice
+ * @fh: V4L2 subdev file handle
+ *
+ * Initialize all pad formats with default values.
+ *
+ * Return 0 on success or a negative error code otherwise
+ */
+static int vfe_init_formats(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
+{
+	struct v4l2_subdev_format format = {
+		.pad = MSM_VFE_PAD_SINK,
+		.which = fh ? V4L2_SUBDEV_FORMAT_TRY :
+			      V4L2_SUBDEV_FORMAT_ACTIVE,
+		.format = {
+			.code = MEDIA_BUS_FMT_UYVY8_1X16,
+			.width = 1920,
+			.height = 1080
+		}
+	};
+
+	return vfe_set_format(sd, fh ? fh->state : NULL, &format);
+}
+
+/*
+ * msm_vfe_subdev_init - Initialize VFE device structure and resources
+ * @vfe: VFE device
+ * @res: VFE module resources table
+ *
+ * Return 0 on success or a negative error code otherwise
+ */
+int msm_vfe_subdev_init(struct camss *camss, struct vfe_device *vfe,
+			const struct camss_subdev_resources *res, u8 id)
+{
+	struct device *dev = camss->dev;
+	struct platform_device *pdev = to_platform_device(dev);
+	int i, j;
+	int ret;
+
+	if (!res->vfe.line_num)
+		return -EINVAL;
+
+	vfe->res = &res->vfe;
+
+	/* Power domain */
+
+	if (res->vfe.pd_name) {
+		vfe->genpd = dev_pm_domain_attach_by_name(camss->dev,
+							  res->vfe.pd_name);
+		if (IS_ERR(vfe->genpd)) {
+			ret = PTR_ERR(vfe->genpd);
+			return ret;
+		}
+	}
+
+	if (!vfe->genpd && res->vfe.has_pd) {
+		/*
+		 * Legacy magic index.
+		 * Requires
+		 * power-domain = <VFE_X>,
+		 *                <VFE_Y>,
+		 *                <TITAN_TOP>
+		 * id must correspondng to the index of the VFE which must
+		 * come before the TOP GDSC. VFE Lite has no individually
+		 * collapasible domain which is why id < vfe_num is a valid
+		 * check.
+		 */
+		vfe->genpd = dev_pm_domain_attach_by_id(camss->dev, id);
+		if (IS_ERR(vfe->genpd))
+			return PTR_ERR(vfe->genpd);
+	}
+
+	/* Memory */
+
+	vfe->base = devm_platform_ioremap_resource_byname(pdev, res->reg[0]);
+	if (IS_ERR(vfe->base)) {
+		dev_err(dev, "could not map memory\n");
+		return PTR_ERR(vfe->base);
+	}
+
+	if (vfe->res->has_vbif) {
+		vfe->vbif_base = devm_platform_ioremap_resource_byname(pdev,
+								       vfe->res->vbif_name);
+		if (IS_ERR(vfe->vbif_base)) {
+			dev_err(dev, "could not map vbif memory\n");
+			return PTR_ERR(vfe->vbif_base);
+		}
+	}
+
+	/* Interrupt */
+
+	ret = platform_get_irq_byname(pdev, res->interrupt[0]);
+	if (ret < 0)
+		return ret;
+
+	vfe->irq = ret;
+	snprintf(vfe->irq_name, sizeof(vfe->irq_name), "%s_%s%d",
+		 dev_name(dev), MSM_VFE_NAME, id);
+	ret = devm_request_irq(dev, vfe->irq, vfe->res->hw_ops->isr,
+			       IRQF_TRIGGER_RISING, vfe->irq_name, vfe);
+	if (ret < 0) {
+		dev_err(dev, "request_irq failed: %d\n", ret);
+		return ret;
+	}
+
+	/* Clocks */
+
+	vfe->nclocks = 0;
+	while (res->clock[vfe->nclocks])
+		vfe->nclocks++;
+
+	vfe->clock = devm_kcalloc(dev, vfe->nclocks, sizeof(*vfe->clock),
+				  GFP_KERNEL);
+	if (!vfe->clock)
+		return -ENOMEM;
+
+	for (i = 0; i < vfe->nclocks; i++) {
+		struct camss_clock *clock = &vfe->clock[i];
+
+		clock->clk = devm_clk_get(dev, res->clock[i]);
+		if (IS_ERR(clock->clk))
+			return PTR_ERR(clock->clk);
+
+		clock->name = res->clock[i];
+
+		clock->nfreqs = 0;
+		while (res->clock_rate[i][clock->nfreqs])
+			clock->nfreqs++;
+
+		if (!clock->nfreqs) {
+			clock->freq = NULL;
+			continue;
+		}
+
+		clock->freq = devm_kcalloc(dev,
+					   clock->nfreqs,
+					   sizeof(*clock->freq),
+					   GFP_KERNEL);
+		if (!clock->freq)
+			return -ENOMEM;
+
+		for (j = 0; j < clock->nfreqs; j++)
+			clock->freq[j] = res->clock_rate[i][j];
+	}
+
+	mutex_init(&vfe->power_lock);
+	vfe->power_count = 0;
+
+	mutex_init(&vfe->stream_lock);
+	vfe->stream_count = 0;
+
+	spin_lock_init(&vfe->output_lock);
+
+	vfe->camss = camss;
+	vfe->id = id;
+	vfe->reg_update = 0;
+
+	for (i = VFE_LINE_RDI0; i < vfe->res->line_num; i++) {
+		struct vfe_line *l = &vfe->line[i];
+		unsigned int o;
+
+		for (o = 0; o < MSM_VFE_NUM_OUTPUTS; o++) {
+			l->output[o].line = l;
+			l->output[o].video_out.camss = camss;
+			init_completion(&l->output[o].sof);
+			init_completion(&l->output[o].reg_update);
+		}
+
+		l->output[0].video_out.type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
+		l->id = i;
+
+		l->num_outputs = 1;
+		l->output[0].pad = MSM_VFE_PAD_SRC;
+
+		l->output[0].wm_num = 1;
+		l->output[0].wm[0].bus_client = l->id;
+
+		l->num_pads = MSM_VFE_PAD_NUM_RDI;
+
+
+	}
+
+	vfe->res->hw_ops->subdev_init(dev, vfe);
+
+	/* Only now does a line know whether it is the pixel path */
+	for (i = 0; i < vfe->res->line_num; i++) {
+		struct vfe_line *l = &vfe->line[i];
+		const struct camss_formats *f = l->is_pix ? res->vfe.formats_pix :
+							    res->vfe.formats_rdi;
+
+		l->nformats = f->nformats;
+		l->formats = f->formats;
+	}
+
+	init_completion(&vfe->reset_complete);
+	init_completion(&vfe->halt_complete);
+
+	return 0;
+}
+
+/*
+ * msm_vfe_genpd_cleanup - Cleanup VFE genpd linkages
+ * @vfe: VFE device
+ */
+void msm_vfe_genpd_cleanup(struct vfe_device *vfe)
+{
+	if (vfe->genpd_link)
+		device_link_del(vfe->genpd_link);
+
+	if (vfe->genpd)
+		dev_pm_domain_detach(vfe->genpd, true);
+}
+
+/*
+ * vfe_link_setup - Setup VFE connections
+ * @entity: Pointer to media entity structure
+ * @local: Pointer to local pad
+ * @remote: Pointer to remote pad
+ * @flags: Link flags
+ *
+ * Return 0 on success
+ */
+static int vfe_link_setup(struct media_entity *entity,
+			  const struct media_pad *local,
+			  const struct media_pad *remote, u32 flags)
+{
+	if (flags & MEDIA_LNK_FL_ENABLED)
+		if (media_pad_remote_pad_first(local))
+			return -EBUSY;
+
+	return 0;
+}
+
+static int vfe_subscribe_event(struct v4l2_subdev *sd, struct v4l2_fh *fh,
+			       struct v4l2_event_subscription *sub)
+{
+	struct vfe_line *line = v4l2_get_subdevdata(sd);
+	struct vfe_device *vfe = to_vfe(line);
+
+	if (vfe->camss->res->version != CAMSS_8150 ||
+	    (vfe->res->hw_ops != &vfe_ops_170 &&
+	     vfe->res->hw_ops != &vfe_ops_175) ||
+	    sub->type != V4L2_EVENT_FRAME_SYNC || sub->id)
+		return -EINVAL;
+
+	return v4l2_event_subscribe(fh, sub, 16, NULL);
+}
+
+static const struct v4l2_subdev_core_ops vfe_core_ops = {
+	.subscribe_event = vfe_subscribe_event,
+	.unsubscribe_event = v4l2_event_subdev_unsubscribe,
+	.s_power = vfe_set_power,
+};
+
+static const struct v4l2_subdev_video_ops vfe_video_ops = {
+	.s_stream = vfe_set_stream,
+};
+
+static const struct v4l2_subdev_pad_ops vfe_pad_ops = {
+	.enum_mbus_code = vfe_enum_mbus_code,
+	.enum_frame_size = vfe_enum_frame_size,
+	.get_fmt = vfe_get_format,
+	.set_fmt = vfe_set_format,
+	.get_selection = vfe_get_selection,
+	.set_selection = vfe_set_selection,
+};
+
+static const struct v4l2_subdev_ops vfe_v4l2_ops = {
+	.core = &vfe_core_ops,
+	.video = &vfe_video_ops,
+	.pad = &vfe_pad_ops,
+};
+
+static const struct v4l2_subdev_internal_ops vfe_v4l2_internal_ops = {
+	.open = vfe_init_formats,
+};
+
+/*
+ * vfe_pad_enable_streams - Enable one or more streams on the source pad
+ * @sd: VFE V4L2 subdevice
+ * @state: V4L2 subdevice state
+ * @pad: Pad number
+ * @streams_mask: Bitmask of streams to enable
+ *
+ * VFE lines are inherently single-consumer (vfe_link_setup() enforces one
+ * link per pad, and each line exposes only the implicit stream 0 of a
+ * non-streams subdev), so no local refcount is needed here.
+ *
+ * Return 0 on success or a negative error code otherwise
+ */
+static int vfe_pad_enable_streams(struct v4l2_subdev *sd, struct v4l2_subdev_state *state,
+				  u32 pad, u64 streams_mask)
+{
+	struct vfe_line *line = v4l2_get_subdevdata(sd);
+	struct vfe_device *vfe = to_vfe(line);
+	struct media_pad *sink_pad = &line->pads[MSM_VFE_PAD_SINK];
+	struct media_pad *remote_pad = media_pad_remote_pad_first(sink_pad);
+	int ret;
+
+	if (pad != MSM_VFE_PAD_SRC || streams_mask != BIT_ULL(0))
+		return -EINVAL;
+	line->output[0].state = VFE_OUTPUT_RESERVED;
+	ret = vfe->res->hw_ops->vfe_enable(line);
+	if (ret)
+		return ret;
+
+	if (remote_pad) {
+		ret = v4l2_subdev_enable_streams(media_entity_to_v4l2_subdev(remote_pad->entity),
+						 remote_pad->index, BIT_ULL(0));
+		if (ret) {
+			vfe->res->hw_ops->vfe_disable(line);
+			return ret;
+		}
+	}
+
+	return 0;
+}
+
+/*
+ * vfe_pad_disable_streams - Disable one or more streams on the source pad
+ * @sd: VFE V4L2 subdevice
+ * @state: V4L2 subdevice state
+ * @pad: Pad number
+ * @streams_mask: Bitmask of streams to disable
+ *
+ * Local and remote teardown are both attempted unconditionally on a
+ * best-effort basis, matching the convention used by other streams-API
+ * drivers (e.g. dw-mipi-csi2rx, ds90ub960, cdns-csi2rx): a failure on
+ * either side is logged and does not skip the other side's teardown, since
+ * there is no way to roll back a partially disabled pipeline. If the local
+ * disable also failed, its error takes precedence in the return value.
+ *
+ * Return 0 on success or a negative error code otherwise
+ */
+static int vfe_pad_disable_streams(struct v4l2_subdev *sd, struct v4l2_subdev_state *state,
+				   u32 pad, u64 streams_mask)
+{
+	struct vfe_line *line = v4l2_get_subdevdata(sd);
+	struct vfe_device *vfe = to_vfe(line);
+	struct media_pad *sink_pad = &line->pads[MSM_VFE_PAD_SINK];
+	struct media_pad *remote_pad = media_pad_remote_pad_first(sink_pad);
+	int ret;
+
+	ret = 0;
+
+	if (remote_pad) {
+		struct v4l2_subdev *remote_sd = media_entity_to_v4l2_subdev(remote_pad->entity);
+		int remote_ret;
+
+		remote_ret = v4l2_subdev_disable_streams(remote_sd, remote_pad->index, BIT_ULL(0));
+		if (remote_ret) {
+			dev_err(vfe->camss->dev,
+				"Failed to disable stream on remote pad: %d\n", remote_ret);
+			if (!ret)
+				ret = remote_ret;
+		}
+	}
+
+	/* Let CSID finish the current frame before stopping/recycling its DMA. */
+	{
+		int local_ret = vfe->res->hw_ops->vfe_disable(line);
+
+		if (local_ret)
+			ret = local_ret;
+	}
+	return ret;
+}
+
+static const struct v4l2_subdev_pad_ops vfe_streams_pad_ops = {
+	.enum_mbus_code = vfe_enum_mbus_code,
+	.enum_frame_size = vfe_enum_frame_size,
+	.get_fmt = vfe_get_format,
+	.set_fmt = vfe_set_format,
+	.get_selection = vfe_get_selection,
+	.set_selection = vfe_set_selection,
+	.enable_streams = vfe_pad_enable_streams,
+	.disable_streams = vfe_pad_disable_streams,
+};
+
+static const struct v4l2_subdev_ops vfe_streams_v4l2_ops = {
+	.core = &vfe_core_ops,
+	.pad = &vfe_streams_pad_ops,
+};
+
+static const struct media_entity_operations vfe_media_ops = {
+	.link_setup = vfe_link_setup,
+	.link_validate = v4l2_subdev_link_validate,
+};
+
+static int vfe_bpl_align_rdi(struct vfe_device *vfe)
+{
+	int ret = 8;
+
+	switch (vfe->camss->res->version) {
+	case CAMSS_6150:
+	case CAMSS_6350:
+	case CAMSS_7280:
+	case CAMSS_8250:
+	case CAMSS_8280XP:
+	case CAMSS_8300:
+	case CAMSS_845:
+	case CAMSS_8150:
+	case CAMSS_8550:
+	case CAMSS_8650:
+	case CAMSS_8775P:
+	case CAMSS_X1E80100:
+		ret = 16;
+		break;
+	default:
+		break;
+	}
+
+	return ret;
+}
+
+/*
+ * vfe_pix_line_based - Select line-based mode for the pixel path's video node
+ * @vfe: VFE device
+ *
+ * A line-based video node caps its buffer at CAMSS_FRAME_MAX_HEIGHT_PIX lines,
+ * counting every plane's lines together. That fits the VFE 4.x and TFE pixel
+ * outputs. The SM8150 and SM8650 IFEs write luma and chroma through separate write
+ * masters, each programmed with its own height, so the cap does not apply.
+ *
+ * Return true if the pixel path's video node is line based
+ */
+static bool vfe_pix_line_based(struct vfe_device *vfe)
+{
+	switch (vfe->camss->res->version) {
+	case CAMSS_8150:
+	case CAMSS_8650:
+		return false;
+	default:
+		return true;
+	}
+}
+
+static int vfe_bpl_align_pix(struct vfe_device *vfe)
+{
+	int ret = 16;
+
+	switch (vfe->camss->res->version) {
+	case CAMSS_2290:
+		/* The alignment/bpl depends solely on the pixel format and is
+		 * computed dynamically in camss_format_get_bpl_alignment().
+		 */
+		ret = 0;
+		break;
+	default:
+		break;
+	}
+
+	return ret;
+}
+
+/*
+ * vfe_register_meta_nodes - Register the metadata nodes of a pixel line
+ * @vfe: VFE device
+ * @line: VFE line
+ * @v4l2_dev: V4L2 device
+ *
+ * A line whose descriptor declares a statistics output gets a metadata
+ * capture node, msm_vfeN_stats, linked from its statistics pad. One that
+ * declares a parameters output, on a VFE able to apply parameters, gets a
+ * metadata output node, msm_vfeN_params, linked to its parameters pad.
+ *
+ * Return 0 on success or a negative error code otherwise
+ */
+static int vfe_register_meta_nodes(struct vfe_device *vfe,
+				   struct vfe_line *line,
+				   struct v4l2_device *v4l2_dev)
+{
+	struct device *dev = vfe->camss->dev;
+	unsigned int o;
+	int ret;
+
+	for (o = 1; o < line->num_outputs; o++) {
+		struct vfe_output *output = &line->output[o];
+		struct camss_video *video = &output->video_out;
+		const char *suffix;
+		char name[32];
+
+		if (output->pad == MSM_VFE_PAD_SRC_STATS && output->wm_num) {
+			/* Backends may declare statistics before allocating their DMA. */
+			if (!output->dma_vaddr) {
+				ret = vfe_alloc_stats(vfe, output);
+				if (ret)
+					return ret;
+			}
+			video->type = V4L2_BUF_TYPE_META_CAPTURE;
+			video->active_fmt.fmt.meta.dataformat =
+				V4L2_META_FMT_QCOM_ISP_STATS;
+			video->active_fmt.fmt.meta.buffersize =
+				v4l2_isp_buffer_size(output->stats_payload_size);
+			suffix = "stats";
+		} else if (output->pad == MSM_VFE_PAD_SINK_PARAMS &&
+			   vfe->res->hw_ops->vfe_params_apply) {
+			video->type = V4L2_BUF_TYPE_META_OUTPUT;
+			video->active_fmt.fmt.meta.dataformat =
+				V4L2_META_FMT_QCOM_ISP_PARAMS;
+			video->active_fmt.fmt.meta.buffersize =
+				v4l2_isp_buffer_size(vfe->res->hw_ops->params_max_payload ?:
+					     CAMSS_PARAMS_IFE_MAX_PAYLOAD);
+			suffix = "params";
+		} else {
+			continue;
+		}
+
+		video->ops = &vfe->video_ops;
+
+		snprintf(name, ARRAY_SIZE(name), "%s%d_%s",
+			 MSM_VFE_NAME, vfe->id, suffix);
+		ret = msm_video_register(video, v4l2_dev, name);
+		if (ret < 0) {
+			dev_err(dev, "Failed to register %s node: %d\n",
+				suffix, ret);
+			return ret;
+		}
+
+		if (video->type == V4L2_BUF_TYPE_META_OUTPUT)
+			ret = media_create_pad_link(&video->vdev.entity, 0,
+						    &line->subdev.entity,
+						    output->pad,
+						    MEDIA_LNK_FL_IMMUTABLE |
+						    MEDIA_LNK_FL_ENABLED);
+		else
+			ret = media_create_pad_link(&line->subdev.entity,
+						    output->pad,
+						    &video->vdev.entity, 0,
+						    MEDIA_LNK_FL_IMMUTABLE |
+						    MEDIA_LNK_FL_ENABLED);
+		if (ret < 0) {
+			dev_err(dev, "Failed to link %s node: %d\n", suffix,
+				ret);
+			msm_video_unregister(video);
+			return ret;
+		}
+	}
+
+	return 0;
+}
+
+static void vfe_unregister_meta_nodes(struct vfe_line *line)
+{
+	unsigned int o;
+
+	for (o = 1; o < line->num_outputs; o++) {
+		struct camss_video *video = &line->output[o].video_out;
+
+		if (video_is_registered(&video->vdev))
+			msm_video_unregister(video);
+	}
+}
+
+/*
+ * msm_vfe_register_entities - Register subdev node for VFE module
+ * @vfe: VFE device
+ * @v4l2_dev: V4L2 device
+ *
+ * Initialize and register a subdev node for the VFE module. Then
+ * call msm_video_register() to register the video device node which
+ * will be connected to this subdev node. Then actually create the
+ * media link between them.
+ *
+ * Return 0 on success or a negative error code otherwise
+ */
+int msm_vfe_register_entities(struct vfe_device *vfe,
+			      struct v4l2_device *v4l2_dev)
+{
+	struct device *dev = vfe->camss->dev;
+	struct v4l2_subdev *sd;
+	struct media_pad *pads;
+	struct camss_video *video_out;
+	int ret;
+	int i;
+
+	for (i = 0; i < vfe->res->line_num; i++) {
+		char name[32];
+
+		sd = &vfe->line[i].subdev;
+		pads = vfe->line[i].pads;
+		video_out = &vfe->line[i].output[0].video_out;
+
+		v4l2_subdev_init(sd, vfe->camss->res->streams_enable
+				 ? &vfe_streams_v4l2_ops : &vfe_v4l2_ops);
+		sd->internal_ops = &vfe_v4l2_internal_ops;
+		sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
+		if (vfe->camss->res->version == CAMSS_8150 &&
+		    (vfe->res->hw_ops == &vfe_ops_170 ||
+		     vfe->res->hw_ops == &vfe_ops_175))
+			sd->flags |= V4L2_SUBDEV_FL_HAS_EVENTS;
+		if (vfe->line[i].is_pix)
+			snprintf(sd->name, ARRAY_SIZE(sd->name), "%s%d_%s",
+				 MSM_VFE_NAME, vfe->id, "pix");
+		else
+			snprintf(sd->name, ARRAY_SIZE(sd->name), "%s%d_%s%d",
+				 MSM_VFE_NAME, vfe->id, "rdi", i);
+
+		v4l2_set_subdevdata(sd, &vfe->line[i]);
+
+		ret = vfe_init_formats(sd, NULL);
+		if (ret < 0) {
+			dev_err(dev, "Failed to init format: %d\n", ret);
+			goto error_init;
+		}
+
+		pads[MSM_VFE_PAD_SINK].flags = MEDIA_PAD_FL_SINK;
+		pads[MSM_VFE_PAD_SRC].flags = MEDIA_PAD_FL_SOURCE;
+		if (vfe->line[i].num_pads == MSM_VFE_PAD_NUM_PIX) {
+			pads[MSM_VFE_PAD_SRC_DS4].flags = MEDIA_PAD_FL_SOURCE;
+			pads[MSM_VFE_PAD_SRC_DS16].flags = MEDIA_PAD_FL_SOURCE;
+			pads[MSM_VFE_PAD_SRC_STATS].flags = MEDIA_PAD_FL_SOURCE;
+			pads[MSM_VFE_PAD_SINK_PARAMS].flags = MEDIA_PAD_FL_SINK;
+		}
+
+		sd->entity.function = MEDIA_ENT_F_PROC_VIDEO_PIXEL_FORMATTER;
+		sd->entity.ops = &vfe_media_ops;
+		ret = media_entity_pads_init(&sd->entity, vfe->line[i].num_pads,
+					     pads);
+		if (ret < 0) {
+			dev_err(dev, "Failed to init media entity: %d\n", ret);
+			goto error_init;
+		}
+
+		if (vfe->camss->res->streams_enable) {
+			ret = v4l2_subdev_init_finalize(sd);
+			if (ret) {
+				dev_err(dev, "Failed to finalize subdev: %d\n", ret);
+				goto error_reg_subdev;
+			}
+		}
+
+		ret = v4l2_device_register_subdev(v4l2_dev, sd);
+		if (ret < 0) {
+			dev_err(dev, "Failed to register subdev: %d\n", ret);
+			goto error_subdev_cleanup;
+		}
+
+		video_out->ops = &vfe->video_ops;
+		if (vfe->line[i].is_pix) {
+			video_out->bpl_alignment = vfe_bpl_align_pix(vfe);
+			video_out->line_based = vfe_pix_line_based(vfe);
+		} else {
+			video_out->bpl_alignment = vfe_bpl_align_rdi(vfe);
+			video_out->line_based = 0;
+		}
+
+		video_out->nformats = vfe->line[i].nformats;
+		video_out->formats = vfe->line[i].formats;
+		if (vfe->line[i].is_pix && vfe->res->formats_pix_out) {
+			video_out->nformats = vfe->res->formats_pix_out->nformats;
+			video_out->formats = vfe->res->formats_pix_out->formats;
+			video_out->frame_sizes = vfe->res->pix_frame_sizes;
+		}
+
+		snprintf(name, ARRAY_SIZE(name), "%s%d_%s%d",
+			 MSM_VFE_NAME, vfe->id, "video", i);
+		ret = msm_video_register(video_out, v4l2_dev, name);
+		if (ret < 0) {
+			dev_err(dev, "Failed to register video node: %d\n",
+				ret);
+			goto error_reg_video;
+		}
+
+		ret = media_create_pad_link(
+				&sd->entity, MSM_VFE_PAD_SRC,
+				&video_out->vdev.entity, 0,
+				MEDIA_LNK_FL_IMMUTABLE | MEDIA_LNK_FL_ENABLED);
+		if (ret < 0) {
+			dev_err(dev, "Failed to link %s->%s entities: %d\n",
+				sd->entity.name, video_out->vdev.entity.name,
+				ret);
+			goto error_link;
+		}
+
+		ret = vfe_register_meta_nodes(vfe, &vfe->line[i], v4l2_dev);
+		if (ret < 0)
+			goto error_link;
+	}
+
+	return 0;
+
+error_link:
+	/* Registration may already have published an earlier metadata node. */
+	vfe_unregister_meta_nodes(&vfe->line[i]);
+	msm_video_unregister(video_out);
+
+error_reg_video:
+	v4l2_device_unregister_subdev(sd);
+
+error_subdev_cleanup:
+	if (vfe->camss->res->streams_enable)
+		v4l2_subdev_cleanup(sd);
+
+error_reg_subdev:
+	media_entity_cleanup(&sd->entity);
+
+error_init:
+	for (i--; i >= 0; i--) {
+		sd = &vfe->line[i].subdev;
+		video_out = &vfe->line[i].output[0].video_out;
+
+		vfe_unregister_meta_nodes(&vfe->line[i]);
+		msm_video_unregister(video_out);
+		v4l2_device_unregister_subdev(sd);
+		if (vfe->camss->res->streams_enable)
+			v4l2_subdev_cleanup(sd);
+		media_entity_cleanup(&sd->entity);
+	}
+
+	return ret;
+}
+
+/*
+ * msm_vfe_unregister_entities - Unregister VFE module subdev node
+ * @vfe: VFE device
+ */
+void msm_vfe_unregister_entities(struct vfe_device *vfe)
+{
+	int i;
+
+	mutex_destroy(&vfe->power_lock);
+	mutex_destroy(&vfe->stream_lock);
+
+	for (i = 0; i < vfe->res->line_num; i++) {
+		struct v4l2_subdev *sd = &vfe->line[i].subdev;
+		struct camss_video *video_out = &vfe->line[i].output[0].video_out;
+
+		vfe_unregister_meta_nodes(&vfe->line[i]);
+		msm_video_unregister(video_out);
+		v4l2_device_unregister_subdev(sd);
+		if (vfe->camss->res->streams_enable)
+			v4l2_subdev_cleanup(sd);
+		media_entity_cleanup(&sd->entity);
+	}
+}
+
+bool vfe_is_lite(struct vfe_device *vfe)
+{
+	return vfe->camss->res->vfe_res[vfe->id].vfe.is_lite;
+}
+
+void vfe_add_output(struct vfe_output *output, u8 pad, u8 comp_group,
+		    unsigned int wm_num, const u8 *bus_client)
+{
+	unsigned int i;
+
+	output->pad = pad;
+	output->comp_group = comp_group;
+	output->wm_num = wm_num;
+	for (i = 0; i < wm_num; i++) {
+		output->wm[i].bus_client = bus_client[i];
+		output->wm[i].plane = i;
+	}
+}
+
+void vfe_add_rdi(struct vfe_output *output, u8 bus_client, u8 comp_group)
+{
+	vfe_add_output(output, MSM_VFE_PAD_SRC, comp_group, 1, &bus_client);
+}
+
+void vfe_add_yuv(struct vfe_output *output, u8 bus_client_y,
+		 u8 bus_client_c, u8 comp_group)
+{
+	const u8 wm[] = { bus_client_y, bus_client_c };
+
+	vfe_add_output(output, MSM_VFE_PAD_SRC, comp_group, ARRAY_SIZE(wm), wm);
+}
+
+void vfe_add_ds(struct vfe_output *output, u8 pad, u8 bus_client,
+	       u8 comp_group)
+{
+	vfe_add_output(output, pad, comp_group, 1, &bus_client);
+}
+
+void vfe_add_stats(struct vfe_output *output, u8 bus_client, u8 comp_group)
+{
+	vfe_add_output(output, MSM_VFE_PAD_SRC_STATS, comp_group, 1, &bus_client);
+}
+
+void vfe_add_params(struct vfe_output *output, u8 comp_group)
+{
+	vfe_add_output(output, MSM_VFE_PAD_SINK_PARAMS, comp_group, 0, NULL);
+}
+
+void vfe_set_pix(struct vfe_line *line, int num_outputs)
+{
+	line->num_pads = MSM_VFE_PAD_NUM_PIX;
+	line->num_outputs = num_outputs;
+	line->is_pix = true;
+}

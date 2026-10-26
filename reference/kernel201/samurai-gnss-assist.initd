@@ -1,0 +1,18 @@
+#!/sbin/openrc-run
+description="Refresh synchronized GNSS time and expired global assistance for active GPS"
+command=/usr/sbin/samurai-gnss-assist
+command_args="--watch"
+command_background=yes
+pidfile=/run/samurai-gnss-assist.pid
+retry="TERM/420/KILL/5"
+output_log=/var/lib/samurai/gnss-assist/watch-stdout-private.log
+error_log=/var/lib/samurai/gnss-assist/watch-stderr-private.log
+
+depend() {
+    need dbus
+    after networkmanager chronyd
+}
+
+start_pre() {
+    checkpath -d -m 0700 -o root:root /var/lib/samurai/gnss-assist
+}

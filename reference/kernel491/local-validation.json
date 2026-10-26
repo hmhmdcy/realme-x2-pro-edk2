@@ -1,0 +1,354 @@
+{
+  "stage": 491,
+  "passed": true,
+  "scope": "local owned Python children and fixture-only transaction/authorization checks",
+  "device_or_sdk_accessed": false,
+  "ssh_usb_pm_accessed": false,
+  "actual_apk_or_services_executed": false,
+  "target_default_probe_executed": false,
+  "private_attempt": "transaction-001",
+  "source_sha256": {
+    "owner-gate.py": "21effd0fce4977964ca2b1526d4a557e8297ad0f797cbc7566fb41369016e9dd",
+    "runtime-common.py": "3fadc15339113a2fac7337c3ba04746b855e592f94dc741da6551ab0aa6fafd0",
+    "worker-body.py": "ab3114c19acb78e894d3728f996bcf6234f314d946aee725f223d6b11f60e8e3"
+  },
+  "static_review": {
+    "owner-gate.py": {
+      "import_has_no_action_statements": true
+    },
+    "runtime-common.py": {
+      "import_has_no_action_statements": true
+    },
+    "worker-body.py": {
+      "import_has_no_action_statements": true
+    },
+    "transaction_forward_then_rollback_only": true,
+    "no_module_loader_commands": true,
+    "no_profile_atomic_writer": true,
+    "no_existing_repository_deletion": true,
+    "atomic_restore_only_world_and_original_repository_files": true,
+    "raw_database_used_as_read_only_forensic_and_logical_comparison": true,
+    "owned_run_has_no_kill_or_terminate": true
+  },
+  "imports": {
+    "actual_imports_without_operational_io": [
+      "owner-gate.py",
+      "runtime-common.py",
+      "worker-body.py"
+    ]
+  },
+  "authorization": {
+    "valid_bound_owner_accepted": true,
+    "invalid_synthetic_owners_rejected": [
+      "unbound",
+      "wrong-window",
+      "scope-extra",
+      "scope-total-order",
+      "bootguard-unlinked",
+      "manifest-unlinked",
+      "not-released",
+      "not-fresh",
+      "handoff-expired",
+      "handoff-future",
+      "owner-expired",
+      "owner-future",
+      "scoped_owner-expired",
+      "scoped_owner-future"
+    ],
+    "actual_device_gate_executed": false
+  },
+  "real_owned_child_checks": [
+    {
+      "case": "success",
+      "spawn_count": 1,
+      "pid": 1089,
+      "exit_code": 0,
+      "same_handle_terminal": true,
+      "stdout_occurrences": 1,
+      "bookkeeping_failure_phases": [],
+      "duplicate_label_rejected_before_spawn": true
+    },
+    {
+      "case": "nonzero",
+      "spawn_count": 1,
+      "pid": 1094,
+      "exit_code": 7,
+      "same_handle_terminal": true,
+      "stdout_occurrences": 1,
+      "bookkeeping_failure_phases": [],
+      "duplicate_label_rejected_before_spawn": false
+    },
+    {
+      "case": "timeout",
+      "spawn_count": 1,
+      "pid": 1095,
+      "exit_code": 0,
+      "same_handle_terminal": true,
+      "stdout_occurrences": 1,
+      "bookkeeping_failure_phases": [],
+      "duplicate_label_rejected_before_spawn": false
+    },
+    {
+      "case": "save-error-live",
+      "spawn_count": 1,
+      "pid": 1100,
+      "exit_code": 0,
+      "same_handle_terminal": true,
+      "stdout_occurrences": 1,
+      "bookkeeping_failure_phases": [
+        "owned-child"
+      ],
+      "duplicate_label_rejected_before_spawn": false
+    },
+    {
+      "case": "timeout-save-error-live",
+      "spawn_count": 1,
+      "pid": 1105,
+      "exit_code": 0,
+      "same_handle_terminal": true,
+      "stdout_occurrences": 1,
+      "bookkeeping_failure_phases": [
+        "awaiting-same-owned-child"
+      ],
+      "duplicate_label_rejected_before_spawn": false
+    },
+    {
+      "case": "identity-error-live",
+      "spawn_count": 1,
+      "pid": 1106,
+      "exit_code": 0,
+      "same_handle_terminal": true,
+      "stdout_occurrences": 1,
+      "bookkeeping_failure_phases": [],
+      "duplicate_label_rejected_before_spawn": false
+    },
+    {
+      "case": "identity-disappeared",
+      "spawn_count": 1,
+      "pid": 1107,
+      "exit_code": 0,
+      "same_handle_terminal": true,
+      "stdout_occurrences": 1,
+      "bookkeeping_failure_phases": [],
+      "duplicate_label_rejected_before_spawn": false
+    }
+  ],
+  "fixture_transaction_checks": [
+    {
+      "case": "success",
+      "passed_contract": true,
+      "fixture_transaction_passed": true,
+      "commands": [
+        {
+          "label": "forward-first-packages",
+          "kind": "forward"
+        },
+        {
+          "label": "rollback-exact-packages",
+          "kind": "rollback"
+        }
+      ],
+      "events": [
+        "prepare",
+        "forward-first-quiescent",
+        "probe-forward-first",
+        "rollback-exact-quiescent",
+        "services-final"
+      ],
+      "original_recovered": true,
+      "final_baseline": "original-r33-r28",
+      "native_logical_db_not_raw_restore": true,
+      "fixture_state_sha256": "d86fde7fef552647c4c903fb811b3f92e8dce5b5dae580a8e514abb8fd8b9b51"
+    },
+    {
+      "case": "forward-failure",
+      "passed_contract": true,
+      "fixture_transaction_passed": false,
+      "commands": [
+        {
+          "label": "forward-first-packages",
+          "kind": "forward"
+        },
+        {
+          "label": "recovery-packages",
+          "kind": "rollback"
+        }
+      ],
+      "events": [
+        "prepare",
+        "forward-first-quiescent",
+        "recovery-quiescent",
+        "services-recovery"
+      ],
+      "original_recovered": true,
+      "final_baseline": "original-r33-r28",
+      "native_logical_db_not_raw_restore": true,
+      "fixture_state_sha256": "a246528cee5e43ceeef6991473c7ac65e417edbe64249e6c263747f8a6b239ca"
+    },
+    {
+      "case": "callback-failure",
+      "passed_contract": true,
+      "fixture_transaction_passed": false,
+      "commands": [
+        {
+          "label": "forward-first-packages",
+          "kind": "forward"
+        },
+        {
+          "label": "recovery-packages",
+          "kind": "rollback"
+        }
+      ],
+      "events": [
+        "prepare",
+        "forward-first-quiescent",
+        "probe-forward-first",
+        "recovery-quiescent",
+        "services-recovery"
+      ],
+      "original_recovered": true,
+      "final_baseline": "original-r33-r28",
+      "native_logical_db_not_raw_restore": true,
+      "fixture_state_sha256": "68dc16df09140251c67b17424ac2522afdc5e5d195a8f38db99323d904fb7c84"
+    },
+    {
+      "case": "rollback-failure",
+      "passed_contract": true,
+      "fixture_transaction_passed": false,
+      "commands": [
+        {
+          "label": "forward-first-packages",
+          "kind": "forward"
+        },
+        {
+          "label": "rollback-exact-packages",
+          "kind": "rollback"
+        },
+        {
+          "label": "recovery-packages",
+          "kind": "rollback"
+        }
+      ],
+      "events": [
+        "prepare",
+        "forward-first-quiescent",
+        "probe-forward-first",
+        "rollback-exact-quiescent",
+        "recovery-quiescent",
+        "services-recovery"
+      ],
+      "original_recovered": true,
+      "final_baseline": "original-r33-r28",
+      "native_logical_db_not_raw_restore": true,
+      "fixture_state_sha256": "5294cfbf52508e70b672840b49a8f45a0b91b9f95edb9ff163499ecebfa50909"
+    },
+    {
+      "case": "prove-failure",
+      "passed_contract": true,
+      "fixture_transaction_passed": false,
+      "commands": [
+        {
+          "label": "forward-first-packages",
+          "kind": "forward"
+        },
+        {
+          "label": "rollback-exact-packages",
+          "kind": "rollback"
+        }
+      ],
+      "events": [
+        "prepare",
+        "forward-first-quiescent",
+        "probe-forward-first",
+        "rollback-exact-quiescent",
+        "recovery-quiescent",
+        "services-recovery"
+      ],
+      "original_recovered": true,
+      "final_baseline": "original-r33-r28",
+      "native_logical_db_not_raw_restore": true,
+      "fixture_state_sha256": "a02daf0063bf8e1bf58fb9a899b7366e7779c8bb745c3754cddf9694402d377c"
+    },
+    {
+      "case": "services-failure",
+      "passed_contract": true,
+      "fixture_transaction_passed": false,
+      "commands": [
+        {
+          "label": "forward-first-packages",
+          "kind": "forward"
+        },
+        {
+          "label": "rollback-exact-packages",
+          "kind": "rollback"
+        }
+      ],
+      "events": [
+        "prepare",
+        "forward-first-quiescent",
+        "probe-forward-first",
+        "rollback-exact-quiescent",
+        "services-final",
+        "recovery-quiescent",
+        "services-recovery"
+      ],
+      "original_recovered": true,
+      "final_baseline": "original-r33-r28",
+      "native_logical_db_not_raw_restore": true,
+      "fixture_state_sha256": "17643ae21d941feda4f2b9d1f7b2f32db2fe84c0b31797d970f5ed6e5c0cae07"
+    },
+    {
+      "case": "services-persistent-failure",
+      "passed_contract": true,
+      "fixture_transaction_passed": false,
+      "commands": [
+        {
+          "label": "forward-first-packages",
+          "kind": "forward"
+        },
+        {
+          "label": "rollback-exact-packages",
+          "kind": "rollback"
+        }
+      ],
+      "events": [
+        "prepare",
+        "forward-first-quiescent",
+        "probe-forward-first",
+        "rollback-exact-quiescent",
+        "services-final",
+        "recovery-quiescent",
+        "services-recovery"
+      ],
+      "original_recovered": false,
+      "final_baseline": "unverified",
+      "native_logical_db_not_raw_restore": false,
+      "fixture_state_sha256": "d6a29816fb471a3e9ac71aca24092f70d4099f7599a6f13a76ec1caa6cfc0097"
+    },
+    {
+      "case": "unknown-active-child",
+      "passed_contract": true,
+      "fixture_transaction_passed": false,
+      "commands": [
+        {
+          "label": "forward-first-packages",
+          "kind": "forward"
+        }
+      ],
+      "events": [
+        "prepare",
+        "forward-first-quiescent"
+      ],
+      "original_recovered": false,
+      "final_baseline": "unverified",
+      "native_logical_db_not_raw_restore": false,
+      "fixture_state_sha256": "2fd94e1a2884ce34976ea2a7a0fad73cfcb8734e1ef7065d58d6908b50444a6d"
+    }
+  ],
+  "tool_sha256": "e841a965f47d4b6568a60cdf1dadb69336ee8763942205c372b847d82f6faae8",
+  "private_receipt_sha256": "911fe687f3dbc4045cac5be01fdfeef2c7eb30f6bc020e271a11c7912435b5ae",
+  "local_execution_user_as_invoked": "cy122",
+  "target_root_only_operations_tested": false,
+  "guard_observations_private_sha256": "f1bb22d814fddc8c91b95e11a29ed23aece29fa713ba4bff4c139e88ad61a675",
+  "current_lock_owner_mode_observed": false
+}

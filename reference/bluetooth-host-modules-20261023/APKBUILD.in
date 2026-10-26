@@ -1,0 +1,22 @@
+# Render only after two real, successful k363 module artifacts are locked.
+maintainer="Realme X2 Pro Linux port"
+pkgname=samurai-bluetooth-host-k363
+pkgver=0.1.0
+pkgrel=0
+pkgdesc="Realme X2 Pro k363 BNEP and UHID host modules"
+url="https://github.com/hmhmdcy/pmaports"
+arch="aarch64"
+license="GPL-2.0-only"
+options="!check !strip"
+depends="bluez kmod openrc"
+source="bnep.ko uhid.ko 60-samurai-bluetooth-host.conf"
+package() {
+    install -Dm644 "$srcdir"/bnep.ko "$pkgdir"/usr/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/kernel/net/bluetooth/bnep/bnep.ko
+    install -Dm644 "$srcdir"/uhid.ko "$pkgdir"/usr/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/kernel/drivers/hid/uhid.ko
+    install -Dm644 "$srcdir"/60-samurai-bluetooth-host.conf "$pkgdir"/usr/lib/modules-load.d/60-samurai-bluetooth-host.conf
+}
+sha512sums="
+@BNEP_SHA512@  bnep.ko
+@UHID_SHA512@  uhid.ko
+@CONF_SHA512@  60-samurai-bluetooth-host.conf
+"

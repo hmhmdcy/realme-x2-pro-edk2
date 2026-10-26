@@ -1,0 +1,31 @@
+From: hmhmdcy <hmhmdcy@users.noreply.github.com>
+Subject: [PATCH] arm64: dts: qcom: samurai: add the stock BQ28Z610 gauge
+
+The saved Android tree identifies a BQ28Z610 at 0x55 on QUP15. Enable
+that controller at its stock 100kHz rate and use the existing mainline
+gauge driver for battery measurements. Do not add charging controllers
+or battery programming data. This does not implement charging policy.
+
+Signed-off-by: hmhmdcy <hmhmdcy@users.noreply.github.com>
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8150-samurai.dts b/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
+--- a/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
++++ b/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
+@@ -349,6 +349,17 @@
+ 	status = "okay";
+ };
+ 
++/* Stock BQ28Z610 at QUP15: standard read-only battery monitoring. */
++&i2c15 {
++	clock-frequency = <100000>;
++	status = "okay";
++
++	fuel-gauge@55 {
++		compatible = "ti,bq28z610";
++		reg = <0x55>;
++	};
++};
++
+ &i2c17 {
+ 	status = "okay";
+ 

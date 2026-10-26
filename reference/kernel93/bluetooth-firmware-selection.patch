@@ -1,0 +1,11 @@
+--- a/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
++++ b/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
+@@ -544,6 +544,8 @@
+     pinctrl-0 = <&samurai_bt_uart_default>;
+     bluetooth {
+         compatible = "qcom,wcn3990-bt";
++        /* Same-handset revision-21 files; ROM 0x1001 derives a missing 01 name. */
++        firmware-name = "crnv21.bin", "crbtfw21.tlv";
+         /* Logic rail shares the existing WCN supply; no voltage is changed. */
+         vddio-supply = <&vreg_l1a_0p75>;
+         vddxo-supply = <&vreg_l7a_1p8>;

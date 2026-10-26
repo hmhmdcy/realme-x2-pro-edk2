@@ -1,0 +1,426 @@
+--- a/include/libcamera/ipa/camss.mojom
++++ b/include/libcamera/ipa/camss.mojom
+@@ -25,6 +25,11 @@
+ 	double red;
+ 	double blue;
+ };
++struct LensMove {
++ bool valid;
++ uint32 serial;
++ int32 position;
++};
+ struct Statistics {
+ 	int32 status;
+ 	uint64 population;
+@@ -41,7 +46,7 @@
+ 
+ interface IPACamssInterface {
+ 	init(libcamera.IPASettings settings, libcamera.IPACameraSensorInfo sensorInfo,
+-	     libcamera.ControlInfoMap sensorControls) => (int32 ret, libcamera.ControlInfoMap ipaControls);
++	     libcamera.ControlInfoMap sensorControls, libcamera.ControlInfoMap lensControls, string lensModel) => (int32 ret, libcamera.ControlInfoMap ipaControls);
+ 	configure(libcamera.IPACameraSensorInfo sensorInfo, libcamera.Size input,
+ 		  libcamera.ControlInfoMap sensorControls, string profilePath)
+ 		=> (int32 ret, libcamera.ControlInfoMap ipaControls, SensorControlConfiguration sensorConfiguration);
+@@ -51,6 +56,10 @@
+ 	convertControls(uint64 epoch, libcamera.ControlList controls) => (int32 ret, libcamera.ControlList sensorControls);
+ 	applyIspControls(uint64 epoch, libcamera.ControlList controls) => (int32 ret, AutoIspUpdate update);
+ 	frameMetadata(uint64 epoch, uint32 sof, SensorContext sensorContext) => (int32 ret, libcamera.ControlList metadata);
++ processFocus(uint64 epoch, uint32 sof, libcamera.ControlList controls, bool valid, int32 score,
++              uint64 capturedMonotonic, SensorContext sensorContext)
++              => (int32 ret, libcamera.ControlList metadata, LensMove move);
++ [async] lensPositionApplied(uint64 epoch, uint32 serial, int32 status, uint64 monotonic);
+ 	stop();
+ 	prepareParameters(uint64 epoch, uint32 bufferId, uint32 revision) => (int32 ret, uint32 bytesused);
+ 	[async] parametersApplied(uint64 epoch, uint32 firstSof, uint32 revision);
+--- a/src/ipa/camss-vfe/camss.cpp
++++ b/src/ipa/camss-vfe/camss.cpp
+@@ -10,6 +10,8 @@
+ #include <map>
+ #include <optional>
+ #include <unistd.h>
++#include <time.h>
++#include "../libipa/contrast_af.h"
+ 
+ #include <linux/qcom-camss-config.h>
+ #include <libcamera/base/file.h>
+@@ -32,7 +34,7 @@
+ class IPACamss final : public IPACamssInterface
+ {
+ public:
+-	int init(const IPASettings &settings, const IPACameraSensorInfo &info, const ControlInfoMap &sensorControls, ControlInfoMap *ipaControls) override;
++	int init(const IPASettings &settings, const IPACameraSensorInfo &info, const ControlInfoMap &sensorControls, const ControlInfoMap &lensControls, const std::string &lensModel, ControlInfoMap *ipaControls) override;
+ 	int configure(const IPACameraSensorInfo &sensorInfo, const Size &input, const ControlInfoMap &sensorControls, const std::string &profilePath, ControlInfoMap *ipaControls, SensorControlConfiguration *sensorConfiguration) override;
+ 	int mapBuffers(const std::vector<IPABuffer> &parameters, const std::vector<IPABuffer> &statistics) override;
+ 	void unmapBuffers(const std::vector<uint32_t> &ids) override;
+@@ -40,6 +42,9 @@
+ 	int convertControls(uint64_t epoch, const ControlList &controls, ControlList *sensorControls) override;
+ 	int applyIspControls(uint64_t epoch, const ControlList &controls, AutoIspUpdate *update) override;
+ 	int frameMetadata(uint64_t epoch, uint32_t sof, const SensorContext &sensorContext, ControlList *metadata) override;
++ int processFocus(uint64_t epoch,uint32_t sof,const ControlList &controls,bool valid,int32_t score,
++                  uint64_t captured,const SensorContext &sensorContext,ControlList *metadata,LensMove *move) override;
++ void lensPositionApplied(uint64_t epoch,uint32_t serial,int32_t status,uint64_t monotonic) override;
+ 	void stop() override;
+ 	int prepareParameters(uint64_t epoch, uint32_t id, uint32_t revision, uint32_t *bytesused) override;
+ 	void parametersApplied(uint64_t epoch, uint32_t firstSof, uint32_t revision) override;
+@@ -47,6 +52,13 @@
+ private:
+  int describeSensor(const IPACameraSensorInfo &info, const ControlInfoMap &controls, ControlInfoMap *ipaControls);
+  int translate(const ControlList &controls, bool startup, ControlList *sensorControls);
++ int configureAutofocus(const ValueNode &tuning,ControlInfoMap *ipaControls);
++ ipa::ContrastAf af_;
++ bool afEnabled_=false;
++ std::optional<ControlInfo> focusControl_;
++ std::string lensModel_;
++ std::optional<int32_t> initialAfTrigger_;
++ uint32_t frameLength_=0;
+  std::unique_ptr<CameraSensorHelper> helper_;
+  std::unique_ptr<HardwareAgc> agc_;
+ 	std::unique_ptr<HardwareAwb> awb_;
+@@ -108,18 +120,54 @@
+ }
+ 
+ int IPACamss::init(const IPASettings &settings, const IPACameraSensorInfo &info,
+- const ControlInfoMap &sensorControls, ControlInfoMap *ipaControls)
++ const ControlInfoMap &sensorControls,const ControlInfoMap &lensControls,const std::string &lensModel,ControlInfoMap *ipaControls)
+ {
+  if (running_) return -EBUSY;
+  model_ = settings.sensorModel;
+- if (info.model != model_ || !settings.configurationFile.empty()) return -EINVAL;
++ if (info.model != model_) return -EINVAL;
++ /* The proxy resets V4L2 ControlIds at configure(); retain values only. */
++ const auto focus=lensControls.find(V4L2_CID_FOCUS_ABSOLUTE);
++ focusControl_=focus==lensControls.end()?std::nullopt:std::optional<ControlInfo>(focus->second);
++ lensModel_=lensModel;afEnabled_=false;
+  helper_ = CameraSensorHelperFactoryBase::create(model_);
+  if (!helper_) return -ENOTSUP;
+  int ret = describeSensor(info, sensorControls, ipaControls);
+  if (ret) return ret;
+  configured_ = false;
+  agc_.reset(); awb_.reset(); autoAvailable_ = false;
++ if (!settings.configurationFile.empty()) {
++  File file(settings.configurationFile);
++  if (!file.open(File::OpenModeFlag::ReadOnly)) return file.error();
++  auto root=YamlParser::parse(file);
++  if (!root || (*root)["sensor_model"].get<std::string>("")!=model_) return -EINVAL;
++  ret=configureAutofocus((*root)["autofocus"],ipaControls);
++  if (ret) return ret;
++ }
+  LOG(IPACamss, Info) << "IPA init pid=" << getpid() << " model=" << model_;
++ return 0;
++}
++
++int IPACamss::configureAutofocus(const ValueNode &tuning,ControlInfoMap *ipaControls)
++{
++ afEnabled_=false;af_.cancel();
++ LOG(IPACamss,Debug)<<"AF configuration lens="<<lensModel_<<" tuning="<<tuning["lens"].get<std::string>("")<<" focus-control="<<focusControl_.has_value();
++ if (!tuning || lensModel_.empty() || tuning["lens"].get<std::string>("")!=lensModel_) return 0;
++ if (!focusControl_) return 0;
++ ipa::ContrastAf::Config config{
++  tuning["minimumCode"].get<int32_t>(-1),tuning["maximumCode"].get<int32_t>(-1),
++  tuning["coarseStep"].get<int32_t>(0),tuning["fineStep"].get<int32_t>(0),tuning["samples"].get<unsigned int>(3),
++  uint64_t(tuning["settleMs"].get<unsigned int>(100))*1000000,
++  uint64_t(tuning["timeoutMs"].get<unsigned int>(120000))*1000000,
++  tuning["minimumPeak"].get<int32_t>(100),tuning["peakRatio"].get<double>(1.15),tuning["verifyRatio"].get<double>(.75)};
++ if (config.minimum<focusControl_->min().get<int32_t>() || config.maximum>focusControl_->max().get<int32_t>() || !af_.configure(config)) return -EINVAL;
++ afEnabled_=true;
++ ControlInfoMap::Map map;
++ for (const auto &[id,value]:*ipaControls) map.emplace(id,value);
++ map[&controls::AfMode]=ControlInfo(int32_t(controls::AfModeAuto),int32_t(controls::AfModeAuto),int32_t(controls::AfModeAuto));
++ map[&controls::AfTrigger]=ControlInfo(int32_t(controls::AfTriggerStart),int32_t(controls::AfTriggerCancel),int32_t(controls::AfTriggerCancel));
++ map[&controls::AfState]=ControlInfo(int32_t(controls::AfStateIdle),int32_t(controls::AfStateFailed),int32_t(controls::AfStateIdle));
++ *ipaControls=ControlInfoMap(std::move(map),controls::controls);
++ LOG(IPACamss,Debug)<<"AF enabled controls="<<ipaControls->size();
+  return 0;
+ }
+ 
+@@ -137,6 +185,7 @@
+  int ret = describeSensor(info, sensorControls, ipaControls);
+  if (ret) return ret;
+  profile_ = { 0, 1.0 };
++ afEnabled_=false;af_.cancel();frameLength_=info.minFrameLength;
+  if (!profilePath.empty()) {
+   File file(profilePath);
+   if (!file.open(File::OpenModeFlag::ReadOnly)) return file.error();
+@@ -162,6 +211,8 @@
+    if (!selected) return -ENOTSUP;
+   } else if (version!=1) return -EINVAL;
+   const ValueNode &tuning=*selected;
++  ret=configureAutofocus(tuning["autofocus"].isEmpty()?(*root)["autofocus"]:tuning["autofocus"],ipaControls);
++  if (ret) return ret;
+   auto subtraction = tuning["residual_black_subtraction"].get<uint16_t>();
+   auto normalization = tuning["range_normalization"].get<double>();
+   if (!subtraction || !normalization) return -EINVAL;
+@@ -219,6 +270,13 @@
+  if (!sensorControls) return -EINVAL;
+  ControlList translated(sensorControls_);
+  for (const auto &[id, value] : controls) {
++  if (id==libcamera::controls::AfMode.id() || id==libcamera::controls::AfTrigger.id()) {
++   if (!afEnabled_) return -ENOTSUP;
++   if (value.type()!=ControlTypeInteger32 || value.isArray()) return -EINVAL;
++   if (id==libcamera::controls::AfMode.id() && value.get<int32_t>()!=libcamera::controls::AfModeAuto) return -ENOTSUP;
++   if (id==libcamera::controls::AfTrigger.id() && value.get<int32_t>()!=libcamera::controls::AfTriggerStart && value.get<int32_t>()!=libcamera::controls::AfTriggerCancel) return -ENOTSUP;
++   continue;
++  }
+   if (id == controls::ColourGains.id()) {
+    if (value.type() != ControlTypeFloat || !value.isArray() || value.numElements() != 2) return -EINVAL;
+    for (float gain : value.get<Span<const float>>())
+@@ -261,7 +319,7 @@
+  if (!running_ || epoch != epoch_) return -ESTALE;
+  ControlList sensorOnly(libcamera::controls::controls);
+  for (const auto &[id, value] : controls)
+-  if (id != libcamera::controls::ColourGains.id() && id != libcamera::controls::AwbEnable.id()) sensorOnly.set(id,value);
++  if (id != libcamera::controls::ColourGains.id() && id != libcamera::controls::AwbEnable.id() && id!=libcamera::controls::AfMode.id() && id!=libcamera::controls::AfTrigger.id()) sensorOnly.set(id,value);
+  ControlList ignored(sensorControls_);
+  int ret = translate(controls, true, &ignored);
+  if (ret) return ret;
+@@ -287,6 +345,7 @@
+  }
+  if (enabled == current.awbEnabled && red == current.sourceRed && blue == current.sourceBlue) return 0;
+  if (ispRevision_ >= UINT32_MAX-1) return -EOVERFLOW;
++ af_.cancelScan();
+  awbEnabled_ = enabled;
+  if (awb_) awb_->reset();
+  pendingWhiteBalance_ = AutoIspUpdate{ true, ++ispRevision_, red, blue };
+@@ -314,6 +373,33 @@
+  metadata->set(controls::ExposureTime,int32_t(std::lround(sensorContext.exposureLines*lineUs_)));
+  metadata->set(controls::AnalogueGain,float(helper_->gain(sensorContext.gainCode)));
+  return 0;
++}
++
++int IPACamss::processFocus(uint64_t epoch,uint32_t sof,const ControlList &controls,bool valid,int32_t score,
++                         uint64_t captured,const SensorContext &sensorContext,ControlList *metadata,LensMove *move)
++{
++ if (!metadata || !move) return -EINVAL;
++ *metadata=ControlList(libcamera::controls::controls);*move={};
++ if (!running_ || epoch!=epoch_) return -ESTALE;
++ if (!afEnabled_) return -ENOTSUP;
++ timespec clock{};uint64_t now=clock_gettime(CLOCK_MONOTONIC,&clock)?0:uint64_t(clock.tv_sec)*1000000000+clock.tv_nsec;
++ auto trigger=controls.get(libcamera::controls::AfTrigger);
++ if (initialAfTrigger_) { if (!trigger) trigger=initialAfTrigger_;initialAfTrigger_.reset(); }
++ if (trigger && *trigger==libcamera::controls::AfTriggerCancel) af_.cancelScan();
++ else if (trigger && *trigger==libcamera::controls::AfTriggerStart) af_.trigger(now);
++ const uint64_t guard=std::ceil((uint64_t(frameLength_)+sensorContext.exposureLines)*lineUs_*1000);
++ af_.process(valid && sensorContext.valid,score,captured,guard,now);
++ if (auto command=af_.takeMove(now)) *move={true,command->serial,command->position};
++ if (valid) metadata->set(libcamera::controls::FocusFoM,score);
++ metadata->set(libcamera::controls::AfMode,libcamera::controls::AfModeAuto);
++ metadata->set(libcamera::controls::AfState,int32_t(af_.state()));
++ LOG(IPACamss,Info)<<"AF frame sof="<<sof<<" captured="<<captured<<" guard="<<guard<<" now="<<now<<" valid="<<valid<<" score="<<score<<" state="<<int(af_.state());
++ return 0;
++}
++
++void IPACamss::lensPositionApplied(uint64_t epoch,uint32_t serial,int32_t status,uint64_t monotonic)
++{
++ if (running_ && epoch==epoch_) af_.applied(serial,status,monotonic);
+ }
+ 
+ int IPACamss::mapBuffers(const std::vector<IPABuffer> &parameters, const std::vector<IPABuffer> &statistics)
+@@ -385,6 +471,7 @@
+ 	if (ret)
+ 		return ret;
+  *sensorControls = initial;
++ af_.cancel();initialAfTrigger_=controls.get(libcamera::controls::AfTrigger);
+  automatic_ = automatic;
+  revision_ = 0;
+  awaiting_.reset();
+@@ -404,7 +491,7 @@
+ 
+ void IPACamss::stop()
+ {
+-	running_ = false;
++	running_ = false;af_.cancel();initialAfTrigger_.reset();
+  automatic_ = false; awaiting_.reset();
+ 	awbEnabled_ = false; pendingWhiteBalance_.reset();
+ 	preparedParameters_.clear(); parameterHistory_.clear();
+@@ -492,7 +579,7 @@
+ 	effective_ = result.parametersKnown;
+ 	metadata.set(controls::AwbEnable, result.parametersKnown && context->second.awbEnabled);
+ 	metadata.set(controls::AwbLocked, false);
+-	if (awbEnabled_ && effective_ && context->second.awbEnabled && result.rgbPresent && context == std::prev(parameterHistory_.end()) &&
++	if (af_.state()!=ipa::ContrastAf::State::Scanning && awbEnabled_ && effective_ && context->second.awbEnabled && result.rgbPresent && context == std::prev(parameterHistory_.end()) &&
+ 	    !pendingWhiteBalance_ && preparedParameters_.empty()) {
+ 		auto awb = awb_->calculate(parsed.grid, context->second.red, context->second.blue);
+ 		result.awbRegions = awb.regions;
+@@ -519,7 +606,7 @@
+   metadata.set(controls::ExposureTime, int32_t(std::lround(sensorContext.exposureLines * lineUs_)));
+   metadata.set(controls::AnalogueGain, float(helper_->gain(sensorContext.gainCode)));
+  }
+- if (automatic_ && effective_ && result.sensorControlsKnown &&
++ if (af_.state()!=ipa::ContrastAf::State::Scanning && automatic_ && effective_ && result.sensorControlsKnown &&
+      (!awaiting_ || (sensorContext.source == awaiting_->revision &&
+       sensorContext.exposureLines == awaiting_->exposureLines && sensorContext.gainCode == awaiting_->gainCode))) {
+   awaiting_.reset();
+--- a/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
++++ b/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
+@@ -5,6 +5,9 @@
+ #include <array>
+ #include <cerrno>
+ #include <chrono>
++#include <time.h>
++#include "hardware_focus.h"
++#include "libcamera/internal/camera_lens.h"
+ #include <cmath>
+ #include <cstring>
+ #include <deque>
+@@ -71,6 +74,8 @@
+ 	std::optional<int64_t> imageSequenceOffset_;
+ 	void frameStart(uint32_t sequence);
+ 	void expired();
++	bool lensActive_=false;
++	std::string lensModel_;
+ 	void finish(uint32_t sequence, bool paired);
+ 	CamssVfePipeline *handler();
+ 
+@@ -172,7 +177,10 @@
+  if (ret) return ret;
+  d->ipa_ = createIPA<ipa::camss::IPAProxyCamss>(0, 0);
+  if (!d->ipa_) return -ENOENT;
+- ret = d->ipa_->init(IPASettings{ "", d->sensor_->model() }, info, d->sensor_->controls(), &d->controlInfo_);
++ const std::string profile=d->ipa_->configurationFile(d->sensor_->model()+".yaml");
++ CameraLens *lens=d->sensor_->focusLens();
++ const ControlInfoMap lensControls=lens?lens->controls():ControlInfoMap{};
++ ret = d->ipa_->init(IPASettings{ profile, d->sensor_->model() }, info, d->sensor_->controls(), lensControls, d->lensModel_, &d->controlInfo_);
+  if (ret) { d->ipa_.reset(); return ret; }
+  d->ipa_->statsProcessed.connect(d, &CamssVfeData::statsProcessed);
+  d->ipaInitialized_ = true;
+@@ -217,6 +225,9 @@
+ 	sensor_ = CameraSensorFactoryBase::create(sensor);
+ 	if (!sensor_)
+ 		return -ENODEV;
++ if (CameraLens *lens=sensor_->focusLens()) {
++  lensModel_=lens->model();lens->close();
++ }
+ 	for (MediaLink *link : path_) {
+ 		MediaEntity *entity = link->source()->entity();
+ 		if (entity == sensor || subdevs_.count(entity))
+@@ -535,6 +546,11 @@
+  }
+  ret = d->pix_->setFrameStartEnabled(true);
+  if (ret) goto error;
++ if (d->controlInfo_.find(&controls::AfMode)!=d->controlInfo_.end()) {
++  CameraLens *lens=d->sensor_->focusLens();
++  if (!lens) {ret=-ENODEV;goto error;}
++  ret=lens->open();if (ret) goto error;d->lensActive_=true;
++ }
+  d->running_ = true;
+  for (auto *device : { d->stats_.get(), d->params_.get(), d->image_.get() }) {
+   ret = device->streamOn();
+@@ -572,6 +588,8 @@
+ 			d->ipa_->unmapBuffers(ids);
+ 		}
+ 	}
++	d->lensActive_=false;
++ if (CameraLens *lens=d->sensor_->focusLens()) lens->close();
+ 	d->ipaMapped_ = false;
+ 	d->pendingStats_.clear();
+ 	d->params_->releaseBuffers(); d->stats_->releaseBuffers(); d->image_->releaseBuffers();
+@@ -886,6 +904,23 @@
+ 			LOG(CamssVfe, Warning) << "Image controls unavailable epoch=" << epoch_ << " sof=" << sequence;
+ 		}
+ 	}
++ if (lensActive_ && running_) {
++  const auto score=measureFrameFocus(buffer,stream_.configuration());
++  const auto found=sensorContexts_.find(sequence);
++  const ipa::camss::SensorContext context=found==sensorContexts_.end()?ipa::camss::SensorContext{}:found->second;
++  ControlList metadata(controls::controls);ipa::camss::LensMove move{};
++  uint64_t captured=buffer->_d()->timestampMonotonic()?buffer->metadata().timestamp:0;
++  int ret=ipa_->processFocus(epoch_,sequence,request->controls(),score.has_value(),score.value_or(0),captured,context,&metadata,&move);
++  if (!ret) request->_d()->metadata().merge(metadata);
++  else LOG(CamssVfe,Error)<<"Focus frame failed: "<<ret;
++  if (move.valid) {
++   CameraLens *lens=sensor_->focusLens();
++   int result=lens?lens->setFocusPosition(move.position):-ENODEV;
++   timespec clock{};uint64_t now=clock_gettime(CLOCK_MONOTONIC,&clock)?0:uint64_t(clock.tv_sec)*1000000000+clock.tv_nsec;
++   LOG(CamssVfe,Info)<<"Focus command serial="<<move.serial<<" position="<<move.position<<" result="<<result<<" at="<<now;
++   ipa_->lensPositionApplied(epoch_,move.serial,result,now);
++  }
++ }
+ 	sensorContexts_.erase(sequence);
+ 	request->_d()->metadata().set(controls::SensorTimestamp, buffer->metadata().timestamp);
+ 	handler()->completeBuffer(request, buffer);
+--- a/src/libcamera/pipeline/camss-vfe/hardware_focus.h
++++ b/src/libcamera/pipeline/camss-vfe/hardware_focus.h
+@@ -0,0 +1,59 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++/* Bounded spatial focus measurement on the owned NV12 Y plane. */
++#pragma once
++#include <algorithm>
++#include <optional>
++#include <vector>
++#include <linux/dma-buf.h>
++#include <sys/ioctl.h>
++#include <libcamera/stream.h>
++#include "libcamera/internal/mapped_framebuffer.h"
++#include "libcamera/internal/software_isp/focus_stats.h"
++
++namespace libcamera {
++inline FocusStatistics measureLumaFocus(const uint8_t *data,size_t bytes,unsigned width,unsigned height,unsigned stride)
++{
++ FocusStatistics result;
++ if (!data || width<12 || height<12 || stride<width || uint64_t(height-1)*stride+width>bytes) return result;
++ const unsigned columns=std::min(320U,width/2),rows=std::min(240U,height/2);
++ std::vector<uint16_t> grid(size_t(columns)*rows),smooth(grid.size());
++ for (unsigned y=0;y<rows;++y) for (unsigned x=0;x<columns;++x) {
++  unsigned px=uint64_t(x)*(width-2)/(columns-1),py=uint64_t(y)*(height-2)/(rows-1);
++  uint32_t sum=data[size_t(py)*stride+px]+data[size_t(py)*stride+px+1]+data[size_t(py+1)*stride+px]+data[size_t(py+1)*stride+px+1];
++  grid[size_t(y)*columns+x]=sum*257/4;
++ }
++ for (unsigned y=1;y+1<rows;++y) for (unsigned x=1;x+1<columns;++x) {
++  uint32_t sum=0;
++  for (unsigned j=y-1;j<=y+1;++j) for (unsigned i=x-1;i<=x+1;++i) sum+=grid[size_t(j)*columns+i];
++  smooth[size_t(y)*columns+x]=sum/9;
++ }
++ for (unsigned y=2;y+2<rows;++y) for (unsigned x=2;x+2<columns;++x) {
++  uint16_t mean=smooth[size_t(y)*columns+x];
++  if (mean<1024 || mean>64512) continue;
++  int64_t dx=int64_t(smooth[size_t(y)*columns+x+1])-smooth[size_t(y)*columns+x-1];
++  int64_t dy=int64_t(smooth[size_t(y+1)*columns+x])-smooth[size_t(y-1)*columns+x];
++  auto &r=result.regions[(y*FocusStatistics::kRows/rows)*FocusStatistics::kColumns+x*FocusStatistics::kColumns/columns];
++  r.energy+=dx*dx+dy*dy;r.sum+=mean;++r.samples;
++ }
++ result.valid=true;
++ return result;
++}
++
++inline std::optional<int32_t> measureFrameFocus(FrameBuffer *buffer,const StreamConfiguration &configuration)
++{
++ if (buffer->planes().empty() || buffer->metadata().planes().empty()) return std::nullopt;
++ const auto &plane=buffer->planes()[0];
++ dma_buf_sync sync{DMA_BUF_SYNC_START|DMA_BUF_SYNC_READ};
++ if (ioctl(plane.fd.get(),DMA_BUF_IOCTL_SYNC,&sync)) return std::nullopt;
++ std::optional<int32_t> score;
++ {
++  MappedFrameBuffer mapped(buffer,MappedFrameBuffer::MapFlag::Read);
++  if (mapped.isValid() && !mapped.planes().empty())
++   score=measureLumaFocus(mapped.planes()[0].data(),std::min<size_t>(mapped.planes()[0].size(),buffer->metadata().planes()[0].bytesused),
++                          configuration.size.width,configuration.size.height,configuration.stride).figureOfMerit();
++ }
++ sync.flags=DMA_BUF_SYNC_END|DMA_BUF_SYNC_READ;
++ if (ioctl(plane.fd.get(),DMA_BUF_IOCTL_SYNC,&sync)) return std::nullopt;
++ return score;
++}
++}
+--- a/src/ipa/camss-vfe/data/s5kgw1.yaml
++++ b/src/ipa/camss-vfe/data/s5kgw1.yaml
+@@ -1,4 +1,4 @@
+-# Experimental mode catalog, not per-unit IQ calibration.
++# Experimental IQ references; AF codes are not distance calibration.
+ version: 2
+ sensor_model: s5kgw1
+ modes:
+@@ -96,3 +96,15 @@
+         - 1.0
+         - 1.0
+         - 32.0
++autofocus:
++  lens: lc898219xi
++  minimumCode: 208
++  maximumCode: 926
++  coarseStep: 96
++  fineStep: 16
++  samples: 3
++  settleMs: 100
++  timeoutMs: 120000
++  minimumPeak: 100
++  peakRatio: 1.15
++  verifyRatio: 0.75

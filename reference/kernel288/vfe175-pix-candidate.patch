@@ -1,0 +1,314 @@
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe-175-output.c b/drivers/media/platform/qcom/camss/camss-vfe-175-output.c
+index e4fde01b59c9a9959b62af5eaa3675eac17473fa..36ef2345df3f1ae59a898d0ff47bc329c99ca9f4 100644
+--- a/drivers/media/platform/qcom/camss/camss-vfe-175-output.c
++++ b/drivers/media/platform/qcom/camss/camss-vfe-175-output.c
+@@ -3,6 +3,7 @@
+ 
+ #include <linux/io.h>
+ #include <linux/limits.h>
++#include <linux/media-bus-format.h>
+ 
+ #include "camss.h"
+ #include "camss-vfe.h"
+@@ -32,6 +33,76 @@
+ #define VFE_175_WM_BURST_LIMIT(n)            (0x225c + (n) * 0x100)
+ #define VFE_175_PACKER_NV12                  0xe
+ 
++/* Input and output format sets describe different sides of the ISP. */
++static const struct camss_format_info formats_pix_175[] = {
++	{ MEDIA_BUS_FMT_SBGGR8_1X8, 8, V4L2_PIX_FMT_SBGGR8, 1,
++	  PER_PLANE_DATA(0, 1, 1, 1, 1, 8) },
++	{ MEDIA_BUS_FMT_SGBRG8_1X8, 8, V4L2_PIX_FMT_SGBRG8, 1,
++	  PER_PLANE_DATA(0, 1, 1, 1, 1, 8) },
++	{ MEDIA_BUS_FMT_SGRBG8_1X8, 8, V4L2_PIX_FMT_SGRBG8, 1,
++	  PER_PLANE_DATA(0, 1, 1, 1, 1, 8) },
++	{ MEDIA_BUS_FMT_SRGGB8_1X8, 8, V4L2_PIX_FMT_SRGGB8, 1,
++	  PER_PLANE_DATA(0, 1, 1, 1, 1, 8) },
++	{ MEDIA_BUS_FMT_SBGGR10_1X10, 10, V4L2_PIX_FMT_SBGGR10P, 1,
++	  PER_PLANE_DATA(0, 1, 1, 1, 1, 10) },
++	{ MEDIA_BUS_FMT_SGBRG10_1X10, 10, V4L2_PIX_FMT_SGBRG10P, 1,
++	  PER_PLANE_DATA(0, 1, 1, 1, 1, 10) },
++	{ MEDIA_BUS_FMT_SGRBG10_1X10, 10, V4L2_PIX_FMT_SGRBG10P, 1,
++	  PER_PLANE_DATA(0, 1, 1, 1, 1, 10) },
++	{ MEDIA_BUS_FMT_SRGGB10_1X10, 10, V4L2_PIX_FMT_SRGGB10P, 1,
++	  PER_PLANE_DATA(0, 1, 1, 1, 1, 10) },
++	{ MEDIA_BUS_FMT_SBGGR12_1X12, 12, V4L2_PIX_FMT_SBGGR12P, 1,
++	  PER_PLANE_DATA(0, 1, 1, 1, 1, 12) },
++	{ MEDIA_BUS_FMT_SGBRG12_1X12, 12, V4L2_PIX_FMT_SGBRG12P, 1,
++	  PER_PLANE_DATA(0, 1, 1, 1, 1, 12) },
++	{ MEDIA_BUS_FMT_SGRBG12_1X12, 12, V4L2_PIX_FMT_SGRBG12P, 1,
++	  PER_PLANE_DATA(0, 1, 1, 1, 1, 12) },
++	{ MEDIA_BUS_FMT_SRGGB12_1X12, 12, V4L2_PIX_FMT_SRGGB12P, 1,
++	  PER_PLANE_DATA(0, 1, 1, 1, 1, 12) },
++	{ MEDIA_BUS_FMT_SBGGR14_1X14, 14, V4L2_PIX_FMT_SBGGR14P, 1,
++	  PER_PLANE_DATA(0, 1, 1, 1, 1, 14) },
++	{ MEDIA_BUS_FMT_SGBRG14_1X14, 14, V4L2_PIX_FMT_SGBRG14P, 1,
++	  PER_PLANE_DATA(0, 1, 1, 1, 1, 14) },
++	{ MEDIA_BUS_FMT_SGRBG14_1X14, 14, V4L2_PIX_FMT_SGRBG14P, 1,
++	  PER_PLANE_DATA(0, 1, 1, 1, 1, 14) },
++	{ MEDIA_BUS_FMT_SRGGB14_1X14, 14, V4L2_PIX_FMT_SRGGB14P, 1,
++	  PER_PLANE_DATA(0, 1, 1, 1, 1, 14) },
++};
++
++static const struct camss_format_info formats_pix_out_175[] = {
++	{ MEDIA_BUS_FMT_UYVY8_1_5X8, 8, V4L2_PIX_FMT_NV12, 1,
++	  PER_PLANE_DATA(0, 1, 1, 2, 3, 8) },
++};
++
++const struct camss_formats vfe_formats_pix_175 = {
++	.nformats = ARRAY_SIZE(formats_pix_175),
++	.formats = formats_pix_175,
++};
++
++const struct camss_formats vfe_formats_pix_out_175 = {
++	.nformats = ARRAY_SIZE(formats_pix_out_175),
++	.formats = formats_pix_out_175,
++};
++
++/* Preserve the common 8191 software ceiling, aligned to Bayer pairs. */
++const struct v4l2_frmsize_stepwise vfe_frame_sizes_pix_sink_175 = {
++	.min_width = 16,
++	.max_width = 8190,
++	.step_width = 2,
++	.min_height = 4,
++	.max_height = 8190,
++	.step_height = 2,
++};
++
++const struct v4l2_frmsize_stepwise vfe_frame_sizes_pix_175 = {
++	.min_width = 16,
++	.max_width = VFE_175_FULL_MAX_WIDTH,
++	.step_width = 16,
++	.min_height = 4,
++	.max_height = VFE_175_FULL_MAX_HEIGHT,
++	.step_height = 2,
++};
++
+ int vfe_175_validate_output(const struct vfe_output *output)
+ {
+ 	const struct v4l2_pix_format_mplane *pix = &output->video_out.active_fmt.fmt.pix_mp;
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe-17x.c b/drivers/media/platform/qcom/camss/camss-vfe-17x.c
+index ba5f71ec87636fb57db55672d00b8a7ef16f24f3..89b8b638fbdaf3b1a84881ff7cf78cdffc422319 100644
+--- a/drivers/media/platform/qcom/camss/camss-vfe-17x.c
++++ b/drivers/media/platform/qcom/camss/camss-vfe-17x.c
+@@ -648,6 +648,14 @@ static void vfe_subdev_init_175(struct device *dev, struct vfe_device *vfe)
+ 	vfe_subdev_init(dev, vfe);
+ 	vfe->video_ops = vfe_video_ops_175;
+ 	vfe->isr_ops.comp_done = vfe_175_comp_done;
++	if (!vfe->res->is_lite && vfe->res->line_num > VFE_LINE_PIX) {
++		struct vfe_line *pix = &vfe->line[VFE_LINE_PIX];
++
++		vfe_add_yuv(&pix->output[0], 3, 4, 0);
++		vfe_set_pix(pix, 1);
++		/* Only sink and FULL are implemented; no DS or metadata pads yet. */
++		pix->num_pads = MSM_VFE_PAD_NUM_RDI;
++	}
+ }
+ 
+ static int vfe_line_prepare_175(struct vfe_line *line)
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe.c b/drivers/media/platform/qcom/camss/camss-vfe.c
+index 9cf37a6f23119c11e49ec765553d241d9f7a716f..81a9d18bcb826cbf437e0eb94e1677a5e194cbbe 100644
+--- a/drivers/media/platform/qcom/camss/camss-vfe.c
++++ b/drivers/media/platform/qcom/camss/camss-vfe.c
+@@ -439,6 +439,15 @@ static u32 vfe_src_pad_code(struct vfe_line *line, u32 sink_code,
+ 			    unsigned int index, u32 src_req_code)
+ {
+ 	struct vfe_device *vfe = to_vfe(line);
++	const struct camss_formats *out = vfe->res->formats_pix_out;
++	unsigned int i;
++
++	if (line->is_pix && out) {
++		for (i = 0; i < out->nformats; i++)
++			if (out->formats[i].code == src_req_code)
++				return src_req_code;
++		return index < out->nformats ? out->formats[index].code : 0;
++	}
+ 
+ 	switch (vfe->camss->res->version) {
+ 	case CAMSS_8x16:
+@@ -1808,12 +1817,25 @@ static void vfe_try_format(struct vfe_line *line,
+ 			if (fmt->code == line->formats[i].code)
+ 				break;
+ 
+-		/* If not found, use UYVY as default */
+-		if (i >= line->nformats)
+-			fmt->code = MEDIA_BUS_FMT_UYVY8_1X16;
++		/* A processed-only PIX input must fall back to a supported Bayer code. */
++		if (i >= line->nformats) {
++			if (line->is_pix && to_vfe(line)->res->formats_pix_out)
++				fmt->code = line->formats[0].code;
++			else
++				fmt->code = MEDIA_BUS_FMT_UYVY8_1X16;
++		}
+ 
+ 		fmt->width = clamp_t(u32, fmt->width, 1, 8191);
+ 		fmt->height = clamp_t(u32, fmt->height, 1, 8191);
++		if (line->is_pix && to_vfe(line)->res->pix_sink_frame_sizes) {
++			const struct v4l2_frmsize_stepwise *s =
++				to_vfe(line)->res->pix_sink_frame_sizes;
++
++			fmt->width = clamp_t(u32, fmt->width, s->min_width, s->max_width);
++			fmt->height = clamp_t(u32, fmt->height, s->min_height, s->max_height);
++			fmt->width -= (fmt->width - s->min_width) % s->step_width;
++			fmt->height -= (fmt->height - s->min_height) % s->step_height;
++		}
+ 
+ 		fmt->field = V4L2_FIELD_NONE;
+ 		fmt->colorspace = V4L2_COLORSPACE_SRGB;
+@@ -1903,6 +1925,20 @@ static void vfe_try_compose(struct vfe_line *line,
+ 
+ 	if (rect->height < 4)
+ 		rect->height = 4;
++
++	if (to_vfe(line)->res->pix_frame_sizes) {
++		const struct v4l2_frmsize_stepwise *s = to_vfe(line)->res->pix_frame_sizes;
++
++		rect->width = clamp_t(u32, rect->width, s->min_width, s->max_width);
++		rect->height = clamp_t(u32, rect->height, s->min_height, s->max_height);
++		rect->width -= (rect->width - s->min_width) % s->step_width;
++		rect->height -= (rect->height - s->min_height) % s->step_height;
++	}
++	/* Compose describes scaling of the full input, not a crop origin. */
++	if (to_vfe(line)->res->pix_no_crop) {
++		rect->left = 0;
++		rect->top = 0;
++	}
+ }
+ 
+ /*
+@@ -1921,6 +1957,11 @@ static void vfe_try_crop(struct vfe_line *line,
+ 
+ 	compose = __vfe_get_compose(line, sd_state, which);
+ 
++	if (to_vfe(line)->res->pix_no_crop) {
++		*rect = *compose;
++		return;
++	}
++
+ 	if (rect->width > compose->width)
+ 		rect->width = compose->width;
+ 
+@@ -2787,6 +2828,11 @@ int msm_vfe_register_entities(struct vfe_device *vfe,
+ 
+ 		video_out->nformats = vfe->line[i].nformats;
+ 		video_out->formats = vfe->line[i].formats;
++		if (vfe->line[i].is_pix && vfe->res->formats_pix_out) {
++			video_out->nformats = vfe->res->formats_pix_out->nformats;
++			video_out->formats = vfe->res->formats_pix_out->formats;
++			video_out->frame_sizes = vfe->res->pix_frame_sizes;
++		}
+ 
+ 		snprintf(name, ARRAY_SIZE(name), "%s%d_%s%d",
+ 			 MSM_VFE_NAME, vfe->id, "video", i);
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe.h b/drivers/media/platform/qcom/camss/camss-vfe.h
+index 47d98e8ebff682c44bad3797fd791b51fb2475d7..bdf13f456524cff9076d192f893927e858811546 100644
+--- a/drivers/media/platform/qcom/camss/camss-vfe.h
++++ b/drivers/media/platform/qcom/camss/camss-vfe.h
+@@ -246,6 +246,11 @@ struct vfe_subdev_resources {
+ 	const struct vfe_hw_ops *hw_ops;
+ 	const struct camss_formats *formats_rdi;
+ 	const struct camss_formats *formats_pix;
++	/* Optional processed output formats, separate from PIX sink formats. */
++	const struct camss_formats *formats_pix_out;
++	const struct v4l2_frmsize_stepwise *pix_sink_frame_sizes;
++	const struct v4l2_frmsize_stepwise *pix_frame_sizes;
++	bool pix_no_crop;
+ };
+ 
+ struct vfe_device {
+@@ -346,6 +351,10 @@ extern const struct camss_formats vfe_formats_rdi_8x96;
+ extern const struct camss_formats vfe_formats_pix_8x96;
+ extern const struct camss_formats vfe_formats_rdi_845;
+ extern const struct camss_formats vfe_formats_pix_845;
++extern const struct camss_formats vfe_formats_pix_175;
++extern const struct camss_formats vfe_formats_pix_out_175;
++extern const struct v4l2_frmsize_stepwise vfe_frame_sizes_pix_175;
++extern const struct v4l2_frmsize_stepwise vfe_frame_sizes_pix_sink_175;
+ 
+ extern const struct vfe_hw_ops vfe_ops_4_1;
+ extern const struct vfe_hw_ops vfe_ops_4_7;
+diff --git a/drivers/media/platform/qcom/camss/camss-video.c b/drivers/media/platform/qcom/camss/camss-video.c
+index 520f244ca862c8c6f41b90300197e88ada052e27..76242a3338cd2aa8e0ce6b4214da6d0d0d03c6e5 100644
+--- a/drivers/media/platform/qcom/camss/camss-video.c
++++ b/drivers/media/platform/qcom/camss/camss-video.c
+@@ -625,6 +625,10 @@ static int video_enum_framesizes(struct file *file, void *fh,
+ 		CAMSS_FRAME_MAX_HEIGHT_PIX : CAMSS_FRAME_MAX_HEIGHT_RDI;
+ 	fsize->stepwise.step_width = 1;
+ 	fsize->stepwise.step_height = 1;
++	if (video->frame_sizes) {
++		fsize->type = V4L2_FRMSIZE_TYPE_STEPWISE;
++		fsize->stepwise = *video->frame_sizes;
++	}
+ 
+ 	return 0;
+ }
+@@ -681,6 +685,14 @@ static int __video_try_fmt(struct camss_video *video, struct v4l2_format *f)
+ 	pix_mp->pixelformat = fi->pixelformat;
+ 	pix_mp->width = clamp_t(u32, width, 1, CAMSS_FRAME_MAX_WIDTH);
+ 	pix_mp->height = clamp_t(u32, height, 1, CAMSS_FRAME_MAX_HEIGHT_RDI);
++	if (video->frame_sizes) {
++		const struct v4l2_frmsize_stepwise *s = video->frame_sizes;
++
++		pix_mp->width = clamp_t(u32, width, s->min_width, s->max_width);
++		pix_mp->height = clamp_t(u32, height, s->min_height, s->max_height);
++		pix_mp->width -= (pix_mp->width - s->min_width) % s->step_width;
++		pix_mp->height -= (pix_mp->height - s->min_height) % s->step_height;
++	}
+ 	pix_mp->num_planes = fi->planes;
+ 	for (i = 0; i < pix_mp->num_planes; i++) {
+ 		bpl = pix_mp->width / fi->hsub[i].numerator *
+diff --git a/drivers/media/platform/qcom/camss/camss-video.h b/drivers/media/platform/qcom/camss/camss-video.h
+index 011ceba18ad9053b5d77b24c1e900900f7750216..9130c15015b39ea5ba7689ee423a808b1d1a9a32 100644
+--- a/drivers/media/platform/qcom/camss/camss-video.h
++++ b/drivers/media/platform/qcom/camss/camss-video.h
+@@ -57,6 +57,8 @@ struct camss_video {
+ 	struct mutex q_lock;
+ 	unsigned int bpl_alignment;
+ 	unsigned int line_based;
++	/* Optional per-output bounds and dimension steps; NULL keeps legacy limits. */
++	const struct v4l2_frmsize_stepwise *frame_sizes;
+ 	const struct camss_format_info *formats;
+ 	unsigned int nformats;
+ };
+diff --git a/drivers/media/platform/qcom/camss/camss.c b/drivers/media/platform/qcom/camss/camss.c
+index 4b08b977c2784cafdb6b9731061c272e4eb4a8f1..b69d93820b7635f1bb79691f1cfe14c3cb13b148 100644
+--- a/drivers/media/platform/qcom/camss/camss.c
++++ b/drivers/media/platform/qcom/camss/camss.c
+@@ -2120,12 +2120,16 @@ static const struct camss_subdev_resources vfe_res_8150[] = {
+ 		.reg = { "vfe0" },
+ 		.interrupt = { "vfe0" },
+ 		.vfe = {
+-			.line_num = 3,
++			.line_num = 4,
+ 			.pd_name = "ife0",
+ 			.has_pd = true,
+ 			.hw_ops = &vfe_ops_175,
+ 			.formats_rdi = &vfe_formats_rdi_845,
+-			.formats_pix = &vfe_formats_rdi_845
++			.formats_pix = &vfe_formats_pix_175,
++			.formats_pix_out = &vfe_formats_pix_out_175,
++			.pix_sink_frame_sizes = &vfe_frame_sizes_pix_sink_175,
++			.pix_frame_sizes = &vfe_frame_sizes_pix_175,
++			.pix_no_crop = true
+ 		}
+ 	},
+ 
+@@ -2149,12 +2153,16 @@ static const struct camss_subdev_resources vfe_res_8150[] = {
+ 		.reg = { "vfe1" },
+ 		.interrupt = { "vfe1" },
+ 		.vfe = {
+-			.line_num = 3,
++			.line_num = 4,
+ 			.pd_name = "ife1",
+ 			.has_pd = true,
+ 			.hw_ops = &vfe_ops_175,
+ 			.formats_rdi = &vfe_formats_rdi_845,
+-			.formats_pix = &vfe_formats_rdi_845
++			.formats_pix = &vfe_formats_pix_175,
++			.formats_pix_out = &vfe_formats_pix_out_175,
++			.pix_sink_frame_sizes = &vfe_frame_sizes_pix_sink_175,
++			.pix_frame_sizes = &vfe_frame_sizes_pix_175,
++			.pix_no_crop = true
+ 		}
+ 	},
+ };

@@ -1,0 +1,227 @@
+{
+  "schema": "samurai-r8-charging-source-integration-v1",
+  "adapter_revision": "r8",
+  "scope": "exact deployed charging source layer only; existing Image/platform remain external",
+  "release": "7.3.0-rc6-rmx1931-samurai-k363+",
+  "installed_manifest_sha256": "320316c3d93c1dbcaae29440f1f17d72c75e4994d656a9da9fcd5aeb93c10a1f",
+  "installed_modules_sha256": {
+    "samurai-mp2650": "10ec06fb9d798d72e08495617cfc04e7e49c77e536a12f205053e9cdbfa6297f",
+    "samurai-usb-input": "7d4e0f948b993a6e0cc9459bac4ade2db2fe7b88ce7b7d462ea34bcb933c4f70",
+    "samurai-gauge-protection": "75b97e0d6b906ec600171ce68adec6f25a91556758f76bbf3d563cf831e783c7"
+  },
+  "loaded_note_sha256": {
+    "samurai-usb-input": "f0edb792d30ee1168ee1793e89707aa48b2085c845acde8f472f2c13a03804b0",
+    "samurai-gauge-protection": "930e0e1f34e89e4e06a7632ca14a26181975f9f35e55a51209af71480b56fe76",
+    "samurai-mp2650": "f4d5768a4250b901ea956560d9c6b4b1dd32ac80893cbbd31609d9c032c4680d"
+  },
+  "sources": {
+    "drivers/power/supply/samurai-mp2650.c": {
+      "sha256": "ed2e1d4d96ea4f2d55b514288b0e8da1d731864d385944d02a105d41b03a144c",
+      "bytes": 27477,
+      "origin": "charging-session-20261023/thermal-bands-candidate/samurai-mp2650.c",
+      "evidence": "thermal-bands-build-result.json sources"
+    },
+    "drivers/power/supply/mp2650-core.h": {
+      "sha256": "df9caed5c3678551b84e04d416c53caafd2b51036f2244b26974a87aa1ced4e8",
+      "bytes": 11489,
+      "origin": "charging-session-20261023/thermal-bands-candidate/mp2650-core.h",
+      "evidence": "thermal-bands-build-result.json sources"
+    },
+    "drivers/power/supply/oem-full-cycle.h": {
+      "sha256": "91554031a1ea454e1a70fa8bae89316bd8770686c19c5a33ec6a1dbb06bdfba4",
+      "bytes": 8768,
+      "origin": "charging-session-20261023/thermal-bands-candidate/oem-full-cycle.h",
+      "evidence": "thermal-bands-build-result.json sources"
+    },
+    "drivers/power/supply/charging-notify.h": {
+      "sha256": "3619110d1ef2b2abb2c5b64fe6188e3c0a5f900ef3d7e5d39dec9c0614efd5dd",
+      "bytes": 1716,
+      "origin": "charging-session-20261023/kernel-v2/charging-notify.h",
+      "evidence": "thermal-bands-build-result.json sources"
+    },
+    "drivers/power/supply/oem-profile.h": {
+      "sha256": "14a425065aadcca1cc38efcc75cb112c0c25ac05567195b04feaa2bec21b0729",
+      "bytes": 476,
+      "origin": "charging-session-20261023/kernel-v2/oem-profile.h",
+      "evidence": "thermal-bands-build-result.json sources"
+    },
+    "drivers/power/supply/charge-cycle.h": {
+      "sha256": "717e7ae2579cbf970f3802a21dcfa0fe0124e7fd236588661c613fcd3903e07b",
+      "bytes": 2821,
+      "origin": "charging-session-20261023/kernel-v2/charge-cycle.h",
+      "evidence": "thermal-bands-build-result.json sources"
+    },
+    "drivers/power/supply/gauge-i2c.h": {
+      "sha256": "897a961d765f794af2358205b46998ac4889f4ad9e91db2265d99cd70d701e77",
+      "bytes": 1308,
+      "origin": "charging-session-20261023/kernel-v2/gauge-i2c.h",
+      "evidence": "thermal-bands-build-result.json sources"
+    },
+    "drivers/power/supply/gauge-protocol.h": {
+      "sha256": "0903f3fa9740f8645dfc8fb5c16f9a35ded63c4ea06f5c9c93475e37bc375f0f",
+      "bytes": 2157,
+      "origin": "charging-session-20261023/kernel-v2/gauge-protocol.h",
+      "evidence": "thermal-bands-build-result.json sources"
+    },
+    "drivers/power/supply/thermal-bands.h": {
+      "sha256": "a06962f52e570b2b418c9e03354f634a1b356ed86c234cf598489a9f02f09112",
+      "bytes": 2963,
+      "origin": "charging-session-20261023/thermal-bands-candidate/thermal-bands.h",
+      "evidence": "thermal-bands-build-result.json sources"
+    },
+    "drivers/power/supply/samurai-usb-input.c": {
+      "sha256": "b712764fbd4ab24475ae1ba030ee4c26c7eb048a6038488a5435b44ef7eb7098",
+      "bytes": 10922,
+      "origin": "charging-management-20261023/samurai-usb-input.c",
+      "evidence": "source-float-build-result.json sources"
+    },
+    "drivers/power/supply/samurai-usb-input-decode.h": {
+      "sha256": "a17caa2cbeb2352da249474e0265fa96745f544d96a29d0ebe8f14c656d548fd",
+      "bytes": 3361,
+      "origin": "charging-oem-audit-20261023/source-float-candidate/samurai-usb-input-decode.h",
+      "evidence": "source-float-build-result.json sources"
+    },
+    "drivers/power/supply/samurai-gauge-protection.c": {
+      "sha256": "5d77236d555f13fae56adf4a5fcbbb719a9fab9745ae04c02aa558edf39a45b6",
+      "bytes": 6068,
+      "origin": "charging-management-20261023/samurai-gauge-protection.c",
+      "evidence": "integrated-build-result.json protection source and module"
+    },
+    "usr/sbin/samurai-charging": {
+      "sha256": "61451ffea87cca466dbbb2f1a2c6e7c05d0eee517479e8b019d43b1869355aa4",
+      "bytes": 8990,
+      "origin": "charging-session-20261023/full-integration-candidate/userspace/samurai-charging.py",
+      "evidence": "R8 installed manifest + unchanged service dependency"
+    },
+    "etc/init.d/samurai-charging": {
+      "sha256": "bfed48ebbcaced5f017110564045eef500a88f12fefe7ebff6d1e74cabfe570a",
+      "bytes": 433,
+      "origin": "charging-management-20261023/samurai-charging.openrc",
+      "evidence": "R8 installed manifest + unchanged service dependency"
+    },
+    "usr/lib/samurai-charging/control-trial.py": {
+      "sha256": "c33cb2eec24031e72a5f1dda9b94c05607615e0b12a14ba3cecd6db56c820761",
+      "bytes": 9006,
+      "origin": "charging-management-20261023/control-trial.py",
+      "evidence": "R8 installed manifest + unchanged service dependency"
+    },
+    "usr/lib/samurai-charging/live-session.py": {
+      "sha256": "2199d7d413b2f4a5aeaa8270c20e967f5da711397c29e959e59463c1a5715f2b",
+      "bytes": 6207,
+      "origin": "charging-management-20261023/live-session.py",
+      "evidence": "R8 installed manifest + unchanged service dependency"
+    }
+  },
+  "source_receipts_sha256": {
+    "charging-management-20261023/thermal-bands-build-result.json": "bc4350fa1ba40ae9eb42acdeab3d8e55419db7943f99b3d3c8fbd2df7e6efe56",
+    "charging-session-20261023/thermal-bands-candidate/test-result.json": "9090bee671c9b3df3fbdcd032718bdb18d17878415857851284330e75a87c473",
+    "charging-management-20261023/source-float-build-result.json": "118e31529aa320ca79a14a40577b50118408210dc8a727bc20721c7d24b431e0",
+    "charging-oem-audit-20261023/source-float-candidate/test-result.json": "8360987b0e65890b6ec9451606f29f6f5a20811371534483addd367701d6a520",
+    "charging-management-20261023/integrated-build-result.json": "3f51339609ddbd6decb7c6e10e3dc389af966da72c7ab3414b128f988719a724",
+    "charging-session-20261023/full-integration-candidate/userspace/test-result.json": "3f572bbc3dd5aaf96c52ea0f0e959694ffaac29fffc25b7d2cfe81afc6701abc",
+    "charging-management-20261023/r8-payload-result.json": "7a8b7835c9fa21593a1a146cba6369c7c3192fb9ce5fdd949666a755773cd877",
+    "charging-management-20261023/r7-payload-result.json": "6e80f8d6892137d03c107cb67c55d36db66b5820b99491143c7926a2deb73210",
+    "charging-management-20261023/r8-update-result.json": "e8b2efb942ab141d769308ea1378cfe2724fd2ff5c5ce499fb4d8d38530ab5fe",
+    "charging-management-20261023/r8-handoff-result.json": "28bb515bb82d015dfd9c3e27daaa89bed6099d2dcb50e28ee42f054835bd5afe",
+    "charging-management-20261023/usb-dt-result.json": "d04daa8f48342e4d6102651936f1ebb079b9d4deb2af3c94e614d81a7d01b12f",
+    "charging-management-20261023/usb-boot-result.json": "48e741bf37169900e58bea3134c005ae4780007a9d6613c8cfce711cceebbea7",
+    "charging-management-20261023/usb-startup-rollback-result.json": "40644d3ba14aa22f342ae0d6dcc2fccc0aaf9a0bc38e9d5d60d3367b9317605a",
+    "charging-management-20261023/kernel-integration-result.json": "aa60e702fe47dd048ce1f43baf6b335c710058f5fd4203ac04b917c205a9e754"
+  },
+  "patches": {
+    "kernel-integration.patch": "6f28a4062bcf281917cad642aa52fac3def9195b2adebe34eac31f12a08f6f2d",
+    "native-usb-supply.patch": "7e8e35de965ebfea689bffac1636977d06f3a095e251eefcb818820aaf0a0c89",
+    "kernel-config.fragment": "799378409edac5bb86a868570c6cbc167f6a7072c65389f6154d890b0414dd64"
+  },
+  "base_files": {
+    "drivers/power/supply/Makefile": {
+      "kind": "fixed Image363 Git blob read from root-provided cache",
+      "revision": "ba61a62293e0f6bc5838c06f2e85e033e3d702a8",
+      "sha256": "5d6a64153d6475ee5eb45ec69aceaa8f31b35a3a8b5b0dd40afc33b6a727c00f",
+      "full_base_file": true
+    },
+    "drivers/power/supply/Kconfig": {
+      "kind": "fixed Image363 Git blob read from root-provided cache",
+      "revision": "ba61a62293e0f6bc5838c06f2e85e033e3d702a8",
+      "sha256": "db7ab70448609780c7495eef00447dbc69784a1b8b8c58d5125996171481afaa",
+      "full_base_file": true
+    },
+    "arch/arm64/boot/dts/qcom/sm8150-samurai.dts": {
+      "kind": "fixed Image363 Git blob read from root-provided cache",
+      "revision": "ba61a62293e0f6bc5838c06f2e85e033e3d702a8",
+      "sha256": "428e20b3fe06a8b4ea85617cd2db3da9528e4edb0276647e7c7ed15c3737338b",
+      "full_base_file": true
+    }
+  },
+  "current_boot": {
+    "image_sha256": "15746aab311eed32478cdee4e13c1677716ff48c8a04316c9c15cf606c9d6468",
+    "native_dtb_sha256": "c559d2c4c9a83e85473b1b24724bb8938f1084bd3efcae9c4b67f37c2a4c4503",
+    "boot_sha256": "a30fb4440726e1c3ab80ad65277db4e57fec9a0924380cc07830a5c6e69ec280",
+    "DT_source_patch_is_not_deployed_DTB": true
+  },
+  "requests": {
+    "input_cap_ua": 900000,
+    "charge_cap_ua": 250000,
+    "inherited_per_cell_cv_ceiling_uv": 4362500,
+    "source_budget_enforced": true
+  },
+  "usb_startup": {
+    "MaxPower_ma": 100,
+    "installed_scripts": [
+      {
+        "installed_path": "/usr/sbin/samurai-usb",
+        "sha256": "0f623986a4e683ffd531a04253fdd57a41252c91786d6472efb6fec419ba906a",
+        "source_copied": false,
+        "evidence": "usb-startup-rollback-result.json"
+      },
+      {
+        "installed_path": "/usr/local/sbin/samurai-usb",
+        "sha256": "fcfd5052a0cad7ae9c6c581e9ede271899d99e06ad0d4d15309faa6f8ef1ad3e",
+        "source_copied": false,
+        "evidence": "usb-startup-rollback-result.json"
+      }
+    ],
+    "repository_creation_paths": {
+      "linux-port/scripts/samurai-usb.sh": {
+        "sha256": "0f623986a4e683ffd531a04253fdd57a41252c91786d6472efb6fec419ba906a",
+        "declared_MaxPower_ma": 100,
+        "copied_or_modified": false
+      },
+      "linux-port/packages/samurai-platform/usr_sbin_samurai-usb": {
+        "sha256": "46db0d9d0635cd40c7040dd1dfd51b24f93aed439040d31dc5d86c72ac2201b3",
+        "declared_MaxPower_ma": 100,
+        "copied_or_modified": false
+      }
+    },
+    "MaxPower_is_not_source_authorization": true
+  },
+  "last_r8_handoff_source": {
+    "type": "SDP",
+    "native_ua": 100000,
+    "source_budget_ua": 100000,
+    "effective_input_ua": 100000
+  },
+  "unaccepted": [
+    "physical temperature boundaries",
+    "physical Full/recharge cycle",
+    "screen charging icon latency",
+    "SDP500 authorization",
+    "PM resume failure resolution"
+  ],
+  "excluded": [
+    "USBIN init helper",
+    "APSD rerun",
+    "EUD changes",
+    "PHY window",
+    "DWC window or resume candidates",
+    "USB500 trial",
+    "PM tools/WIP",
+    "camera/BT/platform recipe"
+  ],
+  "private_originals_copied": false,
+  "module_binaries_copied": false,
+  "private_identity_copied": false,
+  "phone_accessed": false,
+  "sdk_invoked": false,
+  "image_built": false
+}

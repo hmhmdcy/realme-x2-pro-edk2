@@ -1,0 +1,40 @@
+{
+  "schema": "charging-icon-irq-runtime-update-template-tests-v1",
+  "passed": true,
+  "runtime_identity_unbound": true,
+  "manifest_sha256": "18e8a1049a2c497fbc47ace50f8319aefccd63a9cd1ce5a7e9ef06916773b4e5",
+  "sha256": {
+    "worker.py": "446cf5dbcbb0ae0a1c765c7b0887c27c4ee978f4d02b590c93be4ff0b3586b21",
+    "audit.py": "7a7c5342fcdef85b5d941d7d9cb351a240d561b9d219817790f63c4825a7a287",
+    "baseline-test-result.json": "4aeb77e82f845a4f79c6cac44e3779ba3ed86561da2dd0f615e4ff2195b1be0f",
+    "capture-entry.py": "1526bdebd985bb75ab5eb25218b26f465474c110f4024e7403452437d28a1662"
+  },
+  "files": {
+    "launcher.py": "f06fdf06c3541e56e108044f1c012b3a80d4ba191768757b760122fdb4473b42",
+    "update-review.py": "5007f7da2ff34dc8a40a614a7faba34e03734af6d2418933f8f87331b58b3b82",
+    "bind-identity.py": "26f16d51e49e4c8c564f2e05489b77e989fde76b29740e45b211398d0c07c21e",
+    "transport.py": "bbe9098990c39c7bd0d0305b26026358dfe330262049c927c6875fbfd790448d",
+    "source-pins.json": "db6fa45f19704c3595b4266dba1752a9bce9fb8b26860a93e07d856d6c679df8",
+    "test-profile.py": "ec7e4610594e7647f098047b50114e7240145b0fe9d5475e505a0e5579f5dda3"
+  },
+  "tests_run": 14,
+  "cases": [
+    "actual saved fetch/host.bound/worker health chain yields only charger runtime overlay",
+    "failed original supervisor/worker is not promoted",
+    "unknown mutating child cannot yield overlay",
+    "healthy Full preflight/refused update cannot yield overlay",
+    "new disk with old resident charger rejected",
+    "same note with replaced protection kernfs instance rejected",
+    "final protection error rejected by actual worker policy",
+    "cross-boot/base adoption mismatch rejected",
+    "missing real update evidence refuses bind before mkdir",
+    "actual binder and runtime profile consume completed overlay without changing base pointer",
+    "old IRQ-only pins refused by runtime profile",
+    "original actual run/status uses new tuple with unchanged two-tick/130s/8s ready gate",
+    "actual prepared SSH callback does not repeat any local review inside timing",
+    "original finite collector run/ready/fetch/cleanup bodies and worker/audit/entry/32 receipt exact"
+  ],
+  "old_matrices_rerun": false,
+  "device_accessed": false,
+  "fixture_scope": "Temporary saved transaction; real functions, modelled source-loader/cache/device/SSH edges. No real runtime pins."
+}

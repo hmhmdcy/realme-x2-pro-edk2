@@ -1,0 +1,72 @@
+{
+  "phone_accessed": false,
+  "production_sources_modified": false,
+  "sanitizers": [
+    "ASan",
+    "UBSan"
+  ],
+  "results": {
+    "core": {
+      "command": [
+        "wsl",
+        "-d",
+        "Ubuntu",
+        "-u",
+        "root",
+        "--",
+        "gcc",
+        "-std=c11",
+        "-g",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-fsanitize=address,undefined",
+        "-fno-omit-frame-pointer",
+        "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/thermal-candidate/test-core.c",
+        "-o",
+        "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/thermal-candidate/test-core"
+      ],
+      "output": {
+        "source_latch_sequence_cases": 8,
+        "policy_cases": 6016,
+        "transaction_cases": 113,
+        "passed": true
+      },
+      "stderr": ""
+    },
+    "thermal": {
+      "command": [
+        "wsl",
+        "-d",
+        "Ubuntu",
+        "-u",
+        "root",
+        "--",
+        "gcc",
+        "-std=c11",
+        "-g",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-fsanitize=address,undefined",
+        "-fno-omit-frame-pointer",
+        "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/thermal-candidate/test-thermal.c",
+        "-o",
+        "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/thermal-candidate/test-thermal"
+      ],
+      "output": {
+        "thermal_cases": 590,
+        "passed": true
+      },
+      "stderr": ""
+    }
+  },
+  "files_sha256": {
+    "mp2650-core.h": "f9ffc2d380967d787d042c9780c5e5968a6e46d902089b7ad1ba511d5ba00af3",
+    "oem-profile.h": "14a425065aadcca1cc38efcc75cb112c0c25ac05567195b04feaa2bec21b0729",
+    "test-core.c": "0704b618123d110b595416c3fc287b7eab990c3664245e24646e40085c23db8d",
+    "test-thermal.c": "e11e6d2e1fb92090bc0b07f05c017dadd840971073136004d2c764fbd5a460db"
+  },
+  "passed": true,
+  "scope": "Isolated current-production-core candidate plus unchanged production regressions; no physical acceptance"
+}

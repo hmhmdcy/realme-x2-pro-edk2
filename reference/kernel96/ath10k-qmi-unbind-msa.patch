@@ -1,0 +1,54 @@
+diff --git a/drivers/net/wireless/ath/ath10k/qmi.c b/drivers/net/wireless/ath/ath10k/qmi.c
+index 0d74548a5..9deccc416 100644
+--- a/drivers/net/wireless/ath/ath10k/qmi.c
++++ b/drivers/net/wireless/ath/ath10k/qmi.c
+@@ -57,6 +57,8 @@ static int ath10k_qmi_map_msa_permission(struct ath10k_qmi *qmi,
+ 				  &src_perms, dst_perms, perm_count);
+ 	if (ret < 0)
+ 		ath10k_err(ar, "failed to assign msa map permissions: %d\n", ret);
++	else
++		mem_info->mapped = true;
+ 
+ 	return ret;
+ }
+@@ -69,6 +71,10 @@ static int ath10k_qmi_unmap_msa_permission(struct ath10k_qmi *qmi,
+ 	u64 src_perms;
+ 	int ret;
+ 
++	/* A failed or partial setup must not reclaim an unassigned region. */
++	if (!mem_info->mapped)
++		return 0;
++
+ 	src_perms = BIT(QCOM_SCM_VMID_MSS_MSA) | BIT(QCOM_SCM_VMID_WLAN);
+ 
+ 	if (!mem_info->secure)
+@@ -81,6 +87,8 @@ static int ath10k_qmi_unmap_msa_permission(struct ath10k_qmi *qmi,
+ 				  &src_perms, &dst_perms, 1);
+ 	if (ret < 0)
+ 		ath10k_err(ar, "failed to unmap msa permissions: %d\n", ret);
++	else
++		mem_info->mapped = false;
+ 
+ 	return ret;
+ }
+@@ -1139,6 +1147,8 @@ int ath10k_qmi_deinit(struct ath10k *ar)
+ 	qmi->state = ATH10K_QMI_STATE_DEINIT;
+ 	qmi_handle_release(&qmi->qmi_hdl);
+ 	cancel_work_sync(&qmi->event_work);
++	/* Unbinding while the server is alive produces no SERVER_EXIT event. */
++	ath10k_qmi_remove_msa_permission(qmi);
+ 	destroy_workqueue(qmi->event_wq);
+ 	kfree(qmi);
+ 	ar_snoc->qmi = NULL;
+diff --git a/drivers/net/wireless/ath/ath10k/qmi.h b/drivers/net/wireless/ath/ath10k/qmi.h
+index 0816eb4e4..11300e1f1 100644
+--- a/drivers/net/wireless/ath/ath10k/qmi.h
++++ b/drivers/net/wireless/ath/ath10k/qmi.h
+@@ -27,6 +27,7 @@ struct ath10k_msa_mem_info {
+ 	phys_addr_t addr;
+ 	u32 size;
+ 	bool secure;
++	bool mapped;
+ };
+ 
+ struct ath10k_qmi_chip_info {

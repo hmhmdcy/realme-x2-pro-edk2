@@ -1,0 +1,186 @@
+0002e28c 48 89 5c 24 10           mov      qword ptr [rsp + 0x10], rbx
+0002e291 48 89 4c 24 08           mov      qword ptr [rsp + 8], rcx
+0002e296 55                       push     rbp
+0002e297 56                       push     rsi
+0002e298 41 55                    push     r13
+0002e29a 41 56                    push     r14
+0002e29c 41 57                    push     r15
+0002e29e 48 83 ec 50              sub      rsp, 0x50
+0002e2a2 48 8b 59 40              mov      rbx, qword ptr [rcx + 0x40]
+0002e2a6 44 8b ea                 mov      r13d, edx
+0002e2a9 80 bb 58 03 00 00 04     cmp      byte ptr [rbx + 0x358], 4
+0002e2b0 72 07                    jb       0x2e2b9
+0002e2b2 33 c0                    xor      eax, eax
+0002e2b4 e9 de 02 00 00           jmp      0x2e597
+0002e2b9 8a 83 90 03 00 00        mov      al, byte ptr [rbx + 0x390]
+0002e2bf 24 03                    and      al, 3
+0002e2c1 3c 03                    cmp      al, 3
+0002e2c3 74 53                    je       0x2e318
+0002e2c5 83 bb dc 11 00 00 00     cmp      dword ptr [rbx + 0x11dc], 0
+0002e2cc 74 40                    je       0x2e30e
+0002e2ce 48 8b 0d 2b bd 00 00     mov      rcx, qword ptr [rip + 0xbd2b]
+0002e2d5 be 01 00 00 00           mov      esi, 1
+0002e2da 8b 41 2c                 mov      eax, dword ptr [rcx + 0x2c]
+0002e2dd 40 84 c6                 test     sil, al
+0002e2e0 74 2c                    je       0x2e30e
+0002e2e2 80 79 29 02              cmp      byte ptr [rcx + 0x29], 2
+0002e2e6 72 26                    jb       0x2e30e
+0002e2e8 4c 8d 3d 11 bd 00 00     lea      r15, [rip + 0xbd11]
+0002e2ef 49 3b cf                 cmp      rcx, r15
+0002e2f2 74 1a                    je       0x2e30e
+0002e2f4 48 8b 49 18              mov      rcx, qword ptr [rcx + 0x18]
+0002e2f8 4c 8d 8b dc 03 00 00     lea      r9, [rbx + 0x3dc]
+0002e2ff 8d 56 09                 lea      edx, [rsi + 9]
+0002e302 4c 8d 05 c7 a2 00 00     lea      r8, [rip + 0xa2c7]
+0002e309 e8 d2 36 fd ff           call     0x19e0 ; WPP_SF_s
+0002e30e b8 01 00 00 c0           mov      eax, 0xc0000001
+0002e313 e9 7f 02 00 00           jmp      0x2e597
+0002e318 83 bb dc 11 00 00 00     cmp      dword ptr [rbx + 0x11dc], 0
+0002e31f 4c 8d 3d da bc 00 00     lea      r15, [rip + 0xbcda]
+0002e326 be 01 00 00 00           mov      esi, 1
+0002e32b 74 39                    je       0x2e366
+0002e32d 48 8b 0d cc bc 00 00     mov      rcx, qword ptr [rip + 0xbccc]
+0002e334 8b 41 2c                 mov      eax, dword ptr [rcx + 0x2c]
+0002e337 40 84 c6                 test     sil, al
+0002e33a 74 2a                    je       0x2e366
+0002e33c 80 79 29 05              cmp      byte ptr [rcx + 0x29], 5
+0002e340 72 24                    jb       0x2e366
+0002e342 49 3b cf                 cmp      rcx, r15
+0002e345 74 1f                    je       0x2e366
+0002e347 48 8b 49 18              mov      rcx, qword ptr [rcx + 0x18]
+0002e34b 4c 8d 8b dc 03 00 00     lea      r9, [rbx + 0x3dc]
+0002e352 8d 56 0a                 lea      edx, [rsi + 0xa]
+0002e355 44 89 6c 24 20           mov      dword ptr [rsp + 0x20], r13d
+0002e35a 4c 8d 05 6f a2 00 00     lea      r8, [rip + 0xa26f]
+0002e361 e8 ae eb ff ff           call     0x2cf14 ; WPP_SF_sl
+0002e366 8b 0d 00 bd 00 00        mov      ecx, dword ptr [rip + 0xbd00]
+0002e36c bd 28 00 00 00           mov      ebp, 0x28
+0002e371 8b d5                    mov      edx, ebp
+0002e373 41 b8 51 43 44 4d        mov      r8d, 0x4d444351
+0002e379 ff 15 09 9d 00 00        call     qword ptr [rip + 0x9d09]
+0002e37f 4c 8b f0                 mov      r14, rax
+0002e382 48 85 c0                 test     rax, rax
+0002e385 75 0a                    jne      0x2e391
+0002e387 b8 17 00 00 c0           mov      eax, 0xc0000017
+0002e38c e9 06 02 00 00           jmp      0x2e597
+0002e391 66 89 28                 mov      word ptr [rax], bp
+0002e394 45 85 ed                 test     r13d, r13d
+0002e397 75 06                    jne      0x2e39f
+0002e399 41 8d 45 30              lea      eax, [r13 + 0x30]
+0002e39d eb 0f                    jmp      0x2e3ae
+0002e39f b8 31 00 00 00           mov      eax, 0x31
+0002e3a4 44 3b ee                 cmp      r13d, esi
+0002e3a7 74 05                    je       0x2e3ae
+0002e3a9 b8 1e 00 00 00           mov      eax, 0x1e
+0002e3ae 83 a4 24 98 00 00 00 00  and      dword ptr [rsp + 0x98], 0
+0002e3b6 0f b7 ac 24 80 00 00 00  movzx    ebp, word ptr [rsp + 0x80]
+0002e3be 66 41 89 46 02           mov      word ptr [r14 + 2], ax
+0002e3c3 0f b6 83 d3 02 00 00     movzx    eax, byte ptr [rbx + 0x2d3]
+0002e3ca 0f b6 93 d7 02 00 00     movzx    edx, byte ptr [rbx + 0x2d7]
+0002e3d1 48 8d 0c 40              lea      rcx, [rax + rax*2]
+0002e3d5 48 8b 44 d3 70           mov      rax, qword ptr [rbx + rdx*8 + 0x70]
+0002e3da 49 8b d6                 mov      rdx, r14
+0002e3dd 48 8b 4c c8 20           mov      rcx, qword ptr [rax + rcx*8 + 0x20]
+0002e3e2 49 89 4e 18              mov      qword ptr [r14 + 0x18], rcx
+0002e3e6 48 8b 8c 24 80 00 00 00  mov      rcx, qword ptr [rsp + 0x80]
+0002e3ee e8 b9 f2 ff ff           call     0x2d6ac ; QCUSB_CallUSBD
+0002e3f3 89 84 24 90 00 00 00     mov      dword ptr [rsp + 0x90], eax
+0002e3fa 85 c0                    test     eax, eax
+0002e3fc 0f 89 d3 00 00 00        jns      0x2e4d5
+0002e402 8a 8b 58 03 00 00        mov      cl, byte ptr [rbx + 0x358]
+0002e408 40 3a ce                 cmp      cl, sil
+0002e40b 75 13                    jne      0x2e420
+0002e40d 0f b7 2d 74 bd 00 00     movzx    ebp, word ptr [rip + 0xbd74]
+0002e414 66 03 ee                 add      bp, si
+0002e417 66 89 2d 6a bd 00 00     mov      word ptr [rip + 0xbd6a], bp
+0002e41e eb 16                    jmp      0x2e436
+0002e420 80 f9 03                 cmp      cl, 3
+0002e423 75 11                    jne      0x2e436
+0002e425 0f b7 2d 60 bd 00 00     movzx    ebp, word ptr [rip + 0xbd60]
+0002e42c 66 03 ee                 add      bp, si
+0002e42f 66 89 2d 56 bd 00 00     mov      word ptr [rip + 0xbd56], bp
+0002e436 83 bb dc 11 00 00 00     cmp      dword ptr [rbx + 0x11dc], 0
+0002e43d 74 6c                    je       0x2e4ab
+0002e43f 48 8b 0d ba bb 00 00     mov      rcx, qword ptr [rip + 0xbbba]
+0002e446 8b 41 2c                 mov      eax, dword ptr [rcx + 0x2c]
+0002e449 a8 02                    test     al, 2
+0002e44b 74 5e                    je       0x2e4ab
+0002e44d 80 79 29 02              cmp      byte ptr [rcx + 0x29], 2
+0002e451 72 58                    jb       0x2e4ab
+0002e453 49 3b cf                 cmp      rcx, r15
+0002e456 74 53                    je       0x2e4ab
+0002e458 49 8b 46 18              mov      rax, qword ptr [r14 + 0x18]
+0002e45c 4c 8d 8b dc 03 00 00     lea      r9, [rbx + 0x3dc]
+0002e463 44 0f b6 83 d3 02 00 00  movzx    r8d, byte ptr [rbx + 0x2d3]
+0002e46b ba 0c 00 00 00           mov      edx, 0xc
+0002e470 44 0f b6 93 d7 02 00 00  movzx    r10d, byte ptr [rbx + 0x2d7]
+0002e478 48 8b 49 18              mov      rcx, qword ptr [rcx + 0x18]
+0002e47c 48 89 44 24 40           mov      qword ptr [rsp + 0x40], rax
+0002e481 8b 84 24 90 00 00 00     mov      eax, dword ptr [rsp + 0x90]
+0002e488 44 89 44 24 38           mov      dword ptr [rsp + 0x38], r8d
+0002e48d 4c 8d 05 3c a1 00 00     lea      r8, [rip + 0xa13c]
+0002e494 44 89 54 24 30           mov      dword ptr [rsp + 0x30], r10d
+0002e499 44 0f b7 dd              movzx    r11d, bp
+0002e49d 89 44 24 28              mov      dword ptr [rsp + 0x28], eax
+0002e4a1 44 89 5c 24 20           mov      dword ptr [rsp + 0x20], r11d
+0002e4a6 e8 a5 05 00 00           call     0x2ea50 ; WPP_SF_sdDDDq
+0002e4ab 48 c7 c2 b0 3c ff ff     mov      rdx, 0xffffffffffff3cb0
+0002e4b2 48 8b cb                 mov      rcx, rbx
+0002e4b5 e8 12 14 00 00           call     0x2f8cc ; QCSER_Wait
+0002e4ba 8b 84 24 98 00 00 00     mov      eax, dword ptr [rsp + 0x98]
+0002e4c1 03 c6                    add      eax, esi
+0002e4c3 89 84 24 98 00 00 00     mov      dword ptr [rsp + 0x98], eax
+0002e4ca 83 f8 03                 cmp      eax, 3
+0002e4cd 0f 8c f0 fe ff ff        jl       0x2e3c3
+0002e4d3 eb 61                    jmp      0x2e536
+0002e4d5 83 bb dc 11 00 00 00     cmp      dword ptr [rbx + 0x11dc], 0
+0002e4dc 74 58                    je       0x2e536
+0002e4de 48 8b 0d 1b bb 00 00     mov      rcx, qword ptr [rip + 0xbb1b]
+0002e4e5 8b 41 2c                 mov      eax, dword ptr [rcx + 0x2c]
+0002e4e8 a8 02                    test     al, 2
+0002e4ea 74 4a                    je       0x2e536
+0002e4ec 80 79 29 05              cmp      byte ptr [rcx + 0x29], 5
+0002e4f0 72 44                    jb       0x2e536
+0002e4f2 49 3b cf                 cmp      rcx, r15
+0002e4f5 74 3f                    je       0x2e536
+0002e4f7 44 0f b6 83 d3 02 00 00  movzx    r8d, byte ptr [rbx + 0x2d3]
+0002e4ff 4c 8d 8b dc 03 00 00     lea      r9, [rbx + 0x3dc]
+0002e506 49 8b 46 18              mov      rax, qword ptr [r14 + 0x18]
+0002e50a ba 0d 00 00 00           mov      edx, 0xd
+0002e50f 44 0f b6 93 d7 02 00 00  movzx    r10d, byte ptr [rbx + 0x2d7]
+0002e517 48 8b 49 18              mov      rcx, qword ptr [rcx + 0x18]
+0002e51b 48 89 44 24 30           mov      qword ptr [rsp + 0x30], rax
+0002e520 44 89 44 24 28           mov      dword ptr [rsp + 0x28], r8d
+0002e525 4c 8d 05 a4 a0 00 00     lea      r8, [rip + 0xa0a4]
+0002e52c 44 89 54 24 20           mov      dword ptr [rsp + 0x20], r10d
+0002e531 e8 52 16 fe ff           call     0xfb88 ; WPP_SF_sDlq
+0002e536 33 d2                    xor      edx, edx
+0002e538 49 8b ce                 mov      rcx, r14
+0002e53b ff 15 ef 9a 00 00        call     qword ptr [rip + 0x9aef]
+0002e541 83 bb dc 11 00 00 00     cmp      dword ptr [rbx + 0x11dc], 0
+0002e548 74 46                    je       0x2e590
+0002e54a 48 8b 0d af ba 00 00     mov      rcx, qword ptr [rip + 0xbaaf]
+0002e551 8b 41 2c                 mov      eax, dword ptr [rcx + 0x2c]
+0002e554 40 84 c6                 test     sil, al
+0002e557 74 37                    je       0x2e590
+0002e559 80 79 29 05              cmp      byte ptr [rcx + 0x29], 5
+0002e55d 72 31                    jb       0x2e590
+0002e55f 49 3b cf                 cmp      rcx, r15
+0002e562 74 2c                    je       0x2e590
+0002e564 8b 84 24 90 00 00 00     mov      eax, dword ptr [rsp + 0x90]
+0002e56b 4c 8d 8b dc 03 00 00     lea      r9, [rbx + 0x3dc]
+0002e572 48 8b 49 18              mov      rcx, qword ptr [rcx + 0x18]
+0002e576 4c 8d 05 53 a0 00 00     lea      r8, [rip + 0xa053]
+0002e57d 89 44 24 28              mov      dword ptr [rsp + 0x28], eax
+0002e581 ba 0e 00 00 00           mov      edx, 0xe
+0002e586 44 89 6c 24 20           mov      dword ptr [rsp + 0x20], r13d
+0002e58b e8 c8 ae fd ff           call     0x9458 ; WPP_SF_slD
+0002e590 8b 84 24 90 00 00 00     mov      eax, dword ptr [rsp + 0x90]
+0002e597 48 8b 9c 24 88 00 00 00  mov      rbx, qword ptr [rsp + 0x88]
+0002e59f 48 83 c4 50              add      rsp, 0x50
+0002e5a3 41 5f                    pop      r15
+0002e5a5 41 5e                    pop      r14
+0002e5a7 41 5d                    pop      r13
+0002e5a9 5e                       pop      rsi
+0002e5aa 5d                       pop      rbp
+0002e5ab c3                       ret

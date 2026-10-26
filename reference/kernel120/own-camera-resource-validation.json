@@ -1,0 +1,217 @@
+{
+  "downstream_cci": [
+    {
+      "node": "cam_cci0: qcom,cci@ac4a000 {",
+      "properties": {
+        "reg": "<0xac4a000 0x1000>",
+        "reg-names": "\"cci\"",
+        "interrupt-names": "\"cci\"",
+        "interrupts": "<0 460 0>",
+        "clock-names": "\"cci_0_clk_src\", \"cci_0_clk\"",
+        "pinctrl-0": "<&cci0_active &cci1_active>",
+        "pinctrl-1": "<&cci0_suspend &cci1_suspend>"
+      }
+    },
+    {
+      "node": "cam_cci1: qcom,cci@ac4b000 {",
+      "properties": {
+        "reg": "<0xac4b000 0x1000>",
+        "reg-names": "\"cci\"",
+        "interrupt-names": "\"cci\"",
+        "interrupts": "<0 271 0>",
+        "clock-names": "\"cci_1_clk_src\", \"cci_1_clk\"",
+        "pinctrl-0": "<&cci2_active &cci3_active>",
+        "pinctrl-1": "<&cci2_suspend &cci3_suspend>"
+      }
+    }
+  ],
+  "active_source_slots": [
+    {
+      "node": "qcom,cam-sensor@0 {",
+      "properties": {
+        "cell-index": "<0>",
+        "csiphy-sd-index": "<0>",
+        "cam_vio-supply": "<&pm8150l_l1>",
+        "cam_vana-supply": "<&L7Q>",
+        "cam_vdig-supply": "<&L1Q>",
+        "cam_vaf-supply": "<&L3Q>",
+        "cam_v_custom1-supply": "<&L4Q>",
+        "regulator-names": "\"cam_vio\", \"cam_vana\", \"cam_vdig\", \"cam_clk\", \"cam_vaf\",\"cam_v_custom1\"",
+        "rgltr-min-voltage": "<0 2800000 1100000 0 2800000 1800000>",
+        "rgltr-max-voltage": "<0 2800000 1100000 0 2800000 1800000>",
+        "gpios": "<&tlmm 13 0>, <&pm8150_gpios 1 0>",
+        "gpio-reset": "<1>",
+        "cci-master": "<0>",
+        "clocks": "<&clock_camcc CAM_CC_MCLK0_CLK>",
+        "clock-rates": "<19200000>"
+      }
+    },
+    {
+      "node": "qcom,cam-sensor@1 {",
+      "properties": {
+        "cell-index": "<1>",
+        "csiphy-sd-index": "<1>",
+        "cam_vio-supply": "<&pm8150l_l1>",
+        "cam_vana-supply": "<&L4P>",
+        "cam_vdig-supply": "<&L1P>",
+        "regulator-names": "\"cam_vio\", \"cam_vana\", \"cam_vdig\", \"cam_clk\", \"cam_bob\"",
+        "rgltr-min-voltage": "<0 2800000 1100000 0 3008000>",
+        "rgltr-max-voltage": "<0 2800000 1100000 0 4000000>",
+        "gpios": "<&tlmm 14 0>, <&tlmm 30 0>",
+        "gpio-reset": "<1>",
+        "cci-device": "<0>",
+        "cci-master": "<1>",
+        "clocks": "<&clock_camcc CAM_CC_MCLK1_CLK>",
+        "clock-rates": "<19200000>"
+      }
+    },
+    {
+      "node": "qcom,cam-sensor@2 {",
+      "properties": {
+        "cell-index": "<2>",
+        "csiphy-sd-index": "<2>",
+        "cam_vio-supply": "<&pm8150l_l1>",
+        "cam_vana-supply": "<&L5Q>",
+        "cam_vdig-supply": "<&L2Q>",
+        "regulator-names": "\"cam_vio\", \"cam_vana\", \"cam_vdig\", \"cam_clk\"",
+        "rgltr-min-voltage": "<1800000 2800000 1050000 0 >",
+        "rgltr-max-voltage": "<1800000 2800000 1050000 0 >",
+        "gpios": "<&tlmm 15 0>, <&tlmm 12 0>, <&tlmm 29 0>",
+        "gpio-reset": "<1>",
+        "gpio-custom1": "<2>",
+        "cci-device": "<1>",
+        "cci-master": "<1>",
+        "clocks": "<&clock_camcc CAM_CC_MCLK2_CLK>",
+        "clock-rates": "<19200000>"
+      }
+    },
+    {
+      "node": "qcom,cam-sensor@3 {",
+      "properties": {
+        "cell-index": "<3>",
+        "csiphy-sd-index": "<3>",
+        "cam_vio-supply": "<&pm8150l_l1>",
+        "cam_vana-supply": "<&L6P>",
+        "cam_vdig-supply": "<&L2P>",
+        "regulator-names": "\"cam_vio\", \"cam_vana\", \"cam_clk\", \"cam_bob\",\"cam_vdig\"",
+        "rgltr-min-voltage": "<0 2800000 0 3008000 1050000>",
+        "rgltr-max-voltage": "<0 2800000 0 4000000 1050000>",
+        "gpios": "<&tlmm 16 0>, <&tlmm 23 0>",
+        "gpio-reset": "<1>",
+        "cci-device": "<1>",
+        "cci-master": "<0>",
+        "clocks": "<&clock_camcc CAM_CC_MCLK3_CLK>",
+        "clock-rates": "<19200000>"
+      }
+    },
+    {
+      "node": "qcom,cam-sensor@4 {",
+      "properties": {
+        "cell-index": "<4>",
+        "csiphy-sd-index": "<2>",
+        "cam_vio-supply": "<&pm8150l_l1>",
+        "cam_vana-supply": "<&L5P>",
+        "regulator-names": "\"cam_vio\", \"cam_vana\", \"cam_clk\"",
+        "rgltr-min-voltage": "<1800000 2800000 0 >",
+        "rgltr-max-voltage": "<1800000 2800000 0 >",
+        "gpios": "<&tlmm 15 0>, <&tlmm 12 0>, <&tlmm 29 0>",
+        "gpio-reset": "<1>",
+        "gpio-custom1": "<2>",
+        "cci-device": "<1>",
+        "cci-master": "<0>",
+        "clocks": "<&clock_camcc CAM_CC_MCLK2_CLK>",
+        "clock-rates": "<19200000>"
+      }
+    }
+  ],
+  "cci_pinctrl": [
+    {
+      "file": "sm8150-pinctrl.dtsi",
+      "node": "cci0_active: cci0_active {",
+      "properties": {
+        "pins": "\"gpio17\",\"gpio18\"",
+        "function": "\"cci_i2c\"",
+        "drive-strength": "<2>"
+      }
+    },
+    {
+      "file": "sm8150-pinctrl.dtsi",
+      "node": "cci0_suspend: cci0_suspend {",
+      "properties": {
+        "pins": "\"gpio17\",\"gpio18\"",
+        "function": "\"cci_i2c\"",
+        "drive-strength": "<2>"
+      }
+    },
+    {
+      "file": "sm8150-pinctrl.dtsi",
+      "node": "cci1_active: cci1_active {",
+      "properties": {
+        "pins": "\"gpio19\",\"gpio20\"",
+        "function": "\"cci_i2c\"",
+        "drive-strength": "<2>"
+      }
+    },
+    {
+      "file": "sm8150-pinctrl.dtsi",
+      "node": "cci1_suspend: cci1_suspend {",
+      "properties": {
+        "pins": "\"gpio19\",\"gpio20\"",
+        "function": "\"cci_i2c\"",
+        "drive-strength": "<2>"
+      }
+    },
+    {
+      "file": "sm8150-pinctrl.dtsi",
+      "node": "cci2_active: cci2_active {",
+      "properties": {
+        "pins": "\"gpio31\",\"gpio32\"",
+        "function": "\"cci_i2c\"",
+        "drive-strength": "<2>"
+      }
+    },
+    {
+      "file": "sm8150-pinctrl.dtsi",
+      "node": "cci2_suspend: cci2_suspend {",
+      "properties": {
+        "pins": "\"gpio31\",\"gpio32\"",
+        "function": "\"cci_i2c\"",
+        "drive-strength": "<2>"
+      }
+    },
+    {
+      "file": "sm8150-pinctrl.dtsi",
+      "node": "cci3_active: cci3_active {",
+      "properties": {
+        "pins": "\"gpio33\",\"gpio34\"",
+        "function": "\"cci_i2c\"",
+        "drive-strength": "<2>"
+      }
+    },
+    {
+      "file": "sm8150-pinctrl.dtsi",
+      "node": "cci3_suspend: cci3_suspend {",
+      "properties": {
+        "pins": "\"gpio33\",\"gpio34\"",
+        "function": "\"cci_i2c\"",
+        "drive-strength": "<2>"
+      }
+    }
+  ],
+  "source_hashes": [
+    {
+      "file": "sm8150-camera.dtsi",
+      "sha256": "936639da7523345497e60a0dcd459a511732d1dd6780c2727d4a9ff969fce17f"
+    },
+    {
+      "file": "sm8150-camera-sensor-mtp.dtsi",
+      "sha256": "7cdc16e72d89aee4da25270d4df2634dc9ed8403626e5962d8ff8c173fd473d5"
+    },
+    {
+      "file": "sm8150-pinctrl.dtsi",
+      "sha256": "7859a70be02f782046c6e11ed148cf4348de3c439564bf57ed5570358a68bd9a"
+    }
+  ],
+  "sources_only_not_physical_sensor_identification": true,
+  "stock_bins_still_not_decoded": true
+}

@@ -1,0 +1,104 @@
+{
+  "stage": 461,
+  "actual_full_tryComplete_function_extracted": true,
+  "actual_stop_request_drain_extracted": true,
+  "baseline452_stop_reentry_uaf_reproduced": true,
+  "host_asan_ubsan": true,
+  "fixed_cases": 10,
+  "cases": [
+    {
+      "variant": "baseline",
+      "case": "normal",
+      "exit_code": 0,
+      "expected_baseline_uaf": false,
+      "passed": true
+    },
+    {
+      "variant": "baseline",
+      "case": "stop",
+      "exit_code": 1,
+      "expected_baseline_uaf": true,
+      "passed": true
+    },
+    {
+      "variant": "fixed",
+      "case": "normal",
+      "exit_code": 0,
+      "expected_baseline_uaf": false,
+      "passed": true
+    },
+    {
+      "variant": "fixed",
+      "case": "stop",
+      "exit_code": 0,
+      "expected_baseline_uaf": false,
+      "passed": true
+    },
+    {
+      "variant": "fixed",
+      "case": "epoch",
+      "exit_code": 0,
+      "expected_baseline_uaf": false,
+      "passed": true
+    },
+    {
+      "variant": "fixed",
+      "case": "reused-request",
+      "exit_code": 0,
+      "expected_baseline_uaf": false,
+      "passed": true
+    },
+    {
+      "variant": "fixed",
+      "case": "nested",
+      "exit_code": 0,
+      "expected_baseline_uaf": false,
+      "passed": true
+    },
+    {
+      "variant": "fixed",
+      "case": "nested-timeout",
+      "exit_code": 0,
+      "expected_baseline_uaf": false,
+      "passed": true
+    },
+    {
+      "variant": "fixed",
+      "case": "failure",
+      "exit_code": 0,
+      "expected_baseline_uaf": false,
+      "passed": true
+    },
+    {
+      "variant": "fixed",
+      "case": "zero-token",
+      "exit_code": 0,
+      "expected_baseline_uaf": false,
+      "passed": true
+    },
+    {
+      "variant": "fixed",
+      "case": "raw-wait",
+      "exit_code": 0,
+      "expected_baseline_uaf": false,
+      "passed": true
+    },
+    {
+      "variant": "fixed",
+      "case": "stopped-entry",
+      "exit_code": 0,
+      "expected_baseline_uaf": false,
+      "passed": true
+    }
+  ],
+  "normal_history_receipt_then_ownership_return_and_completion_preserved": true,
+  "stop_cancellation_once_and_core_pending_drained": true,
+  "nested_ready_and_timeout_no_duplicate_receipt": true,
+  "restart_and_reused_request_epoch_guarded": true,
+  "baseline_function_sha256": "1721a6969917c025b1ab3ab9eef764a87f0cbbd3718aa0c2f4af2308baca49f3",
+  "candidate_function_sha256": "99cbe8f682554058d47c5a9802e0b5ebbce4a6b93c862393baa0c41f2c11a673",
+  "candidate_pipeline_sha256": "befec1da3743545652adc669cc649860d6840738e38a3798305d213b2e874b40",
+  "phone_sdk_library_build_accessed": false,
+  "gap_root_cause_or_frame_rate_fix_proven": false,
+  "passed": true
+}

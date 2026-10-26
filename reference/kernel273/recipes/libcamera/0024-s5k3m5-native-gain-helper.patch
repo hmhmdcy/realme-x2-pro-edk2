@@ -1,0 +1,20 @@
+--- a/src/ipa/libipa/camera_sensor_helper.cpp
++++ b/src/ipa/libipa/camera_sensor_helper.cpp
+@@ -644,6 +644,17 @@
+ };
+ REGISTER_CAMERA_SENSOR_HELPER("imx462", CameraSensorHelperImx462)
+ 
++class CameraSensorHelperS5k3m5 : public CameraSensorHelper
++{
++public:
++	CameraSensorHelperS5k3m5()
++	{
++		/* Native sensor code: 0x20 is 1x, 0x200 is 16x. */
++		gain_ = AnalogueGainLinear{ 1, 0, 0, 32 };
++	}
++};
++REGISTER_CAMERA_SENSOR_HELPER("s5k3m5", CameraSensorHelperS5k3m5)
++
+ class CameraSensorHelperImx319 : public CameraSensorHelper
+ {
+ public:

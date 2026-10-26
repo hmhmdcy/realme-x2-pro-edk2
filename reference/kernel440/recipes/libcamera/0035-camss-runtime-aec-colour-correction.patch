@@ -1,0 +1,306 @@
+--- a/src/ipa/camss-vfe/camss.cpp
++++ b/src/ipa/camss-vfe/camss.cpp
+@@ -1,6 +1,7 @@
+ /* SPDX-License-Identifier: LGPL-2.1-or-later */
+ /* CAMSS inline hardware IPA: explicit manual tuning and validated BHIST. */
+ #include <array>
++#include <bit>
+ #include <algorithm>
+ #include <cmath>
+ #include <limits>
+@@ -91,10 +92,13 @@
+  std::optional<ColourCorrectionProfile> colourCorrection_;
+  std::optional<ColourMatrix> manualMatrix_;
+  std::optional<LuxProfile> lux_;
++ std::optional<ColourCorrectionInputs> ccmInputs_;
++ std::optional<ColourCorrectionState> pendingColourCorrection_;
+  int selectColourCorrection(double red, double blue, std::optional<int32_t> temperature,
+                             const std::optional<ColourMatrix> &manualMatrix,
+                             const ColourCorrectionState *fallback,
+-                            std::optional<ColourCorrectionState> *state) const;
++                            std::optional<ColourCorrectionState> *state,
++                            const ColourCorrectionInputs *runtime = nullptr) const;
+ 	ResidualBlackProfile profile_{ 0, 1.0 };
+ 	std::string model_;
+ 	Size input_;
+@@ -248,6 +252,7 @@
+    map[&controls::ColourCorrectionMatrix]=ControlInfo(ControlValue(Span<const float,9>(minimum)),ControlValue(Span<const float,9>(maximum)),ControlValue(Span<const float,9>(identity)));
+    *ipaControls=ControlInfoMap(std::move(map),controls::controls);
+   }
++  if (colourCorrection_ && colourCorrection_->requiresLux() && !lux_) return -EINVAL;
+   ret=configureAutofocus(tuning["autofocus"].isEmpty()?(*root)["autofocus"]:tuning["autofocus"],ipaControls);
+   if (ret) return ret;
+   auto subtraction = tuning["residual_black_subtraction"].get<uint16_t>();
+@@ -380,7 +385,7 @@
+ 
+ int IPACamss::selectColourCorrection(double red, double blue, std::optional<int32_t> temperature,
+  const std::optional<ColourMatrix> &manualMatrix, const ColourCorrectionState *fallback,
+- std::optional<ColourCorrectionState> *state) const
++ std::optional<ColourCorrectionState> *state, const ColourCorrectionInputs *runtime) const
+ {
+  state->reset();
+  if (!colourCorrection_) return 0;
+@@ -389,11 +394,20 @@
+  if (ret) return ret;
+  if (!temperature && whiteBalance_) temperature=whiteBalance_->temperature(effectiveRed,effectiveBlue);
+  ColourCorrectionState result;
+- ret=colourCorrection_->select(temperature,manualMatrix,fallback,&result);
++ ret=colourCorrection_->select(temperature,manualMatrix,fallback,&result,runtime);
+  if (!ret) *state=result;
+  return ret;
+ }
+ 
++static bool sameColourCorrection(const std::optional<ColourCorrectionState> &a,
++                                 const std::optional<ColourCorrectionState> &b)
++{
++ if (bool(a) != bool(b)) return false;
++ if (!a) return true;
++ const auto &x=a->parameters, &y=b->parameters;
++ return x.a==y.a && x.b==y.b && x.c==y.c && x.k==y.k && x.qfactor==y.qfactor;
++}
++
+ int IPACamss::applyIspControls(uint64_t epoch, const ControlList &controls, AutoIspUpdate *update)
+ {
+  if (!update) return -EINVAL;
+@@ -425,13 +439,14 @@
+   ColourMatrix matrix;std::copy(requested->begin(),requested->end(),matrix.begin());manualMatrix=matrix;
+  } else if (controls.contains(libcamera::controls::ColourTemperature.id()) || controls.contains(libcamera::controls::ColourGains.id())) manualMatrix.reset();
+  std::optional<ColourCorrectionState> selected;
+- ret=selectColourCorrection(red,blue,temperature,manualMatrix,current.colourCorrection ? &*current.colourCorrection : nullptr,&selected);
++ ret=selectColourCorrection(red,blue,temperature,manualMatrix,current.colourCorrection ? &*current.colourCorrection : nullptr,&selected,ccmInputs_ ? &*ccmInputs_ : nullptr);
+  if (ret) return ret;
+- if (enabled == current.awbEnabled && red == current.sourceRed && blue == current.sourceBlue && temperature == current.colourTemperature && manualMatrix == manualMatrix_) return 0;
++ if (enabled == current.awbEnabled && red == current.sourceRed && blue == current.sourceBlue && temperature == current.colourTemperature && manualMatrix == manualMatrix_ && sameColourCorrection(current.colourCorrection,selected)) return 0;
+  if (ispRevision_ >= UINT32_MAX-1) return -EOVERFLOW;
+  af_.cancelScan();
+  awbEnabled_ = enabled; colourTemperature_ = temperature; manualMatrix_ = manualMatrix;
+  if (awb_) awb_->reset();
++ pendingColourCorrection_ = selected;
+  pendingWhiteBalance_ = AutoIspUpdate{ true, ++ispRevision_, red, blue };
+  *update = *pendingWhiteBalance_;
+  return 0;
+@@ -583,6 +598,7 @@
+  awaiting_.reset();
+  if (agc_) agc_->resetFrameCount();
+  if (lux_) lux_->reset();
++ ccmInputs_.reset();pendingColourCorrection_.reset();
+  epoch_ = epoch;
+ 	red_ = red; blue_ = blue;
+ 	awbEnabled_ = awbEnabled; colourTemperature_ = temperature; manualMatrix_ = manualMatrix;
+@@ -600,6 +616,7 @@
+ {
+ 	running_ = false;af_.cancel();initialAfTrigger_.reset();
+  if (lux_) lux_->reset();
++ ccmInputs_.reset();pendingColourCorrection_.reset();
+  automatic_ = false; awaiting_.reset();
+ 	awbEnabled_ = false; colourTemperature_.reset(); manualMatrix_.reset(); pendingWhiteBalance_.reset();
+ 	preparedParameters_.clear(); parameterHistory_.clear();
+@@ -629,7 +646,8 @@
+  std::optional<ColourCorrectionState> selected;
+  const ColourCorrectionState *fallback=nullptr;
+  if (!parameterHistory_.empty() && parameterHistory_.rbegin()->second.colourCorrection) fallback=&*parameterHistory_.rbegin()->second.colourCorrection;
+- ret=selectColourCorrection(red,blue,colourTemperature_,manualMatrix_,fallback,&selected);
++ if (revision) selected=pendingColourCorrection_;
++ else ret=selectColourCorrection(red,blue,colourTemperature_,manualMatrix_,fallback,&selected);
+  if (ret) return ret;
+  camss_params_color_correct ccm{};
+  if (selected) {
+@@ -658,7 +676,16 @@
+ 	}
+ 	parameterHistory_[firstSof] = it->second;
+ 	preparedParameters_.erase(it);
+-	if (pendingWhiteBalance_ && pendingWhiteBalance_->revision == revision) pendingWhiteBalance_.reset();
++	if (pendingWhiteBalance_ && pendingWhiteBalance_->revision == revision) {
++  pendingWhiteBalance_.reset();pendingColourCorrection_.reset();
++ }
++ ccmInputs_.reset();
++ const auto &ccm=parameterHistory_.at(firstSof).colourCorrection;
++ if (ccm && ccm->aecValue) {
++  LOG(IPACamss,Info)<<"CCM_APPLIED epoch="<<epoch<<" revision="<<revision<<" first-sof="<<firstSof
++   <<" statistics-sof="<<ccm->statisticsSof.value_or(firstSof)
++   <<" aec-bits="<<std::bit_cast<uint32_t>(*ccm->aecValue)<<" kelvin="<<ccm->temperature.value_or(0);
++ }
+ 	while (parameterHistory_.size() > 64) parameterHistory_.erase(parameterHistory_.begin());
+ 	LOG(IPACamss, Info) << "ISP applied epoch=" << epoch << " revision=" << revision << " first-sof=" << firstSof << " awb=" << parameterHistory_.at(firstSof).awbEnabled;
+ }
+@@ -704,6 +731,9 @@
+  if (result.parametersKnown && context->second.colourCorrection)
+   metadata.set(controls::ColourCorrectionMatrix,Span<const float,9>(context->second.colourCorrection->effective));
+ 	metadata.set(controls::AwbLocked, false);
++ double proposedRed=result.parametersKnown ? context->second.sourceRed : red_;
++ double proposedBlue=result.parametersKnown ? context->second.sourceBlue : blue_;
++ bool whiteBalanceChanged=false;
+ 	if (af_.state()!=ipa::ContrastAf::State::Scanning && awbEnabled_ && effective_ && context->second.awbEnabled && result.rgbPresent && context == std::prev(parameterHistory_.end()) &&
+ 	    !pendingWhiteBalance_ && preparedParameters_.empty()) {
+ 		auto awb = awb_->calculate(parsed.grid, context->second.red, context->second.blue);
+@@ -714,8 +744,7 @@
+ 			double red, blue;
+ 			if (!effectiveColourGains(profile_, awb.red, awb.blue, &red, &blue) &&
+ 			    (red != context->second.red || blue != context->second.blue)) {
+-				pendingWhiteBalance_ = AutoIspUpdate{ true, ++ispRevision_, awb.red, awb.blue };
+-				result.ispUpdate = *pendingWhiteBalance_;
++				proposedRed=awb.red;proposedBlue=awb.blue;whiteBalanceChanged=true;
+ 			}
+ 		}
+ 	}
+@@ -745,6 +774,31 @@
+     <<" exposure-index="<<result.exposureIndex<<" luma="<<result.luxLuma<<" index="<<result.luxIndex;
+   }
+  }
++ if (result.parametersKnown && context==std::prev(parameterHistory_.end())) {
++  ccmInputs_.reset();
++  if (result.sensorControlsKnown)
++   ccmInputs_=ColourCorrectionInputs{ result.luxValid ? std::optional<float>(result.luxIndex) : std::nullopt,
++                                    float(helper_->gain(sensorContext.gainCode)),sof };
++ }
++ if (af_.state()!=ipa::ContrastAf::State::Scanning && result.parametersKnown && context==std::prev(parameterHistory_.end()) &&
++     !pendingWhiteBalance_ && preparedParameters_.empty() && ispRevision_<UINT32_MAX-1 &&
++     (whiteBalanceChanged || (colourCorrection_ && colourCorrection_->runtimeAec()))) {
++  std::optional<ColourCorrectionState> selected;
++  int ret=selectColourCorrection(proposedRed,proposedBlue,colourTemperature_,manualMatrix_,
++                                context->second.colourCorrection ? &*context->second.colourCorrection : nullptr,
++                                &selected,ccmInputs_ ? &*ccmInputs_ : nullptr);
++  if (ret) LOG(IPACamss,Error)<<"Runtime CCM selection failed: "<<ret;
++  else if (whiteBalanceChanged || !sameColourCorrection(selected,context->second.colourCorrection)) {
++   pendingColourCorrection_=selected;
++   pendingWhiteBalance_=AutoIspUpdate{ true,++ispRevision_,proposedRed,proposedBlue };
++   result.ispUpdate=*pendingWhiteBalance_;
++   if (selected && selected->aecValue) {
++    LOG(IPACamss,Info)<<"CCM_PROPOSE epoch="<<epoch<<" statistics-sof="<<selected->statisticsSof.value_or(sof)
++     <<" revision="<<ispRevision_<<" aec-bits="<<std::bit_cast<uint32_t>(*selected->aecValue)
++     <<" kelvin="<<selected->temperature.value_or(0);
++   }
++  }
++ }
+  if (af_.state()!=ipa::ContrastAf::State::Scanning && automatic_ && effective_ && result.sensorControlsKnown &&
+      (!awaiting_ || (sensorContext.source == awaiting_->revision &&
+       sensorContext.exposureLines == awaiting_->exposureLines && sensorContext.gainCode == awaiting_->gainCode))) {
+--- a/src/ipa/camss-vfe/colour_correction_profile.cpp
++++ b/src/ipa/camss-vfe/colour_correction_profile.cpp
+@@ -35,18 +35,27 @@
+ int ColourCorrectionProfile::select(std::optional<int32_t> kelvin,
+ 				    const std::optional<ColourMatrix> &manualMatrix,
+ 				    const ColourCorrectionState *fallback,
+-				    ColourCorrectionState *state) const
++				    ColourCorrectionState *state, const ColourCorrectionInputs *runtime) const
+ {
+ 	if (manualMatrix) return manual(*manualMatrix, state);
+-	if (!kelvin) {
++ std::optional<float> aec = aecValue_;
++ if (runtimeAec_) aec = runtime ? (aecPosition_ == 0 ? runtime->luxIndex : runtime->analogueGain) : std::nullopt;
++ if (aec && !std::isfinite(*aec)) return -ERANGE;
++	if (!kelvin || !aec) {
+ 		if (fallback) { *state = *fallback; return 0; }
+ 		/* Undefined chromaticity, such as a zero channel gain, has no CCT.
+ 		 * Keep the last matrix, or begin with unity, without inventing a CCT. */
+ 		return encode(unity, state);
+ 	}
+ 	ColourCorrectionData data;
+-	int ret = evaluate(core_, 0, float(*kelvin), &data);
+-	return ret ? ret : encode(data, state);
++ int ret = evaluate(core_, 0, float(*kelvin), *aec, &data);
++ if (ret) return ret;
++ ret = encode(data, state);
++ if (!ret) {
++  state->aecValue = aec; state->temperature = kelvin;
++  if (runtimeAec_ && runtime) state->statisticsSof = runtime->statisticsSof;
++ }
++ return ret;
+ }
+ 
+ int ColourCorrectionProfile::readNodes(const ValueNode &value, unsigned int level,
+@@ -100,20 +109,20 @@
+ }
+ 
+ int ColourCorrectionProfile::evaluate(const std::vector<Node> &nodes,
+-				      unsigned int level, float kelvin,
++				      unsigned int level, float kelvin, float aecValue,
+ 				      ColourCorrectionData *data) const
+ {
+ 	if (nodes.empty() || level >= triggerSize.size()) return -EINVAL;
+ 	auto child = [&](const Node &node, ColourCorrectionData *output) {
+ 		if (level == 4) { *output = node.data; return 0; }
+-		return evaluate(node.children, level + 1, kelvin, output);
++		return evaluate(node.children, level + 1, kelvin, aecValue, output);
+ 	};
+ 	if (level == 2) {
+ 		for (const Node &node : nodes)
+ 			if (node.trigger[0] == ledIndex_) return child(node, data);
+ 		return -ENOENT;
+ 	}
+-	float value = level == 0 ? drcGain_ : level == 1 ? hdrRatio_ : level == 3 ? aecValue_ : kelvin;
++	float value = level == 0 ? drcGain_ : level == 1 ? hdrRatio_ : level == 3 ? aecValue : kelvin;
+ 	unsigned int position = level == 1 ? hdrPosition_ : level == 3 ? aecPosition_ : 0;
+ 	for (unsigned int i = 0; i < nodes.size(); ++i) {
+ 		const Node &first = nodes[i];
+@@ -159,18 +168,22 @@
+ 	else if (*hdr == "sensitivity_ratio") result.hdrPosition_ = 2;
+ 	else if (*hdr == "exposure_gain_ratio") result.hdrPosition_ = 4;
+ 	else return -EINVAL;
+-	/* These coordinates are explicit references until their corresponding
+-	 * runtime AEC/DRC/flash inputs are available. CCT is selected per revision. */
++ const auto source = tuning["aec_source"].get<std::string>("reference");
++ if (source != "reference" && source != "runtime") return -EINVAL;
++ result.runtimeAec_ = source == "runtime";
++ /* DRC, HDR and flash coordinates remain explicit references. The optional
++  * runtime AEC coordinate and CCT are selected for each ISP revision. */
+ 	const auto &reference = tuning["reference_triggers"];
+ 	if (!reference.isDictionary()) return -EINVAL;
+ 	auto drc = reference["drc_gain"].get<float>(), ratio = reference["hdr_ratio"].get<float>(), aecValue = reference["aec_value"].get<float>();
+ 	auto led = reference["led_index"].get<unsigned int>();
++ if (result.runtimeAec_ && !aecValue) aecValue = 0.f;
+ 	if (!drc || !ratio || !aecValue || !led || !std::isfinite(*drc) || !std::isfinite(*ratio) || !std::isfinite(*aecValue)) return -EINVAL;
+ 	result.drcGain_ = *drc; result.hdrRatio_ = *ratio; result.aecValue_ = *aecValue; result.ledIndex_ = *led;
+ 	int ret = result.readNodes(tuning["core"], 0, &result.core_);
+ 	if (ret) return ret;
+ 	ColourCorrectionData probe;
+-	ret = result.evaluate(result.core_, 0, 6500, &probe);
++	ret = result.evaluate(result.core_, 0, 6500, result.aecValue_, &probe);
+ 	if (ret) return ret;
+ 	*profile = std::move(result);
+ 	return 0;
+--- a/src/ipa/camss-vfe/colour_correction_profile.h
++++ b/src/ipa/camss-vfe/colour_correction_profile.h
+@@ -10,10 +10,17 @@
+ namespace libcamera::ipa::camss {
+ 
+ using ColourMatrix = std::array<float, 9>;
++struct ColourCorrectionInputs {
++ std::optional<float> luxIndex, analogueGain;
++ uint32_t statisticsSof;
++};
+ struct ColourCorrectionState {
+ 	ColourCorrectionData data;
+ 	ColourCorrectionParameters parameters;
+ 	ColourMatrix effective;
++ std::optional<float> aecValue;
++ std::optional<int32_t> temperature;
++ std::optional<uint32_t> statisticsSof;
+ };
+ 
+ class ColourCorrectionProfile {
+@@ -22,7 +29,10 @@
+ 			     std::optional<ColourCorrectionProfile> *profile);
+ 	int manual(Span<const float> matrix, ColourCorrectionState *state) const;
+ 	int select(std::optional<int32_t> kelvin, const std::optional<ColourMatrix> &manual,
+-		   const ColourCorrectionState *fallback, ColourCorrectionState *state) const;
++		   const ColourCorrectionState *fallback, ColourCorrectionState *state,
++            const ColourCorrectionInputs *runtime = nullptr) const;
++ bool runtimeAec() const { return runtimeAec_; }
++ bool requiresLux() const { return runtimeAec_ && aecPosition_ == 0; }
+ 	float minimum() const { return -2048.0f / (1u << (7 + qfactor_)); }
+ 	float maximum() const { return 2047.0f / (1u << (7 + qfactor_)); }
+ private:
+@@ -32,10 +42,11 @@
+ 		ColourCorrectionData data{};
+ 	};
+ 	int readNodes(const ValueNode &value, unsigned int level, std::vector<Node> *nodes);
+-	int evaluate(const std::vector<Node> &nodes, unsigned int level, float kelvin,
++	int evaluate(const std::vector<Node> &nodes, unsigned int level, float kelvin, float aecValue,
+ 		     ColourCorrectionData *data) const;
+ 	int encode(const ColourCorrectionData &data, ColourCorrectionState *state) const;
+ 	unsigned int qfactor_ = 0, hdrPosition_ = 2, aecPosition_ = 0, ledIndex_ = 0;
++ bool runtimeAec_ = false;
+ 	float drcGain_ = 1, hdrRatio_ = 1, aecValue_ = 0;
+ 	std::vector<Node> core_;
+ };

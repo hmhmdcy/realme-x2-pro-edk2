@@ -1,0 +1,259 @@
+{
+  "stage": 450,
+  "scope": "offline-only analysis of unchanged 448 core in 449 r2",
+  "frames": 9000,
+  "missing_sofs": 33,
+  "missing_sofs_with_statistics_and_pd10_without_pair": 33,
+  "phase_definitions": {
+    "estimated_call_to_af_log_us": "FRAME_IPA_PREPARE timestamp minus dispatch-us estimates call entry; AF log is after AF state processing",
+    "af_to_tone_log_us": "AF log to last same-SOF tone/CCM log; most numeric tone work is inside this bracket",
+    "tone_log_to_host_return_log_us": "last tone/CCM log to pipeline return log; includes serialization, IPC, deserialization, scheduling and nested events"
+  },
+  "all_frames": {
+    "dispatch_us": {
+      "n": 9000,
+      "median_ms": 9.137,
+      "p95_ms": 31.403,
+      "p99_ms": 32.136,
+      "maximum_ms": 45.408
+    },
+    "estimated_call_to_af_log_us": {
+      "n": 9000,
+      "median_ms": 0.259,
+      "p95_ms": 2.819,
+      "p99_ms": 3.799,
+      "maximum_ms": 8.246
+    },
+    "af_to_tone_log_us": {
+      "n": 9000,
+      "median_ms": 1.418,
+      "p95_ms": 11.101,
+      "p99_ms": 21.628,
+      "maximum_ms": 25.164
+    },
+    "tone_log_to_host_return_log_us": {
+      "n": 9000,
+      "median_ms": 6.909,
+      "p95_ms": 11.896,
+      "p99_ms": 30.511,
+      "maximum_ms": 31.695
+    },
+    "focus_sample_us": {
+      "n": 9000,
+      "median_ms": 3.236,
+      "p95_ms": 7.382,
+      "p99_ms": 9.974,
+      "maximum_ms": 11.001
+    },
+    "focus_sample_cpu_us": {
+      "n": 9000,
+      "median_ms": 3.197,
+      "p95_ms": 3.239,
+      "p99_ms": 3.263,
+      "maximum_ms": 3.349
+    }
+  },
+  "frames_near_missing_sofs": {
+    "n": 198,
+    "metrics": {
+      "dispatch_us": {
+        "n": 198,
+        "median_ms": 8.792,
+        "p95_ms": 31.729,
+        "p99_ms": 32.104,
+        "maximum_ms": 32.119
+      },
+      "estimated_call_to_af_log_us": {
+        "n": 198,
+        "median_ms": 0.258,
+        "p95_ms": 3.382,
+        "p99_ms": 5.596,
+        "maximum_ms": 8.246
+      },
+      "af_to_tone_log_us": {
+        "n": 198,
+        "median_ms": 1.397,
+        "p95_ms": 17.687,
+        "p99_ms": 21.311,
+        "maximum_ms": 21.373
+      },
+      "tone_log_to_host_return_log_us": {
+        "n": 198,
+        "median_ms": 6.69,
+        "p95_ms": 30.027,
+        "p99_ms": 30.591,
+        "maximum_ms": 30.607
+      },
+      "focus_sample_us": {
+        "n": 198,
+        "median_ms": 3.242,
+        "p95_ms": 9.601,
+        "p99_ms": 10.657,
+        "maximum_ms": 10.805
+      },
+      "focus_sample_cpu_us": {
+        "n": 198,
+        "median_ms": 3.199,
+        "p95_ms": 3.243,
+        "p99_ms": 3.263,
+        "maximum_ms": 3.274
+      }
+    }
+  },
+  "gap_lead_correlation": {
+    "1": {
+      "samples": 33,
+      "dispatch_ge_25ms": 3,
+      "tail_ge_20ms": 1
+    },
+    "2": {
+      "samples": 33,
+      "dispatch_ge_25ms": 2,
+      "tail_ge_20ms": 0
+    },
+    "3": {
+      "samples": 33,
+      "dispatch_ge_25ms": 8,
+      "tail_ge_20ms": 6
+    },
+    "4": {
+      "samples": 33,
+      "dispatch_ge_25ms": 3,
+      "tail_ge_20ms": 1
+    },
+    "any_last_four_dispatch_ge_25ms": 14
+  },
+  "slow_dispatch": {
+    "threshold_ms": 25,
+    "frames": 759,
+    "metrics": {
+      "dispatch_us": {
+        "n": 759,
+        "median_ms": 31.595,
+        "p95_ms": 32.368,
+        "p99_ms": 32.784,
+        "maximum_ms": 45.408
+      },
+      "estimated_call_to_af_log_us": {
+        "n": 759,
+        "median_ms": 0.259,
+        "p95_ms": 3.702,
+        "p99_ms": 4.4,
+        "maximum_ms": 4.843
+      },
+      "af_to_tone_log_us": {
+        "n": 759,
+        "median_ms": 13.272,
+        "p95_ms": 22.917,
+        "p99_ms": 25.104,
+        "maximum_ms": 25.164
+      },
+      "tone_log_to_host_return_log_us": {
+        "n": 759,
+        "median_ms": 18.714,
+        "p95_ms": 30.618,
+        "p99_ms": 30.79,
+        "maximum_ms": 31.695
+      },
+      "focus_sample_us": {
+        "n": 759,
+        "median_ms": 3.249,
+        "p95_ms": 6.474,
+        "p99_ms": 8.229,
+        "maximum_ms": 10.046
+      },
+      "focus_sample_cpu_us": {
+        "n": 759,
+        "median_ms": 3.205,
+        "p95_ms": 3.248,
+        "p99_ms": 3.265,
+        "maximum_ms": 3.302
+      }
+    },
+    "host_markers_during_dispatch": {
+      "SOF": 708,
+      "SensorContext": 708,
+      "PD10_READY": 762,
+      "Parameters": 55,
+      "Resynced": 3,
+      "AE": 1,
+      "WB": 1
+    }
+  },
+  "wire_field": {
+    "packet_bytes": 6008,
+    "serialized_vector_bytes": 54076,
+    "per_element_temporary_vectors": 6008,
+    "wire_layout_may_be_preserved_by_specialized_encoder": true
+  },
+  "host_wire_proof": {
+    "cases": [
+      {
+        "bytes": 0,
+        "wire_bytes": 4,
+        "old_allocations": 2,
+        "fast_allocations": 1
+      },
+      {
+        "bytes": 1,
+        "wire_bytes": 13,
+        "old_allocations": 6,
+        "fast_allocations": 1
+      },
+      {
+        "bytes": 16,
+        "wire_bytes": 148,
+        "old_allocations": 40,
+        "fast_allocations": 1
+      },
+      {
+        "bytes": 256,
+        "wire_bytes": 2308,
+        "old_allocations": 524,
+        "fast_allocations": 1
+      },
+      {
+        "bytes": 6008,
+        "wire_bytes": 54076,
+        "old_allocations": 12033,
+        "fast_allocations": 1
+      }
+    ],
+    "old_100_calls_us": 9352,
+    "fast_100_calls_us": 420,
+    "checksum": 4288,
+    "passed": true,
+    "source_sha256": "ca2db3533dd20a79dbcf80f3f8b88b6b4833f72e1cb89dd133d589ebd3704f85",
+    "exact_source_template_and_uint8_pod_macro": true,
+    "synthetic_bytes_only": true,
+    "host_timing_not_arm_or_camera_timing": true,
+    "proposed_encoder_preserves_existing_wire": true
+  },
+  "resync_mapping_events": 33,
+  "source_sha256": {
+    "include/libcamera/internal/ipa_data_serializer.h": "712c1d71608fbed7a7811ca6ae1515e893226bbee90386faa3a4c4f8b35a702a",
+    "src/libcamera/ipa_data_serializer.cpp": "64972cfcaae661f312f53dc50bbe48c6e6c525771c06a2f1429de7d553d8c1c6",
+    "output/src/libcamera/proxy/worker/camss_ipa_proxy_worker.cpp": "15fcb13f83073c85d7efc113aa090929512225eebf3cc05b0ee62e87cad465d2",
+    "output/src/libcamera/proxy/camss_ipa_proxy.cpp": "27efc6e13873da5f2c9153c4809bab62cbe5d2ec805dd11c15bc05fff3b3e945",
+    "src/ipa/camss-vfe/camss.cpp": "d963f91d55b52b7693b73c6a05ad0ad282de47335592fb5c02821ddc9cb7520c",
+    "src/libcamera/ipc_pipe_unixsocket.cpp": "aa180255d89ff1a6441578ac8ebb0d10cecb382c5272594ab519e92df818cbad",
+    "src/libcamera/pipeline/camss-vfe/camss_vfe.cpp": "bb7f96d07c8506bfbfd95d2207de28c384c2831a2e8c81d9238cc377626e5fc6"
+  },
+  "relevant_450_sources_identical": {
+    "include/libcamera/internal/ipa_data_serializer.h": true,
+    "src/libcamera/ipa_data_serializer.cpp": true,
+    "output/src/libcamera/proxy/worker/camss_ipa_proxy_worker.cpp": true,
+    "output/src/libcamera/proxy/camss_ipa_proxy.cpp": true,
+    "src/ipa/camss-vfe/camss.cpp": true,
+    "src/libcamera/ipc_pipe_unixsocket.cpp": true
+  },
+  "vector_uint8_header_specializations_found": 0,
+  "actual_parameter_vector_encoder_calls": 2,
+  "actual_parameter_vector_decoder_calls": 2,
+  "cpu_time_or_actual_worker_cpu_not_measured": true,
+  "full_buffer_queue_starvation_not_proven": true,
+  "drop_root_cause_proven": false,
+  "production_source_changed": false,
+  "phone_or_sdk_accessed": false,
+  "passed": true
+}

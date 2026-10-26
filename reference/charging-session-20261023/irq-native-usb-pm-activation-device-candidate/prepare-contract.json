@@ -1,0 +1,88 @@
+{
+  "schema": "samurai-irq-native-usb-pm-activation-v1",
+  "fixed_guard_fields": {
+    "schema": "samurai-irq-native-usb-pm-activation-v1",
+    "kernel_release": "7.3.0-rc6-rmx1931-samurai-k363+",
+    "kernel_version": "#504 SMP PREEMPT Tue Oct 20 03:03:47 UTC 2026",
+    "source_kernel_version": "#502 SMP PREEMPT Tue Oct 20 03:03:47 UTC 2026",
+    "partitions": [
+      "logdump"
+    ],
+    "boot_bytes": 100663296,
+    "logdump_bytes": 67108864,
+    "image502_sha256": "085d03066983a82d1d1c74b74f69c85560698d6fc49f62d6db511a8799b25955",
+    "charging_manifest_sha256": "34ead4cdb98c2d4b812662cdbe4c0964d5e705574b5d4ab85716b37975a8a39b",
+    "source_manifest_sha256": "18e8a1049a2c497fbc47ace50f8319aefccd63a9cd1ce5a7e9ef06916773b4e5",
+    "cohort_delivery_sha256": "89349ffc0adb7e0043505f0250b53eefd78cc917f0b953fb12bb4aeabe25da01",
+    "startup500_sha256": "2a364e12d72229ef7b0ddfd7620d5ff434b97eaf93eb60899fd24a03b5b9a54a",
+    "startup500_path": "/usr/local/sbin/samurai-usb",
+    "max_power_ma": 500,
+    "camera481_expected_sha256": "1c4584915dade64a0978a0138c6775bf99e56af9f8036d7d2276c33f132f4705",
+    "new_disk_files": {
+      "/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-usb-input.ko": "d04608ad80a90288c32705bbfcfd3855738d7b09f207ae2aa4268f7c0a167037",
+      "/usr/share/samurai-charging/manifest.json": "34ead4cdb98c2d4b812662cdbe4c0964d5e705574b5d4ab85716b37975a8a39b"
+    },
+    "old_resident_notes": {
+      "samurai_usb_input": "a845cd08aa415ca01ad4791b8c66047a927577e76439e632c73b6b4e2cff8c6d",
+      "samurai_gauge_protection": "fc0d253d556b6ba656db263aaa50c37e3af2c7fe115b67e6b02641ae8b5733ec",
+      "samurai_mp2650": "fe15a2fcb618dee0b161952cd66c32f2d5ecc9c8d50b0975242da5353c472016"
+    },
+    "unchanged_boot_sha256": "eddadec33fcd1d114c45af76cb9fc6d6b5f1de2c81c0e9fada099c5b884f6e06",
+    "candidate_logdump_sha256": "4453d46202f4446810c8f72524a034a28acf3695f59eb12dbde8cf530e356d83",
+    "rollback_logdump_sha256": "ace2e261bbfbd923fc3e631e857163f172d09bfb3489f7107782394fbf763ed1",
+    "image504_sha256": "f6477d01d029cec888cafa739db0336e570274e9a3c38d4d5233959dd218a3f4"
+  },
+  "transaction_pattern": "irq-native-usb-pm-activate-[a-z0-9-]{8,48}",
+  "write_scope": [
+    "logdump"
+  ],
+  "boot_is_readonly_invariant": true,
+  "dynamic_guard_fields": [
+    "transaction_id",
+    "token",
+    "boot_id",
+    "soc_serial_sha256",
+    "compatible_sha256",
+    "rootfs_release_sha256",
+    "adoption",
+    "stage"
+  ],
+  "adoption_fields": [
+    "transaction_id",
+    "guard_path",
+    "guard_sha256"
+  ],
+  "stage_fields": [
+    "transaction_id",
+    "request_sha256",
+    "result_sha256",
+    "host_binding_sha256",
+    "worker_sha256",
+    "supervisor_sha256",
+    "evidence"
+  ],
+  "stage_evidence_keys": [
+    "request",
+    "worker_launch",
+    "worker_terminal",
+    "supervisor_launch",
+    "supervisor_process",
+    "supervisor_terminal",
+    "worker_source",
+    "supervisor_source",
+    "device_request",
+    "result",
+    "before",
+    "stopped",
+    "after",
+    "worker_process",
+    "files_before",
+    "old_usb",
+    "old_manifest"
+  ],
+  "context_schema": "samurai-irq-native-usb-pm-fastboot-context-v1",
+  "host_source_authentication_required": true,
+  "host_source": "current stage-host binding of original IRQ adoption plus completed 97c runtime update",
+  "new_boot_identity_generated": false,
+  "no_device_action_performed": true
+}

@@ -1,0 +1,37 @@
+--- r8/gauge-protocol.h
++++ candidate/gauge-protocol.h
+@@ -31,17 +31,31 @@
+ 	}
+ }
+ 
+-static inline int sm_mac_validate(const unsigned char *p, unsigned int bytes,
+-				  unsigned int command)
++/* Diagnostic-only extension; normal MAC callers retain their six commands. */
++static inline int sm_mac_observe_data_size(unsigned int command)
++{
++	switch (command) {
++	case 0x0050: case 0x0052: case 0x0056: return 4;
++	default: return sm_mac_data_size(command);
++	}
++}
++
++static inline int sm_mac_validate_sized(const unsigned char *p, unsigned int bytes,
++				       unsigned int command, int size)
+ {
+ 	unsigned int sum = 0, i;
+-	int size = sm_mac_data_size(command);
+ 
+ 	if (size < 0) return size;
+ 	if (bytes != 36 || p[35] != size + 4) return -EMSGSIZE;
+ 	if (sm_le16(p) != command) return -EAGAIN;
+ 	for (i = 0; i < (unsigned int)size + 2; i++) sum += p[i];
+ 	return ((sum + p[34]) & 255) == 255 ? 0 : -EBADMSG;
++}
++
++static inline int sm_mac_validate(const unsigned char *p, unsigned int bytes,
++				  unsigned int command)
++{
++	return sm_mac_validate_sized(p, bytes, command, sm_mac_data_size(command));
+ }
+ 
+ /* A valid protocol response is not a claim that the silicon is a standard

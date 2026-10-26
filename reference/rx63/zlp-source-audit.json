@@ -1,0 +1,36 @@
+{
+  "source_sha256": {
+    "QCPNP.c": "7cf3f3db7878d4a1a037da075e4dfda6985851b7805a42434cf3ae2202c014fd",
+    "QCWT.c": "06d9235e67fd670ef23c9180b2069b43928bc94db9f946874099f8b1367e1d9a",
+    "QCMAIN.h": "1bd9b0b9d22d0d8e3c6806604912d13de0b0229507b342a53c99828ed83ff9da"
+  },
+  "option": "QCDeviceZLPEnabled",
+  "default": true,
+  "value_semantics": {
+    "absent_or_failed_read": true,
+    "dword_zero": false,
+    "positive_dword": true
+  },
+  "registry_scope": "PLUGPLAY_REGKEY_DRIVER (device software key), populates driver-global gVendorConfig",
+  "load_callback": "QCPNP_EvtDeviceAdd",
+  "load_call_line": 91,
+  "not_reread_by_ordinary_FileCreate": true,
+  "preserve_toggle_option_read_in_FileCreate": true,
+  "zlp_condition": "gVendorConfig.EnableZeroLengthPacket && (pDevContext->wMaxPktSize != 0) && (writeParam.Parameters.Write.Length % pDevContext->wMaxPktSize == 0)",
+  "based_on_requested_length_not_successful_completion": true,
+  "function_lines": {
+    "DeviceAdd": 61,
+    "FileCreate": 1111,
+    "VendorRegistryProcess": 2826,
+    "WriteRequestHandlerThread": 308
+  },
+  "historical_endpoint_reference": "reference/rx52/usb-overlap-02.json",
+  "historical_endpoint_max_packet": 16,
+  "fresh_endpoint_query_performed": false,
+  "native_payload_14_wire_bytes": 16,
+  "later_trial_requirement": "Keep ZLP default in primary reopen off/on trial. Later change ZLP separately; prove DeviceAdd/registry reread and actual presence/absence of zero-byte OUT. Do not assume ordinary reopen or a power-only restart applies it.",
+  "source_changed": false,
+  "registry_changed": false,
+  "hardware_validated": false,
+  "limits": "Source loading/dispatch audit and historical descriptor evidence; no current option execution, USB data, successful-ZLP policy proof or repair."
+}

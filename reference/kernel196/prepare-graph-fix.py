@@ -1,0 +1,9 @@
+from pathlib import Path
+import hashlib,json,shutil,subprocess
+ref=Path(__file__).resolve().parent;out=Path('/mnt/e/edk2-samurai-out/kernel196');k=Path('/home/cy122/pmos-samurai-kernel136/kernel');p=k/'drivers/media/i2c/imx471.c';(out/'imx471-required-clock-experiment-private.c').write_bytes(p.read_bytes());p.write_bytes((out/'imx471-before-required-clock-private.c').read_bytes());assert hashlib.sha256(p.read_bytes()).hexdigest()=='110977b81694bac72d9c87aec45367747b72526f9ea309863c0964c1af9f84d8'
+shutil.copyfile(out/'imx471.ko',out/'imx471-required-clock-experiment-private.ko');shutil.copyfile(out/'imx471-before-required-clock-private.ko',out/'imx471.ko');assert hashlib.sha256((out/'imx471.ko').read_bytes()).hexdigest()=='c49dca633e8df556497b96e6f8b3a58b6bd98e7ad0548a14e8fef27ba73969d4'
+r=json.loads((ref/'imx471-source-validation.json').read_text());r.update(source_sha256=hashlib.sha256(p.read_bytes()).hexdigest(),of_uses_required_devm_clk_get=False,required_clock_experiment_reverted=True,actual_hwcfg_defer_cause='fwnode_graph_get_endpoint_by_id ignores an endpoint without an available remote; endpoint parser then returns EPROBE_DEFER');(ref/'imx471-source-validation.json').write_text(json.dumps(r,indent=2)+'\n')
+build=json.loads((ref/'imx471-module-build-validation.json').read_text());build.update(source_sha256=r['source_sha256'],module_sha256=hashlib.sha256((out/'imx471.ko').read_bytes()).hexdigest(),module_bytes=(out/'imx471.ko').stat().st_size,required_clock_experiment_reverted=True);(ref/'imx471-module-build-validation.json').write_text(json.dumps(build,indent=2)+'\n')
+patch=subprocess.check_output(['git','diff','--','drivers/media/i2c/imx471.c'],cwd=k,text=True);(ref/'imx471-of-ordered-power.patch').write_text(patch)
+s=(ref/'finalize-first-attempt.py').read_text().replace("root/'k196-front-probe'","root/'k196-front-probe-r4'");(ref/'finalize-fourth-attempt.py').write_text(s)
+print(json.dumps(r))

@@ -1,0 +1,123 @@
+{
+  "passed": true,
+  "scope": "existing two carriers only; independent read-only parse, not a new build or deployment",
+  "author_delivery_sha256": "9dd01720a4f514d002a12d2344e7b644b07239a78bdb858f819508fcf3952850",
+  "receipt_commands": {
+    "BDS": {
+      "sha256": "6fc263f7843026c9d182ae589a7a4a46ffddc6d0818a9fc2d1360b1d4aa63186",
+      "terminal_commands": [
+        {
+          "stage": "compile",
+          "returncode": 0
+        },
+        {
+          "stage": "archive",
+          "returncode": 0
+        },
+        {
+          "stage": "link",
+          "returncode": 0
+        },
+        {
+          "stage": "GenFw",
+          "returncode": 0
+        }
+      ]
+    },
+    "boot": {
+      "sha256": "2d46df7c53dd8378800160d542bb9ded28067039b6403b87d47d625664bb31b8",
+      "terminal_commands": [
+        {
+          "stage": "BDS-PE32",
+          "returncode": 0
+        },
+        {
+          "stage": "BDS-FFS",
+          "returncode": 0
+        },
+        {
+          "stage": "mainFV",
+          "returncode": 0
+        },
+        {
+          "stage": "FV-IMAGE",
+          "returncode": 0
+        },
+        {
+          "stage": "align8",
+          "returncode": 0
+        },
+        {
+          "stage": "LZMA",
+          "returncode": 0
+        },
+        {
+          "stage": "GUIDED",
+          "returncode": 0
+        },
+        {
+          "stage": "containerFFS",
+          "returncode": 0
+        },
+        {
+          "stage": "compactFD",
+          "returncode": 0
+        },
+        {
+          "stage": "gzip",
+          "returncode": 0
+        }
+      ]
+    },
+    "logdump": {
+      "sha256": "6e47cc64d1e138b2f5c8fa6cbd8e4ab865f99c8a87a22004251ec4525f30221c",
+      "terminal_commands": [
+        {
+          "stage": "replace-Image",
+          "returncode": 0
+        },
+        {
+          "stage": "readback-Image",
+          "returncode": 0
+        },
+        {
+          "stage": "fsck-readonly",
+          "returncode": 0
+        }
+      ]
+    }
+  },
+  "boot_sha256": "97811cc4ae13b36fec98b2eae7cd54a4f12bca988864df0f3d8f663a8c67f695",
+  "logdump_sha256": "7e5de5b437fbc884d97a103e77bd97a21b77c99151c67b7bcb1745d51076cbf9",
+  "boot": {
+    "only_BDS_complete_FFS_changed": true,
+    "other_complete_FFS_equal": 100,
+    "BDS_depex_UI_equal": true,
+    "native_DTB_sha256": "9271d9cc33b3701ad0675c6345d43e9a5c404aa6c192126edc3eb715b0914358",
+    "SEC_complete_offset_equal": true,
+    "SEC_offset": 4072,
+    "shim_compat_ramdisk_tail_equal": true,
+    "header_only_size_ID_changes": true,
+    "Android_ID_verified": true,
+    "used": 6684672,
+    "kernel_payload_bytes": 6680472
+  },
+  "PE": {
+    "sha256": "071a628bd34c8d4715c0b57b89a219e21c236d2f5f16c8d82bd832de4dcc196b",
+    "ARM64_PE32plus": true,
+    "exact_full_UTF16_LoadOptions": true,
+    "source_only_one_cmdline_addition": true,
+    "EUD_marker_preserved": true
+  },
+  "FAT": {
+    "Image_sha256": "3a656c75d3b714153d77b637654c894a0418fd688cc906d59a37a41401e8cc02",
+    "Image_bytes": 59243008,
+    "other_file_exact": true,
+    "every_non_Image_byte_equal": true
+  },
+  "ABI_reused_review_sha256": "4c7983ac30221772d3fd1335572532fbe68cdfd1929723249547ffa326902473",
+  "build_or_tools_executed": false,
+  "ABI_tests_rerun": false,
+  "device_SDK_Git_used": false,
+  "runtime_acceptance": false
+}

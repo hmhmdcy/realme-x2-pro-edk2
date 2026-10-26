@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "reviewed_delivery_sha256": "93b0bc012d8f65321779863258b900b2820fa10818054cc3b53954f009ab6f86",
+  "reviewed_controller_sha256": "4a9396871b87d09342de9992723cc8041b02f81bd3c87b15e1bd686fd74ae031",
+  "accepted_for_final_use": false,
+  "function": "ssh_worker",
+  "finding": "The communicate(input=program) exception path records io_error, then directly calls child.wait() without first closing the still-owned stdin. An input IO exception before EOF can leave the original remote python3 process waiting for more script bytes while its owner waits for exit; no terminal receipt can then be produced.",
+  "evidence_kind": "Actual frozen source exception/lifetime path. No device hang or runtime occurrence is claimed.",
+  "minimal_resolution": "Preserve R1. Close this original Popen's still-open stdin before waiting the same child in finally. Preserve close/wait/log/terminal errors as failed or unknown evidence; no kill, retry, new child or changed dispatch.",
+  "other_reviewed_new_boundaries": [
+    "preflight releases only its own service flock fd before spawning or execing pinned worker",
+    "qualified quiesce requires original supervisor and child terminal-zero identities plus actual state/summary/boot originals",
+    "restart remains once intent and unproved dispatch; seven-raw export retains stage source and context hashes",
+    "unknown mutation remains consumed and status/fetch reads originals without replay"
+  ],
+  "author_entry_or_tests_executed": false,
+  "device_SSH_USB_build_SDK_Git_used": false
+}

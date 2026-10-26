@@ -1,0 +1,124 @@
+--- a/samurai-mp2650.c
++++ b/samurai-mp2650.c
+@@ -72,7 +72,10 @@
+ {
+ 	struct i2c_client *g = c->gauge;
+ 	unsigned char packet[36];
+-	int temp, pack, flags, current_word, ret;
++	int temp, pack, flags, current_word, soc_word, ret;
++
++	s->soc_valid = 0;
++	s->soc_percent = -1;
+ 
+ 	i2c_lock_bus(g->adapter, I2C_LOCK_SEGMENT);
+ 	temp = sm_gauge_word_locked(g, 0x06, false, 0);
+@@ -89,6 +92,15 @@
+ 	}
+ 	ret = sm_gauge_mac_locked(g, 0x0071, packet);
+ 	if (ret) goto out;
++	/* OEM reg_soc and the installed bq28z610 map both use 0x2c, in
++	 * percent. Optional failure/out-of-range is unknown, not 0 or a
++	 * cached permit; the existing mandatory safety reads stay fatal.
++	 */
++	soc_word = sm_gauge_word_locked(g, 0x2c, false, 0);
++	if (soc_word >= 0 && soc_word <= 100) {
++		s->soc_valid = 1;
++		s->soc_percent = soc_word;
++	}
+ 	s->temp_decic = temp - 2731;
+ 	s->pack_uv = pack * 1000;
+ 	s->gauge_flags = flags;
+@@ -172,7 +184,8 @@
+ 	struct sm_oem_full_sample full_sample;
+ 	enum sm_policy_reason reason = SM_POLICY_REASON_NONE;
+ 	int ret, validation, source, thermal_hold = 0;
+-	bool healthy_full;
++	int previous_band = c->thermal.initialized ? c->thermal.band : SM_POLICY_STATIC_BAND;
++	bool healthy_full, was_full_holding = c->full_holding;
+ 	u64 now;
+ 
+ 	ret = sm_collect(c, &c->sample);
+@@ -199,6 +212,23 @@
+ 	}
+ 	source = c->sample.online ? 1 : !ret && c->sample.valid ? 0 : -1;
+ 	sm_reattach_source(&c->reattach, now, source);
++	/* full_holding records the last successful transaction and may
++	 * survive a suspend stop. Confirm current converter hold only on
++	 * an otherwise eligible thermal/SOC edge; never infer it from UI.
++	 */
++	if (c->auto_requested && was_full_holding && c->full_state.full &&
++	    !c->latched && !validation && c->sample.soc_valid &&
++	    c->sample.soc_percent >= 0 && c->sample.soc_percent < 100 &&
++	    (previous_band == 0 || previous_band == 5) &&
++	    c->thermal.initialized && previous_band != c->thermal.band) {
++		int hold_status = sm_read(c, 0x08);
++		if (hold_status < 0) {
++			ret = validation = hold_status;
++			reason = SM_POLICY_REASON_NONE;
++		} else {
++			was_full_holding = !(hold_status & 0x18);
++		}
++	}
+ 	/* OEM Full handling precedes this period's time accumulation. A newly
+ 	 * completed sixth software sample may finish a not-yet-timed-out cycle
+ 	 * at its boundary. Existing timed_out was validated above and cannot reset.
+@@ -215,6 +245,11 @@
+ 		.temp_decic = c->sample.temp_decic,
+ 		.policy_band_valid = 1,
+ 		.policy_band = c->thermal.initialized ? c->thermal.band : SM_POLICY_STATIC_BAND,
++		.previous_policy_band = previous_band,
++		.policy_band_changed = c->thermal.initialized && previous_band != c->thermal.band,
++		.was_full_holding = was_full_holding,
++		.soc_valid = c->sample.soc_valid,
++		.soc_percent = c->sample.soc_percent,
+ 		.max_cell_uv = c->sample.cell1_uv > c->sample.cell2_uv ?
+ 			c->sample.cell1_uv : c->sample.cell2_uv,
+ 		.gauge_current_ua = c->sample.gauge_current_ua,
+--- a/mp2650-core.h
++++ b/mp2650-core.h
+@@ -17,6 +17,8 @@
+ 	int valid, online, protection_ok, budget_ua, temp_decic;
+ 	int pack_uv, cell1_uv, cell2_uv, gauge_flags, fault;
+ 	int gauge_current_ua;
++	/* Optional fresh raw percent; never substitute cached/UI capacity. */
++	int soc_valid, soc_percent;
+ 	unsigned int session_seconds;
+ };
+ 
+--- a/oem-full-cycle.h
++++ b/oem-full-cycle.h
+@@ -42,6 +42,9 @@
+ 	int hard_latched, timeout, hardware_full, recharge_forbidden;
+ 	int temp_decic, max_cell_uv, gauge_current_ua, cell_target_uv;
+ 	int policy_band_valid, policy_band;
++	/* The actual current thermal edge, not a retained Full counter band. */
++	int policy_band_changed, previous_policy_band, was_full_holding;
++	int soc_valid, soc_percent;
+ 	unsigned int gauge_flags;
+ };
+ struct sm_oem_full_state {
+@@ -173,6 +176,24 @@
+ 	if (s->band != band) {
+ 		sm_oem_full_clear_streak(s);
+ 		s->band = band;
++	}
++	/* OEM check_tbatt_is_good clears only the FULL voter when leaving
++	 * COLD/WARM with soc != 100, batt_full and charging_state==FULL.
++	 * Require the actual current edge, previous successful Full hold
++	 * and fresh in-range SOC. All policy/fault/TCA/clock gates above
++	 * still win; INHIBIT/unknown observations cannot defer a permit.
++	 */
++	if (s->full && in->was_full_holding && in->policy_band_valid &&
++	    in->policy_band_changed && in->previous_policy_band != band &&
++	    (in->previous_policy_band == 0 || in->previous_policy_band == 5) &&
++	    in->soc_valid && in->soc_percent >= 0 && in->soc_percent < 100 &&
++	    !in->recharge_forbidden) {
++		s->full = 0; s->cause = SM_FULL_NONE;
++		sm_oem_full_clear_streak(s);
++		s->last_tick_ns = now; s->have_tick = 1;
++		out.full = 0; out.hold_charge_only = 0;
++		out.recharge = 1; out.cause = SM_FULL_NONE;
++		return out;
+ 	}
+ 	/* A fresh hardware termination is already an actual completion event,
+ 	 * not a software counter sample. Handle it immediately, even between

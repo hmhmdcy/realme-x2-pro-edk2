@@ -1,0 +1,113 @@
+{
+  "outcome": "passed_archived_actual_precharge_then_fast_charge",
+  "original_boot_prefix": "075f658d",
+  "recovery_boot_prefix": "a2c4c6f2",
+  "original_result": {
+    "passed": true,
+    "stop_attempted": true,
+    "stop_confirmed": true,
+    "resume_attempted": true,
+    "auto_restored": true,
+    "discharge_target_uv": 3300000,
+    "minimum_cell_cutoff_uv": 3250000,
+    "precharge_seen": true,
+    "constant_current_seen": true,
+    "error": null,
+    "cleanup_error": null,
+    "reason": "precharge_to_constant_current",
+    "charge_parameters_changed": false,
+    "physical_detach_tested": false,
+    "full_start_required": false,
+    "initial_logical_full": 0,
+    "initial_session_seconds": 832,
+    "stopped_session_seconds": 832,
+    "full_cause_before": 0,
+    "discharge_seconds": 12726.814537709,
+    "recharge_seconds": 32.866049897000266
+  },
+  "source_and_all_record_validation_passed": true,
+  "actual_records": 1299,
+  "counts": {
+    "ready": 1,
+    "before": 1,
+    "discharge": 1251,
+    "recharge": 46
+  },
+  "dataset_sha256": "489511a88c2136c03ab3b97446bffa64eeb5f1ea685d4f5b69d3f012e40c9055",
+  "stopped_counter_unchanged": 832,
+  "commands": [
+    {
+      "action": "stop",
+      "boottime": 926.676978233
+    },
+    {
+      "action": "resume",
+      "boottime": 13653.897635722
+    }
+  ],
+  "final_discharge": {
+    "boottime": 13653.565342142,
+    "cell1_uv": 3298000,
+    "cell2_uv": 3287000,
+    "gauge_current_ua": -83000,
+    "temp_decic": 290,
+    "phase": 0,
+    "register08": 14,
+    "register13": 2,
+    "session_seconds": 832,
+    "desired_enable": 0,
+    "behaviour": "inhibit-charge"
+  },
+  "first_actual_precharge": {
+    "boottime": 13655.596558232,
+    "cell1_uv": 3364000,
+    "cell2_uv": 3363000,
+    "gauge_current_ua": 82000,
+    "temp_decic": 290,
+    "phase": 1,
+    "register08": 22,
+    "register13": 22,
+    "session_seconds": 833,
+    "desired_enable": 1,
+    "behaviour": "auto"
+  },
+  "final_two_fast_charge": [
+    {
+      "boottime": 13685.314229858,
+      "cell1_uv": 3428000,
+      "cell2_uv": 3436000,
+      "gauge_current_ua": 98000,
+      "temp_decic": 290,
+      "phase": 2,
+      "register08": 22,
+      "register13": 27,
+      "session_seconds": 862,
+      "desired_enable": 1,
+      "behaviour": "auto"
+    },
+    {
+      "boottime": 13687.460487845,
+      "cell1_uv": 3428000,
+      "cell2_uv": 3436000,
+      "gauge_current_ua": 93000,
+      "temp_decic": 290,
+      "phase": 2,
+      "register08": 22,
+      "register13": 27,
+      "session_seconds": 865,
+      "desired_enable": 1,
+      "behaviour": "auto"
+    }
+  ],
+  "worker_returncode": 0,
+  "cpu_load_joined": true,
+  "original_boot_has_ended": true,
+  "supervisor_terminal_file_present": false,
+  "physical_precharge_verified": true,
+  "physical_usb_detach_tested": false,
+  "direct_constant_current_metrology": false,
+  "full_recharge_to_full_verified": false,
+  "shutdown_log_verified": true,
+  "shutdown_caller_verified": false,
+  "note": "Actual raw REG13 phase1 to phase2 plus positive net gauge current; no phase2 current-accuracy claim. Shutdown was recorded while the bounded worker continued; the initiating caller is not proven."
+}

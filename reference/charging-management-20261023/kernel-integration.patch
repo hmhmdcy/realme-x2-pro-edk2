@@ -1,0 +1,1933 @@
+diff --git a/drivers/power/supply/samurai-mp2650.c b/drivers/power/supply/samurai-mp2650.c
+new file mode 100644
+--- /dev/null
++++ b/drivers/power/supply/samurai-mp2650.c
+@@ -0,0 +1,695 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/* Offline managed-charging candidate for RMX1931. See README before deployment.
++ * No match for the installed mps,mp2650 observer; no probe-time OEM init replay.
++ */
++#include <linux/delay.h>
++#include <linux/i2c.h>
++#include <linux/ktime.h>
++#include <linux/module.h>
++#include <linux/mutex.h>
++#include <linux/of.h>
++#include <linux/pm.h>
++#include <linux/power_supply.h>
++#include <linux/property.h>
++#include <linux/workqueue.h>
++
++#include "mp2650-core.h"
++#include "charge-cycle.h"
++#include "gauge-i2c.h"
++#include "charging-notify.h"
++
++static bool control;
++module_param(control, bool, 0444);
++MODULE_PARM_DESC(control, "Enable managed writes; default is shadow mode");
++static bool runtime_board;
++module_param(runtime_board, bool, 0444);
++MODULE_PARM_DESC(runtime_board, "Use the observed RMX1931 board wiring without changing DT");
++
++struct sm_charger {
++	struct i2c_client *client, *gauge;
++	struct power_supply *input, *protection, *psy, *battery;
++	char *battery_name;
++	struct mutex lock;
++	struct delayed_work work;
++	struct sm_io io;
++	struct sm_sample sample;
++	struct sm_target target;
++	int cell_ceiling_uv, current_cap_ua, input_cap_ua;
++	int last_error, stop_error;
++	bool auto_requested, latched, paused, sample_full;
++	bool source_inhibit;
++	ktime_t sampled_at;
++	struct sm_charge_cycle cycle;
++	struct sm_thermal_state thermal;
++	enum sm_policy_reason thermal_reason;
++	struct notifier_block supply_notifier;
++	bool notifier_registered;
++	struct sm_notify_state notified;
++	bool notified_valid;
++};
++
++static int sm_read(void *ctx, unsigned int reg)
++{
++	struct sm_charger *c = ctx;
++
++	return i2c_smbus_read_byte_data(c->client, reg);
++}
++
++static int sm_write(void *ctx, unsigned int reg, unsigned int value)
++{
++	struct sm_charger *c = ctx;
++
++	return i2c_smbus_write_byte_data(c->client, reg, value);
++}
++
++static int sm_gauge_sample(struct sm_charger *c, struct sm_sample *s)
++{
++	struct i2c_client *g = c->gauge;
++	unsigned char packet[36];
++	int temp, pack, flags, ret;
++
++	i2c_lock_bus(g->adapter, I2C_LOCK_SEGMENT);
++	temp = sm_gauge_word_locked(g, 0x06, false, 0);
++	pack = sm_gauge_word_locked(g, 0x08, false, 0);
++	flags = sm_gauge_word_locked(g, 0x0a, false, 0);
++	if (temp < 0 || pack < 0 || flags < 0) {
++		ret = temp < 0 ? temp : pack < 0 ? pack : flags;
++		goto out;
++	}
++	ret = sm_gauge_mac_locked(g, 0x0071, packet);
++	if (ret) goto out;
++	s->temp_decic = temp - 2731;
++	s->pack_uv = pack * 1000;
++	s->gauge_flags = flags;
++	s->cell1_uv = sm_le16(packet + 2) * 1000;
++	s->cell2_uv = sm_le16(packet + 4) * 1000;
++out:
++	i2c_unlock_bus(g->adapter, I2C_LOCK_SEGMENT);
++	return ret;
++}
++
++static int sm_psy_int(struct power_supply *psy,
++		      enum power_supply_property property, int *value)
++{
++	union power_supply_propval v;
++	int ret = power_supply_get_property(psy, property, &v);
++
++	if (!ret) *value = v.intval;
++	return ret;
++}
++
++static int sm_collect(struct sm_charger *c, struct sm_sample *s)
++{
++	int online, status, present, health, ret, budget_after, online_after;
++
++	*s = (struct sm_sample){ 0 };
++	c->source_inhibit = false;
++	c->sample_full = false;
++	ret = sm_psy_int(c->input, POWER_SUPPLY_PROP_ONLINE, &online);
++	if (ret) { c->source_inhibit = true; return ret; }
++	status = sm_read(c, 0x13);
++	if (status < 0) return status;
++	if (!!online != !!(status & 0x02)) { c->source_inhibit = true; return -EAGAIN; }
++	s->online = !!online;
++	if (!s->online) {
++		/* Only an agreed physical detach resets the session and fault latch. */
++		sm_cycle_update(&c->cycle, ktime_get_boottime_ns(), 0, 0);
++		c->latched = false;
++		c->thermal.hold = SM_THERMAL_NONE;
++		s->valid = s->protection_ok = 1;
++		return 0;
++	}
++	ret = sm_psy_int(c->input, POWER_SUPPLY_PROP_CURRENT_MAX, &s->budget_ua);
++	if (ret) { c->source_inhibit = true; return ret; }
++	if (s->budget_ua < 50000) { c->source_inhibit = true; return -ENODATA; }
++	if (c->protection) {
++		ret = sm_psy_int(c->protection, POWER_SUPPLY_PROP_PRESENT, &present);
++		if (ret) return ret;
++		ret = sm_psy_int(c->protection, POWER_SUPPLY_PROP_HEALTH, &health);
++		if (ret) return ret;
++		s->protection_ok = present == 1 && health == POWER_SUPPLY_HEALTH_GOOD;
++	}
++	ret = sm_gauge_sample(c, s);
++	if (ret) return ret;
++	/* One owning read per poll, cached for sysfs; never discard a prior fault. */
++	ret = sm_read(c, 0x14);
++	if (ret < 0) return ret;
++	s->fault = ret;
++	/* A changing source budget/attachment cannot authorize this sample. */
++	ret = sm_psy_int(c->input, POWER_SUPPLY_PROP_ONLINE, &online_after);
++	if (ret) { c->source_inhibit = true; return ret; }
++	ret = sm_psy_int(c->input, POWER_SUPPLY_PROP_CURRENT_MAX, &budget_after);
++	if (ret) { c->source_inhibit = true; return ret; }
++	status = sm_read(c, 0x13);
++	if (status < 0) return status;
++	if (!online_after || !(status & 2) || budget_after != s->budget_ua) {
++		c->source_inhibit = true;
++		return -EAGAIN;
++	}
++	c->sample_full = (status & 0x0c) == 0x0c;
++	s->valid = 1;
++	return 0;
++}
++
++/* Caller holds c->lock. Sysfs limits are applied synchronously, too. */
++static int sm_step_locked(struct sm_charger *c)
++{
++	struct sm_target target = { 0 }, validation_target;
++	enum sm_policy_reason reason = SM_POLICY_REASON_NONE;
++	int ret, validation, source, thermal_hold = 0;
++
++	ret = sm_collect(c, &c->sample);
++	c->sampled_at = ktime_get_boottime();
++	/* Full starts a new OEM charge period only after every other policy
++	 * predicate has succeeded. Do not let Full clear an existing hard latch.
++	 */
++	validation = ret;
++	if (!validation)
++		validation = sm_policy_with_reason(&c->sample, c->cell_ceiling_uv,
++				       c->current_cap_ua, c->input_cap_ua,
++				       &validation_target, &reason);
++	/* Only eligible fresh samples move the thermal hysteresis. A MAC, IO,
++	 * global voltage or timeout error never becomes a recoverable hold.
++	 */
++	if (c->sample.online && (!validation || sm_policy_reason_is_thermal(reason))) {
++		thermal_hold = sm_thermal_gate(&c->thermal, c->sample.temp_decic, 1);
++		if (!validation && thermal_hold)
++			validation = -ERANGE;
++	}
++	source = c->sample.online ? 1 : !ret && c->sample.valid ? 0 : -1;
++	c->sample.session_seconds = sm_cycle_update(&c->cycle,
++		ktime_get_boottime_ns(), source,
++		sm_cycle_full_allowed(c->sample_full, c->latched, validation));
++	if (!ret)
++		ret = sm_policy_with_reason(&c->sample, c->cell_ceiling_uv,
++				c->current_cap_ua, c->input_cap_ua, &target, &reason);
++	if (!ret && thermal_hold) {
++		ret = -ERANGE;
++		reason = SM_POLICY_REASON_TEMPERATURE;
++		target.enable = 0;
++	}
++	c->thermal_reason = sm_policy_reason_is_thermal(reason) ? reason : SM_POLICY_REASON_NONE;
++	/* Reset/configuration/suspend may temporarily remove an SDP allowance.
++	 * Stop immediately, then resume only after fresh accepted source data.
++	 * Such transitions must not clear an existing electrical/IO fault latch.
++	 */
++	c->latched = sm_sample_latch(c->latched, ret,
++		c->source_inhibit || sm_policy_reason_is_thermal(reason), c->sample.fault);
++	/* Shadow mode evaluates the same policy but performs no charger writes. */
++	if (control) {
++		if (ret || c->latched || !c->auto_requested || !target.enable) {
++			c->stop_error = sm_stop(&c->io);
++			if (c->stop_error) c->latched = true;
++			if (!ret) ret = c->stop_error;
++			target.enable = 0;
++		} else {
++			ret = sm_apply(&c->io, &target, &c->stop_error);
++			if (ret) {
++				c->latched = true;
++				target.enable = 0;
++			}
++		}
++	}
++	c->target = target;
++	c->last_error = ret;
++	if (ret || c->stop_error)
++		dev_warn_ratelimited(&c->client->dev,
++			"policy/io error=%d stop error=%d latched=%d shadow=%d\n",
++			ret, c->stop_error, c->latched, !control);
++	return ret;
++}
++
++/* Called after the safety step, with c->lock held and no I2C bus lock held.
++ * bq27xxx STATUS reads its own signed current/FC flags; do not infer net battery
++ * charging from CHG_EN or the charger's switching state.
++ */
++static bool sm_notification_locked(struct sm_charger *c)
++{
++	struct sm_notify_state state = {
++		.health = c->last_error || c->latched || c->stop_error ?
++			POWER_SUPPLY_HEALTH_UNSPEC_FAILURE : POWER_SUPPLY_HEALTH_GOOD,
++		.error = c->last_error,
++		.stop_error = c->stop_error,
++		.latched = c->latched,
++		.source_inhibit = c->source_inhibit,
++		.auto_requested = c->auto_requested,
++		.valid = c->sample.valid,
++		.online = c->sample.online,
++		.protection_ok = c->sample.protection_ok,
++		.fault = c->sample.fault,
++		.target_enable = c->target.enable,
++		.input_ua = c->target.input_ua,
++		.current_ua = c->target.current_ua,
++		.cell_uv = c->target.cell_uv,
++	};
++	bool changed;
++	int reg;
++
++	/* Sample after sm_step_locked() has completed any hardware writes. */
++	reg = sm_read(c, 0x13);
++	if (reg < 0)
++		state.charger_error = reg;
++	else
++		state.charger_status = reg & 0x0e; /* ONLINE and CHG_STAT only */
++	state.battery_error = sm_psy_int(c->battery, POWER_SUPPLY_PROP_STATUS,
++				       &state.battery_status);
++	changed = !c->notified_valid || sm_notify_changed(&c->notified, &state);
++	c->notified = state;
++	c->notified_valid = true;
++	return changed;
++}
++
++static void sm_poll(struct work_struct *work)
++{
++	struct sm_charger *c = container_of(to_delayed_work(work),
++					 struct sm_charger, work);
++	bool notify = false;
++
++	mutex_lock(&c->lock);
++	if (c->paused) goto out;
++	sm_step_locked(c);
++	notify = sm_notification_locked(c);
++	schedule_delayed_work(&c->work, msecs_to_jiffies(1000));
++out:
++	mutex_unlock(&c->lock);
++	if (notify)
++		power_supply_changed(c->psy);
++}
++
++static int sm_supply_changed(struct notifier_block *nb, unsigned long event, void *data)
++{
++	struct sm_charger *c = container_of(nb, struct sm_charger, supply_notifier);
++	if (event == PSY_EVENT_PROP_CHANGED && (data == c->input || data == c->protection) &&
++	    !READ_ONCE(c->paused)) mod_delayed_work(system_wq, &c->work, 0);
++	return NOTIFY_DONE;
++}
++
++/* Preserve the installed observer's stable-high/low/high ADC read protocol. */
++static int sm_adc(struct sm_charger *c, unsigned int low_reg, int *code)
++{
++	int high, low, after;
++
++	for (int attempt = 0; attempt < 3; attempt++) {
++		high = sm_read(c, low_reg + 1);
++		if (high < 0) return high;
++		low = sm_read(c, low_reg);
++		if (low < 0) return low;
++		after = sm_read(c, low_reg + 1);
++		if (after < 0) return after;
++		if (high == after) {
++			*code = (high << 2) | (low >> 6);
++			return 0;
++		}
++	}
++	return -ENODATA;
++}
++
++static int sm_get_property(struct power_supply *psy,
++			   enum power_supply_property prop,
++			   union power_supply_propval *v)
++{
++	struct sm_charger *c = power_supply_get_drvdata(psy);
++	int value, after, code, ret = 0;
++
++	mutex_lock(&c->lock);
++	switch (prop) {
++	case POWER_SUPPLY_PROP_CHARGE_BEHAVIOUR:
++		if (!control) { ret = -ENODATA; break; }
++		v->intval = c->auto_requested ? POWER_SUPPLY_CHARGE_BEHAVIOUR_AUTO :
++			POWER_SUPPLY_CHARGE_BEHAVIOUR_INHIBIT_CHARGE;
++		break;
++	case POWER_SUPPLY_PROP_HEALTH:
++		v->intval = c->last_error || c->latched || c->stop_error ?
++			POWER_SUPPLY_HEALTH_UNSPEC_FAILURE : POWER_SUPPLY_HEALTH_GOOD;
++		break;
++	case POWER_SUPPLY_PROP_MODEL_NAME:
++		v->strval = control ? "samurai-mp2650-control-candidate" :
++			"samurai-mp2650-shadow-candidate";
++		break;
++	case POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT:
++		value = sm_read(c, 0x00);
++		if (value < 0) { ret = value; break; }
++		v->intval = (value & 0x7f) * 50000;
++		break;
++	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT:
++		value = sm_read(c, 0x02);
++		if (value < 0) { ret = value; break; }
++		v->intval = (value & 0x7f) * 50000;
++		break;
++	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE:
++		value = sm_read(c, 0x04);
++		if (value < 0) { ret = value; break; }
++		v->intval = 2 * (3712500 + ((value & 0x7e) >> 1) * 12500);
++		break;
++	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
++	case POWER_SUPPLY_PROP_CURRENT_NOW:
++		value = sm_read(c, 0x13);
++		if (value < 0) { ret = value; break; }
++		if (!(value & 2)) { ret = -ENODATA; break; }
++		ret = sm_adc(c, prop == POWER_SUPPLY_PROP_VOLTAGE_NOW ? 0x1c : 0x1e, &code);
++		if (ret) break;
++		after = sm_read(c, 0x13);
++		if (after < 0) { ret = after; break; }
++		if (!(after & 2) || ((after ^ value) & 0x0c)) { ret = -ENODATA; break; }
++		v->intval = code * (prop == POWER_SUPPLY_PROP_VOLTAGE_NOW ? 25000 : 6250);
++		break;
++	case POWER_SUPPLY_PROP_ONLINE:
++	case POWER_SUPPLY_PROP_STATUS:
++		value = sm_read(c, 0x13);
++		if (value < 0) { ret = value; break; }
++		if (prop == POWER_SUPPLY_PROP_ONLINE) {
++			v->intval = !!(value & 2);
++			break;
++		}
++		v->intval = POWER_SUPPLY_STATUS_NOT_CHARGING;
++		if (value & 2) {
++			if ((value & 0x0c) == 0x0c)
++				v->intval = POWER_SUPPLY_STATUS_FULL;
++			else if (value & 0x0c)
++				v->intval = POWER_SUPPLY_STATUS_CHARGING;
++		}
++		break;
++	default:
++		ret = -EINVAL;
++	}
++	mutex_unlock(&c->lock);
++	return ret;
++}
++
++static int sm_set_property(struct power_supply *psy,
++			   enum power_supply_property prop,
++			   const union power_supply_propval *v)
++{
++	struct sm_charger *c = power_supply_get_drvdata(psy);
++	int ret = 0;
++
++	if (!control) return -EROFS;
++	mutex_lock(&c->lock);
++	if (c->paused) { ret = -EBUSY; goto out; }
++	switch (prop) {
++	case POWER_SUPPLY_PROP_CHARGE_BEHAVIOUR:
++		if (v->intval != POWER_SUPPLY_CHARGE_BEHAVIOUR_AUTO &&
++		    v->intval != POWER_SUPPLY_CHARGE_BEHAVIOUR_INHIBIT_CHARGE) {
++			ret = -EINVAL;
++			break;
++		}
++		c->auto_requested = v->intval == POWER_SUPPLY_CHARGE_BEHAVIOUR_AUTO;
++		/* Explicit operator recovery; the next poll must obtain fresh inputs. */
++		if (c->auto_requested) c->latched = false;
++		else {
++			c->stop_error = sm_stop(&c->io);
++			ret = c->stop_error;
++		}
++		break;
++	case POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT:
++		if (v->intval < 50000 || v->intval > SM_OEM_INPUT_MAX_UA)
++			ret = -ERANGE;
++		else c->input_cap_ua = v->intval;
++		break;
++	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT:
++		if (v->intval < 200000 || v->intval > 1100000) ret = -ERANGE;
++		else c->current_cap_ua = v->intval;
++		break;
++	default:
++		ret = -EINVAL;
++	}
++	if (!ret) {
++		ret = sm_step_locked(c);
++		mod_delayed_work(system_wq, &c->work, msecs_to_jiffies(1000));
++	}
++out:
++	mutex_unlock(&c->lock);
++	power_supply_changed(c->psy);
++	return ret;
++}
++
++static int sm_writeable(struct power_supply *psy, enum power_supply_property p)
++{
++	return control && (p == POWER_SUPPLY_PROP_CHARGE_BEHAVIOUR ||
++		p == POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT ||
++		p == POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT);
++}
++
++static const enum power_supply_property sm_properties[] = {
++	POWER_SUPPLY_PROP_ONLINE, POWER_SUPPLY_PROP_STATUS, POWER_SUPPLY_PROP_HEALTH,
++	POWER_SUPPLY_PROP_CHARGE_BEHAVIOUR, POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT,
++	POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT,
++	POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE,
++	POWER_SUPPLY_PROP_VOLTAGE_NOW, POWER_SUPPLY_PROP_CURRENT_NOW,
++	POWER_SUPPLY_PROP_MODEL_NAME,
++};
++
++static const struct power_supply_desc sm_desc = {
++	.name = "mp2650-input", .type = POWER_SUPPLY_TYPE_USB,
++	.properties = sm_properties, .num_properties = ARRAY_SIZE(sm_properties),
++	.charge_behaviours = BIT(POWER_SUPPLY_CHARGE_BEHAVIOUR_AUTO) |
++		BIT(POWER_SUPPLY_CHARGE_BEHAVIOUR_INHIBIT_CHARGE),
++	.get_property = sm_get_property, .set_property = sm_set_property,
++	.property_is_writeable = sm_writeable,
++};
++
++static void sm_put_gauge(void *data) { put_device(data); }
++static void sm_put_supply(void *data) { power_supply_put(data); }
++static void sm_put_module(void *data) { module_put(data); }
++
++static struct power_supply *sm_named_supply(struct device *dev, const char *name)
++{
++	struct power_supply *psy = power_supply_get_by_name(name);
++	struct module *owner;
++	struct device_link *link;
++	int ret;
++
++	if (!psy) return ERR_PTR(-EPROBE_DEFER);
++	ret = devm_add_action_or_reset(dev, sm_put_supply, psy);
++	if (ret) return ERR_PTR(ret);
++	/* Prevent a manually loaded provider from unloading while referenced. */
++	owner = psy->dev.parent && psy->dev.parent->driver ?
++		psy->dev.parent->driver->owner : NULL;
++	if (owner) {
++		if (!try_module_get(owner)) return ERR_PTR(-ENODEV);
++		ret = devm_add_action_or_reset(dev, sm_put_module, owner);
++		if (ret) return ERR_PTR(ret);
++	}
++	/* Order system sleep after real suppliers are available. The device link
++	 * is removed by the driver core on consumer unbind or failed probe.
++	 */
++	if (!psy->dev.parent) return ERR_PTR(-ENODEV);
++	link = device_link_add(dev, psy->dev.parent, DL_FLAG_AUTOREMOVE_CONSUMER);
++	if (!link) return ERR_PTR(-ENOMEM);
++	return psy;
++}
++
++/* Root-readable diagnostic snapshot for the future shadow validation window.
++ * Fields are an acquired sample, never a claim of independent protection.
++ */
++static ssize_t sm_telemetry_show(struct device *dev,
++			       struct device_attribute *attr, char *buf)
++{
++	struct sm_charger *c = dev_get_drvdata(dev);
++	ssize_t length;
++
++	mutex_lock(&c->lock);
++	length = sysfs_emit(buf,
++		"shadow=%d valid=%d online=%d protection_ok=%d budget_ua=%d "
++		"temp_decic=%d pack_uv=%d cell1_uv=%d cell2_uv=%d flags=%u "
++		"fault=%u session_seconds=%u desired_enable=%d error=%d "
++		"stop_error=%d latched=%d source_inhibit=%d thermal_inhibit=%d cycle_timeout=%d age_ms=%lld\n",
++		!control, c->sample.valid, c->sample.online, c->sample.protection_ok,
++		c->sample.budget_ua, c->sample.temp_decic, c->sample.pack_uv,
++		c->sample.cell1_uv, c->sample.cell2_uv, c->sample.gauge_flags,
++		c->sample.fault, c->sample.session_seconds, c->target.enable,
++		c->last_error, c->stop_error, c->latched,
++		c->source_inhibit, c->thermal_reason, c->cycle.timed_out,
++		c->sample.valid ? ktime_to_ms(ktime_sub(ktime_get_boottime(), c->sampled_at)) : -1LL);
++	mutex_unlock(&c->lock);
++	return length;
++}
++
++static DEVICE_ATTR(telemetry, 0400, sm_telemetry_show, NULL);
++static struct attribute *sm_attributes[] = { &dev_attr_telemetry.attr, NULL };
++static const struct attribute_group sm_attribute_group = { .attrs = sm_attributes };
++
++static void sm_cleanup(void *data)
++{
++	struct sm_charger *c = data;
++	int ret;
++
++	if (c->notifier_registered) {
++		power_supply_unreg_notifier(&c->supply_notifier);
++		c->notifier_registered = false;
++	}
++	mutex_lock(&c->lock);
++	c->paused = true;
++	mutex_unlock(&c->lock);
++	cancel_delayed_work_sync(&c->work);
++	if (control) {
++		ret = sm_stop(&c->io);
++		if (ret) dev_err(&c->client->dev, "remove could not prove stop: %d\n", ret);
++	}
++}
++
++static int sm_battery_notify_target(struct power_supply *psy, void *data)
++{
++	struct sm_charger *c = data;
++
++	if (psy->desc->type != POWER_SUPPLY_TYPE_BATTERY ||
++	    psy->dev.parent != &c->gauge->dev)
++		return 0;
++	if (c->battery_name)
++		return -EEXIST;
++	c->battery_name = devm_kstrdup(&c->client->dev, psy->desc->name, GFP_KERNEL);
++	return c->battery_name ? 0 : -ENOMEM;
++}
++
++static int sm_probe(struct i2c_client *client)
++{
++	struct device *dev = &client->dev;
++	struct power_supply_config config = { 0 };
++	struct device_node *node;
++	struct sm_charger *c;
++	int reg, ret;
++
++	if (!of_machine_is_compatible("realme,samurai") || client->addr != 0x5c)
++		return -ENODEV;
++	if (!i2c_check_functionality(client->adapter, I2C_FUNC_SMBUS_BYTE_DATA))
++		return -EOPNOTSUPP;
++	/* Explicitly opt into the OEM MAC telemetry protocol after compatibility
++	 * review. The observed extended 2719 identity alone is insufficient.
++	 */
++	if (!runtime_board && !device_property_read_bool(dev, "realme,bq28z610-cells-0071"))
++		return dev_err_probe(dev, -EINVAL, "cell telemetry protocol not selected\n");
++	c = devm_kzalloc(dev, sizeof(*c), GFP_KERNEL);
++	if (!c) return -ENOMEM;
++	c->client = client;
++	c->io = (struct sm_io){ c, sm_read, sm_write };
++	mutex_init(&c->lock);
++	sm_cycle_init(&c->cycle, ktime_get_boottime_ns());
++	INIT_DELAYED_WORK(&c->work, sm_poll);
++	i2c_set_clientdata(client, c);
++	c->input = runtime_board ? sm_named_supply(dev, "samurai-usb-input") :
++		devm_power_supply_get_by_reference(dev, "input-supply");
++	if (IS_ERR(c->input)) return dev_err_probe(dev, PTR_ERR(c->input), "input supply\n");
++	if (runtime_board || device_property_present(dev, "protection-supply")) {
++		c->protection = runtime_board ? sm_named_supply(dev, "samurai-gauge-protection") :
++			devm_power_supply_get_by_reference(dev, "protection-supply");
++		if (IS_ERR(c->protection))
++			return dev_err_probe(dev, PTR_ERR(c->protection), "protection supply\n");
++	}
++	if (!c->input || (control && !c->protection))
++		return dev_err_probe(dev, -EINVAL, "control requires a real protection supply\n");
++	node = of_parse_phandle(dev->of_node, "battery-gauge", 0);
++	if (!node && runtime_board)
++		node = of_find_node_by_path("/soc@0/geniqup@cc0000/i2c@c94000/fuel-gauge@55");
++	if (!node) return -EINVAL;
++	c->gauge = of_find_i2c_device_by_node(node);
++	of_node_put(node);
++	if (!c->gauge) return -EPROBE_DEFER;
++	ret = devm_add_action_or_reset(dev, sm_put_gauge, &c->gauge->dev);
++	if (ret) return ret;
++	if (c->gauge == client || c->gauge->addr != 0x55 ||
++	    IS_ENABLED(CONFIG_BATTERY_BQ27XXX_DT_UPDATES_NVM) ||
++	    !i2c_check_functionality(c->gauge->adapter,
++		I2C_FUNC_SMBUS_WORD_DATA | I2C_FUNC_I2C))
++		return -EOPNOTSUPP;
++	if (!device_link_add(dev, &c->gauge->dev, DL_FLAG_AUTOREMOVE_CONSUMER))
++		return -ENOMEM;
++	ret = sm_preconditions(&c->io);
++	if (ret) return dev_err_probe(dev, ret, "unsupported inherited charger state\n");
++	reg = sm_read(c, 0x04);
++	if (reg < 0) return reg;
++	c->cell_ceiling_uv = 3712500 + ((reg & 0x7e) >> 1) * 12500;
++	c->current_cap_ua = 1100000;
++	c->input_cap_ua = SM_OEM_INPUT_MAX_UA;
++	c->last_error = -ENODATA;
++	config.drv_data = c;
++	config.fwnode = dev_fwnode(dev);
++	/* Route external-power changes to the existing gauge's standard callback.
++	 * Without this supplier relation bq27xxx can wait for its 360s poll, while
++	 * the desktop continues to display the previous charging state. Match the
++	 * actual gauge parent, never a guessed global battery name.
++	 */
++	ret = power_supply_for_each_psy(c, sm_battery_notify_target);
++	if (ret)
++		return ret;
++	if (!c->battery_name)
++		return -EPROBE_DEFER;
++	c->battery = power_supply_get_by_name(c->battery_name);
++	if (!c->battery)
++		return -EPROBE_DEFER;
++	ret = devm_add_action_or_reset(dev, sm_put_supply, c->battery);
++	if (ret)
++		return ret;
++	if (c->battery->desc->type != POWER_SUPPLY_TYPE_BATTERY ||
++	    c->battery->dev.parent != &c->gauge->dev)
++		return -ENODEV;
++	config.supplied_to = &c->battery_name;
++	config.num_supplicants = 1;
++	c->psy = devm_power_supply_register(dev, &sm_desc, &config);
++	if (IS_ERR(c->psy)) return PTR_ERR(c->psy);
++	ret = devm_device_add_group(dev, &sm_attribute_group);
++	if (ret) return ret;
++	c->supply_notifier.notifier_call = sm_supply_changed;
++	ret = power_supply_reg_notifier(&c->supply_notifier);
++	if (ret) return ret;
++	c->notifier_registered = true;
++	ret = devm_add_action_or_reset(dev, sm_cleanup, c);
++	if (ret) return ret;
++	schedule_delayed_work(&c->work, 0);
++	dev_info(dev, "offline candidate bound in %s mode, initially inhibited\n",
++		 control ? "control" : "shadow");
++	return 0;
++}
++
++static int sm_suspend(struct device *dev)
++{
++	struct sm_charger *c = dev_get_drvdata(dev);
++	int ret = 0;
++
++	mutex_lock(&c->lock);
++	c->paused = true;
++	mutex_unlock(&c->lock);
++	cancel_delayed_work_sync(&c->work);
++	mutex_lock(&c->lock);
++	if (control) ret = sm_stop(&c->io);
++	if (ret) {
++		c->stop_error = c->last_error = ret;
++		c->latched = true;
++		c->paused = false;
++		mod_delayed_work(system_wq, &c->work, 0);
++	}
++	mutex_unlock(&c->lock);
++	return ret;
++}
++
++static int sm_resume(struct device *dev)
++{
++	struct sm_charger *c = dev_get_drvdata(dev);
++
++	mutex_lock(&c->lock);
++	c->paused = false;
++	/* The first fresh post-resume sample is always reported. */
++	c->notified_valid = false;
++	mod_delayed_work(system_wq, &c->work, 0);
++	mutex_unlock(&c->lock);
++	return 0;
++}
++
++static void sm_shutdown(struct i2c_client *client) { sm_cleanup(i2c_get_clientdata(client)); }
++static DEFINE_SIMPLE_DEV_PM_OPS(sm_pm_ops, sm_suspend, sm_resume);
++static const struct of_device_id sm_match[] = {
++	{ .compatible = "realme,samurai-mp2650-managed" }, { }
++};
++MODULE_DEVICE_TABLE(of, sm_match);
++/* Explicitly loaded runtime_board can adopt the existing, first unbound
++ * observer client. All board/protocol/provider checks still run at probe.
++ */
++static const struct i2c_device_id sm_ids[] = { { "mp2650" }, { } };
++MODULE_DEVICE_TABLE(i2c, sm_ids);
++static struct i2c_driver sm_driver = {
++	.driver = { .name = "samurai-mp2650", .of_match_table = sm_match,
++		.pm = pm_sleep_ptr(&sm_pm_ops) },
++	.probe = sm_probe, .shutdown = sm_shutdown, .id_table = sm_ids,
++};
++module_i2c_driver(sm_driver);
++MODULE_DESCRIPTION("RMX1931 OEM-profile managed MP2650 charging candidate");
++MODULE_LICENSE("GPL");
+diff --git a/drivers/power/supply/mp2650-core.h b/drivers/power/supply/mp2650-core.h
+new file mode 100644
+--- /dev/null
++++ b/drivers/power/supply/mp2650-core.h
+@@ -0,0 +1,279 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++#ifndef SAMURAI_MP2650_CORE_H
++#define SAMURAI_MP2650_CORE_H
++#ifdef __KERNEL__
++#include <linux/errno.h>
++#else
++#include <errno.h>
++#endif
++
++/* All currents/voltages are uA/uV. Temperatures are tenths of a degree C. */
++struct sm_band {
++	int low, high, current_ua, cell_target_uv, cell_ovp_uv;
++};
++#include "oem-profile.h"
++
++struct sm_sample {
++	int valid, online, protection_ok, budget_ua, temp_decic;
++	int pack_uv, cell1_uv, cell2_uv, gauge_flags, fault;
++	unsigned int session_seconds;
++};
++
++struct sm_target {
++	int enable, input_ua, current_ua, cell_uv;
++};
++
++struct sm_io {
++	void *ctx;
++	int (*read)(void *ctx, unsigned int reg);
++	int (*write)(void *ctx, unsigned int reg, unsigned int value);
++};
++
++static inline int sm_min(int a, int b) { return a < b ? a : b; }
++
++/* Source transitions inhibit immediately but cannot erase an electrical fault.
++ * The caller separately resets the latch on real detach or explicit AUTO.
++ */
++static inline int sm_sample_latch(int latched, int error, int source_inhibit, int fault)
++{
++	return latched || fault || (error && !source_inhibit);
++}
++
++enum sm_policy_reason {
++	SM_POLICY_REASON_NONE,
++	SM_POLICY_REASON_TEMPERATURE,
++	SM_POLICY_REASON_BAND_OVP,
++};
++
++static inline int sm_policy_reason_is_thermal(enum sm_policy_reason reason)
++{
++	return reason == SM_POLICY_REASON_TEMPERATURE ||
++		reason == SM_POLICY_REASON_BAND_OVP;
++}
++
++enum sm_thermal_hold { SM_THERMAL_NONE, SM_THERMAL_COLD, SM_THERMAL_HOT };
++struct sm_thermal_state { enum sm_thermal_hold hold; };
++
++/* OEM outer-boundary recovery hysteresis: 2 C (oplus_charger.c 4174-4266).
++ * Only eligible fresh samples may update history. The caller first evaluates
++ * all non-thermal errors; a thermal hold must never conceal an IO/hard fault.
++ * This deliberately preserves the existing strict half-open stop boundaries.
++ */
++static inline int sm_thermal_gate(struct sm_thermal_state *state,
++				  int temp_decic, int eligible)
++{
++	const int cold = sm_oem_bands[0].low;
++	const int hot = sm_oem_bands[sizeof(sm_oem_bands) /
++				       sizeof(sm_oem_bands[0]) - 1].high;
++
++	if (!eligible)
++		return state->hold != SM_THERMAL_NONE;
++	if (temp_decic < cold)
++		state->hold = SM_THERMAL_COLD;
++	else if (temp_decic >= hot)
++		state->hold = SM_THERMAL_HOT;
++	else if ((state->hold == SM_THERMAL_COLD && temp_decic < cold + 20) ||
++		 (state->hold == SM_THERMAL_HOT && temp_decic > hot - 20))
++		return 1;
++	else
++		state->hold = SM_THERMAL_NONE;
++	return state->hold != SM_THERMAL_NONE;
++}
++
++/* The existing cell target is an upper ceiling, never an inferred safe target. */
++static inline int sm_policy_with_reason(const struct sm_sample *s, int cell_ceiling_uv,
++			   int current_cap_ua, int input_cap_ua,
++			   struct sm_target *out, enum sm_policy_reason *reason)
++{
++	unsigned int i;
++	int cell_max, sum, delta;
++	const struct sm_band *b = 0;
++	enum sm_policy_reason unused;
++
++	if (!reason) reason = &unused;
++	*reason = SM_POLICY_REASON_NONE;
++	*out = (struct sm_target){ 0 };
++	if (!s->valid || !s->protection_ok)
++		return -ENODATA;
++	if (!s->online)
++		return 0;
++	if (s->fault || (s->gauge_flags & 0xc000))
++		return -EIO;
++	if (s->session_seconds >= SM_OEM_MAX_SECONDS)
++		return -ETIME;
++	if (s->budget_ua < 50000 || input_cap_ua < 50000 ||
++	    current_cap_ua < 200000)
++		return -ENODATA;
++	if (s->cell1_uv < 2000000 || s->cell1_uv > 4600000 ||
++	    s->cell2_uv < 2000000 || s->cell2_uv > 4600000 ||
++	    s->pack_uv < 4000000 || s->pack_uv > 9200000)
++		return -ERANGE;
++	sum = s->cell1_uv + s->cell2_uv;
++	delta = sum - s->pack_uv;
++	/* Candidate acquisition consistency bound, not an OEM calibration value. */
++	if (delta < -200000 || delta > 200000)
++		return -ENODATA;
++	/* A globally invalid target ceiling must not be hidden by a
++	 * simultaneous temperature or band-voltage inhibit. */
++	if (cell_ceiling_uv < 3712500)
++		return -ERANGE;
++	for (i = 0; i < sizeof(sm_oem_bands) / sizeof(sm_oem_bands[0]); i++)
++		if (s->temp_decic >= sm_oem_bands[i].low &&
++		    s->temp_decic < sm_oem_bands[i].high) {
++			b = &sm_oem_bands[i];
++			break;
++		}
++	if (!b) {
++		*reason = SM_POLICY_REASON_TEMPERATURE;
++		return -ERANGE;
++	}
++	cell_max = s->cell1_uv > s->cell2_uv ? s->cell1_uv : s->cell2_uv;
++	if (cell_max > b->cell_ovp_uv) {
++		*reason = SM_POLICY_REASON_BAND_OVP;
++		return -EOVERFLOW;
++	}
++	out->cell_uv = sm_min(b->cell_target_uv, cell_ceiling_uv);
++	if (out->cell_uv < 3712500 || out->cell_uv > 4500000)
++		return -ERANGE;
++	out->cell_uv = 3712500 + (out->cell_uv - 3712500) / 12500 * 12500;
++	out->current_ua = sm_min(b->current_ua, current_cap_ua) / 50000 * 50000;
++	out->input_ua = sm_min(sm_min(s->budget_ua, input_cap_ua),
++			       SM_OEM_INPUT_MAX_UA) / 50000 * 50000;
++	out->enable = 1;
++	return 0;
++}
++
++/* Compatibility wrapper: existing callers retain their return codes. */
++static inline int sm_policy(const struct sm_sample *s, int cell_ceiling_uv,
++			   int current_cap_ua, int input_cap_ua,
++			   struct sm_target *out)
++{
++	return sm_policy_with_reason(s, cell_ceiling_uv, current_cap_ua,
++				     input_cap_ua, out, 0);
++}
++
++static inline int sm_update(const struct sm_io *io, unsigned int reg,
++			    unsigned int mask, unsigned int value)
++{
++	int old, after, ret;
++	unsigned int next;
++
++	/* No raw register interface, reset, watchdog kick, OTG or BATTFET writes. */
++	if (!((reg == 0x08 && !(mask & ~0x18U)) ||
++	      ((reg == 0x00 || reg == 0x0f || reg == 0x02) && mask == 0x7f) ||
++	      (reg == 0x03 && mask == 0xff) ||
++	      (reg == 0x04 && mask == 0x7f)) || !mask)
++		return -EINVAL;
++	old = io->read(io->ctx, reg);
++	if (old < 0)
++		return old;
++	if (reg == 0x08 && (old & 0xc0))
++		return -EBUSY;
++	next = (old & ~mask) | (value & mask);
++	if (next != (unsigned int)old) {
++		ret = io->write(io->ctx, reg, next);
++		if (ret)
++			return ret;
++	}
++	after = io->read(io->ctx, reg);
++	if (after < 0)
++		return after;
++	/* Also verify unrelated bits, rather than silently clobbering them. */
++	return after == (int)next ? 0 : -EIO;
++}
++
++/* Pause normal charge and the input converter; never switch the protection FET.
++ * Failure is reported: a dead I2C bus cannot prove the hardware has stopped.
++ */
++static inline int sm_stop(const struct sm_io *io)
++{
++	return sm_update(io, 0x08, 0x18, 0x08);
++}
++
++static inline int sm_preconditions(const struct sm_io *io)
++{
++	int cell = io->read(io->ctx, 0x07);
++	int control = io->read(io->ctx, 0x08);
++	int timers = io->read(io->ctx, 0x09);
++	int compensation = io->read(io->ctx, 0x05);
++
++	if (cell < 0) return cell;
++	if (control < 0) return control;
++	if (timers < 0) return timers;
++	if (compensation < 0) return compensation;
++	if ((cell & 0xc0) || (control & 0xe0) || (control & 0x26) != 0x06 ||
++	    (compensation & 0xfc))
++		return -EOPNOTSUPP;
++	/* Do not adopt a live watchdog or disable termination/safety timers. */
++	if ((timers & 0x30) || (timers & 0x48) != 0x48)
++		return -EOPNOTSUPP;
++	return 0;
++}
++
++/* Apply while suspended, verify both input limits and then resume. A failed
++ * transaction never rolls back to a larger old input allowance or enables
++ * charging. The caller latches the primary and stop errors separately.
++ */
++static inline int sm_apply(const struct sm_io *io, const struct sm_target *t,
++			   int *stop_error)
++{
++	int ret, cc, cv, first, second, control, preterm;
++
++	*stop_error = 0;
++	if (!t->enable) {
++		*stop_error = sm_stop(io);
++		return *stop_error;
++	}
++	if (t->input_ua < 50000 || t->input_ua > SM_OEM_INPUT_MAX_UA ||
++	    t->input_ua % 50000 || t->current_ua < 200000 ||
++	    t->current_ua > 1100000 || t->current_ua % 50000 ||
++	    t->cell_uv < 3712500 || t->cell_uv > 4500000 ||
++	    (t->cell_uv - 3712500) % 12500) {
++		ret = -EINVAL;
++		goto fail;
++	}
++	ret = sm_preconditions(io);
++	if (ret)
++		goto fail;
++	/* Do not toggle CHG_EN on every poll: it resets the hardware safety timer. */
++	first = io->read(io->ctx, 0x00);
++	second = io->read(io->ctx, 0x0f);
++	cc = io->read(io->ctx, 0x02);
++	cv = io->read(io->ctx, 0x04);
++	control = io->read(io->ctx, 0x08);
++	preterm = io->read(io->ctx, 0x03);
++	if (first < 0 || second < 0 || cc < 0 || cv < 0 || control < 0 || preterm < 0) {
++		ret = first < 0 ? first : second < 0 ? second : cc < 0 ? cc :
++			cv < 0 ? cv : control < 0 ? control : preterm;
++		goto fail;
++	}
++	if ((first & 0x7f) == t->input_ua / 50000 &&
++	    (second & 0x7f) == t->input_ua / 50000 &&
++	    (cc & 0x7f) == t->current_ua / 50000 &&
++	    (cv & 0x7f) == (t->cell_uv - 3712500) / 12500 * 2 &&
++	    preterm == 0x31 &&
++	    (control & 0x18) == 0x10)
++		return 0;
++	ret = sm_stop(io);
++	if (ret) goto fail;
++	ret = sm_update(io, 0x0f, 0x7f, t->input_ua / 50000);
++	if (ret) goto fail;
++	ret = sm_update(io, 0x00, 0x7f, t->input_ua / 50000);
++	if (ret) goto fail;
++	ret = sm_update(io, 0x02, 0x7f, t->current_ua / 50000);
++	if (ret) goto fail;
++	/* MPS table (not the old OEM arithmetic): precharge code 3 = 180mA.
++	 * OEM termination 110mA is rounded down to the 100mA hardware step.
++	 */
++	ret = sm_update(io, 0x03, 0xff, 0x31);
++	if (ret) goto fail;
++	/* OEM recharge offset 100mV/cell is encoded by bit 0 = 0. */
++	ret = sm_update(io, 0x04, 0x7f, (t->cell_uv - 3712500) / 12500 * 2);
++	if (ret) goto fail;
++	ret = sm_update(io, 0x08, 0x18, 0x10);
++	if (!ret) return 0;
++fail:
++	*stop_error = sm_stop(io);
++	return ret;
++}
++#endif
+diff --git a/drivers/power/supply/charge-cycle.h b/drivers/power/supply/charge-cycle.h
+new file mode 100644
+--- /dev/null
++++ b/drivers/power/supply/charge-cycle.h
+@@ -0,0 +1,86 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++#ifndef SAMURAI_CHARGE_CYCLE_H
++#define SAMURAI_CHARGE_CYCLE_H
++#ifdef __KERNEL__
++#include <linux/types.h>
++typedef u64 sm_cycle_ns;
++#else
++#include <stdint.h>
++typedef uint64_t sm_cycle_ns;
++#endif
++
++/* OEM 19781 max_chg_time_sec. State is intentionally volatile like the OEM
++ * driver; do not translate this into an immutable ten-hour cable attachment.
++ * The caller supplies CLOCK_BOOTTIME/ktime_get_boottime_ns(), not wall-clock.
++ */
++#define SM_CYCLE_LIMIT_SECONDS 36000U
++#define SM_CYCLE_LIMIT_NS (36000ULL * 1000000000ULL)
++struct sm_charge_cycle {
++	sm_cycle_ns anchor_ns, last_ns;
++	unsigned int seconds;
++	int attached, timed_out;
++};
++
++static inline void sm_cycle_init(struct sm_charge_cycle *c, sm_cycle_ns now)
++{
++	*c = (struct sm_charge_cycle){ .last_ns = now };
++}
++
++/* Run the actual charger policy with the timer field temporarily zeroed first:
++ * only a wholly valid, in-range sample can establish a Full-period boundary.
++ * This helper never clears the charger's independent IO/electrical latch.
++ */
++static inline int sm_cycle_full_allowed(int hardware_full, int fault_latched,
++					int validation_error)
++{
++	return hardware_full && !fault_latched && !validation_error;
++}
++
++/* source=-1: unknown/error; 0: independently agreed physical detach;
++ * 1: independently agreed attachment. Unknown never clears any cycle state.
++ * full_good is allowed only after fresh complete telemetry and policy checks,
++ * confirmed MP2650 REG13 CHG_STAT==3, and no existing fault latch. SOC100,
++ * zero net current, or an unvalidated cached Full flag is not sufficient.
++ * Full resets the current charge period (OEM full_action); subsequent recharge
++ * gets a fresh period without requiring a physical unplug. A timeout already
++ * established on an earlier sample cannot be erased by Full or AUTO.
++ */
++static inline unsigned int sm_cycle_update(struct sm_charge_cycle *c,
++					  sm_cycle_ns now, int source, int full_good)
++{
++	sm_cycle_ns elapsed;
++
++	/* No wall-clock/RTC rollback arithmetic; bad input must not underflow. */
++	if (now < c->last_ns) {
++		c->timed_out = 1;
++		c->seconds = SM_CYCLE_LIMIT_SECONDS;
++		return c->seconds;
++	}
++	c->last_ns = now;
++	if (source == 0) {
++		sm_cycle_init(c, now);
++		return 0;
++	}
++	if (source == 1 && !c->attached) {
++		c->attached = 1;
++		c->anchor_ns = now;
++	}
++	if (!c->attached)
++		return c->seconds;
++	if (c->timed_out)
++		return SM_CYCLE_LIMIT_SECONDS;
++	if (source == 1 && full_good) {
++		c->anchor_ns = now;
++		c->seconds = 0;
++		return 0;
++	}
++	elapsed = now - c->anchor_ns;
++	if (elapsed >= SM_CYCLE_LIMIT_NS) {
++		c->timed_out = 1;
++		c->seconds = SM_CYCLE_LIMIT_SECONDS;
++	} else {
++		c->seconds = elapsed / 1000000000ULL;
++	}
++	return c->seconds;
++}
++#endif
+diff --git a/drivers/power/supply/charging-notify.h b/drivers/power/supply/charging-notify.h
+new file mode 100644
+--- /dev/null
++++ b/drivers/power/supply/charging-notify.h
+@@ -0,0 +1,39 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++#ifndef SAMURAI_CHARGING_NOTIFY_H
++#define SAMURAI_CHARGING_NOTIFY_H
++
++/* Discrete notification state. Never include ADC noise, age or session time.
++ * Read failures have their own fields, so an errno cannot become a valid
++ * hardware/battery status and recovery cannot disappear behind cached data.
++ */
++struct sm_notify_state {
++	int charger_status, charger_error;
++	int battery_status, battery_error;
++	int health, error, stop_error;
++	int latched, source_inhibit, auto_requested;
++	int valid, online, protection_ok, fault;
++	int target_enable, input_ua, current_ua, cell_uv;
++};
++
++static inline int sm_notify_changed(const struct sm_notify_state *old,
++				    const struct sm_notify_state *new)
++{
++	return old->charger_status != new->charger_status ||
++		old->charger_error != new->charger_error ||
++		old->battery_status != new->battery_status ||
++		old->battery_error != new->battery_error ||
++		old->health != new->health || old->error != new->error ||
++		old->stop_error != new->stop_error ||
++		old->latched != new->latched ||
++		old->source_inhibit != new->source_inhibit ||
++		old->auto_requested != new->auto_requested ||
++		old->valid != new->valid || old->online != new->online ||
++		old->protection_ok != new->protection_ok ||
++		old->fault != new->fault ||
++		old->target_enable != new->target_enable ||
++		old->input_ua != new->input_ua ||
++		old->current_ua != new->current_ua ||
++		old->cell_uv != new->cell_uv;
++}
++
++#endif
+diff --git a/drivers/power/supply/oem-profile.h b/drivers/power/supply/oem-profile.h
+new file mode 100644
+--- /dev/null
++++ b/drivers/power/supply/oem-profile.h
+@@ -0,0 +1,12 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++/* Generated by extract-oem.py from pinned official Android R DTS. */
++static const struct sm_band sm_oem_bands[] = {
++	{ -20, 0, 250000, 3980000, 3990000 },
++	{ 0, 50, 900000, 4400000, 4410000 },
++	{ 50, 120, 1100000, 4400000, 4410000 },
++	{ 120, 160, 1100000, 4400000, 4410000 },
++	{ 160, 440, 1100000, 4400000, 4410000 },
++	{ 440, 530, 550000, 4130000, 4140000 },
++};
++#define SM_OEM_MAX_SECONDS 36000
++#define SM_OEM_INPUT_MAX_UA 2000000
+diff --git a/drivers/power/supply/gauge-protocol.h b/drivers/power/supply/gauge-protocol.h
+new file mode 100644
+--- /dev/null
++++ b/drivers/power/supply/gauge-protocol.h
+@@ -0,0 +1,67 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++#ifndef SAMURAI_GAUGE_PROTOCOL_H
++#define SAMURAI_GAUGE_PROTOCOL_H
++#ifdef __KERNEL__
++#include <linux/errno.h>
++#else
++#include <errno.h>
++#endif
++
++/* TI SLUUA65E 12.1.28-31: 2 command + 0..32 data + checksum + length.
++ * The checksum/length always occupy offsets 34/35 of a 36-byte read.
++ */
++static inline unsigned int sm_le16(const unsigned char *p)
++{
++	return p[0] | (unsigned int)p[1] << 8;
++}
++
++static inline unsigned int sm_le32(const unsigned char *p)
++{
++	return sm_le16(p) | sm_le16(p + 2) << 16;
++}
++
++static inline int sm_mac_data_size(unsigned int command)
++{
++	switch (command) {
++	case 0x0001: return 2;
++	case 0x0051: case 0x0053: case 0x0054: return 4;
++	case 0x0057: return 2;
++	case 0x0071: return 32;
++	default: return -EINVAL; /* No arbitrary MAC, FET, unseal or NVM commands. */
++	}
++}
++
++static inline int sm_mac_validate(const unsigned char *p, unsigned int bytes,
++				  unsigned int command)
++{
++	unsigned int sum = 0, i;
++	int size = sm_mac_data_size(command);
++
++	if (size < 0) return size;
++	if (bytes != 36 || p[35] != size + 4) return -EMSGSIZE;
++	if (sm_le16(p) != command) return -EAGAIN;
++	for (i = 0; i < (unsigned int)size + 2; i++) sum += p[i];
++	return ((sum + p[34]) & 255) == 255 ? 0 : -EBADMSG;
++}
++
++/* A valid protocol response is not a claim that the silicon is a standard
++ * TI 2610. The installed factory-family protocol reports device type 2719.
++ * Keep the observed identity explicit; do not silently accept unknown packs.
++ */
++static inline int sm_gauge_protection_state(unsigned int device_type,
++	unsigned int safety, unsigned int permanent, unsigned int operation,
++	unsigned int manufacturing)
++{
++	if (device_type != 0x2719) return -ENODEV;
++	if (safety || permanent) return -EIO;
++	/* Require sealed state, autonomous FET action and gauging. Exclude test,
++	 * calibration, shutdown, disabled-charge and active safety/PF modes.
++	 * PF_EN is reported separately; its inherited value must not be changed.
++	 */
++	if ((operation & 0x300) != 0x300 ||
++	    (operation & ((1U << 20) | (1U << 16) | 0x7c00)) ||
++	    (manufacturing & 0x18) != 0x18 || (manufacturing & 0x8006))
++		return -EACCES;
++	return 0;
++}
++#endif
+diff --git a/drivers/power/supply/gauge-i2c.h b/drivers/power/supply/gauge-i2c.h
+new file mode 100644
+--- /dev/null
++++ b/drivers/power/supply/gauge-i2c.h
+@@ -0,0 +1,37 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++#ifndef SAMURAI_GAUGE_I2C_H
++#define SAMURAI_GAUGE_I2C_H
++#include <linux/delay.h>
++#include <linux/i2c.h>
++#include "gauge-protocol.h"
++
++/* Caller holds I2C_LOCK_SEGMENT. No other MAC client may interleave. */
++static inline int sm_gauge_word_locked(struct i2c_client *g, unsigned int reg,
++				       bool write, unsigned int value)
++{
++	union i2c_smbus_data data = { .word = value };
++	int ret = __i2c_smbus_xfer(g->adapter, g->addr, g->flags,
++		write ? I2C_SMBUS_WRITE : I2C_SMBUS_READ, reg,
++		I2C_SMBUS_WORD_DATA, &data);
++	return ret < 0 ? ret : write ? 0 : data.word;
++}
++
++static inline int sm_gauge_mac_locked(struct i2c_client *g, unsigned int command,
++				      unsigned char *packet)
++{
++	unsigned char start = 0x3e;
++	struct i2c_msg messages[] = {
++		{ .addr = g->addr, .len = 1, .buf = &start },
++		{ .addr = g->addr, .flags = I2C_M_RD, .len = 36, .buf = packet },
++	};
++	int ret;
++
++	if (sm_mac_data_size(command) < 0) return -EINVAL;
++	ret = sm_gauge_word_locked(g, 0x3e, true, command);
++	if (ret) return ret;
++	usleep_range(1000, 1500); /* matched OEM query delay, no NVM transaction */
++	ret = __i2c_transfer(g->adapter, messages, ARRAY_SIZE(messages));
++	if (ret != ARRAY_SIZE(messages)) return ret < 0 ? ret : -EIO;
++	return sm_mac_validate(packet, 36, command);
++}
++#endif
+diff --git a/drivers/power/supply/samurai-usb-input.c b/drivers/power/supply/samurai-usb-input.c
+new file mode 100644
+--- /dev/null
++++ b/drivers/power/supply/samurai-usb-input.c
+@@ -0,0 +1,348 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/* RMX1931 input observer: no PMIC, charger, USB role or PD writes. */
++#include <linux/device.h>
++#include <linux/err.h>
++#include <linux/module.h>
++#include <linux/pm.h>
++#include <linux/mutex.h>
++#include <linux/of.h>
++#include <linux/platform_device.h>
++#include <linux/power_supply.h>
++#include <linux/property.h>
++#include <linux/regmap.h>
++#include <linux/slab.h>
++#include <linux/workqueue.h>
++
++#include "samurai-usb-input-decode.h"
++
++static bool register_board;
++module_param(register_board, bool, 0444);
++MODULE_PARM_DESC(register_board, "Create a PM8150B read-only input device using observed board wiring");
++static struct platform_device *samurai_usb_board;
++static bool native_retained;
++module_param(native_retained, bool, 0444);
++MODULE_PARM_DESC(native_retained, "Native DWC3 reference requires this provider until next boot");
++
++struct samurai_usb_input {
++	struct regmap *map;
++	struct power_supply *psy;
++	struct mutex lock;
++	struct delayed_work work;
++	struct samurai_usb_budget last;
++	int last_error;
++	bool last_valid;
++	bool udc_valid;
++	bool paused;
++	int udc_current_ua;
++};
++
++static int samurai_usb_read_status(struct samurai_usb_input *input,
++				   struct samurai_usb_status *s)
++{
++	static const unsigned int registers[] = {
++		0x1307, 0x1308, 0x1310, 0x1506, 0x1509, 0x150b, 0x150d,
++	};
++	unsigned char *fields[] = {
++		&s->apsd, &s->result, &s->plugin, &s->cc,
++		&s->attached, &s->misc, &s->legacy,
++	};
++	unsigned int value, i;
++	int ret;
++
++	for (i = 0; i < ARRAY_SIZE(registers); i++) {
++		ret = regmap_read(input->map, registers[i], &value);
++		if (ret)
++			return ret;
++		*fields[i] = value;
++	}
++	return 0;
++}
++
++static int samurai_usb_get_budget(struct samurai_usb_input *input,
++				  struct samurai_usb_budget *budget)
++{
++	struct samurai_usb_status before, after;
++	int ret;
++
++	mutex_lock(&input->lock);
++	if (input->paused) {
++		input->udc_valid = false;
++		mutex_unlock(&input->lock);
++		return -ENODATA;
++	}
++	ret = samurai_usb_read_status(input, &before);
++	if (!ret)
++		ret = samurai_usb_read_status(input, &after);
++	if (!ret && !samurai_usb_status_equal(&before, &after))
++		ret = -EAGAIN;
++	if (!ret)
++		ret = samurai_usb_decode(&after, budget);
++	if (ret || !budget->online)
++		input->udc_valid = false;
++	if (!ret)
++		ret = samurai_usb_apply_udc(budget, input->udc_valid, input->udc_current_ua);
++	mutex_unlock(&input->lock);
++	return ret;
++}
++
++static enum power_supply_usb_type samurai_usb_type(enum samurai_usb_kind kind)
++{
++	switch (kind) {
++	case SAMURAI_USB_SDP: return POWER_SUPPLY_USB_TYPE_SDP;
++	case SAMURAI_USB_CDP: return POWER_SUPPLY_USB_TYPE_CDP;
++	case SAMURAI_USB_DCP: return POWER_SUPPLY_USB_TYPE_DCP;
++	case SAMURAI_USB_TYPE_C: return POWER_SUPPLY_USB_TYPE_C;
++	default: return POWER_SUPPLY_USB_TYPE_UNKNOWN;
++	}
++}
++
++static enum power_supply_property samurai_usb_properties[] = {
++	POWER_SUPPLY_PROP_ONLINE,
++	POWER_SUPPLY_PROP_USB_TYPE,
++	POWER_SUPPLY_PROP_CURRENT_MAX,
++	POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT,
++};
++
++static int samurai_usb_get_property(struct power_supply *psy,
++				    enum power_supply_property property,
++				    union power_supply_propval *value)
++{
++	struct samurai_usb_input *input = power_supply_get_drvdata(psy);
++	struct samurai_usb_budget budget;
++	int ret = samurai_usb_get_budget(input, &budget);
++
++	if (ret)
++		return ret == -EAGAIN ? -ENODATA : ret;
++	switch (property) {
++	case POWER_SUPPLY_PROP_ONLINE:
++		value->intval = budget.online;
++		return 0;
++	case POWER_SUPPLY_PROP_USB_TYPE:
++		value->intval = samurai_usb_type(budget.kind);
++		return 0;
++	case POWER_SUPPLY_PROP_CURRENT_MAX:
++		if (budget.current_ua < 0)
++			return budget.current_ua;
++		value->intval = budget.current_ua;
++		return 0;
++	case POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT:
++		mutex_lock(&input->lock);
++		ret = input->udc_valid ? 0 : -ENODATA;
++		value->intval = input->udc_current_ua;
++		mutex_unlock(&input->lock);
++		return ret;
++	default:
++		return -EINVAL;
++	}
++}
++
++static int samurai_usb_set_property(struct power_supply *psy,
++				    enum power_supply_property property,
++				    const union power_supply_propval *value)
++{
++	struct samurai_usb_input *input = power_supply_get_drvdata(psy);
++	int ret = 0;
++
++	if (property != POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT) return -EINVAL;
++	mutex_lock(&input->lock);
++	input->udc_valid = false;
++	if (input->paused) ret = -EBUSY;
++	else if (value->intval < 0 || value->intval > 500000) ret = -ERANGE;
++	else {
++		input->udc_current_ua = value->intval;
++		input->udc_valid = true;
++	}
++	mutex_unlock(&input->lock);
++	power_supply_changed(psy);
++	return ret;
++}
++
++static const struct power_supply_desc samurai_usb_desc = {
++	.name = "samurai-usb-input",
++	.type = POWER_SUPPLY_TYPE_USB,
++	.usb_types = BIT(POWER_SUPPLY_USB_TYPE_UNKNOWN) |
++		BIT(POWER_SUPPLY_USB_TYPE_SDP) | BIT(POWER_SUPPLY_USB_TYPE_CDP) |
++		BIT(POWER_SUPPLY_USB_TYPE_DCP) | BIT(POWER_SUPPLY_USB_TYPE_C),
++	.properties = samurai_usb_properties,
++	.num_properties = ARRAY_SIZE(samurai_usb_properties),
++	.get_property = samurai_usb_get_property,
++	/* No writable sysfs property: the existing DWC3 kernel callback supplies
++	 * this software allowance through power_supply_set_property().
++	 */
++	.set_property = samurai_usb_set_property,
++};
++
++static void samurai_usb_poll(struct work_struct *work)
++{
++	struct samurai_usb_input *input = container_of(to_delayed_work(work),
++						      struct samurai_usb_input, work);
++	struct samurai_usb_budget budget = { 0 };
++	int ret = samurai_usb_get_budget(input, &budget);
++	bool changed = !input->last_valid || ret != input->last_error ||
++		(!ret && (budget.online != input->last.online ||
++			  budget.kind != input->last.kind ||
++			  budget.current_ua != input->last.current_ua));
++
++	input->last = budget;
++	input->last_error = ret;
++	input->last_valid = true;
++	if (changed)
++		power_supply_changed(input->psy);
++	mutex_lock(&input->lock);
++	if (!input->paused)
++		schedule_delayed_work(&input->work, msecs_to_jiffies(1000));
++	mutex_unlock(&input->lock);
++}
++
++static void samurai_usb_stop(void *data)
++{
++	struct samurai_usb_input *input = data;
++
++	mutex_lock(&input->lock);
++	input->paused = true;
++	input->udc_valid = false;
++	mutex_unlock(&input->lock);
++	cancel_delayed_work_sync(&input->work);
++}
++
++static int samurai_usb_suspend(struct device *dev)
++{
++	samurai_usb_stop(dev_get_drvdata(dev));
++	return 0;
++}
++
++static int samurai_usb_resume(struct device *dev)
++{
++	struct samurai_usb_input *input = dev_get_drvdata(dev);
++	mutex_lock(&input->lock);
++	input->udc_valid = false;
++	input->paused = false;
++	mutex_unlock(&input->lock);
++	mod_delayed_work(system_wq, &input->work, 0);
++	return 0;
++}
++static DEFINE_SIMPLE_DEV_PM_OPS(samurai_usb_pm_ops, samurai_usb_suspend, samurai_usb_resume);
++
++static void samurai_usb_retain_for_native_consumer(struct device *dev)
++{
++	struct device_node *node;
++	const char *name;
++
++	/* DWC3 owns its supply reference for the controller's lifetime. Current
++	 * power_supply_unregister() warns if such a reference remains; unloading
++	 * this module would also invalidate its property callbacks. Do not permit
++	 * that lifecycle after native wiring has been selected in the boot DT.
++	 */
++	node = of_find_node_by_path("/soc@0/usb@a6f8800/usb@a600000");
++	if (node && !of_property_read_string(node, "usb-psy-name", &name) &&
++	    !strcmp(name, "samurai-usb-input") && !native_retained) {
++		__module_get(THIS_MODULE);
++		native_retained = true;
++		dev_info(dev, "native DWC3 supply retained until next boot\n");
++	}
++	of_node_put(node);
++}
++
++static int samurai_usb_probe(struct platform_device *pdev)
++{
++	struct power_supply_config config = { 0 };
++	struct samurai_usb_input *input;
++	struct device *dev = &pdev->dev;
++	u32 base;
++	int ret;
++
++	if (!of_machine_is_compatible("realme,samurai") ||
++	    !of_device_is_compatible(dev->parent->of_node, "qcom,pm8150b"))
++		return -ENODEV;
++	if (!of_node_name_eq(dev->parent->of_node, "pmic") ||
++	    of_property_read_u32(dev->parent->of_node, "reg", &base) || base != 2)
++		return -ENODEV;
++	if (device_property_read_u32(dev, "reg", &base) || base != 0x1300)
++		return -EINVAL;
++	input = devm_kzalloc(dev, sizeof(*input), GFP_KERNEL);
++	if (!input)
++		return -ENOMEM;
++	input->map = dev_get_regmap(dev->parent, NULL);
++	if (!input->map)
++		return -ENODEV;
++	mutex_init(&input->lock);
++	platform_set_drvdata(pdev, input);
++	INIT_DELAYED_WORK(&input->work, samurai_usb_poll);
++	config.drv_data = input;
++	/* A runtime software node already has a link named for its platform
++	 * parent. Reusing it for a same-named power_supply creates duplicate
++	 * sysfs links and unbalanced software-node removal references.
++	 * DT nodes retain the established firmware associations.
++	 */
++	config.fwnode = dev->of_node ? dev_fwnode(dev) : NULL;
++	input->psy = devm_power_supply_register(dev, &samurai_usb_desc, &config);
++	if (IS_ERR(input->psy))
++		return PTR_ERR(input->psy);
++	/* LIFO devres: stop polling before the supply and PMIC map are released. */
++	ret = devm_add_action_or_reset(dev, samurai_usb_stop, input);
++	if (ret)
++		return ret;
++	schedule_delayed_work(&input->work, 0);
++	samurai_usb_retain_for_native_consumer(dev);
++	dev_info(dev, "read-only PM8150B USB input budget registered\n");
++	return 0;
++}
++
++static const struct of_device_id samurai_usb_match[] = {
++	{ .compatible = "realme,rmx1931-usb-input" },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, samurai_usb_match);
++
++static struct platform_driver samurai_usb_driver = {
++	.probe = samurai_usb_probe,
++	.driver = {
++		.name = "samurai-usb-input",
++		.of_match_table = samurai_usb_match,
++		.pm = pm_sleep_ptr(&samurai_usb_pm_ops),
++		.suppress_bind_attrs = true,
++	},
++};
++
++static int samurai_usb_parent_match(struct device *dev, const void *unused)
++{
++	u32 sid;
++	return dev->parent && dev->parent->of_node &&
++		of_device_is_compatible(dev->parent->of_node, "qcom,pm8150b") &&
++		!of_property_read_u32(dev->parent->of_node, "reg", &sid) && sid == 2;
++}
++
++static int __init samurai_usb_init(void)
++{
++	static const struct property_entry props[] = {
++		PROPERTY_ENTRY_U32("reg", 0x1300), { }
++	};
++	struct platform_device_info info = { .name = "samurai-usb-input",
++		.id = PLATFORM_DEVID_NONE, .properties = props };
++	struct device *child;
++	int ret = platform_driver_register(&samurai_usb_driver);
++
++	if (ret || !register_board) return ret;
++	if (!of_machine_is_compatible("realme,samurai")) { ret = -ENODEV; goto fail; }
++	child = bus_find_device(&platform_bus_type, NULL, NULL, samurai_usb_parent_match);
++	if (!child) { ret = -ENODEV; goto fail; }
++	info.parent = child->parent;
++	samurai_usb_board = platform_device_register_full(&info);
++	put_device(child);
++	if (IS_ERR(samurai_usb_board)) { ret = PTR_ERR(samurai_usb_board); goto fail; }
++	return 0;
++fail:
++	platform_driver_unregister(&samurai_usb_driver);
++	return ret;
++}
++
++static void __exit samurai_usb_exit(void)
++{
++	if (register_board && !IS_ERR_OR_NULL(samurai_usb_board))
++		platform_device_unregister(samurai_usb_board);
++	platform_driver_unregister(&samurai_usb_driver);
++}
++module_init(samurai_usb_init);
++module_exit(samurai_usb_exit);
++MODULE_DESCRIPTION("RMX1931 read-only PM8150B USB input budget observer");
++MODULE_LICENSE("GPL");
+diff --git a/drivers/power/supply/samurai-usb-input-decode.h b/drivers/power/supply/samurai-usb-input-decode.h
+new file mode 100644
+--- /dev/null
++++ b/drivers/power/supply/samurai-usb-input-decode.h
+@@ -0,0 +1,100 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++#ifndef SAMURAI_USB_INPUT_DECODE_H
++#define SAMURAI_USB_INPUT_DECODE_H
++
++/* Status fields from the RMX1931 OEM SMB5 header and PM8150B Type-C driver. */
++struct samurai_usb_status {
++	unsigned char apsd, result, plugin, cc, attached, misc, legacy;
++};
++
++enum samurai_usb_kind {
++	SAMURAI_USB_UNKNOWN, SAMURAI_USB_SDP, SAMURAI_USB_CDP,
++	SAMURAI_USB_DCP, SAMURAI_USB_TYPE_C,
++};
++
++struct samurai_usb_budget {
++	int online;
++	enum samurai_usb_kind kind;
++	int current_ua;
++};
++
++/* A detection result is an advertised allowance, never a current measurement.
++ * SDP requires the UDC's configured/suspended budget, so leave it unavailable.
++ * No PD contract, proprietary charging mode or ambiguous result is inferred.
++ */
++static inline int samurai_usb_decode(const struct samurai_usb_status *s,
++				     struct samurai_usb_budget *b)
++{
++	unsigned int cc = s->cc & 0x7f;
++	unsigned int result = s->result & 0x7f;
++	int plugin = !!(s->plugin & 0x10);
++	int vbus = !!(s->misc & 0x20);
++	int attached = !!(s->misc & 1);
++	int state_attached = !!(s->attached & 0x20);
++
++	b->online = 0;
++	b->kind = SAMURAI_USB_UNKNOWN;
++	b->current_ua = -ENODATA;
++	if (!plugin && !vbus && !attached && !state_attached) {
++		b->current_ua = 0;
++		return 0;
++	}
++	/* Transitional, source-role, water/error and noncompliant states fail. */
++	if (!plugin || !vbus || !attached || !state_attached ||
++	    (s->misc & 0xd0) || !(s->misc & 8) || (s->legacy & 1) ||
++	    (s->plugin & 0x2f))
++		return -ENODATA;
++	if (cc != 8 && cc != 4 && cc != 2)
++		return -ENODATA;
++	b->online = 1;
++	/* A completed QC detection is outside this observer's contract. */
++	if ((s->apsd & 2) || (result & 0x60))
++		return 0;
++	if (!(s->legacy & 2) && (cc == 4 || cc == 2)) {
++		b->kind = SAMURAI_USB_TYPE_C;
++		b->current_ua = cc == 4 ? 1500000 : 3000000;
++		return 0;
++	}
++	if (!(s->apsd & 1))
++		return 0;
++	switch (result) {
++	case 1:
++		b->kind = SAMURAI_USB_SDP;
++		break;
++	case 4:
++		b->kind = SAMURAI_USB_CDP;
++		b->current_ua = 1500000;
++		break;
++	case 8:
++		b->kind = SAMURAI_USB_DCP;
++		b->current_ua = 1500000;
++		break;
++	}
++	return 0;
++}
++
++static inline int samurai_usb_status_equal(const struct samurai_usb_status *a,
++					   const struct samurai_usb_status *b)
++{
++	return a->apsd == b->apsd && a->result == b->result &&
++	       a->plugin == b->plugin && a->cc == b->cc &&
++	       a->attached == b->attached && a->misc == b->misc &&
++	       a->legacy == b->legacy;
++}
++
++/* DWC3's accepted SET_CONFIGURATION/reset/suspend callback is an input
++ * allowance, not an ADC reading. This USB2 board must never infer 900mA.
++ */
++static inline int samurai_usb_apply_udc(struct samurai_usb_budget *b,
++				       int valid, int current_ua)
++{
++	if (b->kind != SAMURAI_USB_SDP || !b->online) return 0;
++	if (!valid || current_ua < 0 || current_ua > 500000) {
++		b->current_ua = -ENODATA;
++		return 0;
++	}
++	b->current_ua = current_ua;
++	return 0;
++}
++
++#endif
+diff --git a/drivers/power/supply/samurai-gauge-protection.c b/drivers/power/supply/samurai-gauge-protection.c
+new file mode 100644
+--- /dev/null
++++ b/drivers/power/supply/samurai-gauge-protection.c
+@@ -0,0 +1,168 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/* Fresh, read-only factory-family safety/PF/FET-state provider. */
++#include <linux/i2c.h>
++#include <linux/ktime.h>
++#include <linux/module.h>
++#include <linux/mutex.h>
++#include <linux/of.h>
++#include <linux/platform_device.h>
++#include <linux/power_supply.h>
++#include <linux/property.h>
++#include "gauge-i2c.h"
++
++static bool register_board;
++module_param(register_board, bool, 0444);
++MODULE_PARM_DESC(register_board, "Create the RMX1931 observation device without changing DT");
++
++struct sm_protection {
++	struct i2c_client *gauge;
++	struct mutex lock;
++	unsigned int id, safety, permanent, operation, manufacturing;
++	int last_error;
++};
++
++static struct platform_device *sm_board;
++
++static int sm_protection_read(struct sm_protection *p)
++{
++	static const unsigned int commands[] = { 1, 0x51, 0x53, 0x54, 0x57 };
++	unsigned int *values[] = { &p->id, &p->safety, &p->permanent,
++		&p->operation, &p->manufacturing };
++	unsigned char packet[36];
++	int ret = 0;
++
++	i2c_lock_bus(p->gauge->adapter, I2C_LOCK_SEGMENT);
++	for (int i = 0; i < ARRAY_SIZE(commands); i++) {
++		ret = sm_gauge_mac_locked(p->gauge, commands[i], packet);
++		if (ret) break;
++		*values[i] = sm_mac_data_size(commands[i]) == 2 ?
++			sm_le16(packet + 2) : sm_le32(packet + 2);
++	}
++	i2c_unlock_bus(p->gauge->adapter, I2C_LOCK_SEGMENT);
++	if (!ret)
++		ret = sm_gauge_protection_state(p->id, p->safety, p->permanent,
++			p->operation, p->manufacturing);
++	p->last_error = ret;
++	return ret;
++}
++
++static int sm_protection_get(struct power_supply *psy,
++			     enum power_supply_property property,
++			     union power_supply_propval *value)
++{
++	struct sm_protection *p = power_supply_get_drvdata(psy);
++	int ret;
++
++	if (property == POWER_SUPPLY_PROP_MODEL_NAME) {
++		value->strval = "samurai-factory-2719-protection-status";
++		return 0;
++	}
++	mutex_lock(&p->lock);
++	ret = sm_protection_read(p); /* No cached Good on a failed transfer. */
++	if (!ret) {
++		if (property == POWER_SUPPLY_PROP_PRESENT) value->intval = 1;
++		else if (property == POWER_SUPPLY_PROP_HEALTH) value->intval = POWER_SUPPLY_HEALTH_GOOD;
++		else ret = -EINVAL;
++	}
++	mutex_unlock(&p->lock);
++	return ret;
++}
++
++static ssize_t protection_state_show(struct device *dev,
++	struct device_attribute *attr, char *buf)
++{
++	struct sm_protection *p = dev_get_drvdata(dev);
++	ssize_t length;
++
++	mutex_lock(&p->lock);
++	sm_protection_read(p);
++	length = sysfs_emit(buf, "id=0x%x safety=0x%x pf=0x%x operation=0x%x "
++		"manufacturing=0x%x pf_enabled=%d error=%d\n", p->id, p->safety,
++		p->permanent, p->operation, p->manufacturing,
++		!!(p->manufacturing & 0x40), p->last_error);
++	mutex_unlock(&p->lock);
++	return length;
++}
++static DEVICE_ATTR_RO(protection_state);
++static struct attribute *sm_protection_attrs[] = { &dev_attr_protection_state.attr, NULL };
++static const struct attribute_group sm_protection_group = { .attrs = sm_protection_attrs };
++static const enum power_supply_property sm_protection_properties[] = {
++	POWER_SUPPLY_PROP_PRESENT, POWER_SUPPLY_PROP_HEALTH, POWER_SUPPLY_PROP_MODEL_NAME,
++};
++static const struct power_supply_desc sm_protection_desc = {
++	.name = "samurai-gauge-protection", .type = POWER_SUPPLY_TYPE_UNKNOWN,
++	.properties = sm_protection_properties,
++	.num_properties = ARRAY_SIZE(sm_protection_properties), .get_property = sm_protection_get,
++	.no_thermal = true,
++};
++
++static void sm_protection_put(void *data) { put_device(data); }
++
++static int sm_protection_probe(struct platform_device *pdev)
++{
++	struct device *dev = &pdev->dev;
++	struct device_node *node;
++	struct power_supply_config config = { 0 };
++	struct power_supply *psy;
++	struct sm_protection *p;
++	int ret;
++
++	if (!of_machine_is_compatible("realme,samurai") ||
++	    IS_ENABLED(CONFIG_BATTERY_BQ27XXX_DT_UPDATES_NVM)) return -ENODEV;
++	p = devm_kzalloc(dev, sizeof(*p), GFP_KERNEL);
++	if (!p) return -ENOMEM;
++	node = dev->of_node ? of_parse_phandle(dev->of_node, "battery-gauge", 0) : NULL;
++	if (!node && register_board)
++		node = of_find_node_by_path("/soc@0/geniqup@cc0000/i2c@c94000/fuel-gauge@55");
++	if (!node) return -EINVAL;
++	p->gauge = of_find_i2c_device_by_node(node);
++	of_node_put(node);
++	if (!p->gauge) return -EPROBE_DEFER;
++	ret = devm_add_action_or_reset(dev, sm_protection_put, &p->gauge->dev);
++	if (ret) return ret;
++	if (p->gauge->addr != 0x55 || !i2c_check_functionality(p->gauge->adapter,
++		I2C_FUNC_I2C | I2C_FUNC_SMBUS_WORD_DATA)) return -EOPNOTSUPP;
++	/* A device reference protects lifetime, not system-sleep ordering. Fresh
++	 * MAC reads must wait for the gauge and its I2C parent to resume first.
++	 */
++	if (!device_link_add(dev, &p->gauge->dev, DL_FLAG_AUTOREMOVE_CONSUMER))
++		return -ENOMEM;
++	mutex_init(&p->lock);
++	platform_set_drvdata(pdev, p);
++	ret = sm_protection_read(p);
++	if (ret) return dev_err_probe(dev, ret, "factory gauge protection protocol/state\n");
++	config.drv_data = p;
++	config.fwnode = dev_fwnode(dev);
++	psy = devm_power_supply_register(dev, &sm_protection_desc, &config);
++	if (IS_ERR(psy)) return PTR_ERR(psy);
++	return devm_device_add_group(dev, &sm_protection_group);
++}
++
++static const struct of_device_id sm_protection_match[] = {
++	{ .compatible = "realme,samurai-gauge-protection" }, { }
++};
++MODULE_DEVICE_TABLE(of, sm_protection_match);
++static struct platform_driver sm_protection_driver = {
++	.probe = sm_protection_probe,
++	.driver = { .name = "samurai-gauge-protection", .of_match_table = sm_protection_match },
++};
++static int __init sm_protection_init(void)
++{
++	int ret = platform_driver_register(&sm_protection_driver);
++	if (ret || !register_board) return ret;
++	sm_board = platform_device_register_simple("samurai-gauge-protection", -1, NULL, 0);
++	if (IS_ERR(sm_board)) {
++		ret = PTR_ERR(sm_board);
++		platform_driver_unregister(&sm_protection_driver);
++	}
++	return ret;
++}
++static void __exit sm_protection_exit(void)
++{
++	if (register_board && !IS_ERR_OR_NULL(sm_board)) platform_device_unregister(sm_board);
++	platform_driver_unregister(&sm_protection_driver);
++}
++module_init(sm_protection_init);
++module_exit(sm_protection_exit);
++MODULE_DESCRIPTION("RMX1931 factory-family gauge protection status, no protection writes");
++MODULE_LICENSE("GPL");
+diff --git a/drivers/power/supply/Makefile b/drivers/power/supply/Makefile
+--- a/drivers/power/supply/Makefile
++++ b/drivers/power/supply/Makefile
+@@ -136,3 +136,8 @@
+ obj-$(CONFIG_FUEL_GAUGE_MM8013)	+= mm8013.o
+ obj-$(CONFIG_MACSMC_POWER)	+= macsmc-power.o
+ obj-$(CONFIG_CHARGER_MAX77759)	+= max77759_charger.o
++
++# RMX1931 ordinary charging management
++obj-$(CONFIG_CHARGER_SAMURAI_MP2650) += samurai-mp2650.o
++obj-$(CONFIG_SAMURAI_USB_INPUT) += samurai-usb-input.o
++obj-$(CONFIG_BATTERY_SAMURAI_GAUGE_PROTECTION) += samurai-gauge-protection.o
+diff --git a/drivers/power/supply/Kconfig b/drivers/power/supply/Kconfig
+--- a/drivers/power/supply/Kconfig
++++ b/drivers/power/supply/Kconfig
+@@ -1211,3 +1211,24 @@
+ 	  Say Y or M here if you have an Apple Silicon based Mac.
+ 
+ endif # POWER_SUPPLY
++
++config CHARGER_SAMURAI_MP2650
++	tristate "Realme X2 Pro ordinary charging manager"
++	depends on I2C && OF && POWER_SUPPLY && ARCH_QCOM
++	help
++	  OEM-profile MP2650 policy with fresh two-cell and protection data.
++	  Starts inhibited. The board service explicitly selects runtime wiring
++	  and requests managed ordinary charging after suppliers are available.
++
++config SAMURAI_USB_INPUT
++	tristate "Realme X2 Pro PM8150B input allowance"
++	depends on REGMAP && OF && POWER_SUPPLY && ARCH_QCOM
++	help
++	  Read-only source detection and native DWC3 accepted current allowance.
++
++config BATTERY_SAMURAI_GAUGE_PROTECTION
++	tristate "Realme X2 Pro factory gauge protection observation"
++	depends on I2C && OF && POWER_SUPPLY && ARCH_QCOM
++	help
++	  Fresh read-only status from the installed factory-family 2719 gauge.
++	  Does not program protection FETs, unseal, OTP or data flash.
+diff --git a/arch/arm64/boot/dts/qcom/sm8150-samurai.dts b/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
+--- a/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
++++ b/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
+@@ -1121,3 +1121,8 @@
+ 		iommu-addresses = <&camss_icp 0 0x20000000 0 0x08000000>;
+ 	};
+ };
++
++/* Native configuration/reset/suspend USB allowance for the board supply. */
++&usb_1_dwc3 {
++	usb-psy-name = "samurai-usb-input";
++};

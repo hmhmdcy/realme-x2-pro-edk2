@@ -1,0 +1,508 @@
+--- /dev/null
++++ b/src/ipa/libipa/awb_calibration.cpp
+@@ -0,0 +1,148 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#include "awb_calibration.h"
++
++#include <algorithm>
++#include <cmath>
++
++namespace libcamera::ipa {
++namespace {
++bool positive(float value)
++{
++	return std::isfinite(value) && value > 0.0f;
++}
++
++unsigned int illuminant(float kelvin)
++{
++	if (kelvin >= 6000.0f) return 2;
++	if (kelvin >= 4500.0f) return 3;
++	if (kelvin >= 4000.0f) return 4;
++	if (kelvin >= 3425.0f) return 6;
++	if (kelvin >= 2575.0f) return 7;
++	return 8;
++}
++} /* namespace */
++
++bool awbCalibrationFactors(const AwbCalibrationData &data,
++			   AwbIlluminantRatios *factors)
++{
++	if (!factors || !data.count || data.count > data.golden.size())
++		return false;
++
++	AwbIlluminantRatios unit{}, golden{};
++	std::array<bool, 10> present{};
++	for (unsigned int i = 0; i < data.count; ++i) {
++		if (!positive(data.colourTemperatures[i]))
++			return false;
++		for (unsigned int c = 0; c < 2; ++c)
++			if (!positive(data.unit[i][c]) || !positive(data.golden[i][c]))
++				return false;
++		unsigned int index = illuminant(data.colourTemperatures[i]);
++		unit[index] = data.unit[i];
++		golden[index] = data.golden[i];
++		present[index] = true;
++	}
++
++	const auto original = present;
++	unsigned int first = std::find(present.begin(), present.end(), true) - present.begin();
++	for (unsigned int i = first + 1; i < present.size(); ++i) {
++		if (!present[i]) {
++			unit[i] = unit[i - 1];
++			golden[i] = golden[i - 1];
++		}
++	}
++	for (unsigned int i = first; i; --i) {
++		unit[i - 1] = unit[i];
++		golden[i - 1] = golden[i];
++	}
++
++	/* CW and TL84 share the middle fluorescent slots when only one exists. */
++	if (original[4]) {
++		unit[5] = unit[4]; golden[5] = golden[4];
++		if (!original[6]) {
++			unit[6] = unit[4]; golden[6] = golden[4];
++		}
++	} else if (original[6]) {
++		unit[4] = unit[5] = unit[6];
++		golden[4] = golden[5] = golden[6];
++	}
++	if (original[7] && !original[8]) {
++		unit[8] = unit[7]; golden[8] = golden[7];
++	} else if (!original[7] && original[8]) {
++		unit[7] = unit[8]; golden[7] = golden[8];
++	}
++	if (!original[4] && !original[6] && data.count == 2) {
++		for (unsigned int c = 0; c < 2; ++c) {
++			float u = (unit[3][c] + unit[7][c]) * 0.5f;
++			float g = (golden[3][c] + golden[7][c]) * 0.5f;
++			for (unsigned int i : { 4u, 5u, 6u }) {
++				unit[i][c] = u; golden[i][c] = g;
++			}
++		}
++	}
++	AwbIlluminantRatios result;
++	for (unsigned int i = 0; i < result.size(); ++i) {
++		for (unsigned int c = 0; c < 2; ++c) {
++			result[i][c] = unit[i][c] / golden[i][c];
++			if (!positive(result[i][c]))
++				return false;
++		}
++	}
++	*factors = result;
++	return true;
++}
++
++bool awbCalibratedMwbRatios(const AwbIlluminantGains &gains,
++			    const AwbIlluminantRatios &factors,
++			    AwbIlluminantRatios *ratios)
++{
++	if (!ratios)
++		return false;
++	AwbIlluminantRatios result;
++	for (unsigned int i = 0; i < gains.size(); ++i) {
++		for (float gain : gains[i])
++			if (!positive(gain))
++				return false;
++		for (unsigned int c = 0; c < 2; ++c) {
++			if (!positive(factors[i][c]))
++				return false;
++			float ratio = gains[i][1] / gains[i][c ? 2 : 0];
++			result[i][c] = ratio * factors[i][c];
++			if (!positive(result[i][c]))
++				return false;
++		}
++	}
++	*ratios = result;
++	return true;
++}
++
++bool awbRatiosForColourTemperature(const AwbIlluminantRatios &ratios,
++				   float kelvin, AwbRatio *result)
++{
++	if (!result || !positive(kelvin))
++		return false;
++	for (const auto &point : ratios)
++		if (!positive(point[0]) || !positive(point[1]))
++			return false;
++	static constexpr std::array<float, 8> temperatures{
++		12000, 7500, 6500, 5000, 4000, 2850, 2300, 1500
++	};
++	static constexpr std::array<unsigned int, 8> points{ 0, 1, 2, 3, 5, 7, 8, 9 };
++	if (kelvin >= temperatures.front()) {
++		*result = ratios.front();
++		return true;
++	}
++	for (unsigned int i = 1; i < temperatures.size(); ++i) {
++		if (kelvin < temperatures[i])
++			continue;
++		float t = (kelvin - temperatures[i - 1]) /
++			  (temperatures[i] - temperatures[i - 1]);
++		float a = 1.0f - t, b = 1.0f - a;
++		for (unsigned int c = 0; c < 2; ++c)
++			(*result)[c] = ratios[points[i - 1]][c] * a + ratios[points[i]][c] * b;
++		return true;
++	}
++	*result = ratios.back();
++	return true;
++}
++
++} /* namespace libcamera::ipa */
+--- /dev/null
++++ b/src/ipa/libipa/awb_calibration.h
+@@ -0,0 +1,28 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++#include <array>
++
++namespace libcamera::ipa {
++
++using AwbRatio = std::array<float, 2>;
++using AwbIlluminantRatios = std::array<AwbRatio, 10>;
++using AwbIlluminantGains = std::array<std::array<float, 3>, 10>;
++
++/* Ratios are R/G and B/G, not correction gains. CCT coordinates come from
++ * the selected factory calibration, independently of the unit payload tags. */
++struct AwbCalibrationData {
++	unsigned int count;
++	std::array<float, 6> colourTemperatures;
++	std::array<AwbRatio, 6> golden;
++	std::array<AwbRatio, 6> unit;
++};
++
++bool awbCalibrationFactors(const AwbCalibrationData &data,
++			   AwbIlluminantRatios *factors);
++bool awbCalibratedMwbRatios(const AwbIlluminantGains &gains,
++			    const AwbIlluminantRatios &factors,
++			    AwbIlluminantRatios *ratios);
++bool awbRatiosForColourTemperature(const AwbIlluminantRatios &ratios,
++				   float kelvin, AwbRatio *result);
++
++} /* namespace libcamera::ipa */
+--- a/src/ipa/libipa/meson.build
++++ b/src/ipa/libipa/meson.build
+@@ -27,6 +27,7 @@
+     'awb_bayes.cpp',
+     'awb_grey.cpp',
+     'awb.cpp',
++    'awb_calibration.cpp',
+     'lens_shading.cpp',
+     'lsc_resample.cpp',
+     'camera_sensor_helper.cpp',
+--- /dev/null
++++ b/src/ipa/camss-vfe/white_balance_reference.cpp
+@@ -0,0 +1,94 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#include "white_balance_reference.h"
++#include <cerrno>
++#include <cmath>
++
++namespace libcamera::ipa::camss {
++namespace {
++template<std::size_t N>
++int readRow(const ValueNode &node, std::array<float, N> *values)
++{
++	if (!node.isList() || node.size() != N)
++		return -EINVAL;
++	for (unsigned int i = 0; i < N; ++i) {
++		auto value = node[i].get<float>();
++		if (!value || !std::isfinite(*value) || *value <= 0)
++			return -EINVAL;
++		(*values)[i] = *value;
++	}
++	return 0;
++}
++} /* namespace */
++
++int WhiteBalanceReference::gains(int32_t kelvin, double *red, double *blue) const
++{
++	if (!red || !blue || kelvin < 1500 || kelvin > 12000)
++		return -ERANGE;
++	AwbRatio ratio;
++	if (!awbRatiosForColourTemperature(ratios_, kelvin, &ratio))
++		return -EINVAL;
++	*red = 1.0 / ratio[0];
++	*blue = 1.0 / ratio[1];
++	return 0;
++}
++
++int WhiteBalanceReference::configure(const ValueNode &tuning,
++				   std::optional<WhiteBalanceReference> *reference)
++{
++	if (!reference)
++		return -EINVAL;
++	reference->reset();
++	if (tuning.isEmpty())
++		return 0;
++	if (!tuning.isDictionary())
++		return -EINVAL;
++	if (!tuning["enabled"].isEmpty()) {
++		auto enabled = tuning["enabled"].get<bool>();
++		if (!enabled)
++			return -EINVAL;
++		if (!*enabled)
++			return 0;
++	}
++	AwbIlluminantGains gains;
++	const auto &mwb = tuning["mwb"];
++	if (!mwb.isList() || mwb.size() != gains.size())
++		return -EINVAL;
++	for (unsigned int i = 0; i < gains.size(); ++i)
++		if (readRow(mwb[i], &gains[i]))
++			return -EINVAL;
++	AwbIlluminantRatios factors;
++	for (auto &factor : factors)
++		factor = { 1, 1 };
++	const auto &calibration = tuning["calibration"];
++	if (!calibration.isEmpty()) {
++		AwbCalibrationData data{};
++		const auto &temperatures = calibration["cct"];
++		const auto &golden = calibration["golden"];
++		const auto &unit = calibration["unit"];
++		if (!calibration.isDictionary() || !temperatures.isList() ||
++		    !temperatures.size() || temperatures.size() > data.colourTemperatures.size() ||
++		    !golden.isList() || !unit.isList() ||
++		    golden.size() != temperatures.size() || unit.size() != temperatures.size())
++			return -EINVAL;
++		data.count = temperatures.size();
++		for (unsigned int i = 0; i < data.count; ++i) {
++			auto kelvin = temperatures[i].get<float>();
++			if (!kelvin || !std::isfinite(*kelvin) || *kelvin <= 0 ||
++			    readRow(golden[i], &data.golden[i]) || readRow(unit[i], &data.unit[i]))
++				return -EINVAL;
++			data.colourTemperatures[i] = *kelvin;
++		}
++		if (!awbCalibrationFactors(data, &factors))
++			return -EINVAL;
++	}
++	WhiteBalanceReference result;
++	if (!awbCalibratedMwbRatios(gains, factors, &result.ratios_))
++		return -EINVAL;
++	for (const auto &ratio : result.ratios_)
++		if (1.0 / ratio[0] > 8 || 1.0 / ratio[1] > 8)
++			return -ERANGE;
++	*reference = result;
++	return 0;
++}
++
++} /* namespace libcamera::ipa::camss */
+--- /dev/null
++++ b/src/ipa/camss-vfe/white_balance_reference.h
+@@ -0,0 +1,18 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++#include <optional>
++#include "libcamera/internal/yaml_parser.h"
++#include "../libipa/awb_calibration.h"
++
++namespace libcamera::ipa::camss {
++
++class WhiteBalanceReference {
++public:
++	int gains(int32_t kelvin, double *red, double *blue) const;
++	static int configure(const ValueNode &tuning,
++			     std::optional<WhiteBalanceReference> *reference);
++private:
++	AwbIlluminantRatios ratios_;
++};
++
++} /* namespace libcamera::ipa::camss */
+--- a/src/ipa/camss-vfe/camss.cpp
++++ b/src/ipa/camss-vfe/camss.cpp
+@@ -23,6 +23,7 @@
+ #include "libcamera/internal/yaml_parser.h"
+ #include "parameter_encoder.h"
+ #include "lens_shading.h"
++#include "white_balance_reference.h"
+ #include "../libipa/camera_sensor_helper.h"
+ #include "hardware_agc.h"
+ #include "hardware_awb.h"
+@@ -66,7 +67,7 @@
+ 	bool awbEnabled_ = false;
+ 	uint32_t ispRevision_ = 0;
+ 	std::optional<AutoIspUpdate> pendingWhiteBalance_;
+-	struct ParameterContext { uint32_t revision; double red, blue; bool awbEnabled; double sourceRed, sourceBlue; };
++	struct ParameterContext { uint32_t revision; double red, blue; bool awbEnabled; double sourceRed, sourceBlue; std::optional<int32_t> colourTemperature; };
+ 	std::map<uint32_t, ParameterContext> preparedParameters_, parameterHistory_;
+  bool automatic_ = false;
+  uint32_t revision_ = 0;
+@@ -83,6 +84,8 @@
+ 	};
+ 	std::map<uint32_t, Buffer> buffers_;
+ 	std::optional<camss_params_lsc> lensShading_;
++ std::optional<WhiteBalanceReference> whiteBalance_;
++ std::optional<int32_t> colourTemperature_;
+ 	ResidualBlackProfile profile_{ 0, 1.0 };
+ 	std::string model_;
+ 	Size input_;
+@@ -186,7 +189,7 @@
+      input.width < 4 || input.height < 2 || ((input.width | input.height) & 1)) return -EINVAL;
+  int ret = describeSensor(info, sensorControls, ipaControls);
+  if (ret) return ret;
+- profile_ = { 0, 1.0 }; lensShading_.reset();
++ profile_ = { 0, 1.0 }; lensShading_.reset(); whiteBalance_.reset(); colourTemperature_.reset();
+  afEnabled_=false;af_.cancel();frameLength_=info.minFrameLength;
+  if (!profilePath.empty()) {
+   File file(profilePath);
+@@ -215,6 +218,14 @@
+   const ValueNode &tuning=*selected;
+   ret=configureLensShading(tuning["lens_shading"],input,&lensShading_);
+   if (ret) return ret;
++  ret=WhiteBalanceReference::configure(tuning["white_balance_reference"],&whiteBalance_);
++  if (ret) return ret;
++  if (whiteBalance_) {
++   ControlInfoMap::Map map;
++   for (const auto &[id,value]:*ipaControls) map.emplace(id,value);
++   map[&controls::ColourTemperature]=ControlInfo(int32_t(1500),int32_t(12000),int32_t(6500));
++   *ipaControls=ControlInfoMap(std::move(map),controls::controls);
++  }
+   ret=configureAutofocus(tuning["autofocus"].isEmpty()?(*root)["autofocus"]:tuning["autofocus"],ipaControls);
+   if (ret) return ret;
+   auto subtraction = tuning["residual_black_subtraction"].get<uint16_t>();
+@@ -265,7 +276,7 @@
+  input_ = input; configured_ = true;
+  LOG(IPACamss, Info) << "Sensor configuration model=" << model_ << " pixel-rate=" << info.pixelRate
+   << " line-length=" << info.minLineLength << " frame-length=" << info.minFrameLength
+-  << " delayed-controls=" << sensorConfiguration->enabled << " lsc=" << bool(lensShading_);
++  << " delayed-controls=" << sensorConfiguration->enabled << " lsc=" << bool(lensShading_) << " white-balance-reference=" << bool(whiteBalance_);
+  return 0;
+ }
+ 
+@@ -279,6 +290,12 @@
+    if (value.type()!=ControlTypeInteger32 || value.isArray()) return -EINVAL;
+    if (id==libcamera::controls::AfMode.id() && value.get<int32_t>()!=libcamera::controls::AfModeAuto) return -ENOTSUP;
+    if (id==libcamera::controls::AfTrigger.id() && value.get<int32_t>()!=libcamera::controls::AfTriggerStart && value.get<int32_t>()!=libcamera::controls::AfTriggerCancel) return -ENOTSUP;
++   continue;
++  }
++  if (id == controls::ColourTemperature.id()) {
++   if (!whiteBalance_) return -ENOTSUP;
++   if (value.type()!=ControlTypeInteger32 || value.isArray()) return -EINVAL;
++   if (value.get<int32_t>()<1500 || value.get<int32_t>()>12000) return -ERANGE;
+    continue;
+   }
+   if (id == controls::ColourGains.id()) {
+@@ -323,7 +340,7 @@
+  if (!running_ || epoch != epoch_) return -ESTALE;
+  ControlList sensorOnly(libcamera::controls::controls);
+  for (const auto &[id, value] : controls)
+-  if (id != libcamera::controls::ColourGains.id() && id != libcamera::controls::AwbEnable.id() && id!=libcamera::controls::AfMode.id() && id!=libcamera::controls::AfTrigger.id()) sensorOnly.set(id,value);
++  if (id != libcamera::controls::ColourTemperature.id() && id != libcamera::controls::ColourGains.id() && id != libcamera::controls::AwbEnable.id() && id!=libcamera::controls::AfMode.id() && id!=libcamera::controls::AfTrigger.id()) sensorOnly.set(id,value);
+  ControlList ignored(sensorControls_);
+  int ret = translate(controls, true, &ignored);
+  if (ret) return ret;
+@@ -343,14 +360,23 @@
+  const auto &current = parameterHistory_.rbegin()->second;
+  const bool enabled = controls.get(libcamera::controls::AwbEnable).value_or(awbEnabled_);
+  double red = current.sourceRed, blue = current.sourceBlue;
+- if (!enabled) {
++ auto temperature = current.colourTemperature;
++ if (enabled) temperature.reset();
++ else {
+   auto gains = controls.get(libcamera::controls::ColourGains);
+-  if (gains) { red=(*gains)[0];blue=(*gains)[1]; }
++  auto kelvin = controls.get(libcamera::controls::ColourTemperature);
++  if (gains) {
++   red=(*gains)[0];blue=(*gains)[1];temperature=kelvin;
++  } else if (kelvin) {
++   int status=whiteBalance_->gains(*kelvin,&red,&blue);
++   if (status) return status;
++   temperature=kelvin;
++  }
+  }
+- if (enabled == current.awbEnabled && red == current.sourceRed && blue == current.sourceBlue) return 0;
++ if (enabled == current.awbEnabled && red == current.sourceRed && blue == current.sourceBlue && temperature == current.colourTemperature) return 0;
+  if (ispRevision_ >= UINT32_MAX-1) return -EOVERFLOW;
+  af_.cancelScan();
+- awbEnabled_ = enabled;
++ awbEnabled_ = enabled; colourTemperature_ = temperature;
+  if (awb_) awb_->reset();
+  pendingWhiteBalance_ = AutoIspUpdate{ true, ++ispRevision_, red, blue };
+  *update = *pendingWhiteBalance_;
+@@ -371,6 +397,7 @@
+  const std::array<float,2> gains{float(context->second.red),float(context->second.blue)};
+  metadata->set(controls::ColourGains,Span<const float,2>(gains));
+  metadata->set(controls::AwbEnable,context->second.awbEnabled);
++ if (context->second.colourTemperature) metadata->set(controls::ColourTemperature,*context->second.colourTemperature);
+  metadata->set(controls::AwbLocked,false);
+  metadata->set(controls::ExposureTimeMode,int32_t(automatic_?controls::ExposureTimeModeAuto:controls::ExposureTimeModeManual));
+  metadata->set(controls::AnalogueGainMode,int32_t(automatic_?controls::AnalogueGainModeAuto:controls::AnalogueGainModeManual));
+@@ -469,6 +496,11 @@
+ 			return -EINVAL;
+ 		red = gains[0]; blue = gains[1];
+ 	}
++ auto temperature = awbEnabled ? std::nullopt : controls.get(libcamera::controls::ColourTemperature);
++ if (temperature && !controls.contains(libcamera::controls::ColourGains.id())) {
++  int status=whiteBalance_->gains(*temperature,&red,&blue);
++  if (status) return status;
++ }
+ 	alignas(8) std::array<uint8_t, sizeof(v4l2_isp_buffer) + sizeof(camss_params_wb_gain) + sizeof(camss_params_aec_bhist) + sizeof(camss_params_lsc)> packet;
+ 	size_t used;
+ 	int ret = encodeParameters(packet, profile_, red, blue, input_, Rectangle(input_), &used, lensShading_ ? &*lensShading_ : nullptr);
+@@ -482,7 +514,7 @@
+  if (agc_) agc_->resetFrameCount();
+  epoch_ = epoch;
+ 	red_ = red; blue_ = blue;
+-	awbEnabled_ = awbEnabled;
++	awbEnabled_ = awbEnabled; colourTemperature_ = temperature;
+ 	ispRevision_ = 0;
+ 	pendingWhiteBalance_.reset();
+ 	preparedParameters_.clear(); parameterHistory_.clear();
+@@ -497,7 +529,7 @@
+ {
+ 	running_ = false;af_.cancel();initialAfTrigger_.reset();
+  automatic_ = false; awaiting_.reset();
+-	awbEnabled_ = false; pendingWhiteBalance_.reset();
++	awbEnabled_ = false; colourTemperature_.reset(); pendingWhiteBalance_.reset();
+ 	preparedParameters_.clear(); parameterHistory_.clear();
+ 	applied_ = effective_ = false;
+ 	lastStats_.reset();
+@@ -525,7 +557,7 @@
+ 	size_t used;
+ 	ret = encodeParameters(it->second.memory->planes()[0], profile_, red, blue, input_, Rectangle(input_), &used, revision==0 && lensShading_ ? &*lensShading_ : nullptr);
+ 	if (!ret) {
+-		preparedParameters_[revision] = { revision, effectiveRed, effectiveBlue, awbEnabled_, red, blue };
++		preparedParameters_[revision] = { revision, effectiveRed, effectiveBlue, awbEnabled_, red, blue, colourTemperature_ };
+ 		*bytesused = used;
+ 	}
+ 	return ret;
+@@ -582,6 +614,7 @@
+ 	}
+ 	effective_ = result.parametersKnown;
+ 	metadata.set(controls::AwbEnable, result.parametersKnown && context->second.awbEnabled);
++ if (result.parametersKnown && context->second.colourTemperature) metadata.set(controls::ColourTemperature,*context->second.colourTemperature);
+ 	metadata.set(controls::AwbLocked, false);
+ 	if (af_.state()!=ipa::ContrastAf::State::Scanning && awbEnabled_ && effective_ && context->second.awbEnabled && result.rgbPresent && context == std::prev(parameterHistory_.end()) &&
+ 	    !pendingWhiteBalance_ && preparedParameters_.empty()) {
+--- a/src/ipa/camss-vfe/meson.build
++++ b/src/ipa/camss-vfe/meson.build
+@@ -1,6 +1,6 @@
+ # SPDX-License-Identifier: CC0-1.0
+ ipa_name = 'ipa_camss_vfe'
+-mod = shared_module(ipa_name, ['camss.cpp', 'parameter_encoder.cpp', 'hardware_agc.cpp', 'hardware_awb.cpp', 'lens_shading.cpp'],
++mod = shared_module(ipa_name, ['camss.cpp', 'parameter_encoder.cpp', 'hardware_agc.cpp', 'hardware_awb.cpp', 'lens_shading.cpp', 'white_balance_reference.cpp'],
+     name_prefix : '',
+     include_directories : [ipa_includes],
+     dependencies : [libcamera_private, libipa_dep],
+--- a/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
++++ b/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
+@@ -775,7 +775,7 @@
+   int ret = d->ipa_->convertControls(d->epoch_, request->controls(), &sensorControls);
+   if (ret) return ret;
+  }
+- const bool isp = request->controls().contains(controls::AwbEnable.id()) || request->controls().contains(controls::ColourGains.id());
++ const bool isp = request->controls().contains(controls::AwbEnable.id()) || request->controls().contains(controls::ColourGains.id()) || request->controls().contains(controls::ColourTemperature.id());
+  if (isp && !d->ispHealthy_) return -EPIPE;
+  if (!sensorControls.empty() && (!d->delayedControls_ || !d->sensorContextHealthy_)) return -ENOTSUP;
+  if ((!sensorControls.empty() && d->sensorUpdates_.size() >= 8) || (isp && d->ispControls_.size() >= 8)) return -ENOSPC;
+--- a/src/libcamera/control_ids_core.yaml
++++ b/src/libcamera/control_ids_core.yaml
+@@ -598,7 +598,7 @@
+ 
+   - ColourTemperature:
+       type: int32_t
+-      direction: out
++      direction: inout
+       description: |
+         ColourTemperature of the frame, in kelvin.
+ 

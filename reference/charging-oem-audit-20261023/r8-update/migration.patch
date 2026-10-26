@@ -1,0 +1,465 @@
+--- r6-update/update-r6.py
++++ r8-update/update-r8.py
+@@ -1,5 +1,5 @@
+ #!/usr/bin/python3
+-"""One explicit r5 -> r6 transaction. No device access on import."""
++"""One explicit r7 -> r8 transaction. No device access on import."""
+ from pathlib import Path
+ import base64
+ import fcntl
+@@ -18,17 +18,17 @@
+ KO = '/lib/modules/' + RELEASE + '/extra/samurai-charging/samurai-mp2650.ko'
+ SERVICE = '/usr/sbin/samurai-charging'
+ MANIFEST = '/usr/share/samurai-charging/manifest.json'
+-GUARD = '/var/lib/samurai/k449-adopted/boot-id-private.txt'
+-WINDOW = '/run/samurai-charging-r6-window.json'
++GUARD = '/var/lib/samurai/charging-r7-8162b1e7040030d514a83534-adopted/boot-id-private.txt'
++WINDOW = '/run/samurai-charging-r8-window.json'
+ SOC_SERIAL = '/sys/devices/soc0/serial_number'
+-OUT = '/root/charging-management-20261023/charging-update-r6'
+-OLD = 'f1a885e2ca9c3226ca50d94f39c17c3cae5411b1047696976975df976aa971cf'
+-NEW = '944f2d91f66c5642bbcb130c3ef59e022ca6652e599401908f8528a29d34202d'
+-PAYLOAD = '2433d8c04d22bb3e88eb1a2f0ea15c3fc3285706c40695fac6ce605613c57d58'
+-HASHES = {KO: 'fac827cfd3d1d847cb1db82f0a29e451652bd16a996b20666be2d9b330889cb6',
+-          SERVICE: '61451ffea87cca466dbbb2f1a2c6e7c05d0eee517479e8b019d43b1869355aa4',
++OUT = '/root/charging-management-20261023/charging-update-r8'
++OLD = '5638db4c183ec502ed1df4facfe91111d1956754bb2338a5ddaf8838e9552c68'
++NEW = '320316c3d93c1dbcaae29440f1f17d72c75e4994d656a9da9fcd5aeb93c10a1f'
++PAYLOAD = 'f2bcbe500463114a407d93ddb4e2081db179f61dcc35d0a194abb4d18b2a5722'
++SERVICE_SHA = '61451ffea87cca466dbbb2f1a2c6e7c05d0eee517479e8b019d43b1869355aa4'
++HASHES = {KO: '10ec06fb9d798d72e08495617cfc04e7e49c77e536a12f205053e9cdbfa6297f',
+           MANIFEST: NEW}
+-MODES = {KO: 0o600, SERVICE: 0o755, MANIFEST: 0o600}
++MODES = {KO: 0o600, MANIFEST: 0o600}
+ PROVIDERS = ('samurai-usb-input', 'samurai-gauge-protection')
+ sha = lambda raw: hashlib.sha256(raw).hexdigest()
+ 
+@@ -49,23 +49,23 @@
+ def unpack_request(request):
+     need(set(request) == {'transaction', 'guard', 'identity', 'window_token',
+                          'old_manifest_sha256', 'new_manifest_sha256',
+-                         'payload_sha256', 'payload_base64'}, 'r6 request schema')
+-    need(request['transaction'] == 'charging-update-r6', 'only new r6 transaction')
++                         'payload_sha256', 'payload_base64'}, 'r8 request schema')
++    need(request['transaction'] == 'charging-update-r8', 'only new r8 transaction')
+     need(request['guard'] == GUARD, 'current boot guard only')
+     need((request['old_manifest_sha256'], request['new_manifest_sha256'],
+-          request['payload_sha256']) == (OLD, NEW, PAYLOAD), 'exact r5/r6 identities')
++          request['payload_sha256']) == (OLD, NEW, PAYLOAD), 'exact r7/r8 identities')
+     need(set(request['identity']) == {'boot_id', 'serial_sha256', 'compatible_sha256'}, 'device identity schema')
+     for key in ['serial_sha256', 'compatible_sha256']:
+         value = request['identity'][key]
+         need(isinstance(value, str) and len(value) == 64 and all(c in '0123456789abcdef' for c in value), 'explicit identity digest')
+     token = request['window_token']
+-    need(isinstance(token, str) and 32 <= len(token) <= 128 and not any(c.isspace() for c in token), 'unique r6 window token')
++    need(isinstance(token, str) and 32 <= len(token) <= 128 and not any(c.isspace() for c in token), 'unique r8 window token')
+     raw = base64.b64decode(request['payload_base64'], validate=True)
+-    need(len(raw) == 54604 and sha(raw) == PAYLOAD, 'exact r6 payload')
++    need(len(raw) == 51100 and sha(raw) == PAYLOAD, 'exact r8 payload')
+     files = {}
+     with tarfile.open(fileobj=io.BytesIO(raw), mode='r:gz') as archive:
+         members = archive.getmembers()
+-        need(len(members) == 3, 'exactly three payload files')
++        need(len(members) == 2, 'exactly two payload files; service is read-only')
+         for entry in members:
+             target = '/' + entry.name
+             need(target in MODES and target not in files, 'unexpected/duplicate tar member')
+@@ -79,17 +79,30 @@
+ def manifest_delta(old, new):
+     import copy
+     expected = copy.deepcopy(old)
+-    expected['adapter_revision'] = 'r6'
++    expected['adapter_revision'] = 'r8'
+     expected['modules']['samurai-mp2650']['sha256'] = HASHES[KO]
+     expected['installed_files'][KO] = HASHES[KO]
+-    expected['installed_files'][SERVICE] = HASHES[SERVICE]
+-    need(expected == new, 'only charger/service hashes and r6 revision may change')
++    need(old['installed_files'][SERVICE] == new['installed_files'][SERVICE] == SERVICE_SHA, 'unchanged exact read-only service')
++    need(expected == new, 'only charger hash and r8 revision may change')
+     need(old['release'] == RELEASE and old['modules']['samurai-mp2650']['target'] == KO, 'exact module target/ABI')
+     need(old['default_input_cap_ua'] == 900000 and old['default_charge_cap_ua'] == 250000
+          and old['source_budget_enforced'] is True, 'original managed request limits')
+ 
+ 
++class UnsafeSample(RuntimeError):
++    def __init__(self, message, data):
++        super().__init__(message)
++        self.sample = dict(data.get('sample', {}))
++
++
+ def safe_sample(data):
++    try:
++        _safe_sample(data)
++    except Exception as error:
++        raise UnsafeSample(detail(error), data) from error
++
++
++def _safe_sample(data):
+     s = data['sample']
+     need(s.get('valid') == s.get('protection_ok') == s.get('online') == 1
+          and s.get('shadow') == 0 and 0 <= s.get('age_ms', -1) <= 3000, 'fresh complete online protection sample')
+@@ -105,7 +118,7 @@
+     fields = ('logical_full', 'hold_requested', 'full_holding', 'full_cause')
+     if allow_full:
+         need(all(key in s for key in (*fields, 'gauge_charge_stop', 'gauge_current_ua')),
+-             'complete new r6 telemetry fields')
++             'complete new r8 telemetry fields')
+     partial = any(s.get(k, 0) for k in fields)
+     full = (allow_full and s.get('logical_full') == s.get('hold_requested') == s.get('full_holding') == 1
+             and s.get('full_cause') in (1, 2, 3) and s.get('desired_enable') == 0
+@@ -115,12 +128,19 @@
+     else:
+         need(s.get('desired_enable') == 1 and data['registers']['08'] & 0x18 == 0x10, 'normal managed CHG readback')
+     lim = data['limits']
+-    need(50000 <= lim['native_ua'] and 50000 <= lim['input_ua'] <= min(900000, lim['native_ua'])
++    source = data['source']
++    need(source['online'] == '1' and int(source['input_current_limit']) == lim['native_ua']
++         and int(source['current_max']) == lim['source_budget_ua'], 'raw native and effective source fields agree')
++    need(50000 <= lim['native_ua'] and 50000 <= lim['source_budget_ua'] <= 2000000
++         and 50000 <= lim['input_ua'] <= min(900000, lim['source_budget_ua'])
+          and 200000 <= lim['charge_ua'] <= 250000, 'current legal source/charge budget')
+     r = data['registers']
+     need((r['00'] & 0x7f) * 50000 == (r['0f'] & 0x7f) * 50000 == lim['input_ua'], 'both physical input limits')
+     need((r['02'] & 0x7f) * 50000 == lim['charge_ua'], 'physical charge current limit')
+-    need(s.get('budget_ua') == lim['native_ua'], 'fresh sample/source budget agreement')
++    need(s.get('budget_ua') == lim['source_budget_ua'], 'fresh sample/effective source budget agreement')
++    need(160 <= s.get('temp_decic', -999) < 440, 'this update window requires the NORMAL band')
++    if 'thermal_band' in s:
++        need(s['thermal_band'] == 4, 'new OEM thermal band must remain NORMAL')
+     return 'full_holding' if full else 'managed'
+ 
+ 
+@@ -128,21 +148,34 @@
+     for key in ['boot_id', 'release', 'camera_pm', 'm2m', 'services']:
+         need(before['state'][key] == after['state'][key], 'environment changed: ' + key)
+     need(before['state']['taint'] == after['state']['taint'] == '0', 'taint must remain zero')
++    services = before['state']['services']
++    need(len(services) == 4 and {s['comm'] for s in services} == {'phoc', 'phosh', 'pipewire', 'wireplumber'}
++         and all(s['uid'] == 10000 and s['pid'] > 0 for s in services), 'four actual UID10000 session services')
++    need(all(value == 'suspended' for value in before['state']['camera_pm'].values())
++         and len(before['state']['camera_pm']) == 4, 'camera runtime PM must be idle')
++    m2m = json.loads(before['state']['m2m'])
++    need(all(m2m.get(key) == 0 for key in ['users', 'orphans', 'jobs', 'first_error'])
++         and all(m2m.get(key) is False for key in ['running', 'fatal', 'pinned']), 'camera m2m must be idle')
+     need(before['openrc_started'] is True and after['openrc_started'] is True, 'OpenRC started marker preserved')
+     for name in PROVIDERS:
+         need(before['notes'][name] == after['notes'][name], 'resident provider note changed: ' + name)
+ 
+ 
+-def stopped(io, manager, meta):
++def stopped(io, manager, meta, result=None):
+     # A raised stop is a failed transaction even if a later readback is paused.
+-    need(io.module_state() == 'live', 'stop only a known live module')
+-    io.manager_command(manager, meta, 'stop')
+-    need(io.registers()['08'] & 0x18 == 8, 'synchronous INHIBIT hardware readback')
++    try:
++        need(io.module_state() == 'live', 'stop only a known live module')
++        io.manager_command(manager, meta, 'stop')
++        need(io.registers()['08'] & 0x18 == 8, 'synchronous INHIBIT hardware readback')
++    except Exception as error:
++        if result is not None:
++            result['stop_error'] = detail(error)
++        raise
+ 
+ 
+ def update(request, io):
+     """Actual ordered transaction; tests replace only device/file/process edges."""
+-    result = {'transaction': 'charging-update-r6', 'passed': False, 'terminal': True,
++    result = {'transaction': 'charging-update-r8', 'passed': False, 'terminal': True,
+               'primary_error': None, 'stop_error': None, 'recovery_error': None,
+               'recovery_state': None, 'mutating_process_unknown': False,
+               'installed_new': False, 'runtime_validation_pending': True}
+@@ -155,25 +188,31 @@
+         io.begin(request)  # identity + boot + owned lease + shared service lock + mkdir(exclusive)
+         phase = 'preflight'
+         backup = {name: io.read_owned(name) for name in MODES}
+-        need(sha(backup[MANIFEST][0]) == OLD, 'installed r5 manifest hash')
++        need(sha(backup[MANIFEST][0]) == OLD, 'installed r7 manifest hash')
+         old = json.loads(backup[MANIFEST][0])
+         manifest_delta(old, new)
+         for name in MODES:
+             need(backup[name][1] == MODES[name], 'preserve actual installed file mode: ' + name)
+             if name != MANIFEST:
+                 need(sha(backup[name][0]) == old['installed_files'][name], 'installed old file hash')
+-        manager = io.manager(sha(backup[SERVICE][0]))
++        service_raw, service_mode = io.read_owned(SERVICE)
++        need(sha(service_raw) == SERVICE_SHA and service_mode == 0o755, 'exact read-only service identity/mode')
++        manager = io.manager(SERVICE_SHA)
+         need(io.verify(manager) == old, 'fresh old manager verify')
+         io.notes_match(manager, old)  # includes old loaded charger note; never erase an unknown live module
+         before = io.observe(manager)
+         healthy(before, allow_full=False)
+-        need(before['limits']['native_ua'] == before['limits']['input_ua'] == 100000, 'current SDP baseline 100mA')
++        need(before['limits']['native_ua'] == before['limits']['source_budget_ua'] == before['limits']['input_ua'] == 100000
++             and '[SDP]' in before['source']['usb_type'], 'current real SDP native/effective/physical baseline 100mA')
+         need(before['limits']['charge_ua'] == 250000, 'current charge baseline 250mA')
+         unchanged(before, before)
+         io.backup(backup, before)
++        result['before_session_seconds'] = before['sample']['session_seconds']
++        result['volatile_cycle_reload_boundary'] = True
++        result['service_read_only_sha256'] = SERVICE_SHA
+         phase = 'old-stop'
+         try:
+-            stopped(io, manager, old)
++            stopped(io, manager, old, result)
+         except Exception as error:
+             result['stop_error'] = detail(error)
+             raise
+@@ -186,24 +225,27 @@
+         phase = 'old-unload'
+         io.unload()
+         changed = True
+-        phase = 'install-three-files'
+-        for name in [KO, SERVICE, MANIFEST]:
++        phase = 'install-two-files'
++        for name in [KO, MANIFEST]:
+             io.replace(name, files[name], MODES[name])
+         phase = 'explicit-new-load'
+         io.check_window(request)
+         io.load(KO)
+         phase = 'fresh-new-manager'
+-        manager = io.manager(HASHES[SERVICE])  # never reuse the old Python function globals
+-        need(io.verify(manager) == new, 'fresh installed r6 service verify')
++        manager = io.manager(SERVICE_SHA)  # never reuse the old Python function globals
++        need(io.verify(manager) == new, 'fresh installed r8 service verify')
+         io.notes_match(manager, new)
++        phase = 'new-inhibited-sample'
++        result['new_inhibited_sample'] = io.inhibited_ready(manager, request)['sample']
+         phase = 'new-start'
+         io.manager_command(manager, new, 'start')  # original 900/250 requests, current kernel budget authority
+         phase = 'new-acceptance'
+         after = io.observe(manager)
+         result['accepted_state'] = healthy(after, allow_full=True)
++        need(after['sample'].get('thermal_band') == 4 and 'band_pre_shake' in after['sample'], 'complete r8 NORMAL thermal telemetry')
+         unchanged(before, after)
+-        need(after['limits']['native_ua'] == before['limits']['native_ua'], 'native budget changed during acceptance')
+-        need(after['limits']['cv_uv'] <= before['limits']['cv_uv'], 'inherited CV ceiling increased')
++        need(after['limits'] == before['limits'], 'NORMAL SDP100 input/charge/CV/effective budget must match r7 exactly')
++        need(after['source'] == before['source'], 'source changed during acceptance')
+         io.check_window(request)
+         result.update(passed=True, installed_new=True, runtime_validation_pending=False,
+                       old_manifest_sha256=OLD, new_manifest_sha256=NEW,
+@@ -211,6 +253,8 @@
+                       native_usb_and_protection_kept_loaded=True, camera_services_unchanged=True)
+     except Exception as error:
+         result['primary_error'] = {'phase': phase, 'error': detail(error)}
++        if isinstance(error, UnsafeSample):
++            result['first_unsafe_sample'] = error.sample
+         result['mutating_process_unknown'] = io.uncertain
+         # A timed-out child/coming-going module is not a completed operation.
+         # In particular, never race a still-running insmod/rmmod with fallback.
+@@ -219,56 +263,77 @@
+             result['recovery_state'] = 'unknown-worker-or-module-state; no further mutation'
+         elif stopped_old:
+             try:
+-                resume_allowed = True
++                retained = False
+                 if io.module_present():
+                     need(io.module_state() == 'live', 'recover only a known live module')
+                     manager = io.manager_for_stop()
++                    current = None
+                     try:
+                         current = io.observe(manager)
+                         safe_sample(current)
++                        need(not isinstance(error, UnsafeSample), 'earlier observed unsafe sample remains disqualifying')
+                     except Exception as sample_error:
+-                        # Preserve evidence of a newly observed hard fault/timeout:
+-                        # replacing the module must never authorize AUTO to clear it.
+-                        resume_allowed = False
++                        if io.uncertain:
++                            raise
++                        # Preserve the live module's fault/timeout/history. A
++                        # reload followed by AUTO would erase a transient latch.
+                         result['recovery_withheld_reason'] = detail(sample_error)
+-                        if 'current' in locals():
+-                            result['recovery_withheld_sample'] = current.get('sample')
+-                    try:
+-                        stopped(io, manager, old)
+-                    except Exception as stop_error:
+-                        result['stop_error'] = detail(stop_error)
+-                        raise
+-                    io.unload()
+-                if changed:
+-                    for name in [KO, SERVICE, MANIFEST]:
+-                        io.replace(name, backup[name][0], backup[name][1])
+-                manager = io.manager(sha(backup[SERVICE][0]))
+-                need(io.verify(manager) == old, 'fresh restored r5 service verify')
+-                io.load(KO)
+-                io.notes_match(manager, old)
+-                if resume_allowed:
++                        result['recovery_withheld_sample'] = current.get('sample') if current else None
++                        stopped(io, manager, old, result)
++                        try:
++                            current_meta = io.verify(manager)
++                            need(sha(io.read_owned(MANIFEST)[0]) in (OLD, NEW), 'known coherent installed version')
++                            io.notes_match(manager, current_meta)
++                            result['recovery_state'] = current_meta['adapter_revision'] + '-consistent-inhibited; unsafe sample retained; no unload/AUTO'
++                        except Exception as coherence_error:
++                            if io.uncertain:
++                                raise
++                            result['recovery_coherence_error'] = detail(coherence_error)
++                            # Only an already inconsistent installation may need
++                            # disk repair. Never unload its unsafe live module.
++                            repaired = []
++                            if changed:
++                                for name in [KO, MANIFEST]:
++                                    io.replace(name, backup[name][0], backup[name][1])
++                                    repaired.append(name)
++                            result['repaired_disk_files'] = repaired
++                            result['runtime_disk_mismatch_requires_review'] = True
++                            result['recovery_state'] = 'unsafe-live-module-inhibited; r7 disk repair only; no unload/AUTO'
++                        result['observed_unsafe_state_preserved_in_live_module'] = True
++                        retained = True
++                    if not retained:
++                        stopped(io, manager, old, result)
++                        io.unload()
++                if not retained:
++                    if changed:
++                        for name in [KO, MANIFEST]:
++                            io.replace(name, backup[name][0], backup[name][1])
++                    manager = io.manager(SERVICE_SHA)
++                    need(io.verify(manager) == old, 'fresh restored r7 service verify')
++                    io.load(KO)
++                    io.notes_match(manager, old)
++                    result['restored_inhibited_sample'] = io.inhibited_ready(manager, request)['sample']
++                    io.check_window(request)
+                     io.manager_command(manager, old, 'start')
+                     recovered = io.observe(manager)
+-                    healthy(recovered, allow_full=False)
++                    healthy(recovered, allow_full=True)
+                     unchanged(before, recovered)
+                     need(recovered['limits']['cv_uv'] <= before['limits']['cv_uv'], 'restored CV ceiling')
+-                    result['recovery_state'] = 'r5-managed-current-source-budget'
+-                else:
+-                    stopped(io, manager, old)
+-                    result['recovery_state'] = 'r5-inhibited; fault/unknown sample retained in receipt; AUTO withheld'
++                    result['recovery_state'] = 'r7-managed-current-source-budget'
+             except Exception as recovery_error:
+                 result['recovery_error'] = detail(recovery_error)
++                result['recovery_state'] = 'recovery-failed; live-module safety stop only; operator review'
+                 result['mutating_process_unknown'] = io.uncertain
+                 result['terminal'] = not io.uncertain
+                 # No additional unload/load. If the module is live and no child
+                 # is pending, make one explicit safety stop, preserving its error.
+                 if not io.uncertain and io.module_present():
+                     try:
+-                        stopped(io, io.manager_for_stop(), old)
++                        stopped(io, io.manager_for_stop(), old, result)
+                     except Exception as stop_error:
+                         result['stop_error'] = detail(stop_error)
+         elif phase in ('old-stop', 'old-stop-check'):
+-            result['recovery_state'] = 'r5-files-and-module-retained; stop or fresh post-stop check failed; no unload'
++            result['recovery_state'] = 'r7-files-and-module-retained; stop or fresh post-stop check failed; no unload'
+         else:
+             result['recovery_state'] = 'preflight-only; no charging mutation'
+     finally:
+@@ -301,7 +366,7 @@
+         raw, mode = self.read_owned(WINDOW)
+         need(mode == 0o600, 'private window lease mode')
+         lease = json.loads(raw)
+-        need(lease['transaction'] == 'charging-update-r6' and lease['owner'] == 'charging'
++        need(lease['transaction'] == 'charging-update-r8' and lease['owner'] == 'charging'
+              and lease['camera_released'] is True and lease['exclusive'] is True
+              and lease['token'] == request['window_token']
+              and lease['boot_id'] == request['identity']['boot_id'], 'explicit coordinated exclusive window')
+@@ -335,17 +400,17 @@
+         need(sha(self.read_owned(SERVICE)[0]) == expected_service, 'installed manager code identity')
+         manager = runpy.run_path(SERVICE)
+         need(sha(self.read_owned(SERVICE)[0]) == expected_service, 'manager code changed while loading')
+-        manager['_r6_code_sha256'] = expected_service
++        manager['_r8_code_sha256'] = expected_service
+         self.events.append(['fresh-manager', expected_service])
+         return manager
+ 
+     def manager_for_stop(self):
+         digest = sha(self.read_owned(SERVICE)[0])
+-        need(digest in (HASHES[SERVICE], '4165b06ca7e6169c778d72e6dd604b89274ad29c87e15a7c03cc5a38dc21ea00'), 'only known manager code may stop')
++        need(digest == SERVICE_SHA, 'only exact unchanged manager code may stop')
+         return self.manager(digest)
+ 
+     def verify(self, manager):
+-        need(sha(self.read_owned(SERVICE)[0]) == manager['_r6_code_sha256'], 'cannot verify with stale in-memory manager')
++        need(sha(self.read_owned(SERVICE)[0]) == manager['_r8_code_sha256'], 'cannot verify with stale in-memory manager')
+         return manager['verify']()
+ 
+     def notes_match(self, manager, meta):
+@@ -363,18 +428,41 @@
+         supply = live.PSY / 'mp2650-input'
+         notes = {name: sha(Path('/sys/module', name.replace('-', '_'), 'notes/.note.gnu.build-id').read_bytes())
+                  for name in (*PROVIDERS, 'samurai-mp2650')}
+-        return {'state': state, 'sample': manager['sample'](), 'registers': state['registers'], 'notes': notes,
++        source = {key: (live.PSY / 'samurai-usb-input' / key).read_text().strip()
++                  for key in ['online', 'usb_type', 'current_max', 'input_current_limit']}
++        return {'state': state, 'sample': manager['sample'](), 'registers': state['registers'], 'notes': notes, 'source': source,
+                 'openrc_started': Path('/run/openrc/started/samurai-charging').exists(),
+-                'limits': {'native_ua': int((live.PSY / 'samurai-usb-input/input_current_limit').read_text()),
++                'limits': {'native_ua': int(source['input_current_limit']),
++                           'source_budget_ua': int(source['current_max']),
+                            'input_ua': int((supply / 'input_current_limit').read_text()),
+                            'charge_ua': int((supply / 'constant_charge_current').read_text()),
+                            'cv_uv': 3712500 + ((state['registers']['04'] & 0x7e) >> 1) * 12500}}
+ 
++    def inhibited_ready(self, manager, request):
++        # A newly probed module starts with valid=0/error=-ENODATA. Only that
++        # documented initialization state may wait, at most three seconds.
++        deadline = time.monotonic() + 3
++        while True:
++            self.check_window(request)
++            current = self.observe(manager)
++            s = current['sample']
++            initializing = (s.get('valid') == 0 and s.get('error') == -61
++                            and all(s.get(key, -1) == 0 for key in
++                                    ['latched', 'fault', 'stop_error', 'cycle_timeout', 'source_inhibit', 'thermal_inhibit']))
++            need(current['registers']['08'] & 0x18 == 8, 'pre-AUTO synchronous INHIBIT readback')
++            if not initializing:
++                safe_sample(current)
++                need(160 <= s.get('temp_decic', -999) < 440, 'pre-AUTO NORMAL band')
++                return current
++            need(time.monotonic() < deadline, 'new module never produced a fresh safe inhibited sample')
++            time.sleep(.2)
++
+     def manager_command(self, manager, meta, action):
+         # Caller already owns the actual service lock. A child rc-service would
+         # deadlock on this lock; directly execute freshly loaded installed code.
++        need(not self.uncertain, 'unknown child/module: no further manager mutation')
+         actual = sha(self.read_owned(SERVICE)[0])
+-        need(actual == manager['_r6_code_sha256'], 'cannot start/stop with stale in-memory manager')
++        need(actual == manager['_r8_code_sha256'], 'cannot start/stop with stale in-memory manager')
+         self.events.append(['manager-command', actual, action])
+         return manager['command'](meta, action)
+ 
+@@ -387,9 +475,9 @@
+         self.log('before-private.json', {'observation': before, 'modes': {n: m for n, (_, m) in files.items()}})
+ 
+     def replace(self, name, content, mode):
+-        need(name in MODES and mode == MODES[name], 'only exact triad and original modes')
++        need(name in MODES and mode == MODES[name], 'only exact charger/manifest pair and original modes')
+         p = Path(name)
+-        temp = p.with_name(p.name + '.r6-next')
++        temp = p.with_name(p.name + '.r8-next')
+         created = False
+         try:
+             with temp.open('xb') as stream:
+@@ -476,11 +564,19 @@
+ 
+ 
+ if __name__ == '__main__':
+-    need(sys.argv[1:] == ['--execute-r6'], 'explicit --execute-r6 required; this is not a status command')
++    need(sys.argv[1:] == ['--execute-r8'], 'explicit --execute-r8 required; this is not a status command')
+     os.umask(0o077)
+     device = Device()
+-    answer = update(json.loads(sys.stdin.buffer.read()), device)
+-    print(json.dumps(answer), flush=True)
++    try:
++        answer = update(json.loads(sys.stdin.buffer.read()), device)
++        print(json.dumps(answer), flush=True)
++    except BaseException:
++        if not device.uncertain:
++            raise
++        # A failed receipt/stdout must not release the lock while a mutating
++        # child is unknown. Launcher must fetch this same quarantined worker.
++        while True:
++            time.sleep(1)
+     if device.uncertain:
+         while True:
+             time.sleep(1)  # hold the original service lock; never retry a mutation

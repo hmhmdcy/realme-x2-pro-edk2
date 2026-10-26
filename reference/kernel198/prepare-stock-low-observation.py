@@ -1,0 +1,4 @@
+from pathlib import Path
+import hashlib,json,host
+ref=Path(__file__).resolve().parent;r=json.loads((ref/'stock-low-module-build-validation.json').read_text());p=host.PRIVATE/'qcom-camss-stock-low.ko';assert hashlib.sha256(p.read_bytes()).hexdigest()==r['module_sha256'];host.upload(p,'/var/lib/samurai/k198-modules/qcom-camss-stock-low.ko');host.upload(ref/'stock-low-module-build-validation.json','/var/lib/samurai/k198-modules/stock-low-module-build-validation.json')
+s=(ref/'run-tpg-clock-diagnostic.py').read_text().replace('k198-tpg-clock-diagnostic','k198-tpg-stock-low').replace('qcom-camss-clock-trace.ko','qcom-camss-stock-low.ko').replace('clock-diagnostic-module-build-validation.json','stock-low-module-build-validation.json');(ref/'run-tpg-stock-low.py').write_text(s);print('Stock low-clock comparison staged')

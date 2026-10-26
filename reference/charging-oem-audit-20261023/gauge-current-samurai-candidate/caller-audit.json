@@ -1,0 +1,144 @@
+{
+  "passed": true,
+  "scope": "all three direct current/status function callers in fixed bq core; exact current R8 source entry and service; cached UPower; static generic kernel consumer inventory",
+  "kernel_C_files_scanned": 601,
+  "kernel_direct_CURRENT_NOW_calls": [
+    {
+      "path": "drivers/power/supply/charger-manager.c",
+      "line": 751,
+      "sha256": "6ce7e524820dc5c217f3f30e1080b5e7ecaffe02b4922a9a19e125081c89d70b",
+      "excerpt": "power_supply_get_property(fuel_gauge,\n\t\t\t\tPOWER_SUPPLY_PROP_CURRENT_NOW, val);"
+    },
+    {
+      "path": "drivers/power/supply/charger-manager.c",
+      "line": 1570,
+      "sha256": "6ce7e524820dc5c217f3f30e1080b5e7ecaffe02b4922a9a19e125081c89d70b",
+      "excerpt": "power_supply_get_property(fuel_gauge,\n\t\t\t\t\t  POWER_SUPPLY_PROP_CURRENT_NOW,\n\t\t\t\t\t  &val)) {\n\t\tproperties[num_properties] =\n\t\t\t\tPOWER_SUPPLY_PROP_CURRENT_NOW;"
+    }
+  ],
+  "actual_R8_CURRENT_NOW_mentions": [
+    {
+      "path": "kernel-sources/drivers/power/supply/samurai-mp2650.c",
+      "line": 81,
+      "sha256": "ed2e1d4d96ea4f2d55b514288b0e8da1d731864d385944d02a105d41b03a144c",
+      "text": "\t * segment; do not substitute mainline current_now's 0x14 average."
+    },
+    {
+      "path": "kernel-sources/drivers/power/supply/samurai-mp2650.c",
+      "line": 413,
+      "sha256": "ed2e1d4d96ea4f2d55b514288b0e8da1d731864d385944d02a105d41b03a144c",
+      "text": "\tcase POWER_SUPPLY_PROP_CURRENT_NOW:"
+    },
+    {
+      "path": "kernel-sources/drivers/power/supply/samurai-mp2650.c",
+      "line": 506,
+      "sha256": "ed2e1d4d96ea4f2d55b514288b0e8da1d731864d385944d02a105d41b03a144c",
+      "text": "\tPOWER_SUPPLY_PROP_VOLTAGE_NOW, POWER_SUPPLY_PROP_CURRENT_NOW,"
+    },
+    {
+      "path": "rootfs-sources/usr/lib/samurai-charging/control-trial.py",
+      "line": 121,
+      "sha256": "c33cb2eec24031e72a5f1dda9b94c05607615e0b12a14ba3cecd6db56c820761",
+      "text": "                'battery_current_ua':int((live.PSY/'bq28z610-0/current_now').read_text()),"
+    }
+  ],
+  "framework": [
+    {
+      "path": "drivers/power/supply/power_supply_sysfs.c",
+      "sha256": "77ca3e03f68daa9766f5124ab78d2fe81b71c5b33ccf4bfff8f0780183deb25b",
+      "current_lines": [
+        {
+          "line": 173,
+          "text": "\tPOWER_SUPPLY_ATTR(CURRENT_MAX),"
+        },
+        {
+          "line": 174,
+          "text": "\tPOWER_SUPPLY_ATTR(CURRENT_NOW),"
+        },
+        {
+          "line": 175,
+          "text": "\tPOWER_SUPPLY_ATTR(CURRENT_AVG),"
+        },
+        {
+          "line": 176,
+          "text": "\tPOWER_SUPPLY_ATTR(CURRENT_BOOT),"
+        },
+        {
+          "line": 187,
+          "text": "\tPOWER_SUPPLY_ATTR(CONSTANT_CHARGE_CURRENT_MAX),"
+        },
+        {
+          "line": 197,
+          "text": "\tPOWER_SUPPLY_ATTR(INPUT_CURRENT_LIMIT),"
+        },
+        {
+          "line": 337,
+          "text": "\t\t\t\t\t      enum power_supply_charge_type current_type,"
+        },
+        {
+          "line": 348,
+          "text": "\t\t\t\t\t\tcurrent_type, buf);"
+        },
+        {
+          "line": 353,
+          "text": "\t\t\t\t\t\t  current_type, buf);"
+        },
+        {
+          "line": 609,
+          "text": "\t\t\t\t\t   enum power_supply_charge_behaviour current_behaviour,"
+        },
+        {
+          "line": 615,
+          "text": "\t\t\t\tavailable_behaviours, current_behaviour, buf);"
+        },
+        {
+          "line": 635,
+          "text": "\t\t\t\t       enum power_supply_charge_type current_type,"
+        },
+        {
+          "line": 641,
+          "text": "\t\t\t\tavailable_types, current_type, buf);"
+        }
+      ]
+    },
+    {
+      "path": "drivers/power/supply/power_supply_hwmon.c",
+      "sha256": "664b539858d3d7534b027734a0b48d891e3262309301e2b039af33e71a53419e",
+      "current_lines": [
+        {
+          "line": 42,
+          "text": "\t\treturn POWER_SUPPLY_PROP_CURRENT_AVG;"
+        },
+        {
+          "line": 44,
+          "text": "\t\treturn POWER_SUPPLY_PROP_CURRENT_MAX;"
+        },
+        {
+          "line": 46,
+          "text": "\t\treturn POWER_SUPPLY_PROP_CURRENT_NOW;"
+        },
+        {
+          "line": 353,
+          "text": "\tPOWER_SUPPLY_PROP_CURRENT_AVG,"
+        },
+        {
+          "line": 354,
+          "text": "\tPOWER_SUPPLY_PROP_CURRENT_MAX,"
+        },
+        {
+          "line": 355,
+          "text": "\tPOWER_SUPPLY_PROP_CURRENT_NOW,"
+        }
+      ]
+    }
+  ],
+  "cached_upower_sha256": "93422b2eea6de088b64d91bb6c4e053c339f1a2506b0b8b6e3fc6527e28f143a",
+  "cached_upower_reads_current_avg": false,
+  "runtime_generic_consumer_binding_not_proven": true,
+  "arbitrary_external_userspace_not_certified": true,
+  "charging_control_does_not_consume_bq_CURRENT_NOW": true,
+  "R8_notification_consumes_STATUS": true,
+  "phone_accessed": false,
+  "SDK_invoked": false,
+  "Git_invoked": false
+}

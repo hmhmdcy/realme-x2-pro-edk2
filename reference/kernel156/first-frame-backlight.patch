@@ -1,0 +1,417 @@
+Subject: [PATCH] drm/panel: delay SOFEF03F illumination until pixel TX completes
+
+The stock panel needs a complete frame in GRAM before illumination. Keep
+it blank through prepare/enable and defer positive backlight updates.
+Have DPU commit completion wait for TX done only for opted-in panels,
+then enable their backlight and followers. Reset readiness on disable
+and retain normal behavior for other panels. CTL start or flip events
+are insufficient.
+
+---
+
+ include/drm/drm_panel.h | 14 +
+ include/drm/drm_bridge.h | 11 +
+ drivers/gpu/drm/drm_panel.c | 94 +-
+ drivers/gpu/drm/bridge/panel.c | 27 +
+ drivers/gpu/drm/msm/disp/dpu1/dpu_kms.c | 35 +-
+ drivers/gpu/drm/panel/panel-samsung-sofef03f.c | 4 +
+ include/trace/events/drm_panel.h | 29 +
+ MAINTAINERS | 1 +
+ drivers/gpu/drm/msm/disp/dpu1/dpu_trace.h | 17 +
+ 9 files changed, 208 insertions(+), 24 deletions(-)
+
+diff --git a/include/drm/drm_panel.h b/include/drm/drm_panel.h
+--- a/include/drm/drm_panel.h
++++ b/include/drm/drm_panel.h
+@@ -283,6 +283,19 @@
+ 	bool enabled;
+ 
+ 	/**
++	 * @delay_backlight_until_first_frame:
++	 * Command panels requiring a complete frame in GRAM before illumination.
++	 * The display driver must call drm_panel_first_frame_done() after TX done.
++	 */
++	bool delay_backlight_until_first_frame;
++
++	/**
++	 * @backlight_ready: Whether positive brightness updates may reach the panel.
++	 * Updated by the panel helpers; drivers read it with READ_ONCE().
++	 */
++	bool backlight_ready;
++
++	/**
+ 	 * @container: Pointer to the private driver struct embedding this
+ 	 * @struct drm_panel.
+ 	 */
+@@ -331,6 +344,7 @@
+ void drm_panel_unprepare(struct drm_panel *panel);
+ 
+ void drm_panel_enable(struct drm_panel *panel);
++void drm_panel_first_frame_done(struct drm_panel *panel);
+ void drm_panel_disable(struct drm_panel *panel);
+ 
+ int drm_panel_get_modes(struct drm_panel *panel, struct drm_connector *connector);
+diff --git a/include/drm/drm_bridge.h b/include/drm/drm_bridge.h
+--- a/include/drm/drm_bridge.h
++++ b/include/drm/drm_bridge.h
+@@ -1475,6 +1475,8 @@
+ 
+ #ifdef CONFIG_DRM_PANEL_BRIDGE
+ bool drm_bridge_is_panel(const struct drm_bridge *bridge);
++bool drm_panel_bridge_needs_first_frame(struct drm_bridge *bridge);
++void drm_panel_bridge_first_frame_done(struct drm_bridge *bridge);
+ struct drm_bridge *drm_panel_bridge_add(struct drm_panel *panel);
+ struct drm_bridge *drm_panel_bridge_add_typed(struct drm_panel *panel,
+ 					      u32 connector_type);
+@@ -1495,6 +1497,15 @@
+ 	return false;
+ }
+ 
++static inline bool drm_panel_bridge_needs_first_frame(struct drm_bridge *bridge)
++{
++	return false;
++}
++
++static inline void drm_panel_bridge_first_frame_done(struct drm_bridge *bridge)
++{
++}
++
+ static inline int drm_panel_bridge_set_orientation(struct drm_connector *connector,
+ 						   struct drm_bridge *bridge)
+ {
+diff --git a/drivers/gpu/drm/drm_panel.c b/drivers/gpu/drm/drm_panel.c
+--- a/drivers/gpu/drm/drm_panel.c
++++ b/drivers/gpu/drm/drm_panel.c
+@@ -32,6 +32,10 @@
+ #include <drm/drm_panel.h>
+ #include <drm/drm_print.h>
+ 
++#define CREATE_TRACE_POINTS
++#include <trace/events/drm_panel.h>
++#undef CREATE_TRACE_POINTS
++
+ static DEFINE_MUTEX(panel_lock);
+ static LIST_HEAD(panel_list);
+ 
+@@ -70,6 +74,8 @@
+ 	panel->dev = dev;
+ 	panel->funcs = funcs;
+ 	panel->connector_type = connector_type;
++	panel->delay_backlight_until_first_frame = false;
++	panel->backlight_ready = false;
+ }
+ 
+ /**
+@@ -230,6 +236,50 @@
+ }
+ EXPORT_SYMBOL(drm_panel_unprepare);
+ 
++static void drm_panel_enable_backlight(struct drm_panel *panel)
++{
++	struct drm_panel_follower *follower;
++	int ret;
++
++	trace_drm_panel_backlight(dev_name(panel->dev), 1,
++				  panel->backlight ? panel->backlight->props.brightness : -1);
++	ret = backlight_enable(panel->backlight);
++	if (ret < 0)
++		DRM_DEV_INFO(panel->dev, "failed to enable backlight: %d\n",
++			     ret);
++
++	list_for_each_entry(follower, &panel->followers, list) {
++		if (!follower->funcs->panel_enabled)
++			continue;
++
++		ret = follower->funcs->panel_enabled(follower);
++		if (ret < 0)
++			dev_info(panel->dev, "%ps failed: %d\n",
++				 follower->funcs->panel_enabled, ret);
++	}
++}
++
++/**
++ * drm_panel_first_frame_done - illuminate a panel after a complete frame
++ * @panel: panel whose display controller has completed pixel transmission
++ *
++ * Call in sleepable commit context after a successful TX-complete wait.
++ * A CTL start, TE pulse or page-flip event alone is not sufficient.
++ */
++void drm_panel_first_frame_done(struct drm_panel *panel)
++{
++	if (!panel || !panel->delay_backlight_until_first_frame)
++		return;
++
++	mutex_lock(&panel->follower_lock);
++	if (panel->prepared && panel->enabled && !panel->backlight_ready) {
++		WRITE_ONCE(panel->backlight_ready, true);
++		drm_panel_enable_backlight(panel);
++	}
++	mutex_unlock(&panel->follower_lock);
++}
++EXPORT_SYMBOL_GPL(drm_panel_first_frame_done);
++
+ /**
+  * drm_panel_enable - enable a panel
+  * @panel: DRM panel
+@@ -242,7 +292,6 @@
+  */
+ void drm_panel_enable(struct drm_panel *panel)
+ {
+-	struct drm_panel_follower *follower;
+ 	int ret;
+ 
+ 	if (!panel)
+@@ -262,19 +311,14 @@
+ 	}
+ 	panel->enabled = true;
+ 
+-	ret = backlight_enable(panel->backlight);
+-	if (ret < 0)
+-		DRM_DEV_INFO(panel->dev, "failed to enable backlight: %d\n",
+-			     ret);
+-
+-	list_for_each_entry(follower, &panel->followers, list) {
+-		if (!follower->funcs->panel_enabled)
+-			continue;
+-
+-		ret = follower->funcs->panel_enabled(follower);
+-		if (ret < 0)
+-			dev_info(panel->dev, "%ps failed: %d\n",
+-				 follower->funcs->panel_enabled, ret);
++	WRITE_ONCE(panel->backlight_ready,
++		   !panel->delay_backlight_until_first_frame);
++	if (panel->backlight_ready) {
++		drm_panel_enable_backlight(panel);
++	} else {
++		int brightness = panel->backlight ? panel->backlight->props.brightness : -1;
++
++		trace_drm_panel_backlight(dev_name(panel->dev), 0, brightness);
+ 	}
+ 
+ exit:
+@@ -314,15 +358,19 @@
+ 
+ 	mutex_lock(&panel->follower_lock);
+ 
+-	list_for_each_entry(follower, &panel->followers, list) {
+-		if (!follower->funcs->panel_disabling)
+-			continue;
+-
+-		ret = follower->funcs->panel_disabling(follower);
+-		if (ret < 0)
+-			dev_info(panel->dev, "%ps failed: %d\n",
+-				 follower->funcs->panel_disabling, ret);
+-	}
++	if (!panel->delay_backlight_until_first_frame || panel->backlight_ready) {
++		list_for_each_entry(follower, &panel->followers, list) {
++			if (!follower->funcs->panel_disabling)
++				continue;
++
++			ret = follower->funcs->panel_disabling(follower);
++			if (ret < 0)
++				dev_info(panel->dev, "%ps failed: %d\n",
++					 follower->funcs->panel_disabling, ret);
++		}
++	}
++	WRITE_ONCE(panel->backlight_ready, false);
++	trace_drm_panel_backlight(dev_name(panel->dev), 2, 0);
+ 
+ 	ret = backlight_disable(panel->backlight);
+ 	if (ret < 0)
+diff --git a/drivers/gpu/drm/bridge/panel.c b/drivers/gpu/drm/bridge/panel.c
+--- a/drivers/gpu/drm/bridge/panel.c
++++ b/drivers/gpu/drm/bridge/panel.c
+@@ -234,6 +234,33 @@
+ EXPORT_SYMBOL(drm_bridge_is_panel);
+ 
+ /**
++ * drm_panel_bridge_needs_first_frame - check for deferred panel illumination
++ * @bridge: bridge to examine, which may be a non-panel bridge
++ */
++bool drm_panel_bridge_needs_first_frame(struct drm_bridge *bridge)
++{
++	struct drm_panel *panel;
++
++	if (!bridge || !drm_bridge_is_panel(bridge))
++		return false;
++	panel = drm_bridge_to_panel_bridge(bridge)->panel;
++	return panel->delay_backlight_until_first_frame &&
++		READ_ONCE(panel->enabled) && !READ_ONCE(panel->backlight_ready);
++}
++EXPORT_SYMBOL_GPL(drm_panel_bridge_needs_first_frame);
++
++/**
++ * drm_panel_bridge_first_frame_done - notify a panel after pixel TX completion
++ * @bridge: panel bridge, or a non-panel bridge to ignore
++ */
++void drm_panel_bridge_first_frame_done(struct drm_bridge *bridge)
++{
++	if (bridge && drm_bridge_is_panel(bridge))
++		drm_panel_first_frame_done(drm_bridge_to_panel_bridge(bridge)->panel);
++}
++EXPORT_SYMBOL_GPL(drm_panel_bridge_first_frame_done);
++
++/**
+  * drm_panel_bridge_add - Creates a &drm_bridge and &drm_connector that
+  * just calls the appropriate functions from &drm_panel.
+  *
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.c
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.c
+@@ -33,6 +33,7 @@
+ #include "dpu_formats.h"
+ #include "dpu_hw_vbif.h"
+ #include "dpu_kms.h"
++#include <drm/drm_bridge.h>
+ #include "dpu_plane.h"
+ #include "dpu_vbif.h"
+ #include "dpu_writeback.h"
+@@ -480,6 +481,36 @@
+ 	}
+ }
+ 
++static void dpu_kms_first_frame_backlight(struct drm_crtc *crtc)
++{
++	struct drm_encoder *encoder;
++	bool needs_first_frame;
++	int ret;
++
++	if (!crtc->state->enable || !drm_atomic_crtc_effectively_active(crtc->state))
++		return;
++
++	drm_for_each_encoder_mask(encoder, crtc->dev, crtc->state->encoder_mask) {
++		needs_first_frame = false;
++		drm_for_each_bridge_in_chain(encoder, bridge) {
++			if (drm_panel_bridge_needs_first_frame(bridge))
++				needs_first_frame = true;
++		}
++		if (!needs_first_frame)
++			continue;
++
++		/* CTL start can precede pp_done: wait until all pixels reach GRAM. */
++		ret = dpu_encoder_wait_for_tx_complete(encoder);
++		trace_dpu_first_frame_backlight(DRMID(crtc), DRMID(encoder), ret);
++		if (ret && ret != -EWOULDBLOCK) {
++			DPU_ERROR("first frame TX failed: %d; backlight stays blank\n", ret);
++			continue;
++		}
++		drm_for_each_bridge_in_chain(encoder, bridge)
++			drm_panel_bridge_first_frame_done(bridge);
++	}
++}
++
+ static void dpu_kms_complete_commit(struct msm_kms *kms, unsigned crtc_mask)
+ {
+ 	struct dpu_kms *dpu_kms = to_dpu_kms(kms);
+@@ -487,8 +518,10 @@
+ 
+ 	DPU_ATRACE_BEGIN("kms_complete_commit");
+ 
+-	for_each_crtc_mask(dpu_kms->dev, crtc, crtc_mask)
++	for_each_crtc_mask(dpu_kms->dev, crtc, crtc_mask) {
++		dpu_kms_first_frame_backlight(crtc);
+ 		dpu_crtc_complete_commit(crtc);
++	}
+ 
+ 	DPU_ATRACE_END("kms_complete_commit");
+ }
+diff --git a/drivers/gpu/drm/panel/panel-samsung-sofef03f.c b/drivers/gpu/drm/panel/panel-samsung-sofef03f.c
+--- a/drivers/gpu/drm/panel/panel-samsung-sofef03f.c
++++ b/drivers/gpu/drm/panel/panel-samsung-sofef03f.c
+@@ -294,6 +294,8 @@
+ 
+ 	if (!ctx->panel.prepared)
+ 		return 0;
++	if (backlight_get_brightness(bl) && !READ_ONCE(ctx->panel.backlight_ready))
++		return 0;
+ 	return mipi_dsi_dcs_set_display_brightness_large(ctx->dsi,
+ 						      backlight_get_brightness(bl));
+ }
+@@ -308,6 +310,7 @@
+ 	struct sofef03f *ctx;
+ 	const struct backlight_properties props = {
+ 		.type = BACKLIGHT_RAW, .brightness = 400, .max_brightness = 2047,
++		.power = BACKLIGHT_POWER_OFF,
+ 	};
+ 	int ret;
+ 
+@@ -335,6 +338,7 @@
+ 	if (IS_ERR(ctx->panel.backlight))
+ 		return PTR_ERR(ctx->panel.backlight);
+ 	ctx->panel.prepare_prev_first = true;
++	ctx->panel.delay_backlight_until_first_frame = true;
+ 	mipi_dsi_set_drvdata(dsi, ctx);
+ 	dsi->lanes = 4;
+ 	dsi->format = MIPI_DSI_FMT_RGB888;
+diff --git a/include/trace/events/drm_panel.h b/include/trace/events/drm_panel.h
+new file mode 100644
+--- /dev/null
++++ b/include/trace/events/drm_panel.h
+@@ -0,0 +1,29 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++#undef TRACE_SYSTEM
++#define TRACE_SYSTEM drm_panel
++
++#if !defined(_TRACE_DRM_PANEL_H) || defined(TRACE_HEADER_MULTI_READ)
++#define _TRACE_DRM_PANEL_H
++
++#include <linux/tracepoint.h>
++
++TRACE_EVENT(drm_panel_backlight,
++	    TP_PROTO(const char *panel, int phase, int brightness),
++	    TP_ARGS(panel, phase, brightness),
++	    TP_STRUCT__entry(
++		    __string(panel, panel)
++		    __field(int, phase)
++		    __field(int, brightness)
++	    ),
++	    TP_fast_assign(
++		    __assign_str(panel);
++		    __entry->phase = phase;
++		    __entry->brightness = brightness;
++	    ),
++	    TP_printk("panel=%s phase=%d brightness=%d", __get_str(panel),
++		      __entry->phase, __entry->brightness)
++);
++
++#endif
++
++#include <trace/define_trace.h>
+diff --git a/MAINTAINERS b/MAINTAINERS
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -8659,6 +8659,7 @@
+ F:	rust/kernel/drm/
+ F:	include/drm/
+ F:	include/linux/vga*
++F:	include/trace/events/drm_panel.h
+ F:	include/uapi/drm/
+ 
+ DRM DRIVERS AND MISC GPU PATCHES
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_trace.h b/drivers/gpu/drm/msm/disp/dpu1/dpu_trace.h
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_trace.h
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_trace.h
+@@ -1017,6 +1017,23 @@
+ 	TP_ARGS(pending_mask, ctl_flush)
+ );
+ 
++TRACE_EVENT(dpu_first_frame_backlight,
++	    TP_PROTO(u32 crtc, u32 encoder, int ret),
++	    TP_ARGS(crtc, encoder, ret),
++	    TP_STRUCT__entry(
++		    __field(u32, crtc)
++		    __field(u32, encoder)
++		    __field(int, ret)
++	    ),
++	    TP_fast_assign(
++		    __entry->crtc = crtc;
++		    __entry->encoder = encoder;
++		    __entry->ret = ret;
++	    ),
++	    TP_printk("crtc=%u encoder=%u ret=%d", __entry->crtc,
++		      __entry->encoder, __entry->ret)
++);
++
+ #define DPU_ATRACE_END(name) trace_tracing_mark_write(current->tgid, name, 0)
+ #define DPU_ATRACE_BEGIN(name) trace_tracing_mark_write(current->tgid, name, 1)
+ #define DPU_ATRACE_FUNC() DPU_ATRACE_BEGIN(__func__)

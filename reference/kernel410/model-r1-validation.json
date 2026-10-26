@@ -1,0 +1,12 @@
+{
+  "stage": 410,
+  "attempt": "initial sampler ABI fixture",
+  "first_call_completed_at_stop": true,
+  "first_call_output_different_bytes": 0,
+  "powf_provider_calls": 65,
+  "reason": "Fixture expected source BOOL return1, but the specialized target does not write W0 before RET and the real caller ignores W0.",
+  "correction": "Use actual completion/output/guards; ignore the unused return register. Target instructions and math unchanged.",
+  "raw_return_probe_retained_privately": true,
+  "phone_accessed": false,
+  "passed": false
+}

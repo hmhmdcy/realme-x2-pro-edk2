@@ -1,0 +1,11 @@
+--- a/src/f2fsclone.c
++++ b/src/f2fsclone.c
+@@ -35,6 +35,8 @@
+     //FS only on RO mounted device
+     c.force = 1;
+     c.ro = 1;
++    c.dry_run = 1;
++    c.no_kernel_check = 1;
+     c.fix_on = 0; 
+     c.auto_fix = 0;
+     if (fs_opt.debug >= 1){

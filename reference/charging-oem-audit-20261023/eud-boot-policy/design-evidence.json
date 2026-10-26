@@ -1,0 +1,96 @@
+{
+  "passed": true,
+  "design": "design-v1-frozen-before-patch",
+  "sources": {
+    "Platform/RenegadePkg/Library/PlatformBootManagerLib/PlatformBootManagerLib.inf": {
+      "sha256": "14ef7691d8496f35eb7ce5767eb6fe984a01313321e159d39d4f469a58cc0ab4",
+      "bytes": 2574,
+      "snapshot": "evidence--PlatformBootManagerLib.inf"
+    },
+    "Platform/Realme/sm8150/samurai.dsc": {
+      "sha256": "4d574f1559e081212627526b1b16279f39aecf9753858dcd33d0415eca99b99c",
+      "bytes": 1924,
+      "snapshot": "evidence--samurai.dsc"
+    },
+    "Platform/Realme/sm8150/samurai.fdf.inc": {
+      "sha256": "3df4539e410a784982c845de2d8bc3649fb9fcabd06db207a51b32f1b193213d",
+      "bytes": 3818,
+      "snapshot": "evidence--samurai.fdf.inc"
+    },
+    "Platform/Realme/sm8150/EudLogDxe/EudLogDxe.inf": {
+      "sha256": "c3474bb04770c6355e38843c6cbafdbef358f85a1ccab952c9bd8b66361daf4c",
+      "bytes": 628,
+      "snapshot": "evidence--EudLogDxe.inf"
+    },
+    "Common/edk2/MdeModulePkg/Core/Dxe/DxeMain/DxeMain.c": {
+      "sha256": "0714d88f6e75a68c1be158fa7637ab876e5f3e5efa0c4fda3d73c45f9298dc4a",
+      "bytes": 37511,
+      "snapshot": "evidence--DxeMain.c"
+    },
+    "Common/edk2/MdeModulePkg/Core/Dxe/Event/Event.c": {
+      "sha256": "596d2e178a6decd98d81e508fb04bbe531ad2559ce49a6233acd559ffd240a25",
+      "bytes": 19702,
+      "snapshot": "evidence--Event.c"
+    },
+    "Common/edk2/MdeModulePkg/Core/Dxe/Event/Tpl.c": {
+      "sha256": "88c02ea9fe360ccefb16ba9d24c6a54dfa7018a361e8b97cffb5c48415da56fa",
+      "bytes": 2879,
+      "snapshot": "evidence--Tpl.c"
+    }
+  },
+  "input_inspection_sha256": "22b66e3f73832e63246fc375c9fe1a115af4622926de496bda8772bf2bbf1a5c",
+  "carrier": {
+    "path": "/mnt/e/edk2-samurai-out/charging-management-20261023/usb-boot/boot-charging-usb-dt.img",
+    "sha256": "a30fb4440726e1c3ab80ad65277db4e57fec9a0924380cc07830a5c6e69ec280",
+    "build_receipt_sha256": "48e741bf37169900e58bea3134c005ae4780007a9d6613c8cfce711cceebbea7",
+    "executed_builder_sha256": "83def78d6b39710686725655913bb7b475967b47e84a70e709be9ffbffb03651",
+    "source_guard_receipt_sha256": "bf30046ef94302d17dcd8a91e5ae097818d75722840ffc5432d001f0757de6b9",
+    "guarded_source_sha256": {
+      "Platform/RenegadePkg/Library/PlatformBootManagerLib/PlatformBm.c": "eda995b4a7f50fdd8e792a8989d570fa4be9e3466a5afb946282456fba27198a",
+      "Platform/RenegadePkg/Library/PlatformBootManagerLib/PlatformBootManagerLib.inf": "14ef7691d8496f35eb7ce5767eb6fe984a01313321e159d39d4f469a58cc0ab4"
+    },
+    "limit": "PlatformBm/INF source hashes were checked by the retained builder before/after build. Current EudLog/SerialPort/Core/DSC snapshots are not independently proven linked inputs to this old carrier; future build must bind frozen sources."
+  },
+  "config": {
+    "path": "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/apsd-integration/current-r7/snapshots/build--.config",
+    "sha256": "e48f834d69840b2046077db2e60d988fb8bef438806ab594e1a4c082d2b34df3",
+    "builtin_cmdline": "",
+    "force_enabled": false,
+    "extend_enabled": false
+  },
+  "event_order": [
+    "BeforeExitBootServices notifications",
+    "stop global timer",
+    "validate MapKey",
+    "ordinary ExitBootServices notifications",
+    "clear boot services"
+  ],
+  "tpl": "EUD handoff and EudLog timer both TPL_CALLBACK; CoreRestoreTpl does not dispatch equal-priority events into an executing callback",
+  "mmio": {
+    "address": "0x088e1014",
+    "width_bits": 32,
+    "known_full_word_values": [
+      0,
+      1,
+      16843009
+    ],
+    "target": 0,
+    "basis": "Existing BDS writes/readback and the active EudLog timer use this exact address before the BeforeEBS phase; low byte is replicated on this board. No AHB2PHY/PHY/clock/role/secure registers are written by candidate.",
+    "limit": "No electrical supply measurement or SoC bus-fault containment. Firmware-stage register access basis does not certify post-EBS PHY or direct USB operation."
+  },
+  "planned_changes": [
+    "independent static-context BeforeEBS callback and close lifecycle",
+    "arm failure refuses current kernel launch",
+    "one callback attempt even when EBS MapKey fails/retries; zero write for already-zero/unknown",
+    "direct BDS FIFO producer suppressed after attempt; existing timer skips on verified CSR0",
+    "remove only eud earlycon/console tokens from UTF16 LoadOptions and native chosen bootargs",
+    "native COM status disabled"
+  ],
+  "panel_functions": "all original panel functions and their call block must remain byte identical",
+  "no_new_kernel_or_runtime_API": true,
+  "no_firmware_build": true,
+  "phone_accessed": false,
+  "ssh_executed": false,
+  "sdk_invoked": false,
+  "shared_tree_modified": false
+}

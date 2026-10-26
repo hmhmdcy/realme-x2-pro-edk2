@@ -1,0 +1,47 @@
+{
+  "passed": true,
+  "group_count": 7,
+  "groups": [
+    "exact native chip opt-out retains half-second delay",
+    "strict enabled Samurai BQ28 gate requests immediate original work",
+    "foreign chip machine node and missing node retain original delay despite global opt-in",
+    "pending 360-second fallback is advanced on the same work item",
+    "repeated native notifications never request a new half-second settling interval",
+    "running original work receives immediate requeue request without cancellation",
+    "original profile pending running and repeated delay semantics are unchanged"
+  ],
+  "returncode": 0,
+  "actual_functions": [
+    "bq27xxx_samurai_instant",
+    "bq27xxx_external_power_changed"
+  ],
+  "compile_command": [
+    "gcc",
+    "-std=c11",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-fsanitize=address,undefined",
+    "-fno-omit-frame-pointer",
+    "-no-pie",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-ui-audit-20261023/gauge-notify-immediate-candidate/test-callback.c",
+    "-o",
+    "/home/cy122/charging-management-20261023/gauge-notify-immediate-tests-02/test-callback"
+  ],
+  "compile_diagnostic_bytes": 0,
+  "ASan_UBSan_Werror": true,
+  "files": {
+    "bq27xxx_battery.c": "0014077792948460fc2a2e9581225dc684cba4d5bff95c3e88767d661ce5439b",
+    "notify-immediate.patch": "a912e335bb098b52ef90042e17eab845be295f2ba2bfd3348a204fbb1dd425e8",
+    "actual-functions.inc": "9a024b3b10a67ee166941f83c81cb982a0ea34cec456dc5496b3e028bbe4411f",
+    "test-callback.c": "2add1406aab721cadcbc9d0563447f43fa40e4f9b2c612d11e69e2f8eafb3d26",
+    "prepare.py": "42432d4f24d510e64649e002342fa6fb77e515f1a24da70bfc2558975cadc246",
+    "run-tests.py": "d91a1aaff22d3380361578ed39dc6042d6398501b4aa0fe772f839800ae6f618",
+    "source-result.json": "f5ae6792ced1ba71aa27f4e5c4ae5328af99d7070ba6e71568c67eb138fba6c7"
+  },
+  "private_output": "/home/cy122/charging-management-20261023/gauge-notify-immediate-tests-02",
+  "stdout_sha256": "eb82b4f2ff8a8b58cc74a4db8a5a95c2b209b0d83662418736783072e7db0259",
+  "workqueue_boundary": "fake records actual callback requests for same pending/running work; not Linux scheduler concurrency proof",
+  "old_suites_rerun": false,
+  "device_SDK_Image_Git_used": false
+}

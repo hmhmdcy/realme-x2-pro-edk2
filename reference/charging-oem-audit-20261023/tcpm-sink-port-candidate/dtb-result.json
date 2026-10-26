@@ -1,0 +1,82 @@
+{
+  "passed": true,
+  "trial_only": true,
+  "installed": false,
+  "base_sha256": "d5fa6cabdd231fed8e35b26cb17e8d4c59068705d90285775b7ede48f2e338d3",
+  "candidate_DTB": {
+    "path": "/mnt/e/edk2-samurai-out/charging-management-20261023/tcpm-sink507-dtb-private-01/samurai-tcpm-sink507-native-private.dtb",
+    "sha256": "42749cc80100765932bdb55e9b79b5f922734143e264efabae7039cbada9e226",
+    "bytes": 116724
+  },
+  "changes": {
+    "/chosen": {
+      "bootargs": {
+        "before": "636f6e736f6c653d74747930206c6f676c6576656c3d372069676e6f72655f6c6f676c6576656c2070616e69633d313520636c6b5f69676e6f72655f756e757365642070645f69676e6f72655f756e7573656420726567756c61746f725f69676e6f72655f756e7573656420627132377878785f626174746572792e73616d757261695f696e7374616e745f63757272656e743d312071636f6d5f706d69635f7463706d2e73616d757261695f35765f6f6e6c793d3100",
+        "after": "636f6e736f6c653d74747930206c6f676c6576656c3d372069676e6f72655f6c6f676c6576656c2070616e69633d313520636c6b5f69676e6f72655f756e757365642070645f69676e6f72655f756e7573656420726567756c61746f725f69676e6f72655f756e7573656420627132377878785f626174746572792e73616d757261695f696e7374616e745f63757272656e743d3100"
+      }
+    },
+    "/soc@0/eud-off-route": {
+      "status": {
+        "before": "6f6b617900",
+        "after": "64697361626c656400"
+      }
+    },
+    "/soc@0/usb@a6f8800/usb@a600000": {
+      "samurai,apsd-eud-route": {
+        "before": "0000015c",
+        "after": ""
+      },
+      "samurai,apsd-typec": {
+        "before": "0000015b",
+        "after": ""
+      },
+      "samurai,apsd-pd5v-bridge": {
+        "before": "",
+        "after": ""
+      },
+      "samurai,apsd-owner": {
+        "before": "",
+        "after": ""
+      }
+    },
+    "/soc@0/spmi@c440000/pmic@2/typec@1500": {
+      "realme,pd5v-only": {
+        "before": "",
+        "after": ""
+      }
+    },
+    "/soc@0/spmi@c440000/pmic@2/typec@1500/connector": {
+      "power-role": {
+        "before": "",
+        "after": "73696e6b00"
+      },
+      "op-sink-microwatt": {
+        "before": "",
+        "after": "002625a0"
+      },
+      "data-role": {
+        "before": "",
+        "after": "64657669636500"
+      },
+      "self-powered": {
+        "before": "",
+        "after": ""
+      },
+      "compatible": {
+        "before": "",
+        "after": "7573622d632d636f6e6e6563746f7200"
+      },
+      "sink-pdos": {
+        "before": "",
+        "after": "04019032"
+      }
+    }
+  },
+  "candidate_cmdline": "console=tty0 loglevel=7 ignore_loglevel panic=15 clk_ignore_unused pd_ignore_unused regulator_ignore_unused bq27xxx_battery.samurai_instant_current=1",
+  "BDS_source_sha256": "ab4c02cf238b7c944ab48de549150bc49bc4942051040d48d39c3389c0a24888",
+  "sink_voltage_mv": 5000,
+  "sink_current_ma": 500,
+  "full_PD_negotiation_verified": false,
+  "APSD_enabled": false,
+  "all_other_raw_properties_and_reserves_preserved": true
+}

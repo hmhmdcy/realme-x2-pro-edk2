@@ -1,0 +1,25 @@
+{
+  "stage": 290,
+  "first_assertion": "services={name:subprocess.run(['rc-service',name,'status'],capture_output=True).returncode==0 for name in ['greetd','samurai-ssc','iio-sensor-proxy']};assert all(services.values())",
+  "current": {
+    "sensors": {
+      "s5kgw1": "suspended",
+      "s5k3m5": "suspended",
+      "imx319": "suspended",
+      "imx471": "suspended",
+      "lc898219xi": "suspended"
+    },
+    "taint": "0",
+    "faults": {
+      "warning": 0,
+      "oops": 0,
+      "gpu_fault": 0,
+      "dsp_fatal": 0
+    },
+    "services": {
+      "greetd": false,
+      "samurai-ssc": true,
+      "iio-sensor-proxy": false
+    }
+  }
+}

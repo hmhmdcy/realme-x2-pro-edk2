@@ -1,0 +1,14 @@
+    def __read(self, fn, dev_handle, ep, intf, buff, timeout):
+        address, length = buff.buffer_info()
+        length *= buff.itemsize
+        transferred = c_int()
+        retval = fn(dev_handle.handle,
+                  ep,
+                  cast(address, POINTER(c_ubyte)),
+                  length,
+                  byref(transferred),
+                  timeout)
+        # do not assume LIBUSB_ERROR_TIMEOUT means no I/O.
+        if not (transferred.value and retval == LIBUSB_ERROR_TIMEOUT):
+            _check(retval)
+        return transferred.value

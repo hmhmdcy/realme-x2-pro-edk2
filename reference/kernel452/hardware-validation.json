@@ -1,0 +1,358 @@
+{
+  "stage": 452,
+  "attempt": "r1",
+  "window_id": "k452-full-diagnostic-r1",
+  "scope": {
+    "sensor": "s5kgw1",
+    "width": 1920,
+    "height": 1080,
+    "isolated_ipa": true,
+    "cases": [
+      "disabled-120",
+      "trace-window"
+    ],
+    "new451_proxy_used": false
+  },
+  "consumed_frames": 352,
+  "source_delivered_successful_images": 353,
+  "physical_ipe_completed": 353,
+  "successful_math": 347,
+  "bootstrap": 6,
+  "source_completed_not_pulled": 1,
+  "rows": [
+    {
+      "name": "disabled-120",
+      "frames": 120,
+      "source_delivered_successful_images": 120,
+      "source_completed_not_pulled": 0,
+      "successful_math": 117,
+      "bootstrap": 3,
+      "pd10_observed_sofs": 123,
+      "discarded_unqueued_observations": 2,
+      "stop_aborted_unresolved_observations": 1,
+      "stop_aborted_queued_images": 0,
+      "queued_images": 120,
+      "raw_strict_receipts_passed": true,
+      "capacity_restored": true,
+      "actual_old_proxy_verified": true,
+      "consumed_sequence_gaps": [
+        {
+          "after_sof": 67,
+          "before_sof": 69,
+          "missing": 1,
+          "frame": 68
+        },
+        {
+          "after_sof": 98,
+          "before_sof": 100,
+          "missing": 1,
+          "frame": 98
+        }
+      ],
+      "application_exit_code": 0,
+      "fixture_exit_code": 0,
+      "intentional_cancellation": false
+    },
+    {
+      "name": "trace-window",
+      "frames": 232,
+      "source_delivered_successful_images": 233,
+      "source_completed_not_pulled": 1,
+      "successful_math": 230,
+      "bootstrap": 3,
+      "pd10_observed_sofs": 234,
+      "discarded_unqueued_observations": 1,
+      "stop_aborted_unresolved_observations": 0,
+      "stop_aborted_queued_images": 0,
+      "queued_images": 233,
+      "raw_strict_receipts_passed": true,
+      "capacity_restored": true,
+      "actual_old_proxy_verified": true,
+      "consumed_sequence_gaps": [
+        {
+          "after_sof": 167,
+          "before_sof": 169,
+          "missing": 1,
+          "frame": 168
+        }
+      ],
+      "application_exit_code": 9,
+      "fixture_exit_code": 1,
+      "intentional_cancellation": true,
+      "trace": {
+        "capacity": 8192,
+        "total": 3634,
+        "retained": 3634,
+        "overwritten": 0,
+        "first_number": 1,
+        "retained_span_seconds": 9.859346,
+        "whole_session_event_counts": {
+          "Start": 1,
+          "PoolReady": 1,
+          "RequestEnter": 236,
+          "NoFreeFull": 0,
+          "InternalTake": 236,
+          "FullQbufBegin": 236,
+          "FullQbufResult": 236,
+          "FullDq": 236,
+          "PixSof": 235,
+          "Pd10Dq": 234,
+          "StatsDq": 234,
+          "StatsDone": 234,
+          "WaitOlder": 2,
+          "WaitIpe": 101,
+          "WaitPd10": 0,
+          "IpeClaim": 233,
+          "IpeQueue": 233,
+          "ImageProcessed": 236,
+          "InternalReturn": 236,
+          "RequestComplete": 236,
+          "RequestAccepted": 236,
+          "StopBegin": 1,
+          "StopEnd": 1
+        },
+        "retained_event_counts": {
+          "Start": 1,
+          "PoolReady": 1,
+          "RequestEnter": 236,
+          "InternalTake": 236,
+          "FullQbufBegin": 236,
+          "FullQbufResult": 236,
+          "RequestAccepted": 236,
+          "PixSof": 235,
+          "FullDq": 236,
+          "StatsDq": 234,
+          "Pd10Dq": 234,
+          "StatsDone": 234,
+          "IpeClaim": 233,
+          "IpeQueue": 233,
+          "ImageProcessed": 236,
+          "InternalReturn": 236,
+          "RequestComplete": 236,
+          "WaitIpe": 101,
+          "WaitOlder": 2,
+          "StopBegin": 1,
+          "StopEnd": 1
+        },
+        "clock_errors": 0,
+        "q_underflows": 0,
+        "end_footer_complete": true,
+        "outstanding_is_successful_qbuf_minus_dq_callbacks": true,
+        "outstanding_positive_does_not_prove_hardware_buffer_available": true,
+        "hardware_and_callback_timestamps_kept_separate": true,
+        "passed": true
+      },
+      "diagnosis": {
+        "gap_observed": true,
+        "first_gap": {
+          "after_sof": 167,
+          "before_sof": 169,
+          "missing": 1,
+          "frame": 168
+        },
+        "adjacent_full_dq_anchors_retained": true,
+        "diagnosis_complete": true,
+        "root_cause_proven": false,
+        "missing_sof_evidence": [
+          {
+            "sof": 168,
+            "full_success_dq_present": false,
+            "pd10_dq_present": true,
+            "statistics_dq_present": true,
+            "ipe_claim_or_queue_present": false,
+            "wait_events": [],
+            "meaning": "No successful FULL DQ callback retained between adjacent FULL SOFs; hardware DMA versus driver delivery unresolved"
+          }
+        ],
+        "adjacent_full_callback_bracket": {
+          "mono_span_ms": 66.55,
+          "event_counts": {
+            "RequestEnter": 2,
+            "NoFreeFull": 0,
+            "InternalTake": 2,
+            "FullQbufBegin": 2,
+            "FullQbufResult": 2,
+            "FullDq": 2,
+            "WaitOlder": 1,
+            "WaitIpe": 0,
+            "WaitPd10": 0,
+            "IpeClaim": 2,
+            "IpeQueue": 2,
+            "ImageProcessed": 2,
+            "InternalReturn": 2,
+            "RequestComplete": 2,
+            "RequestAccepted": 2
+          },
+          "queue_snapshot_ranges": {
+            "free_full": {
+              "minimum": 1,
+              "maximum": 2
+            },
+            "requests": {
+              "minimum": 2,
+              "maximum": 3
+            },
+            "waiting_full": {
+              "minimum": 0,
+              "maximum": 2
+            },
+            "coarse": {
+              "minimum": 1,
+              "maximum": 2
+            },
+            "statistics": {
+              "minimum": 0,
+              "maximum": 1
+            },
+            "associations": {
+              "minimum": 2,
+              "maximum": 3
+            },
+            "outstanding_full": {
+              "minimum": 0,
+              "maximum": 2
+            }
+          },
+          "callbacks_with_ipe_active": 27,
+          "no_request_enter_in_bracket": false,
+          "snapshots_are_callback_times_not_hardware_sof_instants": true,
+          "no_request_enter_does_not_identify_consumer_cause": true
+        }
+      },
+      "stop_reason": "first_consumed_sequence_gap_plus_2s",
+      "trace_csv_sha256": "68ac60de58d89ff0383090c5a2eb7ec753a51f6e3dd217a466eaa4abd38297c2",
+      "trace_csv_bytes": 354603
+    }
+  ],
+  "strict_auditor_sha256": "793d97ff4c64ea43dd74cb5f501ac34803fe1163d6850f178c334305f1ca80dc",
+  "receipt_filter_used": false,
+  "core_sha256": "e6a90a0699fa62a2c00a03a053bd93d8449450757301bbf7b3804978ceb073d6",
+  "ipa_sha256": "4c90047d42a91b9b1585d3b2cda997d8eee61f5e3a20f136b4345abcc2556d39",
+  "signature_sha256": "f5c351bd947363791c072a7b9916adea00ec1a02c52671d7f9692aa735386205",
+  "proxy_sha256": "c7887708377b92b167d917173cb2840a78e437a773985fa087ef980bd382038c",
+  "all_live_proxy_identity_and_actual_core_mapping_verified": true,
+  "actual_user_uid": 10000,
+  "effective_capabilities": 0,
+  "capacity_selection_common_and_restored": true,
+  "stop_via_application_pidfd_sigint": true,
+  "exact449_state_null_path_csv_stopend_idle_and_normal_exit_verified": true,
+  "restoration": {
+    "formal_modules": true,
+    "formal_library_and_packages": true,
+    "r5_charging_snapshot_exact": true,
+    "charging_manifest_sha256": "f1a885e2ca9c3226ca50d94f39c17c3cae5411b1047696976975df976aa971cf",
+    "camera_runtime": {
+      "ac10000.icp": "suspended",
+      "acb3000.camss": "suspended",
+      "ac4a000.cci": "suspended",
+      "ac4b000.cci": "suspended"
+    },
+    "pipewire_and_wireplumber_each_one_uid10000": true,
+    "core_resources_released": true,
+    "worker_exited": true,
+    "no_residual_processes": true,
+    "no_user_directory": true,
+    "taint_before": 0,
+    "taint_after": 0,
+    "new_kernel_faults": 0,
+    "kernel_fault_source": "posthoc full dmesg, not legacy worker filtered log"
+  },
+  "collection_correction": {
+    "initial_collector_omitted_empty_captures_directory": true,
+    "initial_offline_audit_failed_missing_path": true,
+    "original_empty_directory_readonly_metadata_verified": true,
+    "pc_directory_recreated_from_actual_empty_metadata": true,
+    "original_collection_tar_unchanged": true,
+    "source_logs_csv_or_receipts_modified": false,
+    "hardware_rerun": false,
+    "strict_reaudit_passed": true,
+    "future_collector_corrected_by_mainline": true
+  },
+  "kernel_fault_audit": {
+    "status": "passed-posthoc-full-dmesg",
+    "both_451_and_452_windows": true,
+    "boundary_clock": "trusted owner snapshot CLOCK_MONOTONIC",
+    "kernel_timestamp_clock": "MONOTONIC",
+    "new_kernel_lines": 1057,
+    "specified_fault_count": 0,
+    "retains_messages_before_boundary": true,
+    "log_loss_indicators": [],
+    "taint": 0,
+    "legacy_filtered_log_bytes": 1,
+    "legacy_boottime_to_monotonic_filter_invalid": true,
+    "legacy_empty_log_does_not_prove_zero_faults": true,
+    "original_worker_empty_logs_accepted": false,
+    "evidence": "reference/kernel452/kernel-window-validation.json",
+    "source_evidence_sha256": {
+      "posthoc-kernel-window-validation-private.json": "13cb51da0bcb073fa171718eeabd98a8a05f48099bd993c804e57a07369fd3db",
+      "final-health-and-kernel-private.json": "e8d3c9065b2029ca81e44bc9700f3970476c331584bbca8c897d8a0976cda841"
+    },
+    "public_audit_sha256": "be01640d6dd2585c569a8df491bae28ddb784cc218c7db7745b783a7548bff5f",
+    "public_checker_sha256": "a33a0831bf4f826cccba1c1090e9920ae7959b4185ab4566a8689b5793d63d27",
+    "prior_kernel_tail_still_retained": true,
+    "retention_covers_boundary": true,
+    "charging_health_auditor_recomputed": true,
+    "charging_samples": 2,
+    "formal_limits_unchanged": true,
+    "current_full_read_sha256": "e8d3c9065b2029ca81e44bc9700f3970476c331584bbca8c897d8a0976cda841"
+  },
+  "limitations": {
+    "root_cause_proven": false,
+    "hardware_dma_vs_driver_delivery_resolved": false,
+    "hardware_sof_instant_buffer_supply_resolved": false,
+    "zero_drop_30fps_accepted": false,
+    "long_recording_accepted": false,
+    "thermal_or_power_accepted": false,
+    "diagnostic_overhead_benchmark_accepted": false,
+    "fd_leak_test_accepted": false,
+    "permanently_installed": false
+  },
+  "source_evidence_sha256": {
+    "diagnostic-hardware-validation.json": "696d89416699d00f2571a768e5c97e411a8a282dab8517b3d747a9c09b26305a",
+    "diagnostic-live-r1-1-private.json": "3505dd7ab0235be2d1f55f0a117179a557a8cd4f7c32335ed401a8209db1e0e2",
+    "empty-captures-metadata-private.json": "1942795a9424f8af4e4af59c9091bc05fbdfa8cd887dab55c43561c23f56adfd",
+    "diagnostic-collected-r1-private.tar.gz": "e0151851cfae530c1acc07e179d914167f48a4cad4cca7d95312256846cbdcdb",
+    "runtime-collected-r1/state.json": "db3fef7e69763f69cc980b8860a3f8e4e93a200d041dedf570f7e22a57bb91af",
+    "runtime-collected-r1/manifest.json": "dfa3ec768f878df72c08faa14bf4594eae737ec20ad4072ba1948b3b56429096",
+    "runtime-collected-r1/diagnostic-plan-private.json": "5d643e900c09fda0978e1ea7087e993824b07e8ba80ece51192d315cb026d8f7",
+    "runtime-collected-r1/trace-window/monitor-private.json": "77ce76aa7a8305f302bb0c227c5bca6d5ce54a1ee5056e0a2bcea328d6a925c6"
+  },
+  "immutable_inputs_at_summary": {
+    "kernel451/capture-body-comparison.py": "a65f6326fc2366e8bd0b225c1399c386d0aa86f83260d28e57e02ed04e279fff",
+    "kernel451/observe-comparison.py": "3a5716a62b817fc355343c677de73e298c421644e9e02c7438c0e58289f3fe50",
+    "kernel451/prepare-comparison.py": "a659d6baa5fc006e30bc8b06d9d99e2afb0aa867bcf2e8a3e0d232a8ba8b1371",
+    "kernel451/check-comparison.py": "540772d3ab6ec16f358f493a7436cdf934b645bb7f81c80b8f1c9763a3d65fd5",
+    "kernel451/source-state.json": "2204a7b3574368c525b3ad7c0ab1e93b2cbc3157981dc5c1a18d2c8d644d3766",
+    "kernel451/source-validation.json": "4811239d8c7fee335d02db5f11d4b7264e43bbadaed78279fe1126ce46d317dc",
+    "kernel451/build-validation.json": "1e28be3535b48818e32deaf523521dfd041187fb9bad2355ced012a47819d863",
+    "kernel451/generated-validation.json": "0f775768f36bb843f83e43d67ea36da2966245e1ea36c95add6fc90edc928a6e",
+    "kernel451/arm-wire-validation.json": "3d30b56df92e390eaa6de272e9c3bacc619d0eb8c23cda1fb5362231a1262dbf",
+    "kernel451/0062-camss-worker-byte-vector-wire-compatible.patch": "c747f64a6ee1e5d363095de228335fa6400a14965e5b403dbabb2c2466bc4ee4",
+    "kernel452/capture-body-diagnostic.py": "20d4e47e34be56d0a6dfc19e26df7abaaeb74830e8b57a8548fe11bc84c26dc0",
+    "kernel452/prepare-diagnostic.py": "eff74f761c76c2586e66ba418167722effcd12a5cb641f12bad44e0e6706d676",
+    "kernel452/check-diagnostic.py": "80305714837ca0a8334393b20b4fb4ac7208699d030b40b2132a773c69bcec7e",
+    "kernel452/source-state.json": "d73a6eaeadf1d4629f224fd27adfdacd3d9174c2ed9af1492c3f556cfa0f3bb3",
+    "kernel452/source-validation.json": "fdf04052c1dc604d85e8265b0236a460786b66fa922bcf854b3f867819bed654",
+    "kernel452/source-draft-validation.json": "ca2093a4d5ee2eb819bdd8b923b5935924551c36aff8b025811e6fcca7f85467",
+    "kernel452/build-validation.json": "ca9915a30a3f9aa77dc85192fea1a1e6cc76008028bc6f2d773a6ca10c2b71e1",
+    "kernel452/build-r2-validation.json": "ca9915a30a3f9aa77dc85192fea1a1e6cc76008028bc6f2d773a6ca10c2b71e1",
+    "kernel452/full_ownership_trace.h": "4a53838f810ba8812cfa803575b2f9ada35ee879094b0a6aaec93d283d6bc35b",
+    "kernel452/0063-camss-bounded-full-ownership-trace.patch": "138e6c11a0382fff6d61153e7cdd90c42ea139ca04b7fffd9f2a30c3da381f3b"
+  },
+  "documentation_only_from_existing_receipts": true,
+  "ssh_called_for_this_summary": false,
+  "recompiled": false,
+  "auditor_rerun_for_this_summary": false,
+  "diagnostic_usability_passed": true,
+  "kernel_fault_audit_passed": true,
+  "overall_closeout_passed": true,
+  "passed": true,
+  "posthoc_charging_health": {
+    "duration_seconds": 1.1595660580005642,
+    "sample_count": 2,
+    "passed": true,
+    "native_allowance_ua": 100000,
+    "manifest_unchanged": true,
+    "long_endurance_accepted": false
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "schema": "samurai-protection-query-observer-independent-review-v1",
+  "passed": true,
+  "conclusion": "No new blocking issue found in the frozen observer scope by static review and receipt binding.",
+  "reviewer_source_sha256": "8da870b78d63659ef26e13b9f79185b29b7d5e22fd1ef9577734ce0770765052",
+  "author_pins": {
+    "delivery.json": "907fc1245576eee21b3d5231c25359f6d101e1f537ea8ff423ee21139392a304",
+    "samurai-gauge-protection.c": "3e1e81a341a5df072cde2c57ec7505096c192e7b873cfbb2720375ae7f9b8f6d",
+    "test-result.json": "6ed3a351b01b1bf2b75586348b3a87aca62ec0170a86aa30ee62a1baac721033",
+    "build-result.json": "a761f9ec3a0d37b1f9507e1fa9bb53fc3e4d2d8bc71ae4b9f998e6aa5702e567"
+  },
+  "delivery_files_verified": 17,
+  "normal_functions_byte_exact": {
+    "gauge-protocol.h::sm_mac_data_size": "4b8edd84eba32061c863229ecb3ea6143d52f2949d4245c340e2cf2bf533a135",
+    "gauge-protocol.h::sm_le16": "6a3542c9ef7824b33e6b001bb4d629b59c4e113ce0c814acb8e9e7879910cb78",
+    "gauge-protocol.h::sm_le32": "48dedeaaa4f3542d0f329ff357b64cdd8d771e90ff9f70b9449aecd46bd169df",
+    "gauge-protocol.h::sm_gauge_protection_state": "04a80017774019bfb81b59700b89965e6febaa20f33a94cc2b0eac22f8d19ef3",
+    "gauge-i2c.h::sm_gauge_word_locked": "f45d018c3ae2c73e70b07010a8694e4d5b221e47ef5de34d3afb440d35443c5c",
+    "samurai-gauge-protection.c::sm_protection_read": "5f2dc5040f7ee6f9f0fe852ed8bf33566f64d99caa28537ea532e8dbe9990a85",
+    "samurai-gauge-protection.c::sm_protection_get": "508fc4884cc37fbaf39b4a6aa7cae63cba12d81b7acec9af3fb3df687f9a4168",
+    "samurai-gauge-protection.c::protection_state_show": "ec203f53df8388daf38e19cf637c8b3159eee3390552081fe4a7cc5bfcf0e520",
+    "samurai-gauge-protection.c::sm_protection_put": "d51430ebd692e98e7d8bd3ac24e6edcf85b5df843f2ed02be3e5fc44320c170e",
+    "samurai-gauge-protection.c::sm_protection_probe": "8508915ac35342de358b9d3375ad27713bc7d7ea746c6801c29c2f8d07ec94d0",
+    "samurai-gauge-protection.c::sm_protection_init": "d62a10f29075cffea1d9eae81f5f958fac0a25bb0dcbe7d4fffbcfaa753dcb34",
+    "samurai-gauge-protection.c::sm_protection_exit": "2d37cc20a39b2edece6860c15012b25d5972f3e0b16f7eb2bacf63eae58584e8"
+  },
+  "actual_extracted_test_source_sha256": "2442b60bb72946cc588d28ebd3b618ec3792c82c162374821745bf1b6ecf37f8",
+  "author_existing_evidence": {
+    "actual_cases": 21,
+    "six_old_real_packet_fixtures": 6,
+    "new_three_status_replies_synthetic": true,
+    "compile_returncode": 0,
+    "test_returncode": 0,
+    "private_object_returncode": 0,
+    "private_object_sha256": "939aee637dc018b8326a7efe5c5e4098bb9cc903eaf651dd0aefff6d0afa1965",
+    "object_binary_independently_reread": false
+  },
+  "static_findings": [
+    "Normal six-command allowlist, protection classification and normal Health/probe/lifetime functions remain unchanged; common transfer/validation refactor preserves the prior call sequence and error handling.",
+    "Only explicit root-writable fixed capture selects the additional 0050/0052/0056 commands; no selector comes from sysfs text and no probe/poll/normal Health path calls the observer.",
+    "The attempt is consumed before I/O, under p.lock. Complete validated 0001 identity must equal 2719 before BatteryStatus or remaining status queries.",
+    "Lock order is p.lock then one adapter segment lock; the held segment uses only __i2c_smbus_xfer and __i2c_transfer, with no recursive adapter-locking API.",
+    "First selection/transport/validation failure terminates the sequence. Exactly two returned messages authorize full_read; complete invalid frames remain available and incomplete transfers are explicitly unavailable.",
+    "New mac_evidence show holds p.lock and reads only cached evidence. Existing protection_state show intentionally remains its old fresh-I/O interface.",
+    "Capture writes only the existing 3e read-query selector, preserving its 1000..1500us wait; no NVM, FET, unseal, PF-enable or REG14 operation is added.",
+    "Capture does not update normal health fields, last_error, latches or policy; complete/error=0 does not compare the two BatteryStatus values or claim compatibility/stability."
+  ],
+  "review_actions": {
+    "author_entrypoints_run": false,
+    "tests_rerun": false,
+    "compiler_or_linker_run": false,
+    "old_codec149_rerun": false,
+    "phone_SSH_USB_SDK_Git_or_storage_accessed": false,
+    "author_files_modified": false
+  },
+  "limits": [
+    "Static source/receipt review is not real-pack protocol compatibility, TCA classification, Full/Charging policy or hardware acceptance.",
+    "One attempt per bound instance is not a hard time limit; the synchronous adapter transaction and scheduling can still block normal provider readers.",
+    "No new ko or deployment manifest exists; the compiled object receipt does not establish ABI, linked-module identity, installation or live results.",
+    "No extra retry is implemented in this observer; adapter-core/hardware behavior is outside these fake I2C boundaries."
+  ]
+}

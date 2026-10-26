@@ -1,0 +1,905 @@
+--- a/src/ipa/camss-vfe/camss.cpp
++++ b/src/ipa/camss-vfe/camss.cpp
+@@ -10,6 +10,7 @@
+ #include <cstring>
+ #include <map>
+ #include <optional>
++#include <mutex>
+ #include <unistd.h>
+ #include <time.h>
+ #include "../libipa/contrast_af.h"
+@@ -36,6 +37,7 @@
+ #include "ipe_frame_history.h"
+ #include "ipe_numeric_history.h"
+ #include "ipe_tone_profile.h"
++#include "ife_gtm_history.h"
+ 
+ namespace libcamera::ipa::camss {
+ 
+@@ -62,6 +64,14 @@
+ 	void parametersApplied(uint64_t epoch, uint32_t firstSof, uint32_t revision) override;
+ 	void processStats(uint64_t epoch, uint32_t sof, uint32_t id, uint32_t bytesused, const SensorContext &sensorContext) override;
+ private:
++ std::recursive_mutex stateMutex_;
++ using GtmHistory=IfeGtmHistory<IpeToneState>;
++ GtmHistory gtmHistory_;
++ bool ispControlsWaiting_ = false;
++ std::optional<GtmHistory::Version> proposedGtm_;
++ std::map<uint64_t,GtmHistory::Pointer> frameGtms_;
++ bool tracksGtm() const { return ipeTone_ && ipeTone_->tracksGtm(); }
++ void commitParameters(uint64_t epoch,uint32_t firstSof,uint32_t revision);
+  int describeSensor(const IPACameraSensorInfo &info, const ControlInfoMap &controls, ControlInfoMap *ipaControls);
+  int translate(const ControlList &controls, bool startup, ControlList *sensorControls);
+  int configureAutofocus(const ValueNode &tuning,ControlInfoMap *ipaControls);
+@@ -158,6 +168,7 @@
+ int IPACamss::init(const IPASettings &settings, const IPACameraSensorInfo &info,
+  const ControlInfoMap &sensorControls,const ControlInfoMap &lensControls,const std::string &lensModel,ControlInfoMap *ipaControls)
+ {
++ std::lock_guard<std::recursive_mutex> stateLock(stateMutex_);
+  if (running_) return -EBUSY;
+  model_ = settings.sensorModel;
+  if (info.model != model_) return -EINVAL;
+@@ -211,6 +222,7 @@
+  const ControlInfoMap &sensorControls, const std::string &profilePath,
+  ControlInfoMap *ipaControls, SensorControlConfiguration *sensorConfiguration)
+ {
++ std::lock_guard<std::recursive_mutex> stateLock(stateMutex_);
+  if (running_) return -EBUSY;
+  configured_ = false;
+  agc_.reset(); awb_.reset(); ipeTone_.reset(); autoAvailable_ = false;
+@@ -426,6 +438,7 @@
+ 
+ int IPACamss::convertControls(uint64_t epoch, const ControlList &controls, ControlList *sensorControls)
+ {
++ std::lock_guard<std::recursive_mutex> stateLock(stateMutex_);
+  if (!running_ || epoch != epoch_) return -ESTALE;
+  ControlList sensorOnly(libcamera::controls::controls);
+  for (const auto &[id, value] : controls)
+@@ -481,10 +494,12 @@
+ 
+ int IPACamss::applyIspControls(uint64_t epoch, uint32_t firstSof, const ControlList &controls, AutoIspUpdate *update)
+ {
++ std::lock_guard<std::recursive_mutex> stateLock(stateMutex_);
+  if (!update) return -EINVAL;
+  *update = {};
+  if (!running_ || epoch != epoch_) return -ESTALE;
+- if (pendingWhiteBalance_ || !preparedParameters_.empty() || parameterHistory_.empty()) return -EAGAIN;
++ if (pendingWhiteBalance_ || !preparedParameters_.empty() || parameterHistory_.empty()) {ispControlsWaiting_=true;return -EAGAIN;}
++ ispControlsWaiting_=false;
+  ControlList ignored(sensorControls_);
+  int ret = translate(controls, true, &ignored);
+  if (ret) return ret;
+@@ -531,6 +546,7 @@
+ 
+ int IPACamss::frameMetadata(uint64_t epoch, uint32_t sof, const SensorContext &sensorContext, ControlList *metadata)
+ {
++ std::lock_guard<std::recursive_mutex> stateLock(stateMutex_);
+  if (!metadata) return -EINVAL;
+  *metadata=ControlList(controls::controls);
+  if (!running_ || epoch!=epoch_) return -ESTALE;
+@@ -559,6 +575,7 @@
+ int IPACamss::processFocus(uint64_t epoch,uint32_t sof,const ControlList &controls,bool valid,int32_t score,
+                          uint64_t captured,const SensorContext &sensorContext,ControlList *metadata,LensMove *move)
+ {
++ std::lock_guard<std::recursive_mutex> stateLock(stateMutex_);
+  if (!metadata || !move) return -EINVAL;
+  *metadata=ControlList(libcamera::controls::controls);*move={};
+  if (!running_ || epoch!=epoch_) return -ESTALE;
+@@ -580,11 +597,13 @@
+ 
+ void IPACamss::lensPositionApplied(uint64_t epoch,uint32_t serial,int32_t status,uint64_t monotonic)
+ {
++ std::lock_guard<std::recursive_mutex> stateLock(stateMutex_);
+  if (running_ && epoch==epoch_) af_.applied(serial,status,monotonic);
+ }
+ 
+ int IPACamss::mapBuffers(const std::vector<IPABuffer> &parameters, const std::vector<IPABuffer> &statistics)
+ {
++ std::lock_guard<std::recursive_mutex> stateLock(stateMutex_);
+ 	if (running_)
+ 		return -EBUSY;
+ 	std::map<uint32_t, Buffer> pending;
+@@ -611,6 +630,7 @@
+ 
+ void IPACamss::unmapBuffers(const std::vector<uint32_t> &ids)
+ {
++ std::lock_guard<std::recursive_mutex> stateLock(stateMutex_);
+ 	/* Pipeline first stops the IPA and all V4L2 queues. */
+ 	if (running_)
+ 		return;
+@@ -620,6 +640,7 @@
+ 
+ int IPACamss::start(uint64_t epoch, const ControlList &controls, ControlList *sensorControls)
+ {
++ std::lock_guard<std::recursive_mutex> stateLock(stateMutex_);
+ 	if (running_)
+ 		return -EBUSY;
+ 	if (!configured_ || !epoch || epoch <= epoch_)
+@@ -681,7 +702,7 @@
+  ccmInputs_.reset();pendingColourCorrection_.reset();pendingLensShading_.reset();
+  if (!ipeHistory_.start(epoch)) return -EINVAL;
+  if(!numericHistory_.start(epoch)){ipeHistory_.stop();return -EINVAL;}
+- pendingTone_.reset();committedTone_.reset();
++ pendingTone_.reset();committedTone_.reset();gtmHistory_.reset();proposedGtm_.reset();frameGtms_.clear();ispControlsWaiting_=false;
+  epoch_ = epoch;
+ 	red_ = red; blue_ = blue;
+ 	awbEnabled_ = awbEnabled; colourTemperature_ = temperature; manualMatrix_ = manualMatrix;
+@@ -697,9 +718,10 @@
+ 
+ void IPACamss::stop()
+ {
++ std::lock_guard<std::recursive_mutex> stateLock(stateMutex_);
+ 	running_ = false;af_.cancel();initialAfTrigger_.reset();
+  LOG(IPACamss,Info)<<"IPE_TONE_STOP epoch="<<epoch_<<" revision="<<numericHistory_.revision()<<" pending="<<numericHistory_.busy();
+- numericHistory_.stop();pendingTone_.reset();committedTone_.reset();
++ numericHistory_.stop();pendingTone_.reset();committedTone_.reset();gtmHistory_.reset();proposedGtm_.reset();frameGtms_.clear();ispControlsWaiting_=false;
+  ipeHistory_.stop();
+  const auto &count=ipeHistory_.counters();
+  LOG(IPACamss,Info)<<"IPE_HISTORY_STOP epoch="<<epoch_<<" prepared="<<count.prepared<<" committed="<<count.committed
+@@ -715,6 +737,7 @@
+ 
+ int IPACamss::prepareParameters(uint64_t epoch, uint32_t id, uint32_t revision, uint32_t *bytesused)
+ {
++ std::lock_guard<std::recursive_mutex> stateLock(stateMutex_);
+ 	if (!bytesused)
+ 		return -EINVAL;
+ 	*bytesused = 0;
+@@ -749,16 +772,39 @@
+   std::copy(params.a.begin(),params.a.end(),ccm.a);std::copy(params.b.begin(),params.b.end(),ccm.b);
+   std::copy(params.c.begin(),params.c.end(),ccm.c);std::copy(params.k.begin(),params.k.end(),ccm.k);ccm.qfactor=params.qfactor;
+  }
++ GtmHistory::Pointer gtmUpload;
++ if(tracksGtm()) {
++  GtmHistory::Version version;
++  if(proposedGtm_)version=*proposedGtm_;
++  else if(gtmHistory_.active())version=*gtmHistory_.active();
++  /* Bootstrap is explicit disabled GTM until real statistics generate TMC. */
++  ret=gtmHistory_.stage(version,revision,&gtmUpload);if(ret)return ret;
++ }
+ 	size_t used;
+-	ret = encodeParameters(it->second.memory->planes()[0], profile_, red, blue, input_, Rectangle(input_), &used, uploadLsc, selected ? &ccm : nullptr, revision==0&&gamma_?&*gamma_:nullptr,ds4_?&*ds4_:nullptr);
++	ret = encodeParameters(it->second.memory->planes()[0], profile_, red, blue, input_, Rectangle(input_), &used, uploadLsc, selected ? &ccm : nullptr, revision==0&&gamma_?&*gamma_:nullptr,ds4_?&*ds4_:nullptr,gtmUpload?&gtmUpload->parameters:nullptr);
+ 	if (!ret) {
+ 		preparedParameters_[revision] = { revision, effectiveRed, effectiveBlue, awbEnabled_, red, blue, colourTemperature_, whiteBalance_ ? whiteBalance_->temperature(effectiveRed,effectiveBlue) : std::nullopt, selected, selectedLsc, bool(gamma_) };
+ 		*bytesused = used;
+-	}
++  if(gtmUpload) {
++   proposedGtm_.reset();
++   LOG(IPACamss,Info)<<"IFE_GTM_QUEUE epoch="<<epoch<<" revision="<<revision<<" cookie="<<gtmUpload->parameters.cookie
++    <<" source-sof="<<gtmUpload->sourceSof<<" source-histogram="<<gtmUpload->sourceHistogram<<" ready="<<gtmUpload->ready<<" enabled="<<gtmUpload->parameters.enabled;
++  }
++	} else if(gtmUpload)gtmHistory_.cancelUnsubmitted(gtmUpload->parameters.cookie);
+ 	return ret;
+ }
+ 
+-void IPACamss::parametersApplied(uint64_t epoch, uint32_t firstSof, uint32_t revision)
++void IPACamss::parametersApplied(uint64_t epoch,uint32_t firstSof,uint32_t revision)
++{
++ std::lock_guard<std::recursive_mutex> stateLock(stateMutex_);
++ if(!running_ || epoch!=epoch_)return;
++ if(tracksGtm()) {
++  LOG(IPACamss,Info)<<"IFE_PARAMS_SUBMITTED epoch="<<epoch<<" revision="<<revision<<" reported-sof="<<firstSof;
++  return;
++ }
++ commitParameters(epoch,firstSof,revision);
++}
++void IPACamss::commitParameters(uint64_t epoch, uint32_t firstSof, uint32_t revision)
+ {
+ 	if (!running_ || epoch != epoch_) return;
+ 	auto it = preparedParameters_.find(revision);
+@@ -792,6 +838,7 @@
+ 
+ void IPACamss::processStats(uint64_t epoch, uint32_t sof, uint32_t id, uint32_t bytesused, const SensorContext &sensorContext)
+ {
++ std::lock_guard<std::recursive_mutex> stateLock(stateMutex_);
+ 	Statistics result{};
+ 	ControlList metadata(controls::controls);
+ 	result.status = -ESTALE;
+@@ -810,6 +857,18 @@
+ 	ParsedStatistics parsed;
+ 	result.status = parseStatistics({ memory.data(), bytesused }, input_.width, input_.height, &parsed);
+ 	if (result.status) { complete(); return; }
++ GtmHistory::Pointer appliedGtm;
++ if(tracksGtm()) {
++  bool changed=false;
++  result.status=parsed.gtm?gtmHistory_.accept(sof,*parsed.gtm,&appliedGtm,&changed):-ENODATA;
++  if(result.status){complete();return;}
++  if(changed) {
++   commitParameters(epoch,sof,appliedGtm->revision);
++   LOG(IPACamss,Info)<<"IFE_GTM_APPLIED epoch="<<epoch<<" sof="<<sof<<" cookie="<<appliedGtm->parameters.cookie
++    <<" generation="<<parsed.gtm->generation<<" bank="<<parsed.gtm->bank<<" revision="<<appliedGtm->revision
++    <<" source-sof="<<appliedGtm->sourceSof<<" source-histogram="<<appliedGtm->sourceHistogram<<" ready="<<appliedGtm->ready;
++  }
++ }
+ 	lastStats_ = sof;
+ 	result.population = parsed.population;
+ 	result.weightedSum = parsed.weightedSum;
+@@ -884,7 +943,7 @@
+    ccmInputs_=ColourCorrectionInputs{ result.luxValid ? std::optional<float>(result.luxIndex) : std::nullopt,
+                                     float(helper_->gain(sensorContext.gainCode)),sof };
+  }
+- if (af_.state()!=ipa::ContrastAf::State::Scanning && result.parametersKnown && context==std::prev(parameterHistory_.end()) &&
++ if (!ispControlsWaiting_ && af_.state()!=ipa::ContrastAf::State::Scanning && result.parametersKnown && context==std::prev(parameterHistory_.end()) &&
+      !pendingWhiteBalance_ && preparedParameters_.empty() && ispRevision_<UINT32_MAX-1 &&
+      (whiteBalanceChanged || (colourCorrection_ && colourCorrection_->runtimeAec()) || dynamicLensShading_)) {
+   std::optional<ColourCorrectionState> selected;
+@@ -920,6 +979,7 @@
+   if (result.parametersKnown && result.sensorControlsKnown) {
+   IpeFrameObservation observation;
+   observation.epoch=epoch;observation.sof=sof;observation.histogram=parsed.histogram;
++  if(appliedGtm){observation.gtmCookie=appliedGtm->parameters.cookie;observation.gtmGeneration=parsed.gtm->generation;}
+   observation.population=parsed.population;observation.exposureLines=sensorContext.exposureLines;
+   observation.gainCode=sensorContext.gainCode;observation.sensorSource=sensorContext.source;
+   observation.exposureNs=std::llround(sensorContext.exposureLines*lineUs_*1000);
+@@ -930,14 +990,34 @@
+   const int status=ipeHistory_.prepare(observation,&token);
+   if (!status) {
+    result.ipeToken=token;result.ipeHistogramTrace=histogramTrace(observation);
++   if(appliedGtm)frameGtms_[token]=appliedGtm;
+    result.exposureNs=observation.exposureNs;result.analogueGain=observation.analogueGain;
+    LOG(IPACamss,Info)<<"IPE_OBSERVE epoch="<<epoch<<" sof="<<sof<<" token="<<token
+     <<" trace="<<result.ipeHistogramTrace<<" population="<<observation.population
+     <<" exposure-ns="<<observation.exposureNs<<" analogue-gain="<<observation.analogueGain
+     <<" lines="<<observation.exposureLines<<" code="<<observation.gainCode<<" source="<<observation.sensorSource
+     <<" revision="<<observation.ispRevision<<" lux-valid="<<observation.luxValid
+-    <<" exposure-index="<<observation.exposureIndex<<" gamma-override="<<observation.ifeGammaOverride;
++    <<" exposure-index="<<observation.exposureIndex<<" gamma-override="<<observation.ifeGammaOverride
++    <<" gtm-cookie="<<observation.gtmCookie<<" gtm-generation="<<observation.gtmGeneration;
+   } else LOG(IPACamss,Error)<<"IPE observation rejected: "<<status;
++  if(tracksGtm() && !ispControlsWaiting_ && observation.luxValid && af_.state()!=ipa::ContrastAf::State::Scanning &&
++     !gtmHistory_.busy() && preparedParameters_.empty() &&
++     (!pendingWhiteBalance_ || result.ispUpdate.valid) && ispRevision_<UINT32_MAX-1) {
++   GtmHistory::Version version;IpeToneState initial;
++   const auto &active=gtmHistory_.active();
++   int ret=ipeTone_->prepareGtm(observation,active?active->math:initial,&version.parameters,&version.math);
++   if(!ret) {
++    version.ready=true;version.sourceSof=sof;version.sourceHistogram=histogramTrace(observation);
++    proposedGtm_=version;
++    if(!pendingWhiteBalance_) {
++     pendingColourCorrection_=context->second.colourCorrection;pendingLensShading_=context->second.lensShading;
++     pendingWhiteBalance_=AutoIspUpdate{true,++ispRevision_,context->second.sourceRed,context->second.sourceBlue};
++    }
++    result.ispUpdate=*pendingWhiteBalance_;
++    LOG(IPACamss,Info)<<"IFE_GTM_PROPOSE epoch="<<epoch<<" source-sof="<<sof<<" revision="<<result.ispUpdate.revision
++     <<" source-histogram="<<version.sourceHistogram<<" enabled="<<version.parameters.enabled;
++   } else LOG(IPACamss,Error)<<"IFE_GTM_REJECT sof="<<sof<<" status="<<ret;
++  }
+  }
+  complete();
+ }
+@@ -945,13 +1025,29 @@
+ int IPACamss::prepareIpeParameters(uint64_t epoch, uint32_t sof, uint64_t token,
+ 				 std::vector<uint8_t> *parameters, uint64_t *revision, bool *fresh)
+ {
++ std::lock_guard<std::recursive_mutex> stateLock(stateMutex_);
+ 	if (!parameters || !revision || !fresh) return -EINVAL;
+ 	parameters->clear(); *revision = 0; *fresh = false;
+ 	if (!running_ || epoch != epoch_) return -ESTALE;
+ 	if (!ipeTone_) return 0;
+ 	const auto *frame = token ? ipeHistory_.pending(token) : nullptr;
+ 	if (token && (!frame || frame->sof != sof || frame->epoch != epoch)) return -ESTALE;
++ GtmHistory::Pointer applied;
++ if(tracksGtm()) {
++  const auto found=frameGtms_.find(token);
++  if(!frame || found==frameGtms_.end() || found->second->parameters.cookie!=frame->gtmCookie)return -ENODATA;
++  applied=found->second;
++  if(!applied->ready) {
++   qcom_ipe_a5_frame_params packet;ipeTone_->bootstrap(&packet);
++   const auto *p=reinterpret_cast<const uint8_t*>(&packet);parameters->assign(p,p+sizeof packet);
++   *revision=numericHistory_.revision();
++   LOG(IPACamss,Info)<<"IPE_TONE_BOOTSTRAP sof="<<sof<<" cookie="<<frame->gtmCookie<<" generation="<<frame->gtmGeneration;
++   return 0;
++  }
++ }
+ 	if (!frame || !frame->luxValid || numericHistory_.busy()) {
++  /* A held LTM program is valid only for the very same upstream GTM. */
++  if(applied && (!committedTone_ || numericHistory_.state().gtmCookie!=frame->gtmCookie))return -EAGAIN;
+ 		if (committedTone_) {
+ 			const auto *p = reinterpret_cast<const uint8_t *>(&*committedTone_);
+ 			parameters->assign(p, p + sizeof(*committedTone_)); *revision = numericHistory_.revision();
+@@ -961,7 +1057,8 @@
+ 		return 0;
+ 	}
+ 	qcom_ipe_a5_frame_params packet; IpeToneState next;
+-	int ret = ipeTone_->calculate(*frame, numericHistory_.state(), &packet, &next);
++	int ret = ipeTone_->calculate(*frame, numericHistory_.state(), &packet, &next,applied?&applied->math:nullptr);
++ if(!ret && applied){next.gtmCookie=frame->gtmCookie;next.gtmGeneration=frame->gtmGeneration;}
+ 	if (ret) {
+ 		LOG(IPACamss, Error) << "IPE_TONE_REJECT sof=" << sof << " token=" << token << " status=" << ret;
+ 		return ret;
+@@ -977,22 +1074,28 @@
+ 	LOG(IPACamss, Info) << "IPE_TONE_PREPARE epoch=" << epoch << " sof=" << sof << " token=" << token
+ 		<< " base=" << base << " revision=" << *revision << " bytes=" << parameters->size() << " trace=" << trace
+ 		<< " histogram=" << histogramTrace(*frame) << " lux=" << frame->luxIndex << " gain=" << frame->analogueGain
+-		<< " exposure-index=" << frame->exposureIndex << " previous-ltm-lux=" << numericHistory_.state().ltmLuxIndex << " factory=" << ipeTone_->factoryMode();
++		<< " exposure-index=" << frame->exposureIndex << " previous-ltm-lux=" << numericHistory_.state().ltmLuxIndex << " factory=" << ipeTone_->factoryMode()
++  <<" gtm-cookie="<<next.gtmCookie<<" gtm-generation="<<next.gtmGeneration
++  <<" gtm-source-sof="<<(applied?applied->sourceSof:0)<<" gtm-source-histogram="<<(applied?applied->sourceHistogram:0);
+ 	return 0;
+ }
+ 
+ void IPACamss::frameProcessed(uint64_t epoch, uint32_t sof, uint64_t token, bool success)
+ {
++ std::lock_guard<std::recursive_mutex> stateLock(stateMutex_);
+ 	if (!running_ || epoch != epoch_) return;
+ 	const auto *frame = ipeHistory_.pending(token);
+ 	const uint64_t trace = frame ? histogramTrace(*frame) : 0;
+ 	const int result = ipeHistory_.resolve(epoch, sof, token, success);
+ 	if(numericHistory_.pending() && numericHistory_.pending()->token==token) {
++  const uint64_t gtmCookie=numericHistory_.pending()->next.gtmCookie,gtmGeneration=numericHistory_.pending()->next.gtmGeneration;
+ 		const int numeric=numericHistory_.resolve(epoch,sof,token,success && result>=0);
+ 		if(numeric==1 && pendingTone_) committedTone_=pendingTone_;
+ 		if(numeric>=0) pendingTone_.reset();
+-		LOG(IPACamss,Info)<<"IPE_TONE_RECEIPT epoch="<<epoch<<" sof="<<sof<<" token="<<token<<" success="<<success<<" result="<<numeric<<" revision="<<numericHistory_.revision();
++		LOG(IPACamss,Info)<<"IPE_TONE_RECEIPT epoch="<<epoch<<" sof="<<sof<<" token="<<token<<" success="<<success<<" result="<<numeric<<" revision="<<numericHistory_.revision()
++   <<" gtm-cookie="<<gtmCookie<<" gtm-generation="<<gtmGeneration<<" active-ife-cookie="<<(gtmHistory_.active()?gtmHistory_.active()->parameters.cookie:0);
+ 	}
++ if(result>=0)frameGtms_.erase(token);
+ 	LOG(IPACamss, Info) << "IPE_RECEIPT epoch=" << epoch << " sof=" << sof << " token=" << token
+ 		<< " success=" << success << " result=" << result << " trace=" << trace
+ 		<< " pending=" << ipeHistory_.pendingCount();
+@@ -1004,7 +1107,7 @@
+ namespace libcamera {
+ extern "C" {
+ const IPAModuleInfo ipaModuleInfo = {
+-	IPA_MODULE_API_VERSION, 4, "camss-vfe", "camss-vfe",
++	IPA_MODULE_API_VERSION, 5, "camss-vfe", "camss-vfe",
+ };
+ IPAInterface *ipaCreate() { return new ipa::camss::IPACamss(); }
+ }
+--- a/src/ipa/camss-vfe/ipe_tone_profile.cpp
++++ b/src/ipa/camss-vfe/ipe_tone_profile.cpp
+@@ -2,6 +2,7 @@
+ #include "ipe_tone_profile.h"
+ #include "../libipa/tmc_input.h"
+ #include "../libipa/gamma_segments.h"
++#include "../libipa/gtm_tmc11.h"
+ #include <algorithm>
+ #include <cerrno>
+ #include <cmath>
+@@ -142,10 +143,67 @@
+ 	 * no face-assisted AEC transition. These are native mode policies, not
+ 	 * reconstructed Android AEC fields124/140. */
+ 	p.base_.smoothing = {0, 0, 0};
+-	*out = std::move(p); return 0;
++ const auto &gtm=node["ife_gtm"];
++ if(!gtm.isEmpty()) {
++  auto gtmEnabled=gtm["enabled"].get<bool>();
++  if(p.mode_!=0 || !gtm.isDictionary() || !gtmEnabled ||
++     gtm["model"].get<std::string>("")!="tmc11-model2" ||
++     !gtm["uid"].get<uint32_t>(0) || gtm["manual_curve"].get<uint32_t>(2)>1 || gtm["v2_enable"].get<uint32_t>(2)>1 ||
++     !array(gtm["normalized_axis"],&p.gtmAxis_) || !array(gtm["integer_axis"],&p.gtmDomain_) ||
++     !array(gtm["contrast_axis"],&p.gtmContrastAxis_))return -EINVAL;
++  if(*gtmEnabled != bool(p.tmcEnabled_ && p.tmcUseGtm_))return -ENOTSUP;
++  p.gtmConfigured_=true;p.gtmEnabled_=*gtmEnabled;
++ }
++ *out = std::move(p); return 0;
++}
++int IpeToneProfile::prepareTmc(const IpeFrameObservation &frame,const IpeToneState &history,IpeToneState *next) const
++{
++ IpeToneState state=history;Tmc11GenerationResult adrc;
++		Tmc11PolicyInput policy{ tmcUid_, tmcEnabled_, history.policy.cachedUid, history.initialized,
++			history.policy.moduleEnable, 1, 0, 0, 1, uint32_t(gtmConfigured_ && history.tmcHistogramValid), history.policy.cachedTriggers,
++			{1, 1, frame.analogueGain, frame.luxIndex, 1, 1} };
++		if (!evaluateTmc11Policy(policy, &state.policy)) return -EINVAL;
++		if (state.policy.calculate) {
++			std::array<float, 44> values; Tmc11Region r;
++			if (!select(tmc_, tmcAec_, tmcAec_ ? frame.analogueGain : frame.luxIndex, &values)) return -EINVAL;
++			std::memcpy(&r, values.data(), sizeof r);
++			const std::array<uint32_t,1024> *histogram=&frame.histogram;
++   if(gtmConfigured_) {
++    if(state.policy.histogramSource==2) {state.tmcHistogram=frame.histogram;state.tmcHistogramSof=frame.sof;state.tmcHistogramValid=true;}
++    histogram=state.policy.histogramSource && state.tmcHistogramValid?&state.tmcHistogram:nullptr;
++   }
++   if (!generateTmc11Curve(r, 1, 1, tmcGamma_, logWeights_, histogram, &adrc)) return -ERANGE;
++			store(state.adrc, 0, uint32_t(1)); store(state.adrc, 4, uint32_t(1));
++			store(state.adrc, 8, tmcUseGtm_); store(state.adrc, 12, tmcUseLtm_);
++			store(state.adrc, 16, adrc.pchip.x); store(state.adrc, 36, adrc.pchip.y);
++			store(state.adrc, 56, adrc.darkGain); store(state.adrc, 60, adrc.gtmPercentage);
++			store(state.adrc, 64, adrc.ltm.percentage); store(state.adrc, 92, adrc.pchip.coefficient);
++			store(state.adrc, 128, adrc.contrastCurve); store(state.adrc, 4224, uint32_t(2));
++			store(state.adrc, 4228, adrc.ltm.bright); store(state.adrc, 4232, adrc.ltm.dark);
++		}
++		if (!updateTargetAdrcMetadata(state.policy.moduleAdrcPointer ? &state.adrc : nullptr, &state.cache)) return -EINVAL;
++ state.initialized=true;*next=state;return 0;
++}
++int IpeToneProfile::prepareGtm(const IpeFrameObservation &frame,const IpeToneState &history,
++                             camss_params_ife_gtm *parameters,IpeToneState *next) const
++{
++ if(!parameters || !next || !gtmConfigured_ || !frame.luxValid)return -ENODATA;
++ IpeToneState state;int ret=prepareTmc(frame,history,&state);if(ret)return ret;
++ camss_params_ife_gtm packet{};
++ packet.enabled=gtmEnabled_ && word(state.cache,0)==1 && word(state.cache,4)==1 && word(state.cache,8)==1;
++ if(packet.enabled) {
++  auto adrc=generated(state.cache);adrc.ltm.percentage=adrc.gtmPercentage;
++  std::array<uint64_t,64> lut;
++  if(!calculateTmc11Gtm(adrc.pchip,adrc.ltm,gtmAxis_,gtmDomain_,gtmContrastAxis_,adrc.contrastCurve,false,&lut))return -ERANGE;
++  for(unsigned i=0;i<64;++i) {
++   packet.segments[i].base=lut[i]&0x3ffff;
++   uint32_t slope=lut[i]>>32;packet.segments[i].slope=slope&(1u<<25)?int64_t(slope)-(int64_t(1)<<26):slope;
++  }
++ }
++ *parameters=packet;*next=state;return 0;
+ }
+ int IpeToneProfile::calculate(const IpeFrameObservation &frame, const IpeToneState &history,
+-			    qcom_ipe_a5_frame_params *parameters, IpeToneState *next) const
++			    qcom_ipe_a5_frame_params *parameters, IpeToneState *next, const IpeToneState *appliedTmc) const
+ {
+ 	if (!parameters || !next || next == &history || !frame.luxValid || !frame.ifeGammaOverride) return -ENODATA;
+ 	qcom_ipe_a5_frame_params packet{}; packet.version = 1; packet.size = sizeof packet; packet.colour = colour_;
+@@ -167,24 +225,11 @@
+ 	in.curves.previousExposureIndex = history.ltmLuxValid ? history.ltmLuxIndex : frame.luxIndex;
+ 	Tmc11GenerationResult adrc; bool useAdrc = false;
+ 	if (mode_ == 0) {
+-		Tmc11PolicyInput policy{ tmcUid_, tmcEnabled_, history.policy.cachedUid, history.initialized,
+-			history.policy.moduleEnable, 1, 0, 0, 1, 0, history.policy.cachedTriggers,
+-			{1, 1, frame.analogueGain, frame.luxIndex, 1, 1} };
+-		if (!evaluateTmc11Policy(policy, &state.policy)) return -EINVAL;
+-		if (state.policy.calculate) {
+-			std::array<float, 44> values; Tmc11Region r;
+-			if (!select(tmc_, tmcAec_, tmcAec_ ? frame.analogueGain : frame.luxIndex, &values)) return -EINVAL;
+-			std::memcpy(&r, values.data(), sizeof r);
+-			if (!generateTmc11Curve(r, 1, 1, tmcGamma_, logWeights_, &frame.histogram, &adrc)) return -ERANGE;
+-			store(state.adrc, 0, uint32_t(1)); store(state.adrc, 4, uint32_t(1));
+-			store(state.adrc, 8, tmcUseGtm_); store(state.adrc, 12, tmcUseLtm_);
+-			store(state.adrc, 16, adrc.pchip.x); store(state.adrc, 36, adrc.pchip.y);
+-			store(state.adrc, 56, adrc.darkGain); store(state.adrc, 60, adrc.gtmPercentage);
+-			store(state.adrc, 64, adrc.ltm.percentage); store(state.adrc, 92, adrc.pchip.coefficient);
+-			store(state.adrc, 128, adrc.contrastCurve); store(state.adrc, 4224, uint32_t(2));
+-			store(state.adrc, 4228, adrc.ltm.bright); store(state.adrc, 4232, adrc.ltm.dark);
+-		}
+-		if (!updateTargetAdrcMetadata(state.policy.moduleAdrcPointer ? &state.adrc : nullptr, &state.cache)) return -EINVAL;
++		if(appliedTmc) {
++   state.policy=appliedTmc->policy;state.adrc=appliedTmc->adrc;state.cache=appliedTmc->cache;
++   state.tmcHistogramValid=appliedTmc->tmcHistogramValid;state.tmcHistogram=appliedTmc->tmcHistogram;state.tmcHistogramSof=appliedTmc->tmcHistogramSof;
++  } else {int ret=prepareTmc(frame,history,&state);if(ret)return ret;}
++
+ 		uint32_t version = bindTargetIpeTmcVersion(word(state.cache, 4), 0);
+ 		TmcLtmDecision decision;
+ 		if (!selectTargetTmcLtmSource({1, tmc10Enabled_, tmc10UseLtm_, version, 1, word(state.cache, 12), 1}, &decision)) return -EINVAL;
+--- a/src/ipa/camss-vfe/ipe_tone_profile.h
++++ b/src/ipa/camss-vfe/ipe_tone_profile.h
+@@ -16,6 +16,10 @@
+ template<size_t N> struct ToneAecRegion { std::array<float, 4> trigger; std::array<float, N> data; };
+ struct IpeToneState {
+ 	bool initialized = false, ltmLuxValid = false;
++ uint64_t gtmCookie = 0, gtmGeneration = 0;
++ bool tmcHistogramValid = false;
++ uint32_t tmcHistogramSof = 0;
++ std::array<uint32_t,1024> tmcHistogram{};
+ 	float ltmLuxIndex = 0;
+ 	Tmc11PolicyResult policy{};
+ 	TargetAdrcMetadata adrc{}, cache{};
+@@ -31,10 +35,20 @@
+ 	static int configure(const ValueNode &node, const camss_params_ife_gamma *gamma,
+ 			     std::optional<IpeToneProfile> *profile);
+ 	int calculate(const IpeFrameObservation &frame, const IpeToneState &history,
+-		      qcom_ipe_a5_frame_params *parameters, IpeToneState *next) const;
++		      qcom_ipe_a5_frame_params *parameters, IpeToneState *next,
++               const IpeToneState *appliedTmc = nullptr) const;
++ int prepareGtm(const IpeFrameObservation &frame, const IpeToneState &history,
++                camss_params_ife_gtm *parameters, IpeToneState *next) const;
++ void bootstrap(qcom_ipe_a5_frame_params *packet) const { *packet={};packet->version=1;packet->size=sizeof(*packet);packet->colour=colour_; }
++ bool tracksGtm() const { return gtmConfigured_; }
+ 	bool factoryMode() const { return mode_ == 0; }
+ private:
+-	uint32_t mode_ = 0, ltmAec_ = 0, tmcAec_ = 0, gammaAec_ = 0;
++	bool gtmConfigured_ = false, gtmEnabled_ = false;
++ std::array<float,65> gtmAxis_{};
++ std::array<uint32_t,65> gtmDomain_{};
++ std::array<float,1024> gtmContrastAxis_{};
++ int prepareTmc(const IpeFrameObservation &frame,const IpeToneState &history,IpeToneState *next) const;
++ uint32_t mode_ = 0, ltmAec_ = 0, tmcAec_ = 0, gammaAec_ = 0;
+ 	uint32_t tmcUid_ = 0, tmcEnabled_ = 0, tmcUseLtm_ = 0, tmcUseGtm_ = 0, tmc10Enabled_ = 0, tmc10UseLtm_ = 0;
+ 	Ltm13FrameInput base_{};
+ 	qcom_ipe_a5_colour colour_{};
+--- a/src/ipa/camss-vfe/ife_gtm_history.h
++++ b/src/ipa/camss-vfe/ife_gtm_history.h
+@@ -0,0 +1,59 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++#include <cerrno>
++#include <cstdint>
++#include <limits>
++#include <memory>
++#include <linux/qcom-camss-config.h>
++
++namespace libcamera::ipa::camss {
++/* Physical IFE state, independent from the IPE successful-history ledger.
++ * A parameter DQ never calls accept(). Tokens retain immutable versions across
++ * later IFE ACKs, IPE failures and buffer completion in a different order. */
++template<class Math> class IfeGtmHistory {
++public:
++ struct Version {
++  camss_params_ife_gtm parameters{};
++  Math math{};
++  uint32_t sourceSof = 0, revision = 0;
++  uint64_t sourceHistogram = 0;
++  bool ready = false;
++ };
++ using Pointer = std::shared_ptr<const Version>;
++ void reset() { active_.reset();pending_.reset();serial_=generation_=0;bank_=status_=0; }
++ int stage(Version version, uint32_t revision, Pointer *out)
++ {
++  if(!out)return -EINVAL;
++  if(pending_)return -EBUSY;
++  if(serial_==std::numeric_limits<uint64_t>::max())return -EOVERFLOW;
++  version.parameters.cookie=++serial_;version.revision=revision;
++  version.parameters.header={CAMSS_PARAMS_IFE_GTM,0,sizeof(camss_params_ife_gtm)};
++  pending_=std::make_shared<const Version>(std::move(version));*out=pending_;return 0;
++ }
++ int accept(uint32_t sof,const camss_stats_ife_gtm &receipt,Pointer *out,bool *changed)
++ {
++  if(!out||!changed)return -EINVAL;
++  *out={};*changed=false;
++  if(!receipt.cookie||!receipt.generation||receipt.bank>1||
++     (receipt.status!=1&&receipt.status!=3))return -EPROTO;
++  if(active_&&receipt.cookie==active_->parameters.cookie) {
++   if(receipt.generation!=generation_||receipt.bank!=bank_||receipt.status!=status_)return -EPROTO;
++   *out=active_;return 0;
++  }
++  if(!pending_||receipt.cookie!=pending_->parameters.cookie)return -ESTALE;
++  if(generation_==std::numeric_limits<uint64_t>::max()||receipt.generation!=generation_+1||
++     receipt.status!=(1u|(pending_->parameters.enabled?2u:0u))||
++     (pending_->ready&&sof<=pending_->sourceSof))return -EPROTO;
++  active_=pending_;pending_.reset();generation_=receipt.generation;bank_=receipt.bank;status_=receipt.status;
++  *out=active_;*changed=true;return 0;
++ }
++ const Pointer &active() const { return active_; }
++ void cancelUnsubmitted(uint64_t cookie) { if(pending_&&pending_->parameters.cookie==cookie)pending_.reset(); }
++ bool busy() const { return bool(pending_); }
++ uint64_t generation() const { return generation_; }
++private:
++ Pointer active_,pending_;
++ uint64_t serial_=0,generation_=0;
++ uint32_t bank_=0,status_=0;
++};
++} /* namespace libcamera::ipa::camss */
+--- a/src/ipa/camss-vfe/ipe_frame_history.h
++++ b/src/ipa/camss-vfe/ipe_frame_history.h
+@@ -14,7 +14,7 @@
+ /* Owned pre-WB linear BHIST and its same-SOF sensor/IFE context. These are
+  * observations, not HDR exposure slots or proof of the IPE input transfer. */
+ struct IpeFrameObservation {
+-	uint64_t epoch = 0, exposureNs = 0, population = 0;
++	uint64_t epoch = 0, exposureNs = 0, population = 0, gtmCookie = 0, gtmGeneration = 0;
+ 	uint32_t sof = 0, exposureLines = 0, gainCode = 0, sensorSource = 0, ispRevision = 0;
+ 	float analogueGain = 0, exposureIndex = 0, luxIndex = 0;
+ 	bool luxValid = false, ifeGammaOverride = false;
+--- a/src/ipa/camss-vfe/statistics.h
++++ b/src/ipa/camss-vfe/statistics.h
+@@ -6,6 +6,7 @@
+ #include <cstdint>
+ #include <cstring>
+ #include <span>
++#include <optional>
+ #include <vector>
+ #include <linux/qcom-camss-config.h>
+ 
+@@ -20,6 +21,7 @@
+ 	std::array<uint32_t, CAMSS_STATS_BHIST_BINS> histogram{};
+ 	uint64_t population = 0, weightedSum = 0;
+ 	GridStatistics grid;
++ std::optional<camss_stats_ife_gtm> gtm;
+ };
+ 
+ /* Parse sized blocks, including legacy BHIST packets, without aligned loads. */
+@@ -81,6 +83,12 @@
+ 						return -EPROTO;
+ 			}
+ 		}
++  else if(header.type==CAMSS_STATS_IFE_GTM) {
++   if(parsed.gtm || header.size!=sizeof(camss_stats_ife_gtm))return -EPROTO;
++   camss_stats_ife_gtm receipt;std::memcpy(&receipt,data.data()+offset,sizeof receipt);
++   if(!receipt.cookie || !receipt.generation || receipt.bank>1 || (receipt.status!=1 && receipt.status!=3))return -EPROTO;
++   parsed.gtm=receipt;
++  }
+ 		/* Unknown, structurally valid blocks can be added without breaking BHIST. */
+ 		offset += header.size;
+ 	}
+--- a/src/ipa/camss-vfe/params.h
++++ b/src/ipa/camss-vfe/params.h
+@@ -28,6 +28,7 @@
+ 	LensShading,
+ 	IfeGamma,
+  IfeDs4,
++ IfeGtm,
+ };
+ 
+ namespace details {
+@@ -51,6 +52,7 @@
+ CAMSS_DEFINE_BLOCK_TYPE(LensShading, lsc, LSC);
+ CAMSS_DEFINE_BLOCK_TYPE(IfeGamma, ife_gamma, IFE_GAMMA);
+ CAMSS_DEFINE_BLOCK_TYPE(IfeDs4, ife_ds4, IFE_DS4);
++CAMSS_DEFINE_BLOCK_TYPE(IfeGtm, ife_gtm, IFE_GTM);
+ 
+ struct param_traits {
+ 	using id_type = CamssBlocks;
+--- a/src/ipa/camss-vfe/parameter_encoder.cpp
++++ b/src/ipa/camss-vfe/parameter_encoder.cpp
+@@ -45,7 +45,7 @@
+ 		     double redGain, double blueGain, const Size &input,
+ 		     const Rectangle &roi, size_t *bytesused,
+ 		     const camss_params_lsc *lsc, const camss_params_color_correct *ccm,
+-                     const camss_params_ife_gamma *gamma, const camss_params_ife_ds4 *ds4)
++                     const camss_params_ife_gamma *gamma, const camss_params_ife_ds4 *ds4, const camss_params_ife_gtm *gtm)
+ {
+ 	if (!bytesused)
+ 		return -EINVAL;
+@@ -53,7 +53,7 @@
+ 
+ 	const size_t required = sizeof(v4l2_isp_buffer) +
+ 				    sizeof(camss_params_wb_gain) +
+-				    sizeof(camss_params_aec_bhist) + (lsc ? sizeof(*lsc) : 0) + (ccm ? sizeof(*ccm) : 0) + (gamma ? sizeof(*gamma) : 0) + (ds4 ? sizeof(*ds4) : 0);
++				    sizeof(camss_params_aec_bhist) + (lsc ? sizeof(*lsc) : 0) + (ccm ? sizeof(*ccm) : 0) + (gamma ? sizeof(*gamma) : 0) + (ds4 ? sizeof(*ds4) : 0) + (gtm ? sizeof(*gtm) : 0);
+ 	if (output.size() < required)
+ 		return -ENOSPC;
+ 	if (!output.data() ||
+@@ -83,6 +83,10 @@
+   unsigned sum=0;for(uint16_t c:ds4->coefficient){if(c>256)return -ERANGE;sum+=c;}
+   if(ds4->reserved || sum<256 || sum>512)return -ERANGE;
+  }
++ if(gtm) {
++  if(!gtm->cookie || gtm->enabled>1 || gtm->reserved || gtm->header.flags)return -EINVAL;
++  for(const auto &s:gtm->segments)if(s.base>0x3ffff || s.slope<-(1<<25) || s.slope>=(1<<25))return -ERANGE;
++ }
+  CamssParams params(output);
+ 	auto wb = params.block<CamssBlocks::AwbGains>();
+ 	wb.setEnabled(true);
+@@ -119,6 +123,11 @@
+   /* DS4 enable follows stream lifetime; this block requires zero flags. */
+   std::copy(std::begin(ds4->coefficient),std::end(ds4->coefficient),block->coefficient);
+  }
++ if(gtm) {
++  auto block=params.block<CamssBlocks::IfeGtm>();
++  block->cookie=gtm->cookie;block->enabled=gtm->enabled;block->reserved=0;
++  std::copy(std::begin(gtm->segments),std::end(gtm->segments),block->segments);
++ }
+  *bytesused = params.bytesused();
+ 	return 0;
+ }
+--- a/src/ipa/camss-vfe/parameter_encoder.h
++++ b/src/ipa/camss-vfe/parameter_encoder.h
+@@ -26,6 +26,7 @@
+ 		     const camss_params_lsc *lsc = nullptr,
+ 		     const camss_params_color_correct *ccm = nullptr,
+                      const camss_params_ife_gamma *gamma = nullptr,
+-                     const camss_params_ife_ds4 *ds4 = nullptr);
++                     const camss_params_ife_ds4 *ds4 = nullptr,
++                     const camss_params_ife_gtm *gtm = nullptr);
+ 
+ } /* namespace libcamera::ipa::camss */
+--- a/src/ipa/libipa/gtm_tmc11.cpp
++++ b/src/ipa/libipa/gtm_tmc11.cpp
+@@ -0,0 +1,76 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#include "gtm_tmc11.h"
++#include <algorithm>
++#include <cmath>
++
++namespace libcamera::ipa {
++namespace {
++float mul(float a, float b)
++{
++	volatile float result = a * b;
++	return result;
++}
++template<std::size_t N>
++bool finite(const std::array<float, N> &values)
++{
++	return std::all_of(values.begin(), values.end(), [](float v) { return std::isfinite(v); });
++}
++} /* namespace */
++
++bool calculateTmc11Gtm(const Tmc11PchipCurve &curve,
++		      const Tmc11LtmContrast &p,
++		      const std::array<float, 65> &in,
++		      const std::array<uint32_t, 65> &domain,
++		      const std::array<float, 1024> &axis,
++		      const std::array<float, 1024> &hist,
++		      bool swapWords,
++		      std::array<uint64_t, 64> *output)
++{
++	std::array<float, 3> controls = {p.percentage, p.bright, p.dark};
++	if (!output || !finite(in) || !finite(axis) || !finite(hist) || !finite(controls) ||
++	    std::any_of(controls.begin(), controls.end(), [](float v) { return v < 0 || v > 1; }) ||
++	    in[0] <= 0 || in[64] > 1 || domain[64] > 16383 ||
++	    std::adjacent_find(in.begin(), in.end(), [](float a, float b) { return a > b; }) != in.end() ||
++	    std::adjacent_find(domain.begin(), domain.end(), [](uint32_t a, uint32_t b) { return a >= b; }) != domain.end() ||
++	    axis[0] < 0 || axis[1023] > 1 ||
++	    std::adjacent_find(axis.begin(), axis.end(), [](float a, float b) { return a >= b; }) != axis.end())
++		return false;
++	Tmc11PchipResult sampled;
++	if (!sampleTmc11Pchip(curve, in, &sampled))
++		return false;
++	std::array<int64_t, 65> base;
++	unsigned hi = 1;
++	for (unsigned i = 0; i < 65; ++i) {
++		while (hi < 1024 && in[i] > axis[hi])
++			++hi;
++		float yHist = 1;
++		if (hi < 1024) {
++			float left = mul(axis[hi] - in[i], hist[hi - 1]);
++			float right = mul(in[i] - axis[hi - 1], hist[hi]);
++			yHist = (left + right) / (axis[hi] - axis[hi - 1]);
++		}
++		float y = mul(sampled.gain[i], in[i]);
++		if (yHist > y)
++			y = mul(y, 1 - p.bright) + mul(yHist, p.bright);
++		else if (yHist < y)
++			y = mul(y, 1 - p.dark) + mul(yHist, p.dark);
++		y = std::clamp(y, 0.0f, 1.0f);
++		float value = mul(std::pow(y / in[i], p.percentage), 4096);
++		if (!std::isfinite(value))
++			return false;
++		base[i] = static_cast<int64_t>(std::round(std::clamp(value, 0.0f, 262143.0f)));
++	}
++	std::array<uint64_t, 64> result;
++	for (unsigned i = 0; i < 64; ++i) {
++		int64_t delta = domain[i + 1] - domain[i];
++		int64_t scaled = (base[i + 1] - base[i]) * 256;
++		int64_t slope = (scaled + (scaled < 0 ? -delta / 2 : delta / 2)) / delta;
++		slope = std::clamp(slope, -(INT64_C(1) << 25), (INT64_C(1) << 25) - 1);
++		uint64_t value = (static_cast<uint64_t>(base[i]) & 0x3ffff) |
++				((static_cast<uint64_t>(slope) & 0x3ffffff) << 32);
++		result[i] = swapWords ? (value << 32) | (value >> 32) : value;
++	}
++	*output = result;
++	return true;
++}
++} /* namespace libcamera::ipa */
+--- a/src/ipa/libipa/gtm_tmc11.h
++++ b/src/ipa/libipa/gtm_tmc11.h
+@@ -0,0 +1,18 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++#include "tmc11_ltm.h"
++#include <cstdint>
++
++namespace libcamera::ipa {
++/* Numerical TMC11 model2 -> IFE GTM primitive. Axes and histogram-derived
++ * contrast data stay caller-owned. This does not select a factory mode,
++ * apply IFE parameters, acknowledge a version, or advance frame history. */
++bool calculateTmc11Gtm(const Tmc11PchipCurve &curve,
++		      const Tmc11LtmContrast &controls,
++		      const std::array<float, 65> &normalized,
++		      const std::array<uint32_t, 65> &domain,
++		      const std::array<float, 1024> &contrastAxis,
++		      const std::array<float, 1024> &contrastCurve,
++		      bool swapWords,
++		      std::array<uint64_t, 64> *output);
++} /* namespace libcamera::ipa */
+--- a/src/ipa/libipa/meson.build
++++ b/src/ipa/libipa/meson.build
+@@ -30,6 +30,7 @@
+     'tmc11_generation.cpp',
+     'tmc11_tree.cpp',
+     'tmc_runtime.cpp',
++    'gtm_tmc11.cpp',
+     'tmc_input.cpp',
+     'ltm13_static.cpp',
+     'ltm13_frame.cpp',
+--- a/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
++++ b/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
+@@ -222,7 +222,7 @@
+  IPACameraSensorInfo info;
+  int ret = d->sensor_->sensorInfo(&info);
+  if (ret) return ret;
+- d->ipa_ = createIPA<ipa::camss::IPAProxyCamss>(4, 4);
++ d->ipa_ = createIPA<ipa::camss::IPAProxyCamss>(5, 5);
+  if (!d->ipa_) return -ENOENT;
+  const std::string profile=d->ipa_->configurationFile(d->sensor_->model()+".yaml");
+  CameraLens *lens=d->sensor_->focusLens();
+@@ -1101,7 +1101,12 @@
+  /* Retain up to one application queue's worth of unclaimed SOFs. In-flight
+   * IPE sources have already left this map and remain owned by PendingFrame. */
+  while(coarseImages_.size()>stream_.configuration().bufferCount) {
+-  auto it=coarseImages_.begin();FrameBuffer *old=it->second;coarseImages_.erase(it);
++  /* A FULL waiting behind an IPE request already owns its matching PD10.
++   * Evict only unclaimed SOFs; reserve buffers continue to drain live IFE. */
++  auto it=std::find_if(coarseImages_.begin(),coarseImages_.end(),
++                       [this](const auto &entry){return !images_.count(entry.first);});
++  if(it==coarseImages_.end())break;
++  FrameBuffer *old=it->second;coarseImages_.erase(it);
+   if(coarse_->queueBuffer(old))LOG(CamssVfe,Error)<<"PD10 stale requeue failed";
+  }
+ }
+@@ -1166,7 +1171,9 @@
+   if (!running_ || epoch_ != epoch) return;
+   if (ret == -EAGAIN) {
+    ispControls_.push_front(std::move(request));
+-   return;
++   /* Its older ISP update can only be ACKed by processing statistics.
++    * Keep draining them, then retry controls ahead of new auto proposals. */
++   break;
+   }
+   if (ret) { ispHealthy_=false; LOG(CamssVfe, Error) << "Runtime algorithm control failed: " << ret; return; }
+   LOG(CamssVfe, Info) << "Algorithm request epoch=" << epoch_ << " source=" << request.source << " revision=" << update.revision
+@@ -1258,6 +1265,9 @@
+ 	FrameBuffer *buffer = it->second;
+ 	Request *request = imageRequest(buffer);
+     if(!request || !requests_.count(request)){images_.erase(it);return;}
++    /* A later statistics callback must not bypass an older waiting FULL.
++     * Both successful numerical history and PD10 retirement follow SOF. */
++    if(running_ && ipe_ && processedEnabled_ && sequence!=images_.begin()->first)return;
+     if(running_ && ipe_ && processedEnabled_ && ipeActive_) {
+         if(!deadline_.isRunning())deadline_.start(std::chrono::milliseconds(250));
+         return;
+@@ -1283,7 +1293,7 @@
+ 		LOG(CamssVfe, Info) << "Pair epoch=" << epoch_ << " sof=" << sequence
+ 			<< " request=" << request->sequence() << " population=" << h.population
+ 			<< " mean=" << double(h.weightedSum) / h.population
+-			<< " parameters-acknowledged=" << paramsApplied_;
++			<< " parameter-buffer-submitted=" << paramsApplied_;
+ 		histograms_.erase(sequence);
+ 	} else {
+ 		ControlList metadata(controls::controls);
+--- a/include/linux/qcom-camss-config.h
++++ b/include/linux/qcom-camss-config.h
+@@ -41,8 +41,39 @@
+ 	CAMSS_PARAMS_LSC = 6,
+ 	CAMSS_PARAMS_IFE_GAMMA = 7,
+ 	CAMSS_PARAMS_IFE_DS4 = 8,
++	CAMSS_PARAMS_IFE_GTM = 9,
+ };
+ 
++/* Local experimental GTM parameter/statistics types, not reserved upstream.
++ * Flags must be zero; disabling also requires the full payload and cookie.
++ * cookie is a caller token, not proof of application. Statistics acknowledge
++ * it only after PIX REG_UPDATE ACK and snapshot it at the buffer's SOF.
++ * base is unsigned Q12 (18 bits), slope is signed Q20 (26 bits).
++ * CPU DMI uses canonical low/high words, without the HW-CDM word swap.
++ */
++#define CAMSS_IFE_GTM_ENTRIES 64
++struct camss_ife_gtm_segment {
++	__u32 base;
++	__s32 slope;
++};
++struct camss_params_ife_gtm {
++	struct v4l2_isp_block_header header;
++	__u64 cookie;
++	__u32 enabled;
++	__u32 reserved;
++	struct camss_ife_gtm_segment segments[CAMSS_IFE_GTM_ENTRIES];
++} __attribute__((aligned(8)));
++
++#define CAMSS_IFE_GTM_STATUS_ACKED (1U << 0)
++#define CAMSS_IFE_GTM_STATUS_ENABLED (1U << 1)
++struct camss_stats_ife_gtm {
++	struct v4l2_isp_block_header header;
++	__u64 cookie;
++	__u64 generation;
++	__u32 status;
++	__u32 bank;
++} __attribute__((aligned(8)));
++
+ /* Local experimental identifier, not reserved upstream. Single-plane PD10:
+  * each 2x2 YUV420 block occupies eight bytes. SM8150 rows are aligned to
+  * 192 bytes and the packed row count to four; bpl describes packed rows. */
+@@ -349,6 +380,7 @@
+ enum camss_stats_block_type {
+ 	CAMSS_STATS_AEC_BHIST = 1,
+ 	CAMSS_STATS_AWB_BG = 2,
++	CAMSS_STATS_IFE_GTM = 3,
+ };
+ 
+ /* Number of bins in a Bayer histogram. */
+@@ -434,6 +466,6 @@
+ #define CAMSS_STATS_BG_MAX_PAYLOAD	(sizeof(struct camss_stats_awb_bg) + \
+ 	CAMSS_STATS_BG_MAX_REGIONS * sizeof(struct camss_stats_bg_region))
+ #define CAMSS_STATS_MAX_PAYLOAD		(sizeof(struct camss_stats_bhist) + \
+-	CAMSS_STATS_BG_MAX_PAYLOAD)
++	CAMSS_STATS_BG_MAX_PAYLOAD + sizeof(struct camss_stats_ife_gtm))
+ 
+ #endif /* _UAPI_LINUX_QCOM_CAMSS_CONFIG_H */
+--- a/include/libcamera/ipa/camss.mojom
++++ b/include/libcamera/ipa/camss.mojom
+@@ -70,7 +70,7 @@
+               => (int32 ret, libcamera.ControlList metadata, LensMove move);
+  [async] lensPositionApplied(uint64 epoch, uint32 serial, int32 status, uint64 monotonic);
+ 	prepareIpeParameters(uint64 epoch, uint32 sof, uint64 token) => (int32 ret, array<uint8> parameters, uint64 revision, bool fresh);
+-	[async] frameProcessed(uint64 epoch, uint32 sof, uint64 token, bool success);
++	frameProcessed(uint64 epoch, uint32 sof, uint64 token, bool success);
+ 	stop();
+ 	prepareParameters(uint64 epoch, uint32 bufferId, uint32 revision) => (int32 ret, uint32 bytesused);
+ 	[async] parametersApplied(uint64 epoch, uint32 firstSof, uint32 revision);

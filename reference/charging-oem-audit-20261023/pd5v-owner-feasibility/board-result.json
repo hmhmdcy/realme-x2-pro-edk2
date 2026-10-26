@@ -1,0 +1,87 @@
+{
+  "dtb_sha256": "c559d2c4c9a83e85473b1b24724bb8938f1084bd3efcae9c4b67f37c2a4c4503",
+  "usb2_phy": "/soc@0/phy@88e2000",
+  "supplies": {
+    "vdda-pll-supply": {
+      "phandle": 126,
+      "provider": "/soc@0/rsc@18200000/regulators-0/ldo5"
+    },
+    "vdda33-supply": {
+      "phandle": 192,
+      "provider": "/soc@0/rsc@18200000/regulators-0/ldo2"
+    },
+    "vdda18-supply": {
+      "phandle": 193,
+      "provider": "/soc@0/rsc@18200000/regulators-0/ldo12"
+    }
+  },
+  "provider_properties": {
+    "/soc@0/rsc@18200000/regulators-0/ldo2": {
+      "regulator-min-microvolt": "002ee000",
+      "regulator-max-microvolt": "002ee000",
+      "regulator-initial-mode": "00000003",
+      "phandle": "000000c0"
+    },
+    "/soc@0/rsc@18200000/regulators-0/ldo5": {
+      "regulator-min-microvolt": "000d6d80",
+      "regulator-max-microvolt": "000d6d80",
+      "regulator-initial-mode": "00000003",
+      "phandle": "0000007e"
+    },
+    "/soc@0/rsc@18200000/regulators-0/ldo12": {
+      "regulator-min-microvolt": "001b7740",
+      "regulator-max-microvolt": "001b7740",
+      "regulator-initial-mode": "00000003",
+      "phandle": "000000c1"
+    }
+  },
+  "supply_consumers": [
+    {
+      "node": "/soc@0/phy@1d87000",
+      "supply": "vdda-phy-supply",
+      "provider": "/soc@0/rsc@18200000/regulators-0/ldo5"
+    },
+    {
+      "node": "/soc@0/phy@88e2000",
+      "supply": "vdda-pll-supply",
+      "provider": "/soc@0/rsc@18200000/regulators-0/ldo5"
+    },
+    {
+      "node": "/soc@0/phy@88e2000",
+      "supply": "vdda33-supply",
+      "provider": "/soc@0/rsc@18200000/regulators-0/ldo2"
+    },
+    {
+      "node": "/soc@0/phy@88e2000",
+      "supply": "vdda18-supply",
+      "provider": "/soc@0/rsc@18200000/regulators-0/ldo12"
+    },
+    {
+      "node": "/soc@0/phy@88e8000",
+      "supply": "vdda-phy-supply",
+      "provider": "/soc@0/rsc@18200000/regulators-0/ldo5"
+    },
+    {
+      "node": "/soc@0/display-subsystem@ae00000/phy@ae94400",
+      "supply": "vdds-supply",
+      "provider": "/soc@0/rsc@18200000/regulators-0/ldo5"
+    }
+  ],
+  "typec_nodes": {
+    "/soc@0/spmi@c440000/pmic@2/typec@1500": {
+      "compatible": "71636f6d2c706d38313530622d747970656300",
+      "status": "64697361626c656400",
+      "reg": "0000150000001700",
+      "interrupts": "00000002000000150000000000000001000000020000001500000001000000030000000200000015000000020000000100000002000000150000000300000003000000020000001500000004000000010000000200000015000000050000000100000002000000150000000600000003000000020000001500000007000000010000000200000017000000000000000100000002000000170000000100000001000000020000001700000002000000010000000200000017000000030000000100000002000000170000000400000001000000020000001700000005000000010000000200000017000000060000000100000002000000170000000700000001",
+      "interrupt-names": "6f722d7269642d6465746563742d6368616e6765007670642d6465746563740063632d73746174652d6368616e67650076636f6e6e2d6f6300766275732d6368616e6765006174746163682d646574616368006c65676163792d6361626c652d646574656374007472792d736e6b2d7372632d646574656374007369672d7478007369672d7278006d73672d7478006d73672d7278006d73672d74782d6661696c6564006d73672d74782d646973636172646564006d73672d72782d6469736361726465640066722d7377617000"
+    }
+  },
+  "other_pd_tcpc_compatible_nodes": {},
+  "pmic_parent": {
+    "compatible": "71636f6d2c706d38313530620071636f6d2c73706d692d706d696300",
+    "reg": "0000000200000000"
+  },
+  "device_accessed": false,
+  "SDK_invoked": false,
+  "Git_invoked": false
+}

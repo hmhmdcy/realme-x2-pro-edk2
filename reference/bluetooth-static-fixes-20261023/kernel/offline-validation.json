@@ -1,0 +1,102 @@
+{
+  "fixed_commit": "ba61a62293e0f6bc5838c06f2e85e033e3d702a8",
+  "patches": [
+    {
+      "base": "r0",
+      "patch_sha256": "c5165167cd225137302a7aba4df816babb439d9b7801a4b93b20dd8785258a67",
+      "zero_fuzz": true,
+      "candidate_bytes_exact": true
+    },
+    {
+      "base": "pm-r2",
+      "patch_sha256": "f95caab7be6442f489da40a4466a94a6c99028d03125242ffa477730fe23d41a",
+      "zero_fuzz": true,
+      "candidate_bytes_exact": true
+    }
+  ],
+  "serdev": {
+    "baseline": [
+      {
+        "case": "writer",
+        "original_failure_reproduced": "heap-use-after-free",
+        "exit": 1
+      },
+      {
+        "case": "flush",
+        "fixed": false,
+        "allocations": 1,
+        "frees": 1,
+        "passed": true
+      }
+    ],
+    "candidate": [
+      {
+        "case": "writer",
+        "fixed": true,
+        "allocations": 2,
+        "frees": 2,
+        "passed": true
+      },
+      {
+        "case": "rx",
+        "fixed": true,
+        "allocations": 1,
+        "frees": 1,
+        "passed": true
+      },
+      {
+        "case": "flush",
+        "fixed": true,
+        "allocations": 1,
+        "frees": 1,
+        "passed": true
+      },
+      {
+        "case": "nonpersistent",
+        "fixed": true,
+        "allocations": 1,
+        "frees": 1,
+        "passed": true
+      },
+      {
+        "case": "init_failed",
+        "fixed": true,
+        "allocations": 0,
+        "frees": 0,
+        "passed": true
+      }
+    ]
+  },
+  "qca": {
+    "pm-r2": {
+      "pm_r2_regression_scenarios": 19,
+      "new_scenarios": 6,
+      "wake_oom_rearmed": false,
+      "idle_oom_rearmed": false,
+      "close_leaks": 1,
+      "allocated_equals_freed": true
+    },
+    "candidate": {
+      "pm_r2_regression_scenarios": 19,
+      "new_scenarios": 6,
+      "wake_oom_rearmed": true,
+      "idle_oom_rearmed": true,
+      "close_leaks": 0,
+      "allocated_equals_freed": true
+    }
+  },
+  "actual_functions_extracted": true,
+  "pthread_concurrency_and_kernel_api_models": true,
+  "asan_ubsan": true,
+  "handset_radio_ssh_winrt_access": false,
+  "kernel_objects_built": false,
+  "candidate_sha256": {
+    "hci_serdev.c": "cd4f75fdbc9b5930d3bee8ac536ad78f6abdf18b0555fdcc4ac86264b969443f",
+    "hci_qca.c": "9c4c83126cc673000804060a4a5fd85ea5d648598085ceaaea78267d6873747b"
+  },
+  "harness_sha256": "b417bf0fe0ac05ad11b4b1a6fd11b3d9146f3532f9ef1e92791f247a59cee52a",
+  "test_runner_sha256": "d00bc7805dcae608c9470755b2a29e89048cd31d02d7ef7c7b316a09a3e5a58f",
+  "reused_frozen_pm_test_sha256": "6503d855cfea820b50bf9054cc13496d5793ff2fac0f966939fbd4221dd2b9dd",
+  "private_output": "/mnt/e/edk2-samurai-out/bluetooth-static-fixes-20261023/kernel",
+  "prior_outputs_unchanged": true
+}

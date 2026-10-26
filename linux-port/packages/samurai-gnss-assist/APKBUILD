@@ -1,0 +1,25 @@
+maintainer="hmhmdcy <hmhmdcy@users.noreply.github.com>"
+pkgname=samurai-gnss-assist
+pkgver=2
+pkgrel=1
+pkgdesc="Realme X2 Pro GNSS time, assistance and no-SIM power management"
+url="https://github.com/hmhmdcy/pmaports"
+arch="noarch"
+license="MIT"
+depends="ca-certificates chrony dbus libqmi libqrtr-glib openrc modemmanager py3-dbus py3-gobject3 python3 qmi-utils"
+source="samurai-gnss-assist.py samurai-gnss-assist.initd test-power-policy.py NOTICE"
+check() {
+	python3 "$srcdir"/test-power-policy.py
+}
+package() {
+	install -Dm755 "$srcdir"/samurai-gnss-assist.py "$pkgdir"/usr/sbin/samurai-gnss-assist
+	install -Dm755 "$srcdir"/samurai-gnss-assist.initd "$pkgdir"/etc/init.d/samurai-gnss-assist
+	install -Dm644 "$srcdir"/NOTICE "$pkgdir"/usr/share/doc/samurai-gnss-assist/NOTICE
+}
+
+sha512sums="
+7ceb59e8257c8a7c0cb572f4cf923c85bfc03adbc8d6f626da5c25b8b9dcd4f6ebb8f6c69f54275faf8b5ed7b8fb03ad2297bcfeec68a98a6013723dfe0a9144  samurai-gnss-assist.py
+33975dcbbaec60e367d2876d4ce497edea2c9a3c5f8b56423e58820a5a9248b0ad477e81d128b18f60c9cf01f84d0e5825b2e61eb59a8cae09c89fad5019442d  samurai-gnss-assist.initd
+9b048adbb4dfd114adc7868b859b563a78ab83ccaaad922b0a63c5b3083b318dd5318780a3b3f43e5a78931419cbfa32c7462c9dc6da288c99383cc704cbc835  test-power-policy.py
+716e8b54d68fab6a88a4d5e1425bfb598224868b9e52a1b7077e35c911f2a1bf924661418a6176f6bf284453ac1c84042bf951f9c3374259e25c934fb021c85c  NOTICE
+"

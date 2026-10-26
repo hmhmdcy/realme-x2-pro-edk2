@@ -1,0 +1,27 @@
+samurai: pass the kernel command line as the Linux boot option's LoadOptions
+
+PlatformRegisterFvBootOption() could not set OptionalData, so the kernel was
+started with empty LoadOptions and everything it needed came from
+/chosen/bootargs in the device tree.  That is a single point of failure: the
+arm64 EFI stub copies a non-empty EFI command line *over* /chosen/bootargs, so
+if the device tree ever reaches the kernel without bootargs, console= and
+earlycon= are gone and the boot is a silent black screen with nothing on EUD.
+
+The helper gains an optional command line and the "Linux (mainline samurai)"
+boot option passes the same string the device tree already carries, so the
+normal path is unchanged.
+
+The string has to be CHAR16: libstub's efi_convert_cmdline() formats
+LoadOptions as UTF-16, and an ASCII buffer would be decoded into garbage that
+replaces the device tree's bootargs - exactly the failure this guards against.
+verify-cmdline-firmware.py checks that the only ASCII copy in FVMAIN is the one
+inside the device tree.
+
+Verified offline on the 20 MiB FD: the UTF-16 string is in the compiled
+PlatformBm, the FD embedded in boot-samurai.img is byte-identical to the build
+output, and the appended compat device tree is unchanged.
+
+Scripts: linux-port/scripts/patch-bootmanager-cmdline.py (the edit),
+         linux-port/scripts/build-cmdline-firmware.sh (the rebuild),
+         linux-port/scripts/verify-cmdline-firmware.py (the checks).
+Not yet run on hardware.

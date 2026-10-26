@@ -1,0 +1,30 @@
+{
+  "stage": 453,
+  "attempt": 2,
+  "scope": "actual C load_init/probe with host stubs and bounded init callbacks",
+  "source_sha256": "7eaba1a2ac9f9407f4e33fff650b2ad8cec11768c797bfe1b32660a4473f4351",
+  "actual_function_sha256": {
+    "static inline struct bu64253 *to_bu64253": "0e077d51e803e62c838755572d9f2b65cd234a3fdcabcaf8e3d58af883f4ef5c",
+    "static int bu64253_write(": "cc8b83f31d4f66c5340c9c4c7e05f1063a808e5ef81e2737c7bbcb463c2de157",
+    "static int bu64253_set_position(": "814c219f6d840beb0dcfb32edc4ddd3d658bb42568ce8fe60f2658b8de74878d",
+    "static int bu64253_load_init(": "6559e34032248512b813937840f6c3bd2bcad3664451576856da39d2660da2bc",
+    "static int bu64253_power_off(": "96646e9cb53c2989b6a76124a015a4c54c526e14dbea3fba1c7178913dbc0b2e",
+    "static int bu64253_runtime_resume(": "f7e0e00dfb503da8b3fcfaf8423b3f7694ac54e284a5ff6b830f988afa0f1857",
+    "static int bu64253_probe(": "ce9ced6dce3f0c21e2860eff0edd20e49366cc201d2b671cdbe1814d8805965f"
+  },
+  "original_c_function_bodies_extracted_without_changes": true,
+  "sanitizer": "ASAN+UBSAN",
+  "valid_private_firmware_cases": 2,
+  "invalid_or_missing_format_cases": 18,
+  "missing_property_or_io_failure_cases": 2,
+  "invalid_cases_regulator_lookup_pm_registration_power_and_i2c_counts_zero": true,
+  "runtime_resume_invalid_guard_prevents_power_and_i2c": true,
+  "valid_resume_writes_exactly_three_matched_init_commands_without_default_dac": true,
+  "initial_command_short_write_or_nack_cleanup_cases": 6,
+  "real_kernel_pm_framework_or_hardware_tested": false,
+  "c_host_compile_exit": 0,
+  "c_host_run_exit": 0,
+  "elapsed_seconds": 0.706,
+  "sdk_or_phone_accessed": false,
+  "passed": true
+}

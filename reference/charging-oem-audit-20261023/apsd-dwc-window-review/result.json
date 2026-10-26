@@ -1,0 +1,25 @@
+{
+  "reviewed_patch_sha256": "e708a98cb38f0897328ee2a796f3145e3c022bb29037ce9e0ff5d402491fc287",
+  "case": {
+    "reproduced": true,
+    "active_window": false,
+    "pullup_off_errno": -108,
+    "soft_disconnect_calls": 0,
+    "halt_established": false,
+    "irq_freed": true
+  },
+  "actual_candidate_functions_unmodified": true,
+  "original_13_groups_rerun": false,
+  "source354_udc_call_order": "usb_del_gadget -> gadget_unbind_driver -> usb_gadget_disconnect_locked -> pullup(0); then usb_gadget_udc_stop_locked -> udc_stop",
+  "fake_boundaries": "PM/IRQ/MMIO/USB device core edges; actual frozen candidate exit/stop/pullup/window C functions",
+  "files": {
+    "reproduce.py": "9fe3fd0ca3ca9d53125ad6d98aaa2346b3e62d213db218e6c4dc2175c88a5dd3",
+    "test-no-window-exit.c": "09f2c22c12072a545e25ac5d64e7833415c2e6f1272dd0c5ef8a1507b879cc36",
+    "tested-functions.inc": "181a957ced6ae33738004e00dfdc0e76d24264cc806376a17389a620ea6cb0aa",
+    "tested-types.inc": "30e253dc36cebdaf41d93d7bff69c4f5467cff53867a83cd303e3274b7046b2c"
+  },
+  "phone_accessed": false,
+  "ssh_executed": false,
+  "sdk_invoked": false,
+  "frozen_candidate_modified": false
+}

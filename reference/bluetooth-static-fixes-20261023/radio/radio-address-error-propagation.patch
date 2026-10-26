@@ -1,0 +1,88 @@
+--- a/linux-port/packages/samurai-platform/usr_sbin_samurai-radio-address
++++ b/linux-port/packages/samurai-platform/usr_sbin_samurai-radio-address
+@@ -16,42 +16,63 @@
+ cache()
+ {
+     private_file "$base/current-$kind" || return 1
+-    query=$(cat "$base/current-$kind")
++    query=$(cat "$base/current-$kind") || return "$?"
+     suffix=${query#"$base/query."}
+     [ "$query" = "$base/query.$suffix" ] && [ "${#suffix}" = 6 ] || return 1
+     case "$suffix" in *[!a-zA-Z0-9]*) return 1;; esac
+     test -d "$query" && test ! -L "$query" || return 1
+     [ "$(stat -c '%u:%a' "$query")" = 0:700 ] || return 1
+     private_file "$query/boot-id" || return 1
+-    [ "$(cat "$query/boot-id")" = "$(cat /proc/sys/kernel/random/boot_id)" ] || return 1
++    cached_boot=$(cat "$query/boot-id") || return "$?"
++    current_boot=$(cat /proc/sys/kernel/random/boot_id) || return "$?"
++    [ "$cached_boot" = "$current_boot" ] || return 1
+     private_file "$query/$kind-mac-le.bin" || return 1
+     [ "$(wc -c < "$query/$kind-mac-le.bin")" = 6 ] || return 1
+ }
+ refresh()
+ {
+-    if cache; then stamp "RADIO_ADDRESS_CACHE_READY kind=$kind"; return 0; fi
+-    mpss=$(/usr/sbin/samurai-modem-remoteproc) || return 1
+-    [ "$(cat $mpss/state)" = running ] || return 1
+-    query=$(mktemp -d "$base/query.XXXXXX")
+-    cat /proc/sys/kernel/random/boot_id > "$query/boot-id"
++    if cache; then stamp "RADIO_ADDRESS_CACHE_READY kind=$kind" || return "$?"; return 0; fi
++    mpss=$(/usr/sbin/samurai-modem-remoteproc) || return "$?"
++    test -n "$mpss" || return 1
++    mpss_state=$(cat "$mpss/state") || return "$?"
++    [ "$mpss_state" = running ] || return 1
++    query=$(mktemp -d "$base/query.XXXXXX") || return "$?"
++    suffix=${query#"$base/query."}
++    [ "$query" = "$base/query.$suffix" ] && [ "${#suffix}" = 6 ] || return 1
++    case "$suffix" in *[!a-zA-Z0-9]*) return 1;; esac
++    test -d "$query" && test ! -L "$query" || return 1
++    [ "$(stat -c '%u:%a' "$query")" = 0:700 ] || return 1
++    cat /proc/sys/kernel/random/boot_id > "$query/boot-id" || return "$?"
++    private_file "$query/boot-id" || return 1
+     # A failure is retained in its private query directory and cannot publish
+     # either radio's pointer or consume the other radio's lifecycle lock.
+     /usr/sbin/samurai-dms-mac-read "$kind" "$query" > "$query/$kind-query.log" 2>&1 || return "$?"
+     private_file "$query/$kind-mac-le.bin" || return 1
+     [ "$(wc -c < "$query/$kind-mac-le.bin")" = 6 ] || return 1
+-    pointer=$(mktemp "$base/current-$kind.XXXXXX")
+-    printf '%s\n' "$query" > "$pointer"
+-    mv "$pointer" "$base/current-$kind"
+-    stamp "RADIO_ADDRESS_QUERY_VERIFIED kind=$kind"
++    pointer=$(mktemp "$base/current-$kind.XXXXXX") || return "$?"
++    suffix=${pointer#"$base/current-$kind."}
++    [ "$pointer" = "$base/current-$kind.$suffix" ] && [ "${#suffix}" = 6 ] || return 1
++    case "$suffix" in *[!a-zA-Z0-9]*) return 1;; esac
++    private_file "$pointer" || return 1
++    printf '%s\n' "$query" > "$pointer" || return "$?"
++    pointer_query=$(cat "$pointer") || return "$?"
++    [ "$pointer_query" = "$query" ] || return 1
++    private_file "$pointer" || return 1
++    test ! -d "$base/current-$kind" || return 1
++    published_query=$query
++    mv "$pointer" "$base/current-$kind" || return "$?"
++    cache || return "$?"
++    [ "$query" = "$published_query" ] || return 1
++    stamp "RADIO_ADDRESS_QUERY_VERIFIED kind=$kind" || return "$?"
+ }
+ load()
+ {
+     if ! cache; then refresh || return "$?"; fi
+-    cache
++    cache || return "$?"
+ }
+ wlan()
+ {
+-    load
++    load || return "$?"
+     test -d /sys/class/net/wlan0
+     mac=$(od -An -tx1 -v "$query/wlan-mac-le.bin" | awk '{printf "%s:%s:%s:%s:%s:%s",$6,$5,$4,$3,$2,$1}')
+     current=$(cat /sys/class/net/wlan0/address)
+@@ -67,7 +88,7 @@
+ }
+ bt()
+ {
+-    load
++    load || return "$?"
+     /usr/sbin/samurai-bt-address "$query/bt-mac-le.bin"
+ }
+ case "${1:-}" in

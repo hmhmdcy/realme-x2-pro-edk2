@@ -1,0 +1,113 @@
+{
+    "utc":  "2026-10-09T22:28:31.9379009Z",
+    "cases":  [
+                  {
+                      "case":  "selected_test_environment_install_guard",
+                      "action":  "Install",
+                      "guard_allows":  true,
+                      "expected_allows":  true
+                  },
+                  {
+                      "case":  "wrong_control_pid",
+                      "action":  "Install",
+                      "guard_allows":  false,
+                      "expected_allows":  false
+                  },
+                  {
+                      "case":  "multiple_present_9505",
+                      "action":  "Install",
+                      "guard_allows":  false,
+                      "expected_allows":  false
+                  },
+                  {
+                      "case":  "active_serial_owner",
+                      "action":  "Install",
+                      "guard_allows":  false,
+                      "expected_allows":  false
+                  },
+                  {
+                      "case":  "usb_relay_attached",
+                      "action":  "Install",
+                      "guard_allows":  false,
+                      "expected_allows":  false
+                  },
+                  {
+                      "case":  "altered_package",
+                      "action":  "Install",
+                      "guard_allows":  false,
+                      "expected_allows":  false
+                  },
+                  {
+                      "case":  "untrusted_test_certificate",
+                      "action":  "Install",
+                      "guard_allows":  false,
+                      "expected_allows":  false
+                  },
+                  {
+                      "case":  "expired_test_certificate",
+                      "action":  "Install",
+                      "guard_allows":  false,
+                      "expected_allows":  false
+                  },
+                  {
+                      "case":  "test_signing_off",
+                      "action":  "Install",
+                      "guard_allows":  false,
+                      "expected_allows":  false
+                  },
+                  {
+                      "case":  "secureboot_on",
+                      "action":  "Install",
+                      "guard_allows":  false,
+                      "expected_allows":  false
+                  },
+                  {
+                      "case":  "non_elevated_install",
+                      "action":  "Install",
+                      "guard_allows":  false,
+                      "expected_allows":  false
+                  },
+                  {
+                      "case":  "unknown_existing_driver",
+                      "action":  "Install",
+                      "guard_allows":  false,
+                      "expected_allows":  false
+                  },
+                  {
+                      "case":  "candidate_failed_load_restore_allowed",
+                      "action":  "Restore",
+                      "guard_allows":  true,
+                      "expected_allows":  true
+                  },
+                  {
+                      "case":  "broken_control_blocks_restore",
+                      "action":  "Restore",
+                      "guard_allows":  false,
+                      "expected_allows":  false
+                  },
+                  {
+                      "case":  "unrelated_driver_restore_refused",
+                      "action":  "Restore",
+                      "guard_allows":  false,
+                      "expected_allows":  false
+                  }
+              ],
+    "actual_host_refusals":  [
+                                 "Installation requires an elevated process in the selected test environment.",
+                                 "Current kernel policy does not allow this self-test-signed candidate.",
+                                 "The exact public test certificate is not trusted for this package on this environment."
+                             ],
+    "corrected_live_binding":  {
+                                   "driver_key":  "{4d36e978-e325-11ce-bfc1-08002be10318}\\0008",
+                                   "inf":  "oem102.inf",
+                                   "inf_sha256":  "dd933233672930b6a138c762f729d92ad984cd1e44abcb16e4ac3878b4305f92",
+                                   "version":  "2.1.3.5",
+                                   "service":  "qcusbser",
+                                   "binary":  "C:\\WINDOWS\\system32\\DRIVERS\\qcusbser.sys",
+                                   "binary_sha256":  "ad2ace071d2362d8712820f62570757e1af266a054d2c3d3a6964a41e7cc6151",
+                                   "port":  "COM14"
+                               },
+    "stage_calls":  0,
+    "install_calls":  0,
+    "limits":  "Pure gate fixtures plus live read-only binding; no staging, installation, signature/security change, serial open or USB data."
+}

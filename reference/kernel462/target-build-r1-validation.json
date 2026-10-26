@@ -1,0 +1,84 @@
+{
+  "stage": 462,
+  "attempt": 1,
+  "phases": [
+    {
+      "target": "olddefconfig",
+      "exit": 0,
+      "seconds": 12.109
+    },
+    {
+      "target": "modules_prepare",
+      "exit": 0,
+      "seconds": 8.141
+    },
+    {
+      "target": "drivers/media/i2c/imx471.o",
+      "exit": 0,
+      "seconds": 2.286
+    },
+    {
+      "target": "qcom/sm8150-samurai.dtb",
+      "exit": 0,
+      "seconds": 0.923
+    }
+  ],
+  "exit": 0,
+  "kernel_release": "7.3.0-rc6-rmx1931-samurai-k363+",
+  "api_headers_equal_image363": true,
+  "headers": [
+    "include/linux/reset.h",
+    "include/linux/mux/consumer.h",
+    "include/linux/clk.h",
+    "include/linux/regulator/consumer.h"
+  ],
+  "input_config_sha256": "23e088a90736bbbc442c672d82b35c11bf04f7dc489f1c6afb1b03dc0d8f30ed",
+  "private_sparse_source_and_generated_output": true,
+  "full_source_or_output_copy": false,
+  "vmlinux_object_copied_or_linked": false,
+  "source354_and_shared_generated_inputs_unchanged": true,
+  "free_ge_2gib_after": true,
+  "jobs": 2,
+  "sdk_or_phone_accessed": false,
+  "image_or_rootfs_or_full_modules_built": false,
+  "module_ko_built": false,
+  "installed_or_loaded": false,
+  "candidate": [
+    {
+      "path": "Documentation/devicetree/bindings/media/i2c/sony,imx471.yaml",
+      "original_sha256": "f21155bbb16a062f612bbf58773452b5b59421e3bc4676775b2d58b71da44e74",
+      "candidate_sha256": "c1a64d9ab58521cf3ff96e8002d1a3520fde8554eb9c4e3b3768f96eed5ad8ca"
+    },
+    {
+      "path": "arch/arm64/boot/dts/qcom/sm8150-samurai.dts",
+      "original_sha256": "237ed0896b03e9b4d9c4bafc0e58c8b8a7ee4afd1357e0262bf8a5996be4aa46",
+      "candidate_sha256": "226790fe2063ee08f3d3923d9d5750cb5f13063813ba40a778502515e24fb43b"
+    },
+    {
+      "path": "drivers/media/i2c/imx471.c",
+      "original_sha256": "619314972b4bb7ad33d12dacc49e174e6dbd21db141b69f8cd374335b7858f8c",
+      "candidate_sha256": "11e88b658ba5c1b3ce2a33fbdc0b4495aa7b469985d00c13bd5c0d4e7cdc0c92"
+    }
+  ],
+  "diagnostics": [
+    "/mnt/samurai-full282/kernel462-shared-camera-private/source-view/arch/arm64/boot/dts/qcom/sm8150.dtsi:4478.27-4533.6: Warning (avoid_unnecessary_addr_size): /soc@0/display-subsystem@ae00000/dsi@ae96000: unnecessary #address-cells/#size-cells without \"ranges\", \"dma-ranges\" or child \"reg\" or \"ranges\" property",
+    "/mnt/samurai-full282/kernel462-shared-camera-private/source-view/arch/arm64/boot/dts/qcom/pm8150b.dtsi:163.9-178.4: Warning (avoid_unnecessary_addr_size): /soc@0/spmi@c440000/pmic@3: unnecessary #address-cells/#size-cells without \"ranges\", \"dma-ranges\" or child \"reg\" or \"ranges\" property"
+  ],
+  "passed": true,
+  "artifacts": {
+    "drivers/media/i2c/imx471.o": {
+      "bytes": 94320,
+      "sha256": "a2571a9a7f3ffe66713db44186342a47a10c02a704a901eb260914cf4da850c9"
+    },
+    "arch/arm64/boot/dts/qcom/sm8150-samurai.dtb": {
+      "bytes": 115629,
+      "sha256": "1cd47db38f4bdd1ebc3c7980579e8ceae479f3c14f71a695bbc020309d62aaec"
+    }
+  },
+  "c_compiler_diagnostics": [],
+  "dtc_warnings": [
+    "/mnt/samurai-full282/kernel462-shared-camera-private/source-view/arch/arm64/boot/dts/qcom/sm8150.dtsi:4478.27-4533.6: Warning (avoid_unnecessary_addr_size): /soc@0/display-subsystem@ae00000/dsi@ae96000: unnecessary #address-cells/#size-cells without \"ranges\", \"dma-ranges\" or child \"reg\" or \"ranges\" property",
+    "/mnt/samurai-full282/kernel462-shared-camera-private/source-view/arch/arm64/boot/dts/qcom/pm8150b.dtsi:163.9-178.4: Warning (avoid_unnecessary_addr_size): /soc@0/spmi@c440000/pmic@3: unnecessary #address-cells/#size-cells without \"ranges\", \"dma-ranges\" or child \"reg\" or \"ranges\" property"
+  ],
+  "diagnostic_classification_recomputed_from_original_log": true
+}

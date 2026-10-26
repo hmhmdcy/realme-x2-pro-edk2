@@ -1,0 +1,128 @@
+{
+  "schema": 1,
+  "module_name": "samurai_usbin_init",
+  "ko_name": "samurai-usbin-init.ko",
+  "register_board": {
+    "type": "bool",
+    "default": false,
+    "mode": "0444",
+    "explicit_load_value": true
+  },
+  "platform_device": "samurai-usbin-init",
+  "state_path": "/sys/bus/platform/devices/samurai-usbin-init/state",
+  "control_path": "/sys/bus/platform/devices/samurai-usbin-init/control",
+  "state_mode": "0444",
+  "control_mode": "0200",
+  "commands": [
+    "arm",
+    "restore_saved",
+    "commit",
+    "cancel",
+    "observe"
+  ],
+  "phase_values": [
+    "observed",
+    "waiting",
+    "clear_verified",
+    "restored",
+    "committed",
+    "timeout",
+    "error",
+    "cancelled"
+  ],
+  "op_values": {
+    "0": "observe",
+    "1": "clear",
+    "2": "restore"
+  },
+  "fields": {
+    "schema": "integer",
+    "instance": "string",
+    "phase": "string",
+    "op": "integer",
+    "armed": "boolean",
+    "running": "boolean",
+    "held_ref": "boolean",
+    "can_unload": "boolean",
+    "pending_restore": "boolean",
+    "commit_allowed": "boolean",
+    "committed": "boolean",
+    "old_valid": "boolean",
+    "old_bit": "integer",
+    "before_cfg": "integer",
+    "after_cfg": "integer",
+    "write_attempted": "boolean",
+    "write_return": "integer",
+    "readback_error": "integer",
+    "post_error": "integer",
+    "unknown_write": "boolean",
+    "changed": "boolean",
+    "error": "integer",
+    "clear_error": "integer",
+    "clear_write_return": "integer",
+    "off_samples": "integer",
+    "have_first": "boolean",
+    "first_boottime_ms": "integer",
+    "pre_started_boottime_ms": "integer",
+    "prewrite_boottime_ms": "integer",
+    "post_boottime_ms": "integer",
+    "started_boottime_ms": "integer",
+    "deadline_boottime_ms": "integer",
+    "now_boottime_ms": "integer",
+    "remaining_ms": "integer",
+    "first": "integer[8]",
+    "pre": "integer[8]",
+    "post": "integer[8]",
+    "saved": "integer[8]"
+  },
+  "snapshot_arrays": [
+    "first",
+    "pre",
+    "post",
+    "saved"
+  ],
+  "snapshot_registers": [
+    "0x1307",
+    "0x1308",
+    "0x1310",
+    "0x1506",
+    "0x1509",
+    "0x150b",
+    "0x150d",
+    "0x1358"
+  ],
+  "off_predicate": {
+    "0x1310_mask": "0x10",
+    "0x150b_mask": "0x21",
+    "0x1509_mask": "0x20",
+    "each_masked_value": 0
+  },
+  "write": {
+    "address": "0x1358",
+    "mask": "0x80",
+    "clear_value": 0,
+    "restore": "same-instance saved actual masked bit only"
+  },
+  "times": {
+    "clock": "BOOTTIME milliseconds",
+    "poll_ms": 250,
+    "stable_off_ms": 500,
+    "prewrite_fresh_ms": 250,
+    "window_ms": 60000,
+    "basis": "conservative engineering choices, not OEM timing requirements",
+    "deadline": "fresh final gate rejects new write start at/after deadline; regmap completion is not hard-interrupted",
+    "zero_timestamp": "checkpoint not reached; prewrite also exists for successful no-op",
+    "state_now": "sampled before state mutex; host must bracket and reject stale observations"
+  },
+  "state_read": {
+    "register_io": false,
+    "polling": false,
+    "control_side_effect": false
+  },
+  "ready": "same instance/boot, op=1, phase=waiting, armed/running true, fresh bracket, positive sufficient remaining_ms; host identity/guard also required",
+  "no_op": "old_bit=0 clear_verified can have held_ref=false,pending_restore=false,can_unload=true; explicit commit records adoption",
+  "uncertainty": "write error/readback/post failure after attempt retains pending_restore/selfref; no commit or automatic restore/unload",
+  "default_observe": "one synchronous probe snapshot; no periodic work until explicit arm",
+  "unload_predicate": "!running && !pending_restore && !held_ref; outcome/identity checks remain controller responsibilities",
+  "transaction": "kernel instance discriminator only; external controller owns transaction/boot/guard and fetch-only unknown outcomes"
+}

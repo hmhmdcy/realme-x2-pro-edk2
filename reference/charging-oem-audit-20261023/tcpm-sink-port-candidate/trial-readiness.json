@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "deployable": false,
+  "installed": false,
+  "reason": "Full TCPM shutdown lacks protocol teardown; normal stop does not explicitly clear/read back EN/BIST on shared PDPHY/USB2 supply.",
+  "sources": {
+    "qcom_pmic_typec.c": {
+      "path": "/home/cy122/charging-management-20261023/apsd-image505-01/source354-upper/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec.c",
+      "sha256": "1e5332d06360cfef1f84aba255fc2d5c753fe7b77945a6689247a5c8a79d58a7"
+    },
+    "qcom_pmic_typec_pdphy.c": {
+      "path": "/home/cy122/charging-management-20261023/dwc-image504-budget-fence-01/source354/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_pdphy.c",
+      "sha256": "d8a0e07371fa4dc1a2aa7066e5ad86c40777555c3a8a271b4cc68640b4ce0cf6"
+    }
+  },
+  "shared_supply_phandle_hex": "000000c0",
+  "current_506_or_precharge_changed": false,
+  "needed": "Quiesce real CC/PD IRQs and work, join TCPM callbacks with supply retained, then disable/read back owned PDPHY controls and preserve sink-only handoff before rollback reboot."
+}

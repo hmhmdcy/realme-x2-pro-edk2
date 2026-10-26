@@ -1,0 +1,18 @@
+--- r1/eud.c
++++ r2/eud.c
+@@ -1668,8 +1668,13 @@
+         if (up->console_registered)
+                 unregister_console(&eud_console);
+         uart_remove_one_port(&eud_uart_driver, port);
+-        if (borrowed)
+-                cancel_work_sync(&up->tx_work);
++        /* unregister_console and UART removal have now joined every producer.
++         * A callback that passed its gate before stopping may have queued RX
++         * or TX after the early cancellations. Join both one final time before
++         * mappings/global state can be released, for borrowed and normal exit.
++         */
++        cancel_delayed_work_sync(&up->rx_work);
++        cancel_work_sync(&up->tx_work);
+         /* A live software borrower never changed AHB2PHY. Do not impose
+          * probe history on its external controller/PHY session during unbind.
+          * The endpoint is terminal; end(old_cookie) returns ENODEV and

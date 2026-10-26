@@ -1,0 +1,133 @@
+--- a/src/libcamera/base/event_dispatcher_poll.cpp
++++ b/src/libcamera/base/event_dispatcher_poll.cpp
+@@ -249,6 +249,11 @@
+ 		{ EventNotifier::Write, POLLOUT },
+ 	};
+ 
++	/* Synchronous IPC can dispatch events recursively from a notifier.
++	 * Keep every map entry alive until the outermost dispatch has finished:
++	 * an outer poll snapshot and callback may still refer to those entries.
++	 */
++	const bool wasProcessingEvents = processingEvents_;
+ 	processingEvents_ = true;
+ 
+ 	for (const pollfd &pfd : pollfds) {
+@@ -280,12 +285,19 @@
+ 				notifier->activated.emit();
+ 		}
+ 
+-		/* Erase the notifiers_ entry if it is now empty. */
++	}
++
++	processingEvents_ = wasProcessingEvents;
++	if (processingEvents_)
++		return;
++
++	for (auto iter = notifiers_.begin(); iter != notifiers_.end();) {
++		const EventNotifierSetPoll &set = iter->second;
+ 		if (!set.notifiers[0] && !set.notifiers[1] && !set.notifiers[2])
+-			notifiers_.erase(iter);
+-	}
+-
+-	processingEvents_ = false;
++			iter = notifiers_.erase(iter);
++		else
++			++iter;
++	}
+ }
+ 
+ void EventDispatcherPoll::processTimers()
+--- a/src/libcamera/pipeline_handler.cpp
++++ b/src/libcamera/pipeline_handler.cpp
+@@ -8,6 +8,7 @@
+ #include "libcamera/internal/pipeline_handler.h"
+ 
+ #include <chrono>
++#include <set>
+ #include <sys/stat.h>
+ #include <sys/sysmacros.h>
+ 
+@@ -508,6 +509,21 @@
+  */
+ void PipelineHandler::doQueueRequests(Camera *camera)
+ {
++	/* Synchronous IPA IPC may dispatch another prepared request while
++	 * queueRequestDevice() is still processing the previous one. Defer
++	 * that request to this outer drain to preserve hardware queue order.
++	 * CameraManager serializes these calls; keep the recursion guard per
++	 * camera so another camera can still make progress in the nested loop.
++	 */
++	static thread_local std::set<Camera *> queueingCameras;
++	if (!queueingCameras.insert(camera).second)
++		return;
++	struct QueueGuard {
++		std::set<Camera *> &cameras;
++		Camera *camera;
++		~QueueGuard() { cameras.erase(camera); }
++	} guard{ queueingCameras, camera };
++
+ 	Camera::Private *data = camera->_d();
+ 	while (!data->waitingRequests_.empty()) {
+ 		if (data->queuedRequests_.size() == maxQueuedRequestsDevice_)
+--- a/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
++++ b/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
+@@ -94,6 +94,7 @@
+ 	void queueIspUpdate(const ipa::camss::AutoIspUpdate &update);
+ 	struct IspControls { ControlList controls; uint32_t source; };
+ 	std::deque<IspControls> ispControls_;
++	bool submittingStatistics_ = false;
+ 	std::optional<int64_t> imageSequenceOffset_;
+ 	void frameStart(uint32_t sequence);
+ 	void expired();
+@@ -1040,21 +1041,37 @@
+ 
+ void CamssVfeData::submitStatistics()
+ {
+- if (!running_ || !paramsApplied_ || parameterBusy_) return;
++ if (!running_ || !paramsApplied_ || parameterBusy_ || !ispHealthy_ || submittingStatistics_) return;
++ /* A synchronous isolated IPA call dispatches camera events recursively.
++  * Only the outer submission may consume controls or submit statistics.
++  * Keep this guard through parameter preparation and processStats(), too.
++  */
++ submittingStatistics_ = true;
++ struct SubmissionGuard {
++  bool &active;
++  ~SubmissionGuard() { active = false; }
++ } submissionGuard{ submittingStatistics_ };
++ const uint64_t epoch = epoch_;
+  while (!ispControls_.empty()) {
+   // Parameters latch at the following SOF. Do not change an earlier request's image.
+   if (!imageSequenceOffset_ || !lastSof_ ||
+       int64_t(*lastSof_) + 1 < int64_t(ispControls_.front().source) + *imageSequenceOffset_) break;
+   if (std::any_of(pendingStats_.begin(), pendingStats_.end(), [](const auto &entry) { return entry.second.submitted; })) return;
+-  auto &request = ispControls_.front();
++  /* Own the entry before calling out: callbacks may append or clear queues. */
++  IspControls request = std::move(ispControls_.front());
++  ispControls_.pop_front();
+   ipa::camss::AutoIspUpdate update{};
+-  int ret = ipa_->applyIspControls(epoch_, uint32_t(std::max<int64_t>(0, int64_t(request.source) + *imageSequenceOffset_)), request.controls, &update);
+-  if (ret == -EAGAIN) return;
++  int ret = ipa_->applyIspControls(epoch, uint32_t(std::max<int64_t>(0, int64_t(request.source) + *imageSequenceOffset_)), request.controls, &update);
++  if (!running_ || epoch_ != epoch) return;
++  if (ret == -EAGAIN) {
++   ispControls_.push_front(std::move(request));
++   return;
++  }
+   if (ret) { ispHealthy_=false; LOG(CamssVfe, Error) << "Runtime algorithm control failed: " << ret; return; }
+   LOG(CamssVfe, Info) << "Algorithm request epoch=" << epoch_ << " source=" << request.source << " revision=" << update.revision
+    << " awb=" << (request.controls.contains(controls::AwbEnable.id()) ? int(*request.controls.get(controls::AwbEnable)) : -1);
+-  ispControls_.pop_front();
+   if (update.valid) { queueIspUpdate(update); return; }
++  if (parameterBusy_ || !ispHealthy_) return;
+  }
+  /* No iterators cross a proxy call: a direct module may return immediately. */
+  std::vector<std::pair<uint32_t, uint32_t>> ready;
+@@ -1062,7 +1079,7 @@
+   if (!pending.submitted && lastSof_ && static_cast<int32_t>(*lastSof_ - pending.sof) >= 0) ready.emplace_back(pending.sof, id);
+  std::sort(ready.begin(), ready.end());
+  for (const auto &[sequence, id] : ready) {
+-  if (parameterBusy_) return;
++  if (!running_ || epoch_ != epoch || parameterBusy_ || !ispHealthy_) return;
+   (void)sequence;
+   auto it = pendingStats_.find(id);
+   if (it == pendingStats_.end()) continue;

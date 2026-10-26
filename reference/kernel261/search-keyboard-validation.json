@@ -1,0 +1,410 @@
+{
+  "date": "2026-10-18",
+  "user_scenarios": [
+    "Keyboard opens without tapping an input",
+    "Keyboard remains after exiting Settings/Software search"
+  ],
+  "reproduced_in_active_native_gtk4_window": true,
+  "versions": {
+    "gtk": "4.24.1-r0",
+    "settings": "51.0-r0",
+    "software": "51.0-r0",
+    "phoc": "0.57.0-r1",
+    "stevia": "0.57.0-r2"
+  },
+  "diagnosis": "GTK4 search input interception activates Wayland text input for non-editable focus. On this Phosh/Stevia stack that unfolds the OSK. Closing the search entry can disable then immediately re-enable text input through the capture controller.",
+  "evidence": {
+    "native_test": {
+      "initial": false,
+      "final": true,
+      "events": [
+        {
+          "t": 0.126,
+          "properties": {
+            "Visible": true
+          }
+        }
+      ],
+      "samples": [
+        {
+          "t": 1.086,
+          "step": "open-search",
+          "window_active": true,
+          "osk": true,
+          "search_mode": true,
+          "entry_visible": true,
+          "focus_type": "Text",
+          "focus_visible": true,
+          "focus_mapped": false
+        },
+        {
+          "t": 3.083,
+          "step": "search-open-settled",
+          "window_active": true,
+          "osk": true,
+          "search_mode": true,
+          "entry_visible": true,
+          "focus_type": "Text",
+          "focus_visible": true,
+          "focus_mapped": true
+        },
+        {
+          "t": 4.083,
+          "step": "close-search-no-focus-transfer",
+          "window_active": true,
+          "osk": true,
+          "search_mode": false,
+          "entry_visible": true,
+          "focus_type": "Text",
+          "focus_visible": true,
+          "focus_mapped": true
+        },
+        {
+          "t": 6.085,
+          "step": "search-closed-settled",
+          "window_active": true,
+          "osk": true,
+          "search_mode": false,
+          "entry_visible": true,
+          "focus_type": "Button",
+          "focus_visible": true,
+          "focus_mapped": true
+        },
+        {
+          "t": 7.085,
+          "step": "move-focus-outside",
+          "window_active": true,
+          "osk": true,
+          "search_mode": false,
+          "entry_visible": true,
+          "focus_type": "Button",
+          "focus_visible": true,
+          "focus_mapped": true
+        },
+        {
+          "t": 9.085,
+          "step": "outside-settled",
+          "window_active": true,
+          "osk": true,
+          "search_mode": false,
+          "entry_visible": true,
+          "focus_type": "Button",
+          "focus_visible": true,
+          "focus_mapped": true
+        },
+        {
+          "t": 10.086,
+          "step": "reopen-search",
+          "window_active": true,
+          "osk": true,
+          "search_mode": true,
+          "entry_visible": true,
+          "focus_type": "Text",
+          "focus_visible": true,
+          "focus_mapped": false
+        },
+        {
+          "t": 12.084,
+          "step": "emit-stop-search",
+          "window_active": true,
+          "osk": true,
+          "search_mode": false,
+          "entry_visible": true,
+          "focus_type": "Text",
+          "focus_visible": true,
+          "focus_mapped": true
+        },
+        {
+          "t": 14.085,
+          "step": "stop-search-settled",
+          "window_active": true,
+          "osk": true,
+          "search_mode": false,
+          "entry_visible": true,
+          "focus_type": "Button",
+          "focus_visible": true,
+          "focus_mapped": true
+        }
+      ]
+    },
+    "protocol_enable_disable_sequence": [
+      "enable",
+      "enable",
+      "disable",
+      "enable",
+      "enable",
+      "disable",
+      "enable",
+      "disable"
+    ],
+    "capture_ab_test": {
+      "initial": true,
+      "final": true,
+      "events": [
+        {
+          "t": 0.113,
+          "properties": {
+            "Visible": false
+          }
+        },
+        {
+          "t": 0.114,
+          "properties": {
+            "Visible": true
+          }
+        },
+        {
+          "t": 12.359,
+          "properties": {
+            "Visible": false
+          }
+        }
+      ],
+      "samples": [
+        {
+          "t": 1.077,
+          "step": "open-search",
+          "window_active": true,
+          "osk": true,
+          "search_mode": true,
+          "entry_visible": true,
+          "focus_type": "Text",
+          "focus_visible": true,
+          "focus_mapped": false
+        },
+        {
+          "t": 3.075,
+          "step": "search-open-settled",
+          "window_active": true,
+          "osk": true,
+          "search_mode": true,
+          "entry_visible": true,
+          "focus_type": "Text",
+          "focus_visible": true,
+          "focus_mapped": true
+        },
+        {
+          "t": 4.075,
+          "step": "close-search-no-focus-transfer",
+          "window_active": true,
+          "osk": true,
+          "search_mode": false,
+          "entry_visible": true,
+          "focus_type": "Text",
+          "focus_visible": true,
+          "focus_mapped": true
+        },
+        {
+          "t": 6.077,
+          "step": "search-closed-settled",
+          "window_active": true,
+          "osk": true,
+          "search_mode": false,
+          "entry_visible": true,
+          "focus_type": "Button",
+          "focus_visible": true,
+          "focus_mapped": true
+        },
+        {
+          "t": 7.076,
+          "step": "detach-key-capture",
+          "window_active": true,
+          "osk": true,
+          "search_mode": false,
+          "entry_visible": true,
+          "focus_type": "Button",
+          "focus_visible": true,
+          "focus_mapped": true
+        },
+        {
+          "t": 9.077,
+          "step": "capture-detached-settled",
+          "window_active": true,
+          "osk": true,
+          "search_mode": false,
+          "entry_visible": true,
+          "focus_type": "Button",
+          "focus_visible": true,
+          "focus_mapped": true
+        },
+        {
+          "t": 10.077,
+          "step": "open-without-capture",
+          "window_active": true,
+          "osk": true,
+          "search_mode": true,
+          "entry_visible": true,
+          "focus_type": "Text",
+          "focus_visible": true,
+          "focus_mapped": false
+        },
+        {
+          "t": 12.075,
+          "step": "close-without-capture",
+          "window_active": true,
+          "osk": true,
+          "search_mode": false,
+          "entry_visible": true,
+          "focus_type": "Text",
+          "focus_visible": true,
+          "focus_mapped": true
+        },
+        {
+          "t": 14.076,
+          "step": "closed-without-capture-settled",
+          "window_active": true,
+          "osk": false,
+          "search_mode": false,
+          "entry_visible": true,
+          "focus_type": "Button",
+          "focus_visible": true,
+          "focus_mapped": true
+        },
+        {
+          "t": 15.076,
+          "step": "reattach-capture-without-clicking-input",
+          "window_active": true,
+          "osk": false,
+          "search_mode": false,
+          "entry_visible": true,
+          "focus_type": "Button",
+          "focus_visible": true,
+          "focus_mapped": true
+        },
+        {
+          "t": 17.076,
+          "step": "reattached-settled",
+          "window_active": true,
+          "osk": false,
+          "search_mode": false,
+          "entry_visible": true,
+          "focus_type": "Button",
+          "focus_visible": true,
+          "focus_mapped": true
+        },
+        {
+          "t": 18.076,
+          "step": "detach-capture-final",
+          "window_active": true,
+          "osk": false,
+          "search_mode": false,
+          "entry_visible": true,
+          "focus_type": "Button",
+          "focus_visible": true,
+          "focus_mapped": true
+        }
+      ]
+    },
+    "actual_app_accessibility_samples": [
+      {
+        "step": "settings-baseline",
+        "osk": true,
+        "focused_roles": [
+          "button"
+        ],
+        "search_entry_in_accessibility_tree": false
+      },
+      {
+        "step": "settings-search-open",
+        "osk": true,
+        "focused_roles": [
+          "entry"
+        ],
+        "search_entry_in_accessibility_tree": true
+      },
+      {
+        "step": "settings-search-close",
+        "osk": true,
+        "focused_roles": [
+          "button"
+        ],
+        "search_entry_in_accessibility_tree": false
+      },
+      {
+        "step": "settings-manual-hide",
+        "osk": false,
+        "focused_roles": [
+          "button"
+        ],
+        "search_entry_in_accessibility_tree": false
+      },
+      {
+        "step": "settings-search-open-after-hide",
+        "osk": false,
+        "focused_roles": [
+          "entry"
+        ],
+        "search_entry_in_accessibility_tree": true
+      },
+      {
+        "step": "settings-search-close-after-hide",
+        "osk": true,
+        "focused_roles": [
+          "button"
+        ],
+        "search_entry_in_accessibility_tree": false
+      },
+      {
+        "step": "software-baseline",
+        "osk": true,
+        "focused_roles": [
+          "table cell"
+        ],
+        "search_entry_in_accessibility_tree": false
+      },
+      {
+        "step": "software-search-open",
+        "osk": true,
+        "focused_roles": [
+          "entry"
+        ],
+        "search_entry_in_accessibility_tree": true
+      },
+      {
+        "step": "software-search-close",
+        "osk": true,
+        "focused_roles": [
+          "table cell"
+        ],
+        "search_entry_in_accessibility_tree": false
+      },
+      {
+        "step": "software-manual-hide",
+        "osk": false,
+        "focused_roles": [
+          "table cell"
+        ],
+        "search_entry_in_accessibility_tree": false
+      },
+      {
+        "step": "software-search-open-after-hide",
+        "osk": false,
+        "focused_roles": [
+          "entry"
+        ],
+        "search_entry_in_accessibility_tree": true
+      },
+      {
+        "step": "software-search-close-after-hide",
+        "osk": true,
+        "focused_roles": [
+          "table cell"
+        ],
+        "search_entry_in_accessibility_tree": false
+      }
+    ],
+    "actual_app_sample_limitation": "First app run records focus and OSK but not active frame; intended confirmation run was skipped after session auto-locked. Root-path A/B checks explicitly assert window_active=true.",
+    "detach_limitation": "Removing the capture controller alone did not immediately focus the IM out; the confirmed successful hide follows a new open/close focus lifecycle without capture."
+  },
+  "scope": "Causal input-capture path confirmed in native GTK4; no touchscreen-specific full-flow fix acceptance claimed",
+  "persistent_phone_configuration_changed": false,
+  "permanent_fix_deployed": false,
+  "test_windows_closed": true,
+  "installed_packages_changed": false,
+  "fix_direction": "Repair the distinction between type-to-search input capture and actual editing in the GTK/Phosh input-method path. Do not disable the whole keyboard or assume that extra language packages fix this.",
+  "private_receipts": {
+    "searchbar-test-wayland.result-private.json": "fa504f9a21fe6e5e6de64b29fa95c6340529ef1a1bb49d94fb80113955033bb6",
+    "searchbar-ab.result-private.json": "ae2621343d8aa2e5d46a7f2891cc88d37b55797ff2a7fdedcffc5079bcb79566",
+    "actual-search-r1.result-private.json": "8efd77ae731c74e1b838ed85b2f88e5e4fc2e9b73debdb3819f4a034cb774283"
+  }
+}

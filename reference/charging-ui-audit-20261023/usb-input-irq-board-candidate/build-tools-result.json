@@ -1,0 +1,60 @@
+{
+  "passed": true,
+  "scope": "post-build tool versions/hashes and saved commands; no rebuild",
+  "tools": {
+    "make": {
+      "path": "/usr/bin/make",
+      "sha256": "27c9f6d806aee15882b01c2c61848f7aa75caa14bc7b6f608ba422f9e46a7d49",
+      "version_first_line": "GNU Make 4.4.1"
+    },
+    "aarch64-linux-gnu-gcc": {
+      "path": "/usr/bin/aarch64-linux-gnu-gcc-15",
+      "sha256": "50d0961827e521a7c06d7794d4b15282559a117d365a149aaca5726917ab1603",
+      "version_first_line": "aarch64-linux-gnu-gcc-15 (Ubuntu 15.2.0-16ubuntu1) 15.2.0"
+    },
+    "aarch64-linux-gnu-ld": {
+      "path": "/usr/bin/aarch64-linux-gnu-ld.bfd",
+      "sha256": "ef1f32f9d5f522ae9721fe0de846c10fa1ca04f859d491ab30541e9f925b9408",
+      "version_first_line": "GNU ld (GNU Binutils for Ubuntu) 2.46"
+    },
+    "aarch64-linux-gnu-nm": {
+      "path": "/usr/bin/aarch64-linux-gnu-nm",
+      "sha256": "29467ca5f9dc5bfdefdb1ef911eda82c5ec99c425c8add4a2ffec3a5c8c4e443",
+      "version_first_line": "GNU nm (GNU Binutils for Ubuntu) 2.46"
+    },
+    "aarch64-linux-gnu-readelf": {
+      "path": "/usr/bin/aarch64-linux-gnu-readelf",
+      "sha256": "b4bb1bf2d6b2d3a309a281a920f0203d68e512e610a4f075cf0ed23e8976b795",
+      "version_first_line": "GNU readelf (GNU Binutils for Ubuntu) 2.46"
+    },
+    "modinfo": {
+      "path": "/usr/bin/kmod",
+      "sha256": "6edf62330978627d75d8de7e903f243b6ba765f8b54baa914ec83e21cd85bdc7",
+      "version_first_line": "kmod version 34.2"
+    },
+    "python": {
+      "path": "/usr/bin/python3.14",
+      "sha256": "52e0a13e60a981d8c4b6478be2ba5176f69da07948a056bf49cf6f077e30cb41",
+      "version": "3.14.4 (main, Aug 20 2026, 10:41:58) [GCC 15.2.0]"
+    }
+  },
+  "saved_commands": {
+    "kbuild/drivers/power/supply/.samurai-usb-input.ko.cmd": {
+      "sha256": "815aa88fada3809f51b1d4a427881e1a13ab73627ff7f9a90c65b831f1293f55",
+      "first_line": "savedcmd_drivers/power/supply/samurai-usb-input.ko := aarch64-linux-gnu-ld -r -EL  -maarch64elf -z noexecstack --no-warn-rwx-segments --build-id=sha1 --force-group-allocation  -T ./scripts/module.lds -o drivers/power/supply/samurai-usb-input.ko drivers/power/supply/samurai-usb-input.o drivers/power/supply/samurai-usb-input.mod.o .module-common.o"
+    },
+    "kbuild/drivers/power/supply/.samurai-usb-input.mod.cmd": {
+      "sha256": "c1ab67d1352233f9a6f559eb4272e06669c2103bc86e86b2d6b8f269a16886f3",
+      "first_line": "savedcmd_drivers/power/supply/samurai-usb-input.mod := printf '%s\\n'   samurai-usb-input.o | awk '!x[$$0]++ { print(\"drivers/power/supply/\"$$0) }' > drivers/power/supply/samurai-usb-input.mod"
+    },
+    "kbuild/drivers/power/supply/.samurai-usb-input.mod.o.cmd": {
+      "sha256": "aad69ebee8bc99e550fa88066aab0458f61e8071385dc19240d347d47125cbc7",
+      "first_line": "savedcmd_drivers/power/supply/samurai-usb-input.mod.o := aarch64-linux-gnu-gcc -Wp,-MMD,drivers/power/supply/.samurai-usb-input.mod.o.d -nostdinc -I/home/cy122/charging-management-20261023/usb-input-irq-board-01/source-view/arch/arm64/include -I./arch/arm64/include/generated -I/home/cy122/charging-management-20261023/usb-input-irq-board-01/source-view/include -I./include -I/home/cy122/charging-management-20261023/usb-input-irq-board-01/source-view/arch/arm64/include/uapi -I./arch/arm64/include/generated/uapi -I/home/cy122/charging-management-20261023/usb-input-irq-board-01/source-view/include/uapi -I./include/generated/uapi -include /home/cy122/charging-management-20261023/usb-input-irq-board-01/source-view/include/linux/compiler-version.h -include /home/cy122/charging-management-20261023/usb-input-irq-board-01/source-view/include/linux/kconfig.h -include /home/cy122/charging-management-20261023/usb-input-irq-board-01/source-view/include/linux/compiler_types.h -D__KERNEL__ -mlittle-endian -DKASAN_SHADOW_SCALE_SHIFT= -fmacro-prefix-map=/home/cy122/charging-management-20261023/usb-input-irq-board-01/source-view/= -Wundef -DKBUILD_EXTRA_WARN1 -fshort-wchar -funsigned-char -fno-common -fno-PIE -fno-strict-aliasing -std=gnu11 -fms-extensions -mgeneral-regs-only -DCONFIG_CC_HAS_K_CONSTRAINT=1 -Wno-psabi -mabi=lp64 -fno-asynchronous-unwind-tables -fno-unwind-tables -mbranch-protection=pac-ret -Wa,-march=armv8.5-a -DARM64_ASM_ARCH='\"armv8.5-a\"' -DKASAN_SHADOW_SCALE_SHIFT= -fno-delete-null-pointer-checks -O2 -fno-allow-store-data-races -fstack-protector-strong -fno-omit-frame-pointer -fno-optimize-sibling-calls -ftrivial-auto-var-init=zero -fzero-init-padding-bits=all -fno-stack-clash-protection -fmin-function-alignment=4 -fstrict-flex-arrays=3 -fno-strict-overflow -fno-stack-check -fconserve-stack -fno-builtin-wcslen -Wall -Wextra -Wundef -Werror=implicit-function-declaration -Werror=implicit-int -Werror=return-type -Werror=strict-prototypes -Wno-format-security -Wno-trigraphs -Wno-frame-address -Wno-address-of-packed-member -Wmissing-declarations -Wmissing-prototypes -Wframe-larger-than=2048 -Wno-main -Wno-type-limits -Wno-dangling-pointer -Wvla-larger-than=1 -Wno-pointer-sign -Wcast-function-type -Wno-unterminated-string-initialization -Wno-array-bounds -Wno-stringop-overflow -Wno-alloc-size-larger-than -Wimplicit-fallthrough=5 -Werror=date-time -Werror=incompatible-pointer-types -Werror=designated-init -Wenum-conversion -Wunused -Wmissing-format-attribute -Wmissing-include-dirs -Wunused-const-variable -Wno-missing-field-initializers -Wno-shift-negative-value -Wno-maybe-uninitialized -Wno-sign-compare -Wno-unused-parameter -g -fno-var-tracking -femit-struct-debug-baseonly -mstack-protector-guard=sysreg -mstack-protector-guard-reg=sp_el0 -mstack-protector-guard-offset=1344   -DMODULE  -DKBUILD_BASENAME='\"samurai_usb_input.mod\"' -DKBUILD_MODNAME='\"samurai_usb_input\"' -D__KBUILD_MODNAME=samurai_usb_input -c -o drivers/power/supply/samurai-usb-input.mod.o drivers/power/supply/samurai-usb-input.mod.c  "
+    },
+    "kbuild/drivers/power/supply/.samurai-usb-input.o.cmd": {
+      "sha256": "96add5ffe5c933db880869cc1c26af9144c7bd147d801946da77e985f847f6fd",
+      "first_line": "savedcmd_drivers/power/supply/samurai-usb-input.o := aarch64-linux-gnu-gcc -Wp,-MMD,drivers/power/supply/.samurai-usb-input.o.d -nostdinc -I/home/cy122/charging-management-20261023/usb-input-irq-board-01/source-view/arch/arm64/include -I./arch/arm64/include/generated -I/home/cy122/charging-management-20261023/usb-input-irq-board-01/source-view/include -I./include -I/home/cy122/charging-management-20261023/usb-input-irq-board-01/source-view/arch/arm64/include/uapi -I./arch/arm64/include/generated/uapi -I/home/cy122/charging-management-20261023/usb-input-irq-board-01/source-view/include/uapi -I./include/generated/uapi -include /home/cy122/charging-management-20261023/usb-input-irq-board-01/source-view/include/linux/compiler-version.h -include /home/cy122/charging-management-20261023/usb-input-irq-board-01/source-view/include/linux/kconfig.h -include /home/cy122/charging-management-20261023/usb-input-irq-board-01/source-view/include/linux/compiler_types.h -D__KERNEL__ -mlittle-endian -DKASAN_SHADOW_SCALE_SHIFT= -fmacro-prefix-map=/home/cy122/charging-management-20261023/usb-input-irq-board-01/source-view/= -Wundef -DKBUILD_EXTRA_WARN1 -fshort-wchar -funsigned-char -fno-common -fno-PIE -fno-strict-aliasing -std=gnu11 -fms-extensions -mgeneral-regs-only -DCONFIG_CC_HAS_K_CONSTRAINT=1 -Wno-psabi -mabi=lp64 -fno-asynchronous-unwind-tables -fno-unwind-tables -mbranch-protection=pac-ret -Wa,-march=armv8.5-a -DARM64_ASM_ARCH='\"armv8.5-a\"' -DKASAN_SHADOW_SCALE_SHIFT= -fno-delete-null-pointer-checks -O2 -fno-allow-store-data-races -fstack-protector-strong -fno-omit-frame-pointer -fno-optimize-sibling-calls -ftrivial-auto-var-init=zero -fzero-init-padding-bits=all -fno-stack-clash-protection -fmin-function-alignment=4 -fstrict-flex-arrays=3 -fno-strict-overflow -fno-stack-check -fconserve-stack -fno-builtin-wcslen -Wall -Wextra -Wundef -Werror=implicit-function-declaration -Werror=implicit-int -Werror=return-type -Werror=strict-prototypes -Wno-format-security -Wno-trigraphs -Wno-frame-address -Wno-address-of-packed-member -Wmissing-declarations -Wmissing-prototypes -Wframe-larger-than=2048 -Wno-main -Wno-type-limits -Wno-dangling-pointer -Wvla-larger-than=1 -Wno-pointer-sign -Wcast-function-type -Wno-unterminated-string-initialization -Wno-array-bounds -Wno-stringop-overflow -Wno-alloc-size-larger-than -Wimplicit-fallthrough=5 -Werror=date-time -Werror=incompatible-pointer-types -Werror=designated-init -Wenum-conversion -Wunused -Wmissing-format-attribute -Wmissing-include-dirs -Wunused-const-variable -Wno-missing-field-initializers -Wno-shift-negative-value -Wno-maybe-uninitialized -Wno-sign-compare -Wno-unused-parameter -g -fno-var-tracking -femit-struct-debug-baseonly -mstack-protector-guard=sysreg -mstack-protector-guard-reg=sp_el0 -mstack-protector-guard-offset=1344 -I/home/cy122/charging-management-20261023/usb-input-irq-board-01/source-view/drivers/power/supply -Idrivers/power/supply  -DMODULE  -DKBUILD_BASENAME='\"samurai_usb_input\"' -DKBUILD_MODNAME='\"samurai_usb_input\"' -D__KBUILD_MODNAME=samurai_usb_input -c -o drivers/power/supply/samurai-usb-input.o /home/cy122/charging-management-20261023/usb-input-irq-board-01/source-view/drivers/power/supply/samurai-usb-input.c  "
+    }
+  },
+  "script_sha256": "e2a78ef8c9f1d04ee0a88b8954c4ee1bbc7927aae09b832e2caa74418296881d"
+}

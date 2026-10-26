@@ -1,0 +1,57 @@
+--- 501/device.py
++++ 502/device.py
+@@ -4,10 +4,9 @@
+ from pathlib import Path
+ import argparse,base64,fcntl,hashlib,json,os,re,stat,struct,subprocess,sys,time
+ sha=lambda raw:hashlib.sha256(raw).hexdigest()
+-CANDIDATE_BOOT='97811cc4ae13b36fec98b2eae7cd54a4f12bca988864df0f3d8f663a8c67f695'
+-ROLLBACK_BOOT='4126a2978bc79b5cb95b6e1b86bb432a6b16ece627776237c163b93b323bbfcf'
+-IMAGE501='3a656c75d3b714153d77b637654c894a0418fd688cc906d59a37a41401e8cc02'
+-LOGDUMP501='7e5de5b437fbc884d97a103e77bd97a21b77c99151c67b7bcb1745d51076cbf9'
++UNCHANGED_BOOT='97811cc4ae13b36fec98b2eae7cd54a4f12bca988864df0f3d8f663a8c67f695'
++IMAGE502='085d03066983a82d1d1c74b74f69c85560698d6fc49f62d6db511a8799b25955'
++LOGDUMP502='ace2e261bbfbd923fc3e631e857163f172d09bfb3489f7107782394fbf763ed1'
+ CAMERA481='1c4584915dade64a0978a0138c6775bf99e56af9f8036d7d2276c33f132f4705'
+ R8_MANIFEST='320316c3d93c1dbcaae29440f1f17d72c75e4994d656a9da9fcd5aeb93c10a1f'
+ R8_NOTES={'samurai_usb_input':'f0edb792d30ee1168ee1793e89707aa48b2085c845acde8f472f2c13a03804b0',
+@@ -118,12 +117,12 @@
+  assert r['boot_id']!=g['boot_id'],'still old boot'
+  assert r['uname']['machine']=='aarch64' and r['taint']=='0'
+  assert r['uname']['release']==g['kernel_release']=='7.3.0-rc6-rmx1931-samurai-k363+'
+- assert r['uname']['version']=='#501 SMP PREEMPT Tue Oct 20 03:03:47 UTC 2026'
++ assert r['uname']['version']=='#502 SMP PREEMPT Tue Oct 20 03:03:47 UTC 2026'
+  check_file(r['rootfs'],g['rootfs_release_sha256'])
+  assert r['serial_sha256']==g['soc_serial_sha256']
+  compatible=base64.b64decode(r['compatible_b64'],validate=True)
+  assert sha(compatible)==g['compatible_sha256'] and b'realme,samurai' in compatible.split(b'\0')
+- return {'new_boot':True,'same_board_release_rootfs_new_Image501':True}
++ return {'new_boot':True,'same_board_release_rootfs_new_Image502':True}
+ 
+ def service_facts():
+  result={name:[] for name in SERVICES}
+@@ -209,9 +208,9 @@
+  return raw
+ 
+ def check_partitions(r):
+- assert r['boot_partition']['bytes']==100663296 and r['boot_partition']['sha256']==CANDIDATE_BOOT
+- assert r['logdump_partition']['bytes']==67108864 and r['logdump_partition']['sha256']==LOGDUMP501
+- return {'candidate_boot_exact':True,'logdump_exact':True,'Image501_binding':'exact full candidate FAT plus frozen Image readback receipt'}
++ assert r['boot_partition']['bytes']==100663296 and r['boot_partition']['sha256']==UNCHANGED_BOOT
++ assert r['logdump_partition']['bytes']==67108864 and r['logdump_partition']['sha256']==LOGDUMP502
++ return {'unchanged_boot_exact':True,'logdump_exact':True,'Image502_binding':'exact full candidate FAT plus frozen Image readback receipt'}
+ 
+ def check_install(r):
+  check_file(r['manifest'],R8_MANIFEST);m=json.loads(r['manifest_text'])
+@@ -368,9 +367,10 @@
+  if not args.execute:
+   print(json.dumps({'local_checks_passed':True,'device_accessed':False,'read_only':True}));return 0
+  assert args.window_confirmed and args.new_endpoint and request is not None
+- assert request['schema']=='samurai-image501-postboot-readonly-v1'
++ assert request['schema']=='samurai-image502-notify-postboot-readonly-v1'
+  assert request['original_key_transport_verified'] is True and request['new_endpoint']==args.new_endpoint
+- assert request['guard']['candidate_boot_sha256']==CANDIDATE_BOOT
++ assert request['guard']['unchanged_boot_sha256']==UNCHANGED_BOOT and request['guard']['partitions']==['logdump']
++ assert request['guard']['candidate_logdump_sha256']==LOGDUMP502 and request['guard']['image502_sha256']==IMAGE502
+  raw={}
+  try:
+   collect(request,raw);result=audit(raw,request)

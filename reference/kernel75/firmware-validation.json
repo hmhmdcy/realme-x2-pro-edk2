@@ -1,0 +1,106 @@
+{
+  "boot_gzip_crc_pass": true,
+  "old_boot_matches_backed_up_fv": true,
+  "embedded_fd_matches": true,
+  "fd_bytes": 7340032,
+  "bootshim_bytes": 144,
+  "bootshim_sha256": "7f64231d4fc8b9611edadc1871338535675a761683d932d35c422b3092789a91",
+  "compact_lzma_matches_main_fv": true,
+  "firmware_dtb_raw_section_matches": true,
+  "ffs_header_checksums_pass": true,
+  "fv_header_checksums_pass": true,
+  "android_header_unchanged_except_size_and_digest": true,
+  "compat_append_unchanged": true,
+  "cmdline_preserved": "earlycon=eud,mmio,0x88e0000 console=tty0 console=eud loglevel=7 ignore_loglevel panic=15 clk_ignore_unused pd_ignore_unused regulator_ignore_unused",
+  "module_count": 101,
+  "semantic_dtb_changes": {
+    "exactly_three_semantic_properties_changed": true,
+    "changes": [
+      {
+        "path": "/soc@0/gpu@2c00000",
+        "property": "status",
+        "before": "64697361626c656400",
+        "after": "6f6b617900"
+      },
+      {
+        "path": "/soc@0/gpu@2c00000/zap-shader",
+        "property": "firmware-name",
+        "before": "71636f6d2f736d383135302f613634305f7a61702e6d626e00",
+        "after": "71636f6d2f736d383135302f7265616c6d652f73616d757261692f613634305f7a61702e6d626e00"
+      },
+      {
+        "path": "/soc@0/gmu@2c6a000",
+        "property": "status",
+        "before": "64697361626c656400",
+        "after": "6f6b617900"
+      }
+    ]
+  },
+  "firmware_version_before": "bd23aaa",
+  "firmware_version_after": "20a1d60",
+  "other_executable_bytes_unchanged": true,
+  "changed_modules": [
+    {
+      "guid": "bad0554e-22e9-4d83-9afd-cc87727a1a45",
+      "name": "PlatformSmbiosDxe",
+      "before_size": 36992,
+      "after_size": 36992,
+      "classification": "firmware_version_string_only",
+      "before_sha256": "3565e699e6fb4526cb2fd1baae3fb8a815a369e94b8141af2e2f2db09d9f05a1",
+      "after_sha256": "a0843ad37fa3fef44c523660ba14eefcf079c16a111ad71d1bb33e17d662d176",
+      "changed_sections": [
+        "0x10"
+      ]
+    },
+    {
+      "guid": "6d33944a-ec75-4855-a54d-809c75241f6c",
+      "name": "BdsDxe",
+      "before_size": 110714,
+      "after_size": 110714,
+      "classification": "firmware_version_string_only",
+      "before_sha256": "70171c254e9f1e7262dcbe0d60588548971b964e59e50aa2b503d0200debc0e6",
+      "after_sha256": "d91eeecb90ecc4e4dec4810b014e395cee2e7553c38e3145ea9fdf2c4779e718",
+      "changed_sections": [
+        "0x10"
+      ]
+    },
+    {
+      "guid": "462caa21-7614-4503-836e-8ab6f4662331",
+      "name": "UiApp",
+      "before_size": 200800,
+      "after_size": 200800,
+      "classification": "firmware_version_string_only",
+      "before_sha256": "d0f53d5c281eaf034c2e71a6a68d21d9cc0cae5922ac1919488fd058ae8946f5",
+      "after_sha256": "fba8c17db1ba32ee40ace3ece2b9dfbee043547ebc982aa93b5e3b60669a4a6a",
+      "changed_sections": [
+        "0x10"
+      ]
+    },
+    {
+      "guid": "25462cda-221f-47df-ac1d-259cfaa4e326",
+      "name": "",
+      "before_size": 96824,
+      "after_size": 96828,
+      "classification": "gpu_gmu_status_and_board_zap_path",
+      "before_sha256": "7ea02165a42ede51362d955fa2759dee24d16cafbab23b4be43dd8a4a3c8e0b5",
+      "after_sha256": "1b8a1bd0b1bfcfaed5096f8f191bb936a99d22ad1a34c399fd7530a9ae82e8fe",
+      "changed_sections": [
+        "0x19"
+      ]
+    }
+  ],
+  "changed_compact_modules": [
+    {
+      "guid": "8af09f13-44c5-96ec-1437-dd899cb5ee5d",
+      "name": "",
+      "type": "0x3"
+    },
+    {
+      "guid": "9e21fd93-9c72-4c15-8c4b-e77f1db2d792",
+      "name": "",
+      "type": "0xb"
+    }
+  ],
+  "boot_after_bytes": 6682624,
+  "boot_after_sha256": "43ddcba2444e1672cd95205f6984c761eaeb59c83162cffdffb371c50a29c37b"
+}

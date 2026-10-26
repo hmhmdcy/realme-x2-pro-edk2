@@ -1,0 +1,38 @@
+{
+  "schema": "samurai-pd5v-owner-independent-static-review-v1",
+  "source_revision": "036ea6c6-power-fix",
+  "integration_blocked": true,
+  "blocker": "quiesce copies client callback/context without pin; concurrent release can return and context can be destroyed before callback",
+  "author_confirmed_missing_context_lifetime_contract": true,
+  "root_agreed_independent_r2_needed": true,
+  "current_consumer": false,
+  "observed_device_UAF": false,
+  "source_and_test_pins": {
+    "qcom_pmic_typec_5v.c": "036ea6c647a7350e0c862c099d450a2e0c4f683785f67d189debac913ac4ed27",
+    "qcom_pmic_typec_5v.h": "8f24de94fa868662de4d6a56761ad3d2161b3d1c7dda81ebffbc7fe2215386c4",
+    "qcom_pmic_typec.c": "1e5332d06360cfef1f84aba255fc2d5c753fe7b77945a6689247a5c8a79d58a7",
+    "actual-functions.inc": "46a2478b456e3127f30b7461ccd79f368b63c0d04a02a98793318df025020593",
+    "actual-probe.inc": "66087739e3d3b8f1c79885f28ca59da4877d0ea811a6fd3d741664eef4affe0b",
+    "function-manifest.json": "0c92c032f0691a8f87dc4d02c00155205f0ec966bcf7da34bbdd17daf0d8b0dd",
+    "test-control.c": "0c2fabe3faeddf44c78570d62003066db4b8c106cbb08600df79a4114beae88e",
+    "run-tests.py": "92c7f53b516e9fce54557cec8f0ccb7fca5b81be9b91c0a4c274c77ff356b51e",
+    "pd5v-owner.patch": "1ac3ad957fcb5a521dabb6eab6dbcdcd8466ca5153604ffb0985ac48781c19be",
+    "contract.json": "52466a94693ff7f9a93d7d02525aca9bb4b9578c1ce2adbb91c045967465261f",
+    "test-result.json": "634f7dbe09fd0b3bf14ee9795a3627d334598059ee09285669daa0b9fa2666d5",
+    "delivery.json": "0c377f5776262a7622bf2e587ec78af369e21ebfab1259ff187339b535b9808a"
+  },
+  "test_group_count": 7,
+  "actual_function_count": 22,
+  "author_tests_passed": true,
+  "reviewer_ran_tests_build_or_entrypoint": false,
+  "reviewer_device_SSH_SDK_Git_mutation_or_mount": false,
+  "other_covered_boundaries": [
+    "probe handle only, no regulator enable or PD IO",
+    "two fresh stable off/vSafe0 status samples before power",
+    "post-power prewrite validation",
+    "one disabling sequence, partial-error terminal rejection",
+    "component ref and registry lookup, PM/remove lock-free join"
+  ],
+  "final_object_receipt_binding": "pending author final receipt; old pre-power-fix objects not accepted",
+  "review_md_sha256": "58612abc81d2c54136f8666bb6e05c282620f4063537c54d1e3ebb9846e1a136"
+}

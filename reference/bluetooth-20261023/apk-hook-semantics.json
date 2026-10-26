@@ -1,0 +1,22 @@
+{
+  "version_examined": "apk-tools v3.0.8",
+  "primary_sources": [
+    "https://github.com/alpinelinux/apk-tools/blob/v3.0.8/src/database.c",
+    "https://github.com/alpinelinux/apk-tools/blob/v3.0.8/src/package.c"
+  ],
+  "verified_source_behavior": {
+    "apk_db_run_pending_script": "Returns void and does not propagate apk_ipkg_run_script result to the extraction caller",
+    "apk_ipkg_run_script": "Records broken_script when a script fails",
+    "apk_db_install_pkg": "Commits unpacked package and migrates files, then checks broken_files or broken_script for final failure status"
+  },
+  "consequence": "A nonzero apk exit or failed pre-install/pre-upgrade hook is not evidence that package bytes or database stayed unchanged",
+  "installed_database_f_flag_mapping": {
+    "f": "broken_files",
+    "s": "broken_script",
+    "x": "broken_xattr",
+    "S": "sha256_160; normal format/hash marker, not an error"
+  },
+  "required_installation_design": "Run explicit guarded checks before invoking apk; inspect actual module bytes, ownership, package version and failure flags afterward; handle partial outcomes and rollback explicitly",
+  "handset_apk_version_verified": false,
+  "device_accessed": false
+}

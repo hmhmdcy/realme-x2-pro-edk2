@@ -1,0 +1,167 @@
+{
+  "scope": "cached notification pipeline audit; no phone operations",
+  "duration_seconds": 600.3051817409996,
+  "samples": 570,
+  "kernel_events": 521,
+  "dbus_signals": 560,
+  "dbus_parse_errors": [],
+  "clock": {
+    "start_realtime_present": true,
+    "observed_end_offset_drift_seconds": null,
+    "cross_clock_timing_quality": "estimated_single_anchor"
+  },
+  "notification_counts": {
+    "bq28z610-0": {
+      "events": 1,
+      "rate_per_second": 0.001665819370573829,
+      "median_gap_seconds": null,
+      "minimum_gap_seconds": null,
+      "online_values": [],
+      "status_values": [
+        "Discharging"
+      ]
+    },
+    "mp2650-input": {
+      "events": 520,
+      "rate_per_second": 0.866226072698391,
+      "median_gap_seconds": 1.1516013969994674,
+      "minimum_gap_seconds": 1.1032487840002432,
+      "online_values": [
+        1
+      ],
+      "status_values": [
+        "Charging"
+      ]
+    }
+  },
+  "transitions": [],
+  "dbus_property_counts": [
+    {
+      "device": "DisplayDevice",
+      "property": "Energy",
+      "signals": 19
+    },
+    {
+      "device": "DisplayDevice",
+      "property": "EnergyFull",
+      "signals": 19
+    },
+    {
+      "device": "DisplayDevice",
+      "property": "EnergyRate",
+      "signals": 20
+    },
+    {
+      "device": "DisplayDevice",
+      "property": "IconName",
+      "signals": 1
+    },
+    {
+      "device": "DisplayDevice",
+      "property": "State",
+      "signals": 1
+    },
+    {
+      "device": "DisplayDevice",
+      "property": "TimeToEmpty",
+      "signals": 17
+    },
+    {
+      "device": "DisplayDevice",
+      "property": "UpdateTime",
+      "signals": 20
+    },
+    {
+      "device": "battery_bq28z610_0",
+      "property": "Capacity",
+      "signals": 2
+    },
+    {
+      "device": "battery_bq28z610_0",
+      "property": "Energy",
+      "signals": 19
+    },
+    {
+      "device": "battery_bq28z610_0",
+      "property": "EnergyFull",
+      "signals": 19
+    },
+    {
+      "device": "battery_bq28z610_0",
+      "property": "EnergyFullDesign",
+      "signals": 19
+    },
+    {
+      "device": "battery_bq28z610_0",
+      "property": "EnergyRate",
+      "signals": 20
+    },
+    {
+      "device": "battery_bq28z610_0",
+      "property": "IconName",
+      "signals": 1
+    },
+    {
+      "device": "battery_bq28z610_0",
+      "property": "State",
+      "signals": 1
+    },
+    {
+      "device": "battery_bq28z610_0",
+      "property": "Temperature",
+      "signals": 14
+    },
+    {
+      "device": "battery_bq28z610_0",
+      "property": "TimeToEmpty",
+      "signals": 17
+    },
+    {
+      "device": "battery_bq28z610_0",
+      "property": "UpdateTime",
+      "signals": 20
+    },
+    {
+      "device": "battery_bq28z610_0",
+      "property": "Voltage",
+      "signals": 19
+    },
+    {
+      "device": "line_power_mp2650_input",
+      "property": "UpdateTime",
+      "signals": 520
+    }
+  ],
+  "display_update_median_gap_seconds": 30.02335286140442,
+  "battery_notification_responses": [
+    {
+      "battery_uevent_t": 0.2556519350000599,
+      "kernel_status": "Discharging",
+      "kernel_current_ua": -5000,
+      "display_signal_estimated_t": 0.3040199279785156,
+      "response_seconds_estimated": 0.04836799297845573,
+      "display_state": "Discharging",
+      "association": "first following relevant DisplayDevice signal within 5s; temporal association only"
+    }
+  ],
+  "upower_display_states": [
+    {
+      "estimated_t": 0.3040199279785156,
+      "state": "Discharging"
+    }
+  ],
+  "warnings": [
+    "One REALTIME/MONOTONIC anchor only: cross-clock timings assume no wall-clock step/drift; they are estimates.",
+    "Charger emits at least 0.5 change events/s; supplied_to may refresh the original gauge every poll even at steady state.",
+    "No compositor/panel timestamp: neither a D-Bus signal nor derived icon proves physical screen update latency."
+  ],
+  "screen_icon_latency_verified": false,
+  "legacy_capture_limitations": [
+    "Samples timestamped before multiple sequential reads, without an end timestamp.",
+    "Netlink timestamp is userspace reception, not physical VBUS edge.",
+    "PropertiesChanged may omit State when it remains unchanged; absence is not a failed refresh.",
+    "Initial UPower/display properties are not in this capture."
+  ],
+  "capture_sha256": "8cbfd0f5eb4012690622cbe60d1919fed4915902d531a97da11e4b2218762d3a",
+  "auditor_sha256": "e064ed160392cecbfeaf9387154a847e0147a91a002f612c05a9e6430e3f4496"
+}

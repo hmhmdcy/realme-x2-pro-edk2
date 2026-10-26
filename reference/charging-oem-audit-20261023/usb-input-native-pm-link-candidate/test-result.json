@@ -1,0 +1,62 @@
+{
+  "passed": true,
+  "actual_result": {
+    "passed": true,
+    "actual_function_cases": 21,
+    "actual_probe_bodies": true,
+    "driver_core_devres_and_hardware_fake": true
+  },
+  "asan_ubsan": true,
+  "commands": [
+    {
+      "label": "compile",
+      "argv": [
+        "gcc",
+        "-std=c11",
+        "-O1",
+        "-g",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-fsanitize=address,undefined",
+        "-fno-omit-frame-pointer",
+        "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/usb-input-native-pm-link-candidate/test-native-pm.c",
+        "-o",
+        "/home/cy122/charging-management-20261023/usb-input-native-pm-link-tests-01/test-native-pm"
+      ],
+      "pid": 725,
+      "terminal": true,
+      "returncode": 0,
+      "seconds": 1.3576045319999999,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "test",
+      "argv": [
+        "/home/cy122/charging-management-20261023/usb-input-native-pm-link-tests-01/test-native-pm"
+      ],
+      "pid": 787,
+      "terminal": true,
+      "returncode": 0,
+      "seconds": 0.026139689999999938,
+      "stdout_sha256": "6d99dde2c1bd72073fafee8df46d3378e95dca62466c9ce3c0cf82ed88933ea1",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "tested_files": {
+    "samurai-usb-input.c": "faa99156b26c1ae3a8147bb2009d5ed2b8c9e99d72a15acfd090bff793b6d9b0",
+    "samurai-usb-input-decode.h": "a17caa2cbeb2352da249474e0265fa96745f544d96a29d0ebe8f14c656d548fd",
+    "native-pm-link.c.inc": "1b60c5d9ccbb6a5b08176801a4d4513cf9d94bbbaa73de2c2351c38de5eaf1f5",
+    "actual-link-and-probe.inc": "18465104ffa2275813593b2172a18ce4850579b6cac1355038bf8f096859e133",
+    "actual-pm-and-setter.inc": "0bf535cdf30aacbeb7566b8628065275f7264fb77a10d05ac0b833de31d4ba1d",
+    "actual-dwc-vbus-work.inc": "f8c0ec10b55cd8fd46672f99086ec986ad7d2f3888c4be7498e245d91ff07d5b",
+    "test-native-pm.c": "3c5f1e3de5286ea20f281fcf7136e57482306bb43585df53e060b7327fbfcb42",
+    "run-tests.py": "f9c249480bc4c348417f49e6535217cb8ac73fd415f617b9bec91871072f0fce"
+  },
+  "private_binary_path": "/home/cy122/charging-management-20261023/usb-input-native-pm-link-tests-01/test-native-pm",
+  "private_binary_sha256": "44a877d6b37f0ee77f5c93666b6e331d16b2ddd0d59c892f648d931053ca3e62",
+  "scope": "actual provider functions/full probe body and original DWC vbus work; fake OF, driver-core/devres, PSY and workqueue boundaries; not real probe/system-PM or hardware validation",
+  "old_suites_rerun": false,
+  "device_or_SDK_or_Git_or_shared_build_accessed": false
+}

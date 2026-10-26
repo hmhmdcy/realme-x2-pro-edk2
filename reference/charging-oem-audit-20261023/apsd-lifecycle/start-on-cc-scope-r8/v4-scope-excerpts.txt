@@ -1,0 +1,148 @@
+HTML cache lines 120..139
+
+PM8150B places the charger and VBUS regulator in the same DCDC peripheral,
+but the SMB5 path does not write the regulator registers. qcom_smbx reads
+0x1108 and 0x110b, while qcom_usb_vbus-regulator writes 0x1140, 0x1152
+and 0x1153. The SMB2-only OTG configuration write to 0x1153 is not part
+of the SMB5 initialization sequence. The TCPM port and PD PHY use the
+separate 0x15xx and 0x17xx peripherals. Name the USBIN BC1.2 integration
+register and SMB2-only OTG definitions accordingly to make this ownership
+boundary explicit.
+
+Program the battery limits and complete SMB5 input and charging setup
+from the power-supply registration init callback before device_add
+publishes the properties. This makes all public callbacks safe without
+driver-specific probe synchronization.
+
+Suspend USB input and charging before SMB5 initialization. On a later
+failure, restore the original charging-enable state before the
+input-suspend state; leave the input suspended if charging cannot be
+restored. Cancel status work before unregistering the power supply during
+managed teardown. Update the Kconfig description to cover both charger
+
+HTML cache lines 889..907
++/* Init sequence derived from vendor downstream driver */
++static const struct smb_init_register smb5_init_seq[] = {
++	/*
++	 * TCPM owns the separate Type-C peripheral. This register only
++	 * controls how the charger's USBIN peripheral starts BC1.2 detection.
++	 */
++	{ .addr = USBIN_TYPE_C_CFG,
++	  .mask = APSD_START_ON_CC_BIT,
++	  .val = 0 },
++	/* Enable BC1.2 source detection without unsupported HVDCP negotiation. */
++	{ .addr = USBIN_OPTIONS_1_CFG,
++	  .mask = HVDCP_AUTH_ALG_EN_CFG_BIT |
++		  HVDCP_AUTONOMOUS_MODE_EN_CFG_BIT | AUTO_SRC_DETECT_BIT |
++		  HVDCP_EN_BIT,
++	  .val = AUTO_SRC_DETECT_BIT },
++	/* Set the default SDP charger type to a 500ma USB 2.0 port */
++	{ .addr = USBIN_ICL_OPTIONS,
++	  .mask = USBIN_MODE_CHG_BIT,
++	  .val = USBIN_MODE_CHG_BIT },
+
+HTML cache lines 1044..1065
++static int smb_init_hw(struct smb_chip *chip,
++		       const struct smb_init_register *init_seq, size_t len)
+ {
+ 	int rc, i;
+ 
+-	for (i = 0; i < ARRAY_SIZE(smb_init_seq); i++) {
++	for (i = 0; i < len; i++) {
+ 		dev_dbg(chip->dev, "%d: Writing 0x%02x to 0x%02x\n", i,
+-			smb_init_seq[i].val, smb_init_seq[i].addr);
++			init_seq[i].val, init_seq[i].addr);
+ 		rc = regmap_update_bits(chip->regmap,
+-					chip->base + smb_init_seq[i].addr,
+-					smb_init_seq[i].mask,
+-					smb_init_seq[i].val);
++					chip->base + init_seq[i].addr,
++					init_seq[i].mask,
++					init_seq[i].val);
+ 		if (rc < 0)
+ 			return dev_err_probe(chip->dev, rc,
+ 					     "%s: init command %d failed\n",
+@@ -914,19 +1328,6 @@ static int smb_init_hw(struct smb_chip *chip)
+ 	return 0;
+
+HTML cache lines 1113..1192
+ static int smb_probe(struct platform_device *pdev)
+ {
+ 	struct power_supply_config supply_config = {};
+ 	struct power_supply_desc *desc;
+ 	struct smb_chip *chip;
+-	unsigned int charge_enable;
+-	unsigned int float_voltage_sel;
+-	int float_voltage_uv;
++	const struct smb_match_data *match_data;
++	unsigned int reg;
+ 	int rc, irq;
+ 
+ 	chip = devm_kzalloc(&pdev->dev, sizeof(*chip), GFP_KERNEL);
+@@ -986,19 +1411,57 @@ static int smb_probe(struct platform_device *pdev)
+ 				     "Couldn't get usbin_i IIO channel\n");
+ 	}
+ 
+-	rc = regmap_read(chip->regmap, chip->base + CHARGING_ENABLE_CMD,
+-			 &charge_enable);
++	match_data = device_get_match_data(chip->dev);
++	if (!match_data)
++		return dev_err_probe(chip->dev, -ENODEV,
++				     "missing match data\n");
++
++	chip->gen = match_data->gen;
++	chip->match_data = match_data;
++	chip->icl_max_ua = match_data->icl_max_ua;
++	chip->icl_step_ua = match_data->icl_step_ua;
++	chip->icl_status = match_data->icl_status;
++	chip->usbin_current_scale = match_data->usbin_current_scale;
++
++	dev_info(chip->dev, "Generation %s\n", chip->gen == SMB2 ? "SMB2" : "SMB5");
++	if (chip->gen == SMB5) {
++		rc = regmap_read(chip->regmap, chip->base + USBIN_CMD_IL, &reg);
++		if (rc < 0)
++			return dev_err_probe(chip->dev, rc,
++					     "could not read USB input state\n");
++		chip->initial_usb_suspend = reg & USBIN_SUSPEND_BIT;
++	}
++
++	rc = regmap_read(chip->regmap,
++			 chip->base + CHARGING_ENABLE_CMD, &reg);
+ 	if (rc < 0)
+ 		return dev_err_probe(chip->dev, rc,
+-				     "Couldn't read charging state\n");
++				     "could not read charging state\n");
++	chip->initial_charge_enable = reg & CHARGING_ENABLE_CMD_BIT;
+ 
+-	chip->initial_charge_enable = charge_enable & CHARGING_ENABLE_CMD_BIT;
+-	rc = devm_add_action_or_reset(chip->dev, smb_restore_charge_enable, chip);
+-	if (rc)
+-		return dev_err_probe(chip->dev, rc,
+-				     "Couldn't register charging state rollback\n");
++	rc = devm_add_action_or_reset(chip->dev,
++				      smb_restore_charge_state, chip);
++	if (rc < 0)
++		return rc;
++
++	if (chip->gen == SMB5) {
++		/* Do not use bootloader charge limits while configuring SMB5. */
++		rc = regmap_update_bits(chip->regmap,
++					chip->base + USBIN_CMD_IL,
++					USBIN_SUSPEND_BIT, USBIN_SUSPEND_BIT);
++		if (rc < 0)
++			return dev_err_probe(chip->dev, rc,
++					     "could not suspend USB input\n");
+ 
+-	rc = smb_init_hw(chip);
++		rc = regmap_update_bits(chip->regmap,
++					chip->base + CHARGING_ENABLE_CMD,
++					CHARGING_ENABLE_CMD_BIT, 0);
++		if (rc < 0)
++			return dev_err_probe(chip->dev, rc,
++					     "could not disable charging\n");
++	}
++
++	rc = smb_init_hw(chip, match_data->init_seq, match_data->init_seq_len);
+ 	if (rc < 0)
+ 		return rc;
+ 

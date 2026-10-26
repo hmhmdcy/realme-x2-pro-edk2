@@ -1,0 +1,295 @@
+diff --git a/drivers/media/platform/qcom/camss/Makefile b/drivers/media/platform/qcom/camss/Makefile
+index 3b0a94d0e40c3b3e1a3344a8dd3272026ea842ff..be015adbae6b10a7377a56d0a10ceb3451db5bd1 100644
+--- a/drivers/media/platform/qcom/camss/Makefile
++++ b/drivers/media/platform/qcom/camss/Makefile
+@@ -25,6 +25,7 @@ qcom-camss-objs += \
+ 		camss-vfe-17x.o \
+ 		camss-vfe-175-camif.o \
+ 		camss-vfe-175-output.o \
++		camss-vfe-175-pixel.o \
+ 		camss-vfe-340.o \
+ 		camss-vfe-480.o \
+ 		camss-vfe-680.o \
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe-175-pixel.c b/drivers/media/platform/qcom/camss/camss-vfe-175-pixel.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..3e18ccf8d62d760ccbb88544bea2a4bd9d70ec5e
+--- /dev/null
++++ b/drivers/media/platform/qcom/camss/camss-vfe-175-pixel.c
+@@ -0,0 +1,143 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/* Qualcomm SM8150 full VFE175 pixel module programming. */
++
++#include <linux/bitfield.h>
++#include <linux/io.h>
++#include <linux/qcom-camss-config.h>
++
++#include "camss.h"
++#include "camss-vfe.h"
++#include "camss-vfe-175-pixel.h"
++
++#define VFE_175_WB_GAIN_0		0x6fc
++#define VFE_175_WB_GAIN_1		0x700
++#define VFE_175_WB_OFFSET_0	0x704
++#define VFE_175_WB_OFFSET_1	0x708
++#define VFE_175_WB_GREEN		GENMASK(11, 0)
++#define VFE_175_WB_BLUE		GENMASK(27, 16)
++#define VFE_175_WB_RED		GENMASK(11, 0)
++#define VFE_175_WB_OFFSET_GB	(GENMASK(14, 0) | GENMASK(30, 16))
++#define VFE_175_WB_OFFSET_R	GENMASK(14, 0)
++#define VFE_175_WB_UNITY		128
++
++static u32 vfe_175_wb_q7(u16 gain)
++{
++	/* The common block uses U15Q10; this hardware uses U12Q7. */
++	return min_t(u32, ((u32)gain + 4) >> 3, 4095);
++}
++
++static void vfe_175_wb_write(struct vfe_device *vfe)
++{
++	const struct vfe_175_pixel_state *state = &vfe->pixel175;
++	u32 g = VFE_175_WB_UNITY, b = g, r = g;
++	u32 value;
++
++	if (state->wb_enabled) {
++		g = vfe_175_wb_q7(state->g_gain);
++		b = vfe_175_wb_q7(state->b_gain);
++		r = vfe_175_wb_q7(state->r_gain);
++	}
++
++	value = readl_relaxed(vfe->base + VFE_175_WB_GAIN_0);
++	value &= ~(VFE_175_WB_GREEN | VFE_175_WB_BLUE);
++	value |= FIELD_PREP(VFE_175_WB_GREEN, g) |
++		 FIELD_PREP(VFE_175_WB_BLUE, b);
++	writel_relaxed(value, vfe->base + VFE_175_WB_GAIN_0);
++	value = readl_relaxed(vfe->base + VFE_175_WB_GAIN_1);
++	value &= ~VFE_175_WB_RED;
++	writel_relaxed(value | FIELD_PREP(VFE_175_WB_RED, r),
++		       vfe->base + VFE_175_WB_GAIN_1);
++
++	/* No offset conversion is advertised: only zero offsets are accepted. */
++	value = readl_relaxed(vfe->base + VFE_175_WB_OFFSET_0);
++	writel_relaxed(value & ~VFE_175_WB_OFFSET_GB,
++		       vfe->base + VFE_175_WB_OFFSET_0);
++	value = readl_relaxed(vfe->base + VFE_175_WB_OFFSET_1);
++	writel_relaxed(value & ~VFE_175_WB_OFFSET_R,
++		       vfe->base + VFE_175_WB_OFFSET_1);
++}
++
++static int vfe_175_wb_validate(struct device *dev,
++			       const struct v4l2_isp_block_header *block)
++{
++	const struct camss_params_wb_gain *wb;
++
++	if (block->flags & ~(V4L2_ISP_PARAMS_FL_BLOCK_ENABLE |
++			     V4L2_ISP_PARAMS_FL_BLOCK_DISABLE) ||
++	    block->flags == (V4L2_ISP_PARAMS_FL_BLOCK_ENABLE |
++			     V4L2_ISP_PARAMS_FL_BLOCK_DISABLE))
++		return -EINVAL;
++	/* A DISABLE block may contain only the header. Never read its payload. */
++	if (block->flags & V4L2_ISP_PARAMS_FL_BLOCK_DISABLE)
++		return 0;
++
++	wb = container_of(block, struct camss_params_wb_gain, header);
++	if (wb->g_gain > 32767 || wb->b_gain > 32767 || wb->r_gain > 32767 ||
++	    wb->g_sub || wb->b_sub || wb->r_sub ||
++	    wb->g_add || wb->b_add || wb->r_add ||
++	    wb->_pad[0] || wb->_pad[1] || wb->_pad[2])
++		return -EINVAL;
++
++	return 0;
++}
++
++static int vfe_175_params_unsupported(struct device *dev,
++				      const struct v4l2_isp_block_header *block)
++{
++	return -EINVAL;
++}
++
++const struct v4l2_isp_params_block_type_info vfe_175_params_info[2] = {
++	[0] = {
++		.size = sizeof(struct v4l2_isp_block_header),
++		.block_validate = vfe_175_params_unsupported,
++	},
++	[CAMSS_PARAMS_WB_GAIN] = {
++		.size = sizeof(struct camss_params_wb_gain),
++		.block_validate = vfe_175_wb_validate,
++	},
++};
++
++void vfe_175_pixel_prepare(struct vfe_line *line)
++{
++	struct vfe_device *vfe = to_vfe(line);
++
++	if (!line->is_pix)
++		return;
++	/* Reopening a line starts from neutral gains, then queued params apply. */
++	vfe->pixel175 = (struct vfe_175_pixel_state) {
++		.g_gain = 1024,
++		.b_gain = 1024,
++		.r_gain = 1024,
++		.wb_enabled = true,
++	};
++	vfe_175_wb_write(vfe);
++}
++
++void vfe_175_params_apply(struct vfe_device *vfe, struct vfe_line *line,
++			  const struct v4l2_isp_buffer *params)
++{
++	size_t offset = 0;
++
++	if (!line->is_pix)
++		return;
++	/* The common parser checked sizes, types and payloads before queueing. */
++	while (offset < params->data_size) {
++		const struct v4l2_isp_block_header *block =
++			(const void *)&params->data[offset];
++		const struct camss_params_wb_gain *wb;
++
++		if (block->flags & V4L2_ISP_PARAMS_FL_BLOCK_DISABLE) {
++			vfe->pixel175.wb_enabled = false;
++		} else {
++			wb = container_of(block, struct camss_params_wb_gain, header);
++			vfe->pixel175.g_gain = wb->g_gain;
++			vfe->pixel175.b_gain = wb->b_gain;
++			vfe->pixel175.r_gain = wb->r_gain;
++			if (block->flags & V4L2_ISP_PARAMS_FL_BLOCK_ENABLE)
++				vfe->pixel175.wb_enabled = true;
++		}
++		vfe_175_wb_write(vfe);
++		offset += block->size;
++	}
++}
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe-175-pixel.h b/drivers/media/platform/qcom/camss/camss-vfe-175-pixel.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..c8a930c5bb5ba9682de14358d6963cfa162795c8
+--- /dev/null
++++ b/drivers/media/platform/qcom/camss/camss-vfe-175-pixel.h
+@@ -0,0 +1,26 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++#ifndef CAMSS_VFE_175_PIXEL_H
++#define CAMSS_VFE_175_PIXEL_H
++
++#include <linux/types.h>
++#include <media/v4l2-isp.h>
++
++struct vfe_device;
++struct vfe_line;
++struct v4l2_isp_buffer;
++struct v4l2_isp_params_block_type_info;
++
++/* Cached configuration survives parameter updates while WB is bypassed. */
++struct vfe_175_pixel_state {
++	u16 g_gain;
++	u16 b_gain;
++	u16 r_gain;
++	bool wb_enabled;
++};
++
++extern const struct v4l2_isp_params_block_type_info vfe_175_params_info[2];
++void vfe_175_pixel_prepare(struct vfe_line *line);
++void vfe_175_params_apply(struct vfe_device *vfe, struct vfe_line *line,
++			  const struct v4l2_isp_buffer *params);
++
++#endif /* CAMSS_VFE_175_PIXEL_H */
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe-17x.c b/drivers/media/platform/qcom/camss/camss-vfe-17x.c
+index 6940f2b6342c9b755592e6b77fd200797d7fa28f..8af13bfa951d75647b3b12631b37d2cf13cc8ecf 100644
+--- a/drivers/media/platform/qcom/camss/camss-vfe-17x.c
++++ b/drivers/media/platform/qcom/camss/camss-vfe-17x.c
+@@ -432,6 +432,10 @@ static int vfe_enable(struct vfe_line *line)
+ 			goto error_enable_output;
+ 	}
+ 
++	/* Queued PIX parameters must override defaults before the first frame. */
++	if (line->is_pix)
++		vfe_params_apply_queued(vfe, line);
++
+ 	ret = vfe_enable_output_v2(line);
+ 	if (ret < 0)
+ 		goto error_enable_output;
+@@ -634,6 +638,7 @@ static const struct camss_video_ops vfe_video_ops_175 = {
+ 	.queue_buffer = vfe_queue_buffer_v2,
+ 	.flush_buffers = vfe_flush_buffers,
+ 	.prepare_dma_buffer = vfe_prepare_dma_175,
++	.prepare_buffer = vfe_params_prepare,
+ };
+ 
+ static void vfe_subdev_init_175(struct device *dev, struct vfe_device *vfe)
+@@ -653,7 +658,12 @@ static int vfe_line_prepare_175(struct vfe_line *line)
+ 			return ret;
+ 	}
+ 
+-	return vfe_175_camif_prepare(line);
++	ret = vfe_175_camif_prepare(line);
++	if (ret)
++		return ret;
++	vfe_175_pixel_prepare(line);
++
++	return 0;
+ }
+ 
+ static void vfe_output_start_175(struct vfe_device *vfe,
+@@ -687,6 +697,9 @@ static void vfe_output_update_175(struct vfe_device *vfe,
+ 
+ /* SM8150 full IFE: shared RDI transport, matched CAMIF and FULL DMA. */
+ const struct vfe_hw_ops vfe_ops_175 = {
++	.params_info = vfe_175_params_info,
++	.params_num_types = ARRAY_SIZE(vfe_175_params_info),
++	.vfe_params_apply = vfe_175_params_apply,
+ 	.vfe_line_prepare = vfe_line_prepare_175,
+ 	.global_reset = vfe_global_reset,
+ 	.hw_version = vfe_hw_version,
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe.c b/drivers/media/platform/qcom/camss/camss-vfe.c
+index 02c71c9dbd2664c0b2405ee11f3274bf33b4d583..9cf37a6f23119c11e49ec765553d241d9f7a716f 100644
+--- a/drivers/media/platform/qcom/camss/camss-vfe.c
++++ b/drivers/media/platform/qcom/camss/camss-vfe.c
+@@ -745,7 +745,7 @@ static struct camss_buffer *vfe_params_apply_next(struct vfe_device *vfe,
+ }
+ 
+ /* Line start: apply every queued parameters buffer, oldest first */
+-static void vfe_params_apply_queued(struct vfe_device *vfe,
++void vfe_params_apply_queued(struct vfe_device *vfe,
+ 				    struct vfe_line *line)
+ {
+ 	struct camss_buffer *buf;
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe.h b/drivers/media/platform/qcom/camss/camss-vfe.h
+index a2d5d2c189c76c4d7e8aeaae588f3b620243133f..47d98e8ebff682c44bad3797fd791b51fb2475d7 100644
+--- a/drivers/media/platform/qcom/camss/camss-vfe.h
++++ b/drivers/media/platform/qcom/camss/camss-vfe.h
+@@ -19,6 +19,7 @@
+ 
+ #include "camss-video.h"
+ #include "camss-vfe-gen1.h"
++#include "camss-vfe-175-pixel.h"
+ 
+ #define MSM_VFE_PAD_SINK 0
+ #define MSM_VFE_PAD_SRC 1
+@@ -248,6 +249,7 @@ struct vfe_subdev_resources {
+ };
+ 
+ struct vfe_device {
++	struct vfe_175_pixel_state pixel175;
+ 	struct camss *camss;
+ 	u8 id;
+ 	void __iomem *base;
+@@ -383,6 +385,7 @@ u32 vfe_hw_version(struct vfe_device *vfe);
+  * Return 0 on success or a negative error code otherwise
+  */
+ int vfe_enable_v2(struct vfe_line *line);
++void vfe_params_apply_queued(struct vfe_device *vfe, struct vfe_line *line);
+ 
+ /*
+  * vfe_buf_done - Process write master done interrupt
+diff --git a/include/uapi/linux/qcom-camss-config.h b/include/uapi/linux/qcom-camss-config.h
+index 8abd7d262b73c642742ed81ac88273c134be7fb0..fc4510cb3200f2650efa843226223baf4d0dcd3e 100644
+--- a/include/uapi/linux/qcom-camss-config.h
++++ b/include/uapi/linux/qcom-camss-config.h
+@@ -235,7 +235,8 @@ struct camss_params_aec_bhist {
+ } __attribute__((aligned(8)));
+ 
+ #define CAMSS_PARAMS_IFE_MAX_PAYLOAD		\
+-	sizeof(struct camss_params_aec_bhist)
++	(sizeof(struct camss_params_aec_bhist) +	\
++	 sizeof(struct camss_params_wb_gain))
+ 
+ /**
+  * enum camss_stats_block_type - CAMSS ISP statistics block identifiers

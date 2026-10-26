@@ -1,0 +1,19 @@
+--- a/irq-evidence.py
++++ b/irq-evidence.py
+@@ -27,10 +27,13 @@
+         if not match:
+             continue
+         columns = match[2].split()
+-        if not columns or columns[-1] not in NAMES:
++        mentioned = [name for name in NAMES if name in re.split(r'[\s,]+', match[2])]
++        if not mentioned:
+             continue
+-        name = columns[-1]
+-        if name in found or len(columns) <= len(cpus) or ',' in match[2]:
++        if len(mentioned) != 1:
++            raise ValueError('ambiguous/shared named IRQ')
++        name = mentioned[0]
++        if name in found or len(columns) <= len(cpus) or ',' in match[2] or columns[-1] != name:
+             raise ValueError('ambiguous/shared named IRQ')
+         counts = columns[:len(cpus)]
+         if not all(re.fullmatch(r'[0-9]+', count) for count in counts):

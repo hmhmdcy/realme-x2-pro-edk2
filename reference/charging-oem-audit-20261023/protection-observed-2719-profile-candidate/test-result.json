@@ -1,0 +1,202 @@
+{
+  "passed": true,
+  "actual_function_groups": 11,
+  "saved_parser_and_codec_cases": 18,
+  "cases": [
+    {
+      "cache_from_actual_functions": "standard-failed.txt",
+      "explicit_profile": "standard",
+      "passed": true,
+      "after0A_if_present_is_simulated": false
+    },
+    {
+      "cache_from_actual_functions": "same-attempt-not-relabelled.txt",
+      "explicit_profile": "standard",
+      "passed": true,
+      "after0A_if_present_is_simulated": false
+    },
+    {
+      "cache_from_actual_functions": "observed-before-attempt.txt",
+      "explicit_profile": "observed-2719-0056-3",
+      "passed": true,
+      "after0A_if_present_is_simulated": false
+    },
+    {
+      "cache_from_actual_functions": "observed-synthetic-after.txt",
+      "explicit_profile": "observed-2719-0056-3",
+      "passed": true,
+      "after0A_if_present_is_simulated": true
+    },
+    {
+      "cache_from_actual_functions": "wrong-id.txt",
+      "explicit_profile": "observed-2719-0056-3",
+      "passed": true,
+      "after0A_if_present_is_simulated": false
+    },
+    {
+      "cache_from_actual_functions": "invalid-id-frame.txt",
+      "explicit_profile": "observed-2719-0056-3",
+      "passed": true,
+      "after0A_if_present_is_simulated": false
+    },
+    {
+      "cache_from_actual_functions": "failure-3.txt",
+      "explicit_profile": "observed-2719-0056-3",
+      "passed": true,
+      "after0A_if_present_is_simulated": false
+    },
+    {
+      "cache_from_actual_functions": "failure-4.txt",
+      "explicit_profile": "observed-2719-0056-3",
+      "passed": true,
+      "after0A_if_present_is_simulated": false
+    },
+    {
+      "cache_from_actual_functions": "failure-5.txt",
+      "explicit_profile": "observed-2719-0056-3",
+      "passed": true,
+      "after0A_if_present_is_simulated": false
+    },
+    {
+      "cache_from_actual_functions": "wrong-length8.txt",
+      "explicit_profile": "observed-2719-0056-3",
+      "passed": true,
+      "after0A_if_present_is_simulated": false
+    },
+    {
+      "rejection": "real legacy schema1 attempt cannot become new-profile cache",
+      "passed": true
+    },
+    {
+      "rejection": "new schema2 profile0 cannot be relabelled as profile1",
+      "passed": true
+    },
+    {
+      "rejection": "profile1 requires explicit caller selection",
+      "passed": true
+    },
+    {
+      "rejection": "profile marker alone cannot rewrite original expected_size4/-90",
+      "passed": true
+    },
+    {
+      "rejection": "rewriting size still contradicts actual original validate_rc",
+      "passed": true
+    },
+    {
+      "real_saved36byte0056_profile": "standard",
+      "validate_rc": -90,
+      "passed": true
+    },
+    {
+      "real_saved36byte0056_profile": "observed-2719-0056-3",
+      "validate_rc": 0,
+      "passed": true
+    },
+    {
+      "rejection": "missing explicit codec profile or complete prior2719 identity",
+      "passed": true
+    }
+  ],
+  "build_commands": [
+    {
+      "argv": [
+        "gcc",
+        "-std=c11",
+        "-O1",
+        "-g",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-Wno-unused-parameter",
+        "-Wno-sign-compare",
+        "-Wno-misleading-indentation",
+        "-Wno-unused-function",
+        "-Wno-unused-variable",
+        "-fsanitize=address,undefined",
+        "-fno-omit-frame-pointer",
+        "-pthread",
+        "-I/home/cy122/charging-management-20261023/protection-query-observer-tests-r2/stubs",
+        "-I/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/protection-observed-2719-profile-candidate",
+        "-I/home/cy122/charging-management-20261023/protection-observed-2719-profile-tests-01",
+        "/home/cy122/charging-management-20261023/protection-observed-2719-profile-tests-01/test-profile-full.c",
+        "-o",
+        "/home/cy122/charging-management-20261023/protection-observed-2719-profile-tests-01/test-profile"
+      ],
+      "pid": 771,
+      "terminal": true,
+      "returncode": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "gcc",
+        "-std=c11",
+        "-O2",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/protection-observed-2719-profile-candidate/frame-decoder-profile.c",
+        "-o",
+        "/home/cy122/charging-management-20261023/protection-observed-2719-profile-tests-01/frame-decoder-profile"
+      ],
+      "pid": 784,
+      "terminal": true,
+      "returncode": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "actual_function_run": {
+    "argv": [
+      "/home/cy122/charging-management-20261023/protection-observed-2719-profile-tests-01/test-profile",
+      "/home/cy122/charging-management-20261023/protection-observed-2719-profile-tests-01/saved-real8-frames-private.bin",
+      "/home/cy122/charging-management-20261023/protection-observed-2719-profile-tests-01"
+    ],
+    "pid": 781,
+    "terminal": true,
+    "returncode": 0,
+    "stdout_sha256": "f62b492c13b327c04132c703adc6c3585fc80d6288e0abcc9e08d927f207e6c8",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "actual_function_source_sha256": "40af1a29aaa9dc69e915bd6e7f87f54d130b66263ffb4ed24aa28d01a67331e6",
+  "private_output": "/home/cy122/charging-management-20261023/protection-observed-2719-profile-tests-01",
+  "decoder_sha256": "278d854ab14c59ac51c5e79b3920f1d0213f5f81a95861691f1043c0477197ef",
+  "original_input_hashes": {
+    "/mnt/e/edk2-samurai-out/charging-management-20261023/protection-capture/protection-capture-live-001/fetch-2bc101a4aee0be10-private/raw/cache-after-private.txt": "02c98143301bb5db896c6f535f490495428df8b8c6fd6ab3cdc69ca507a545a8",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/protection-evidence-parser-candidate/parse-evidence.py": "2ee04828775c330bfdafdca47e945645708f90e581c8939cd5932d6f8f1dc5b8",
+    "/home/cy122/charging-management-20261023/protection-evidence-parser-01/frame-decoder": "58aa5dcc9c15c571310d531d0b530ea024855b18fbcf95af6bb391d6d97e10f2",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/protection-query-observer-candidate/gauge-protocol.h": "98148c0701d000c21c7a9be60d0d14e412887f90fc1b83d0a3de8168359c28df",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/protection-query-observer-candidate/gauge-i2c.h": "8846d20648dc0b137a2608be9a7ed479ecd692b17db6875a2a18a2d046d7c8b2",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/protection-query-observer-candidate/samurai-gauge-protection.c": "3e1e81a341a5df072cde2c57ec7505096c192e7b873cfbb2720375ae7f9b8f6d",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/protection-query-observer-candidate/test-observer.c": "b4888db56d9f22b80260f1d3f09318e92758fcf6f9dbbb8165c8f95dd2af351b"
+  },
+  "original_inputs_unchanged": true,
+  "unchanged_production_functions": {
+    "sm_mac_data_size": "4b8edd84eba32061c863229ecb3ea6143d52f2949d4245c340e2cf2bf533a135",
+    "sm_mac_observe_data_size": "aa13c6100fe65b22024ec489e738ecbc3bc4724e6d2060ccc484fe5d1f5640bd",
+    "sm_mac_validate_sized": "5d018e75da54bce18c938ad577337f3ae6853e63b4cb72b5656a559a210defe0",
+    "sm_mac_validate": "77245315318bc4c2247ff616f6c384f431fd51fb1de3d63b7e9a00bf4e648f6e",
+    "sm_gauge_protection_state": "04a80017774019bfb81b59700b89965e6febaa20f33a94cc2b0eac22f8d19ef3",
+    "sm_gauge_word_locked": "f45d018c3ae2c73e70b07010a8694e4d5b221e47ef5de34d3afb440d35443c5c",
+    "sm_gauge_mac_transfer_locked": "a8e5aef6c2e13e6b4530f96d60097186b5ba674e091edf2eb5731f64a1ec356f",
+    "sm_gauge_mac_locked": "c0fd498b3aa3e5a85449b5c905e7a2bfcf2b18de0e28a6d3f8e98c9edbf5a15b",
+    "sm_gauge_mac_observe_locked": "f3829b445c2c93610b1aaf45900b2203527395e059cf417938d3e96b981f1b13",
+    "sm_protection_read": "5f2dc5040f7ee6f9f0fe852ed8bf33566f64d99caa28537ea532e8dbe9990a85",
+    "sm_protection_get": "508fc4884cc37fbaf39b4a6aa7cae63cba12d81b7acec9af3fb3df687f9a4168"
+  },
+  "source_files": {
+    "gauge-protocol.h": "080f1d621886c3772f5b0b83ec4e5b4150c0e37007dd8fce707594882ff83e02",
+    "gauge-i2c.h": "a47a031b66bea9c10d00a0dec271a2d21cb0497ef8e28285642f3115bb48803d",
+    "samurai-gauge-protection.c": "3078c62fdb7ef9f2aefbce3bac64be508b66fb0734fbcac7edcbd95bebbe1015",
+    "parse-saved-profile.py": "df5e394741ed997fb5c2d97a965a88a12a078fa85c5e037d525a8ad021bb81c4",
+    "frame-decoder-profile.c": "25a8b12d779a46679551342b459d79709842b30b0e78e6d776035ed1746d7a6e",
+    "test-profile.c": "a77722e41a860721cedc893345eb6542927ca83868f6f5b464493d3593e2c77d",
+    "run-tests.py": "e884b9660151640563d33c04f6a6ca2571e881d4c3842d949da2e43db5b0c925"
+  },
+  "real_after0A_read_or_new_query": false,
+  "candidate_batch_after0A_is_only_fake_boundary": true,
+  "old_suites_rerun": false,
+  "module_or_Image_built": false
+}

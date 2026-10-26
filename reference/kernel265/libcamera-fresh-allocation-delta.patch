@@ -1,0 +1,28 @@
+--- a/spa/plugins/libcamera/libcamera-source.cpp
++++ b/spa/plugins/libcamera/libcamera-source.cpp
+@@ -2037,11 +2037,20 @@
+ 
+ 	port = GET_PORT(impl, direction, port_id);
+ 
+-	if (port->n_buffers) {
+-		spa_libcamera_stream_off(impl);
+-		if ((res = spa_libcamera_clear_buffers(port)) < 0)
+-			return res;
+-	}
++    if (port->n_buffers) {
++        spa_libcamera_stream_off(impl);
++        if ((res = spa_libcamera_clear_buffers(port)) < 0)
++            return res;
++
++        /* Busy metadata belongs to a graph allocation. Rebinding that
++         * metadata must not expose the same camera image storage while an
++         * old consumer can still retain an fd for it. Allocate fresh image
++         * storage; retained fds keep the retired allocation alive. */
++        freeBuffers(impl, port);
++        if ((res = allocBuffers(impl, port, port->streamConfig.bufferCount)) < 0)
++            return res;
++        spa_log_info(impl->log, "fresh image allocation after graph buffer retirement");
++    }
+ 	if (n_buffers > 0 && !port->current_format)
+ 		return -EIO;
+ 	if (n_buffers > MAX_BUFFERS)

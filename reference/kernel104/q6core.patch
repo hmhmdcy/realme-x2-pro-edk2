@@ -1,0 +1,107 @@
+--- a/sound/soc/qcom/qdsp6/q6core.c
++++ b/sound/soc/qcom/qdsp6/q6core.c
+@@ -73,12 +73,21 @@
+ 	const struct aprv2_ibasic_rsp_result_t *result;
+ 	const struct apr_hdr *hdr = &data->hdr;
+ 
++	if (of_machine_is_compatible("realme,samurai"))
++		dev_info_ratelimited(&adev->dev,
++			"samurai core reply opcode=%#x bytes=%d token=%#x ports=%u/%u\n",
++			hdr->opcode, data->payload_size, hdr->token,
++			hdr->src_port, hdr->dest_port);
+ 	result = data->payload;
+ 	switch (hdr->opcode) {
+ 	case APR_BASIC_RSP_RESULT:{
+ 		if (data->payload_size < sizeof(*result))
+ 			return -EINVAL;
+ 		result = data->payload;
++		if (of_machine_is_compatible("realme,samurai"))
++			dev_info_ratelimited(&adev->dev,
++				"samurai core basic command=%#x status=%u\n",
++				result->opcode, result->status);
+ 		switch (result->opcode) {
+ 		case AVCS_GET_VERSIONS:
+ 			if (result->status == ADSP_EUNSUPPORTED)
+@@ -107,6 +116,9 @@
+ 					sizeof(fwk->svc_api_info[0]))
+ 			return -EINVAL;
+ 
++		if (of_machine_is_compatible("realme,samurai"))
++			dev_info(&adev->dev, "samurai core fwk valid services=%u\n",
++				 fwk->num_services);
+ 		core->fwk_version = kmemdup(data->payload,
+ 					    struct_size(fwk, svc_api_info,
+ 							fwk->num_services),
+@@ -128,6 +140,9 @@
+ 				      sizeof(v->svc_api_info[0]))
+ 			return -EINVAL;
+ 
++		if (of_machine_is_compatible("realme,samurai"))
++			dev_info(&adev->dev, "samurai core svc valid services=%u\n",
++				 v->num_services);
+ 		core->svc_version = kmemdup(data->payload,
+ 					    struct_size(v, svc_api_info,
+ 							v->num_services),
+@@ -163,7 +178,7 @@
+ static int q6core_get_fwk_versions(struct q6core *core)
+ {
+ 	struct apr_device *adev = core->adev;
+-	struct apr_pkt pkt;
++	struct apr_pkt pkt = {};
+ 	int rc;
+ 
+ 	pkt.hdr.hdr_field = APR_HDR_FIELD(APR_MSG_TYPE_SEQ_CMD,
+@@ -172,6 +187,11 @@
+ 	pkt.hdr.opcode = AVCS_CMD_GET_FWK_VERSION;
+ 
+ 	rc = apr_send_pkt(adev, &pkt);
++	if (of_machine_is_compatible("realme,samurai"))
++		dev_info_ratelimited(&adev->dev,
++			"samurai core send opcode=%#x rc=%d ports=%u/%u token=%#x\n",
++			pkt.hdr.opcode, rc, pkt.hdr.src_port, pkt.hdr.dest_port,
++			pkt.hdr.token);
+ 	if (rc < 0)
+ 		return rc;
+ 
+@@ -193,7 +213,7 @@
+ static int q6core_get_svc_versions(struct q6core *core)
+ {
+ 	struct apr_device *adev = core->adev;
+-	struct apr_pkt pkt;
++	struct apr_pkt pkt = {};
+ 	int rc;
+ 
+ 	pkt.hdr.hdr_field = APR_HDR_FIELD(APR_MSG_TYPE_SEQ_CMD,
+@@ -202,6 +222,11 @@
+ 	pkt.hdr.opcode = AVCS_GET_VERSIONS;
+ 
+ 	rc = apr_send_pkt(adev, &pkt);
++	if (of_machine_is_compatible("realme,samurai"))
++		dev_info_ratelimited(&adev->dev,
++			"samurai core send opcode=%#x rc=%d ports=%u/%u token=%#x\n",
++			pkt.hdr.opcode, rc, pkt.hdr.src_port, pkt.hdr.dest_port,
++			pkt.hdr.token);
+ 	if (rc < 0)
+ 		return rc;
+ 
+@@ -218,7 +243,7 @@
+ static bool __q6core_is_adsp_ready(struct q6core *core)
+ {
+ 	struct apr_device *adev = core->adev;
+-	struct apr_pkt pkt;
++	struct apr_pkt pkt = {};
+ 	int rc;
+ 
+ 	core->get_state_supported = false;
+@@ -229,6 +254,11 @@
+ 	pkt.hdr.opcode = AVCS_CMD_ADSP_EVENT_GET_STATE;
+ 
+ 	rc = apr_send_pkt(adev, &pkt);
++	if (of_machine_is_compatible("realme,samurai"))
++		dev_info_ratelimited(&adev->dev,
++			"samurai core send opcode=%#x rc=%d ports=%u/%u token=%#x\n",
++			pkt.hdr.opcode, rc, pkt.hdr.src_port, pkt.hdr.dest_port,
++			pkt.hdr.token);
+ 	if (rc < 0)
+ 		return false;
+ 

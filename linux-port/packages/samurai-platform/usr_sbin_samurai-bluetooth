@@ -1,0 +1,82 @@
+#!/bin/sh
+# UART lifecycle and verified RAM identity: no power-on/discovery/connection.
+set -eu
+umask 077
+base=/run/samurai-bluetooth
+wifi=/run/samurai-wifi
+tr '\0' '\n' < /proc/device-tree/compatible | grep -qx realme,samurai
+mkdir -p "$base"
+loaded() { test -d "/sys/module/$1"; }
+stamp() { echo "$1 uptime=$(cut -d ' ' -f1 /proc/uptime)"; }
+start()
+{
+    # An explicit start must not overlap the first Wi-Fi/MPSS bootstrap.
+    if [ -e "$wifi/boot-started" ] && [ ! -e "$wifi/boot-finished" ]; then
+        echo WIFI_BOOTSTRAP_STILL_ACTIVE >&2
+        return 1
+    fi
+    for module in btbcm btqca hci_uart; do
+        if ! loaded "$module"; then
+            path="/lib/modules/$(uname -r)/kernel/drivers/bluetooth/$module.ko"
+            [ -f "$path" ] || path="/lib/modules/samurai/$module.ko"
+            /bin/insmod "$path"
+        fi
+    done
+    for attempt in $(seq 1 30); do
+        test -d /sys/class/bluetooth/hci0 && break
+        sleep 1
+    done
+    test -d /sys/class/bluetooth/hci0
+    stamp BT_DRIVER_REGISTERED
+    /usr/sbin/samurai-radio-address bt
+    stamp BT_ADDRESS_READY
+}
+stop()
+{
+    # hci_unregister_dev closes the controller before its UART is removed.
+    # rmmod refuses a busy module; no forced unload or stale-lock removal.
+    for module in hci_uart btqca btbcm; do
+        if loaded "$module"; then /bin/rmmod "$module"; fi
+    done
+    test ! -d /sys/class/bluetooth/hci0
+    stamp BT_DRIVER_STOPPED
+}
+boot()
+{
+    for attempt in $(seq 1 240); do
+        test -e "$wifi/boot-finished" && break
+        sleep 1
+    done
+    test -e "$wifi/boot-finished"
+    result=$(cat "$wifi/boot-finished")
+    case "$result" in ''|*[!0-9]*) return 1;; esac
+    stamp "WIFI_BOOTSTRAP_FINISHED result=$result"
+    # Preserve the observed early-display/MPSS isolation window even if the
+    # Wi-Fi worker fails early. Display failure cannot block Bluetooth forever.
+    while [ "$(cut -d '.' -f1 /proc/uptime)" -lt 60 ]; do sleep 1; done
+    for attempt in $(seq 1 30); do
+        test -e /sys/class/graphics/fb0 && break
+        sleep 1
+    done
+    if test -e /sys/class/graphics/fb0; then
+        stamp DISPLAY_REGISTERED
+    else
+        stamp DISPLAY_WAIT_EXPIRED
+    fi
+    sleep 10
+    start
+}
+case "${1:-}" in
+    status)
+        for module in btbcm btqca hci_uart; do
+            if loaded "$module"; then echo "$module=loaded"; else echo "$module=absent"; fi
+        done
+        if test -d /sys/class/bluetooth/hci0; then echo controller=registered; else echo controller=absent; fi
+        exit 0
+        ;;
+    start|stop|boot) action=$1 ;;
+    *) echo 'Use boot, start, stop or status' >&2; exit 2 ;;
+esac
+mkdir "$base/lifecycle.lock" || { echo BT_LIFECYCLE_BUSY >&2; exit 1; }
+trap 'rmdir "$base/lifecycle.lock"' EXIT
+"$action"

@@ -1,0 +1,61 @@
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.c
+@@ -402,7 +402,11 @@
+ 
+ static void dpu_kms_global_obj_fini(struct dpu_kms *dpu_kms)
+ {
++	if (!dpu_kms->global_state_initialized)
++		return;
++
+ 	drm_atomic_private_obj_fini(&dpu_kms->global_state);
++	dpu_kms->global_state_initialized = false;
+ }
+ 
+ static int dpu_kms_parse_data_bus_icc_path(struct dpu_kms *dpu_kms)
+@@ -1156,6 +1160,7 @@
+ 
+ 	drm_atomic_private_obj_init(dpu_kms->dev, &dpu_kms->global_state,
+ 				    &dpu_kms_global_state_funcs);
++	dpu_kms->global_state_initialized = true;
+ 
+ 	atomic_set(&dpu_kms->bandwidth_ref, 0);
+ 
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.h
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.h
+@@ -78,6 +78,7 @@
+ 	 * dpu_kms_global_get_state()
+ 	 */
+ 	struct drm_private_obj global_state;
++	bool global_state_initialized;
+ 
+ 	struct dpu_rm rm;
+ 
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_intf.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_intf.c
+@@ -481,8 +481,9 @@
+ 	if (!te && !(refresh & BIT(31)) && !trigger)
+ 		return 0;
+ 
+-	pr_info("boot INTF%d: tearcheck=%#x autorefresh=%#x trigger=%#x\n",
+-		intf->idx - INTF_0, te, refresh, trigger);
++	pr_info("boot INTF%d: tearcheck=%#x autorefresh=%#x trigger=%#x height=%u line=%#x\n",
++		intf->idx - INTF_0, te, refresh, trigger, height,
++		DPU_REG_READ(c, INTF_TEAR_LINE_COUNT));
+ 	dpu_hw_intf_connect_external_te(intf, false);
+ 	dpu_hw_intf_setup_autorefresh_config(intf, 0, false);
+ 	/* Keep the identity domain until the inherited frame finishes. */
+@@ -492,8 +493,13 @@
+ 		ret = readl_poll_timeout(c->blk_addr + INTF_TEAR_LINE_COUNT, line,
+ 					 !(line & 0xffff) || (line & 0xffff) >= height,
+ 					 100, 50000);
+-		if (ret)
++		if (ret) {
++			pr_err("boot INTF%d drain failed: line=%#x height=%u out=%#x count=%#x\n",
++			       intf->idx - INTF_0, line, height,
++			       DPU_REG_READ(c, INTF_TEAR_OUT_LINE_COUNT),
++			       DPU_REG_READ(c, INTF_TEAR_INT_COUNT_VAL));
+ 			return ret;
++		}
+ 	}
+ 	dpu_hw_intf_disable_te(intf);
+ 	DPU_REG_WRITE(c, INTF_DSI_CMD_MODE_TRIGGER_EN, 0);

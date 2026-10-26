@@ -1,0 +1,48 @@
+{
+  "all_resolved_for_final_offline_checks": true,
+  "entries": [
+    {
+      "stage": "initial test compiler temporary files",
+      "error": "initial cc harness runs did not set TMPDIR, so the compiler could use its ordinary transient WSL /tmp files outside the requested candidate directory",
+      "resolution": "pinned test compiler/runtime TMPDIR to this candidate/tmp and reran all final checks; retained outputs and source/build layer files remain confined/unchanged"
+    },
+    {
+      "stage": "initial production object compile",
+      "error": "ret declaration was inserted into pd_data_request instead of pd_ctrl_request; duplicate declaration and undeclared identifier",
+      "resolution": "moved declaration to the actual control handler; final affected objects compiled without diagnostics"
+    },
+    {
+      "stage": "initial test harness compile",
+      "error": "state enumeration extraction extended into AMS enum; test typec_cc_status was incomplete",
+      "resolution": "bounded state extraction before FOREACH_AMS and supplied boundary type; production source unchanged"
+    },
+    {
+      "stage": "initial test harness execution",
+      "error": "modeled scheduler did not consume upcoming_state or clear completed AMS, causing success/retry assertions to fail",
+      "resolution": "modeled the actual AMS_START and SNK_READY scheduler effects; production source unchanged"
+    },
+    {
+      "stage": "initial QCOM harness generation",
+      "error": "new cases replaced the first return block instead of final main return",
+      "resolution": "inserted cases at final main return; production source unchanged"
+    },
+    {
+      "stage": "review before freezing",
+      "finding": "new generic TCPC callback field would change other controllers' structure layout",
+      "resolution": "replaced field with API callback/context parameters; final tcpc_dev byte-identical"
+    },
+    {
+      "stage": "review before freezing",
+      "finding": "failed remove needed final CC debounce join and post-close error needed NULL/double-join protection",
+      "resolution": "centralized forced callback join, added second CC join, preserved original error, covered by actual-function tests"
+    }
+  ],
+  "unresolved": [
+    "physical VBUS calibration, repeated conversion and 9V-to-5V behavior untested",
+    "void remove cannot guarantee safe-voltage handoff after preparation failure",
+    "shutdown failure cannot veto the rest of system powerdown"
+  ],
+  "phone_accessed": false,
+  "Image_built": false,
+  "installed": false
+}

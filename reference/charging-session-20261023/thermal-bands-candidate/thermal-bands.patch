@@ -1,0 +1,245 @@
+--- a/samurai-mp2650.c
++++ b/samurai-mp2650.c
+@@ -126,7 +126,7 @@
+ 		/* Only an agreed physical detach resets the session and fault latch. */
+ 		sm_cycle_update(&c->cycle, ktime_get_boottime_ns(), 0, 0);
+ 		c->latched = false;
+-		c->thermal.hold = SM_THERMAL_NONE;
++		c->thermal = (struct sm_thermal_state){ 0 };
+ 		sm_oem_full_init(&c->full_state);
+ 		s->valid = s->protection_ok = 1;
+ 		return 0;
+@@ -186,6 +186,12 @@
+ 				c->current_cap_ua, c->input_cap_ua, &validation_target, &reason);
+ 	if (c->sample.online && (!validation || sm_policy_reason_is_thermal(reason))) {
+ 		thermal_hold = sm_thermal_gate(&c->thermal, c->sample.temp_decic, 1);
++		/* Re-evaluate the complete policy against that same effective band.
++		 * Only fresh non-hard-failing samples can advance this history.
++		 */
++		validation = sm_policy_with_band_reason(&c->sample, c->cell_ceiling_uv,
++			c->current_cap_ua, c->input_cap_ua, c->thermal.band,
++			&validation_target, &reason);
+ 		if (!validation && thermal_hold)
+ 			validation = -ERANGE;
+ 	}
+@@ -204,6 +210,8 @@
+ 		.timeout = c->cycle.timed_out,
+ 		.hardware_full = c->sample_full,
+ 		.temp_decic = c->sample.temp_decic,
++		.policy_band_valid = 1,
++		.policy_band = c->thermal.initialized ? c->thermal.band : SM_POLICY_STATIC_BAND,
+ 		.max_cell_uv = c->sample.cell1_uv > c->sample.cell2_uv ?
+ 			c->sample.cell1_uv : c->sample.cell2_uv,
+ 		.gauge_current_ua = c->sample.gauge_current_ua,
+@@ -225,8 +233,10 @@
+ 		c->latched, validation);
+ 	c->sample.session_seconds = sm_cycle_update(&c->cycle, now, source, healthy_full);
+ 	if (!ret)
+-		ret = sm_policy_with_reason(&c->sample, c->cell_ceiling_uv,
+-				c->current_cap_ua, c->input_cap_ua, &target, &reason);
++		ret = sm_policy_with_band_reason(&c->sample, c->cell_ceiling_uv,
++			c->current_cap_ua, c->input_cap_ua,
++			c->thermal.initialized ? c->thermal.band : SM_POLICY_STATIC_BAND,
++			&target, &reason);
+ 	if (!ret && thermal_hold) {
+ 		ret = -ERANGE;
+ 		reason = SM_POLICY_REASON_TEMPERATURE;
+@@ -551,7 +561,7 @@
+ 		"shadow=%d valid=%d online=%d protection_ok=%d budget_ua=%d "
+ 		"temp_decic=%d pack_uv=%d cell1_uv=%d cell2_uv=%d flags=%u "
+ 		"fault=%u session_seconds=%u desired_enable=%d error=%d "
+-		"stop_error=%d latched=%d source_inhibit=%d thermal_inhibit=%d cycle_timeout=%d "
++		"stop_error=%d latched=%d source_inhibit=%d thermal_inhibit=%d thermal_band=%d band_pre_shake=%d cycle_timeout=%d "
+ 		"gauge_current_ua=%d logical_full=%d full_holding=%d hold_requested=%d "
+ 		"full_cause=%d sw_full_count=%u recharge_count=%u gauge_charge_stop=%d age_ms=%lld\n",
+ 		!control, c->sample.valid, c->sample.online, c->sample.protection_ok,
+@@ -559,7 +569,10 @@
+ 		c->sample.cell1_uv, c->sample.cell2_uv, c->sample.gauge_flags,
+ 		c->sample.fault, c->sample.session_seconds, c->target.enable,
+ 		c->last_error, c->stop_error, c->latched,
+-		c->source_inhibit, c->thermal_reason, c->cycle.timed_out,
++		c->source_inhibit, c->thermal_reason,
++		c->thermal.initialized ? c->thermal.band : SM_POLICY_STATIC_BAND,
++		c->thermal.initialized ? c->thermal.pre_shake : SM_THERMAL_PRE_INVALID,
++		c->cycle.timed_out,
+ 		c->sample.gauge_current_ua, c->full_state.full, c->full_holding,
+ 		c->hold_requested, c->full_state.cause, c->full_state.sw_count,
+ 		c->full_state.recharge_count, c->gauge_charge_stop,
+--- a/mp2650-core.h
++++ b/mp2650-core.h
+@@ -53,38 +53,11 @@
+ 		reason == SM_POLICY_REASON_BAND_OVP;
+ }
+ 
+-enum sm_thermal_hold { SM_THERMAL_NONE, SM_THERMAL_COLD, SM_THERMAL_HOT };
+-struct sm_thermal_state { enum sm_thermal_hold hold; };
+-
+-/* OEM outer-boundary recovery hysteresis: 2 C (oplus_charger.c 4174-4266).
+- * Only eligible fresh samples may update history. The caller first evaluates
+- * all non-thermal errors; a thermal hold must never conceal an IO/hard fault.
+- * This deliberately preserves the existing strict half-open stop boundaries.
+- */
+-static inline int sm_thermal_gate(struct sm_thermal_state *state,
+-				  int temp_decic, int eligible)
+-{
+-	const int cold = sm_oem_bands[0].low;
+-	const int hot = sm_oem_bands[sizeof(sm_oem_bands) /
+-				       sizeof(sm_oem_bands[0]) - 1].high;
+-
+-	if (!eligible)
+-		return state->hold != SM_THERMAL_NONE;
+-	if (temp_decic < cold)
+-		state->hold = SM_THERMAL_COLD;
+-	else if (temp_decic >= hot)
+-		state->hold = SM_THERMAL_HOT;
+-	else if ((state->hold == SM_THERMAL_COLD && temp_decic < cold + 20) ||
+-		 (state->hold == SM_THERMAL_HOT && temp_decic > hot - 20))
+-		return 1;
+-	else
+-		state->hold = SM_THERMAL_NONE;
+-	return state->hold != SM_THERMAL_NONE;
+-}
++#include "thermal-bands.h"
+ 
+ /* The existing cell target is an upper ceiling, never an inferred safe target. */
+-static inline int sm_policy_with_reason(const struct sm_sample *s, int cell_ceiling_uv,
+-			   int current_cap_ua, int input_cap_ua,
++static inline int sm_policy_with_band_reason(const struct sm_sample *s, int cell_ceiling_uv,
++			   int current_cap_ua, int input_cap_ua, int band,
+ 			   struct sm_target *out, enum sm_policy_reason *reason)
+ {
+ 	unsigned int i;
+@@ -137,6 +110,16 @@
+ 		*reason = SM_POLICY_REASON_TEMPERATURE;
+ 		return -ERANGE;
+ 	}
++	/* One OEM effective status selects CC/CV/OVP and Full/recharge. The
++	 * immutable original temperature stop still has priority above this.
++	 */
++	if (band != SM_POLICY_STATIC_BAND) {
++		if (band < 0 || band >= 6) {
++			*reason = SM_POLICY_REASON_TEMPERATURE;
++			return -ERANGE;
++		}
++		b = &sm_oem_bands[band];
++	}
+ 	cell_max = s->cell1_uv > s->cell2_uv ? s->cell1_uv : s->cell2_uv;
+ 	if (cell_max > b->cell_ovp_uv) {
+ 		*reason = SM_POLICY_REASON_BAND_OVP;
+@@ -151,6 +134,17 @@
+ 			       SM_OEM_INPUT_MAX_UA) / 50000 * 50000;
+ 	out->enable = 1;
+ 	return 0;
++}
++
++/* Stateless compatibility entry point for existing callers/tests. The
++ * driver uses sm_policy_with_band_reason with its single live thermal state.
++ */
++static inline int sm_policy_with_reason(const struct sm_sample *s, int cell_ceiling_uv,
++			   int current_cap_ua, int input_cap_ua,
++			   struct sm_target *out, enum sm_policy_reason *reason)
++{
++	return sm_policy_with_band_reason(s, cell_ceiling_uv, current_cap_ua,
++			input_cap_ua, SM_POLICY_STATIC_BAND, out, reason);
+ }
+ 
+ /* Compatibility wrapper: existing callers retain their return codes. */
+--- a/oem-full-cycle.h
++++ b/oem-full-cycle.h
+@@ -41,6 +41,7 @@
+ 	int valid, source_known, online, protection_good, policy_good;
+ 	int hard_latched, timeout, hardware_full, recharge_forbidden;
+ 	int temp_decic, max_cell_uv, gauge_current_ua, cell_target_uv;
++	int policy_band_valid, policy_band;
+ 	unsigned int gauge_flags;
+ };
+ struct sm_oem_full_state {
+@@ -135,8 +136,12 @@
+ 			.block = SM_FULL_NO_SOURCE };
+ 		return out;
+ 	}
++	/* Legacy callers may use the raw lookup. The live driver supplies the
++	 * same effective band used by its already validated policy target.
++	 */
++	band = in->policy_band_valid ? in->policy_band : sm_oem_full_band(in->temp_decic);
+ 	if (!in->valid || !in->policy_good || !in->protection_good ||
+-	    (band = sm_oem_full_band(in->temp_decic)) < 0 ||
++	    sm_oem_full_band(in->temp_decic) < 0 || band < 0 || band >= 6 ||
+ 	    in->max_cell_uv < 2000000 || in->max_cell_uv > 4600000 ||
+ 	    in->gauge_current_ua < -32768000 || in->gauge_current_ua > 32767000 ||
+ 	    in->cell_target_uv < 3712500 || in->cell_target_uv > 4500000) {
+--- /dev/null
++++ b/thermal-bands.h
+@@ -0,0 +1,72 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++#ifndef SAMURAI_THERMAL_BANDS_H
++#define SAMURAI_THERMAL_BANDS_H
++/* Included after the exact 19781 sm_oem_bands profile.
++ * OEM oplus_charger.c 4174-4337: direction is relative to pre_shake, updated
++ * on status changes, not on every same-band sample. The unported normal-child
++ * initialization's assignment to the parent pre_shake is not reproduced.
++ */
++#define SM_POLICY_STATIC_BAND (-3)
++#define SM_THERMAL_REMOVED (-2)
++#define SM_THERMAL_LOW (-1)
++#define SM_THERMAL_HIGH 6
++#define SM_THERMAL_PRE_INVALID 999
++enum sm_thermal_hold { SM_THERMAL_NONE, SM_THERMAL_COLD, SM_THERMAL_HOT };
++struct sm_thermal_state {
++	enum sm_thermal_hold hold;
++	int initialized, band, pre_shake, bounds[7];
++};
++static inline void sm_thermal_base_bounds(struct sm_thermal_state *s)
++{
++	unsigned int i;
++	for (i = 0; i < 6; i++) s->bounds[i] = sm_oem_bands[i].low;
++	s->bounds[6] = sm_oem_bands[5].high;
++}
++static inline void sm_thermal_init(struct sm_thermal_state *s)
++{
++	*s = (struct sm_thermal_state){ .initialized = 1, .band = 4,
++		.pre_shake = SM_THERMAL_PRE_INVALID };
++	sm_thermal_base_bounds(s);
++}
++static inline int sm_thermal_gate(struct sm_thermal_state *s, int temp, int eligible)
++{
++	int band, low = 0, high = 0, low0 = 0, high0 = 0;
++	if (!eligible) return s->hold != SM_THERMAL_NONE;
++	if (!s->initialized) sm_thermal_init(s);
++	/* OEM compares >dynamic hot; preserve its status/boundary history, then
++	 * enforce r6's immutable absolute >=hot stop separately below.
++	 */
++	if (temp > s->bounds[6] || temp < s->bounds[0])
++		band = temp <= -190 ? SM_THERMAL_REMOVED :
++			temp > s->bounds[6] ? SM_THERMAL_HIGH : SM_THERMAL_LOW;
++	else {
++		for (band = 5; band > 0 && temp < s->bounds[band]; band--) { }
++	}
++	if (s->pre_shake == SM_THERMAL_PRE_INVALID) s->pre_shake = temp;
++	if (band != s->band) {
++		if (temp > s->pre_shake) { low = -20; low0 = -5; }
++		else if (temp < s->pre_shake) { high = 20; high0 = 5; }
++		sm_thermal_base_bounds(s);
++		switch (band) {
++		case SM_THERMAL_HIGH: s->bounds[6] += low; break;
++		case SM_THERMAL_LOW: s->bounds[0] += high; break;
++		case 0: s->bounds[0] += low; s->bounds[1] += high0; break;
++		case 1: s->bounds[1] += low0; s->bounds[2] += high; break;
++		case 2: s->bounds[2] += low; s->bounds[3] += high; break;
++		case 3: s->bounds[3] += low; s->bounds[4] += high; break;
++		case 5: s->bounds[5] += low; s->bounds[6] += high; break;
++		default: break; /* NORMAL and REMOVED restore base boundaries. */
++		}
++		s->band = band;
++		s->pre_shake = temp;
++	}
++	/* Explicit safer difference from OEM shifted cold/hot limits: raw
++	 * <-2 C or >=53 C always stops. No shifted band can authorize outside.
++	 * Recovery within that absolute range follows the same dynamic state;
++	 * there is no independent fixed 2 C recovery latch.
++	 */
++	s->hold = temp < sm_oem_bands[0].low || band < 0 ? SM_THERMAL_COLD :
++		temp >= sm_oem_bands[5].high || band >= 6 ? SM_THERMAL_HOT : SM_THERMAL_NONE;
++	return s->hold != SM_THERMAL_NONE;
++}
++#endif

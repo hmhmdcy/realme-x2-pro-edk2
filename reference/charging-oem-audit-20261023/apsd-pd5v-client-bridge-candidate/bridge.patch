@@ -1,0 +1,487 @@
+--- frozen/samurai-apsd-owner.c
++++ bridge/samurai-apsd-owner.c
+@@ -1,10 +1,13 @@
+ // SPDX-License-Identifier: GPL-2.0-only
+-/* Optional, single-controller DWC lifetime consumer. Not enabled on device.
+- * No PD/route or EUD/PHY pre-remove lease exists in the fixed source yet.
+- * The entry fence below therefore refuses EVERY hardware attempt, including
+- * with an installed bus backend. Do not remove it to "enable" this candidate.
++/* Optional, single-controller DWC lifetime consumer, default off.
++ * The separately opted-in PD5V client prepares real disabled-PD control only
++ * after physical off. Route/PHY-withdrawal/final-transfer coverage is absent:
++ * every APSD window/1341 attempt is still refused, not every PD control I/O.
+  */
+ #include <linux/module.h>
++#include <linux/kref.h>
++#include <linux/of_platform.h>
++#include <linux/platform_device.h>
+ #include <linux/mutex.h>
+ #include <linux/pm_runtime.h>
+ #include <linux/power_supply.h>
+@@ -14,13 +17,26 @@
+ #include <linux/ktime.h>
+ #include <linux/usb/samurai-apsd-backend.h>
+ #include "core.h"
++#include <linux/usb/samurai-pd5v.h>
++#include "samurai-usb-input-decode.h"
+ #include "samurai-apsd-owner.h"
+ #include "samurai-apsd-once.h"
+ #include "eud-com-window.h"
+ #include "phy-qcom-snps-femto-v2-window.h"
+ 
++enum owner_pd_phase {
++ OWNER_PD_OFF, OWNER_PD_WAIT_BINDING, OWNER_PD_WAIT_FIRST_OFF,
++ OWNER_PD_WAIT_ATTACH, OWNER_PD_SINK_EPOCH, OWNER_PD_FAILED,
++};
+ struct samurai_apsd_owner {
+ 	struct dwc3 *dwc;
++ struct kref ref;
++ struct device *typec;
++ struct samurai_pd5v_lease pd_lease;
++ enum owner_pd_phase pd_phase;
++ u64 pd_binding;
++ bool pd_bridge, pd_prepared;
++ int pd_error;
+ 	struct delayed_work work;
+ 	struct notifier_block notifier;
+ 	spinlock_t lock;
+@@ -47,6 +63,32 @@
+ static void *bus_ctx;
+ /* Logical UDC teardown/rebind does not create a physical attach epoch. */
+ static struct samurai_apsd_once protocol_history;
++static u64 pd_history_binding;
++static bool pd_history_prepared;
++static int owner_join(struct samurai_apsd_owner *, unsigned int, bool);
++
++static void owner_free(struct kref *ref)
++{
++ struct samurai_apsd_owner *o = container_of(ref, struct samurai_apsd_owner, ref);
++ if (o->typec)
++  put_device(o->typec);
++ kfree(o);
++}
++static bool owner_pd_get(void *context)
++{
++ struct samurai_apsd_owner *o = context;
++ return kref_get_unless_zero(&o->ref);
++}
++static void owner_pd_put(void *context)
++{
++ struct samurai_apsd_owner *o = context;
++ kref_put(&o->ref, owner_free);
++}
++static void owner_pd_release(struct samurai_apsd_owner *o)
++{
++ if (IS_ENABLED(CONFIG_USB_DWC3_SAMURAI_APSD_PD5V_CLIENT) && o->pd_lease.owner)
++  samurai_pd5v_release(&o->pd_lease);
++}
+ 
+ static u64 owner_now_ms(void)
+ {
+@@ -83,17 +125,188 @@
+ 	spin_unlock_irqrestore(&o->lock, flags);
+ }
+ 
+-/* This is a proven-missing prerequisite, NOT a fake successful lease or a
+- * callback-presence test. OEM TCPM audit d4cf7b6b names the real invalidation
+- * sites. No provider implements them or EUD/PHY pre-remove joining here.
+- * A later revision must replace the entire contract with audited generation
+- * acquire/revalidate/release and those driver lifecycle hooks as one change.
+- */
++/* Only process-context owner worker/lifecycle uses this real lease.
++ * PD5V invokes cancel outside its mutex with an extra actual kref pin. */
++static void owner_pd_cancel_join(void *context)
++{
++ struct samurai_apsd_owner *o = context;
++ unsigned long flags;
++ int ret = 0;
++
++ mutex_lock(&owner_registry);
++ if (o->dwc)
++  ret = owner_join(o, DWC3_APSD_PD, false);
++ else {
++  /* Unbind already joined the worker. Never retry old MMIO via an orphan. */
++  cancel_delayed_work_sync(&o->work);
++  if (!o->phy.cookie && !o->dwc_window.cookie && !o->eud.cookie && !o->extra_pm)
++   owner_pd_release(o);
++ }
++ if (!ret) {
++  spin_lock_irqsave(&o->lock, flags);
++  o->blocked &= ~DWC3_APSD_PD;
++  if (!o->blocked && !o->retiring && !o->quarantined)
++   o->abort = false;
++  spin_unlock_irqrestore(&o->lock, flags);
++  /* This can only observe blocked metadata until Type-C complete. It cannot
++   * enable/reset/retry PD; the real control instance preserves its history. */
++  owner_queue(o, msecs_to_jiffies(1000));
++ }
++ mutex_unlock(&owner_registry);
++}
++
++static int owner_pd_resolve(struct samurai_apsd_owner *o)
++{
++ struct device_node *np;
++ struct platform_device *pdev;
++ if (o->typec)
++  return 0;
++ np = of_parse_phandle(o->dwc->dev->of_node, "samurai,apsd-typec", 0);
++ if (!np)
++  return -EINVAL;
++ pdev = of_find_device_by_node(np);
++ of_node_put(np);
++ if (!pdev)
++  return -EPROBE_DEFER;
++ o->typec = &pdev->dev; /* caller owns of_find_device_by_node's reference */
++ return 0;
++}
++
++static int owner_pd_observe(struct samurai_apsd_owner *o,
++ const struct samurai_apsd_bus_sample *sample)
++{
++ struct samurai_pd5v_status status = { };
++ struct samurai_pd5v_client client = {
++  .context = o, .get_unless_zero = owner_pd_get,
++  .put = owner_pd_put, .cancel_join = owner_pd_cancel_join,
++ };
++ struct samurai_usb_status wire;
++ struct samurai_usb_budget budget;
++ int ret;
++
++ if (!IS_ENABLED(CONFIG_USB_DWC3_SAMURAI_APSD_PD5V_CLIENT) ||
++     !IS_BUILTIN(CONFIG_TYPEC_QCOM_PMIC))
++  return -EOPNOTSUPP;
++ if (o->pd_phase == OWNER_PD_FAILED)
++  return o->pd_error ? o->pd_error : -EIO;
++ if (owner_aborted(o))
++  return -ECANCELED;
++ ret = owner_pd_resolve(o);
++ if (ret == -EPROBE_DEFER)
++  return -EAGAIN;
++ if (ret)
++  goto failed;
++ if (!bus_dev)
++  return -ENODEV;
++ ret = qcom_pmic_typec_5v_status(o->typec, bus_dev, &status);
++ if (ret == -ENODEV) {
++  o->pd_error = ret;
++  o->pd_phase = OWNER_PD_WAIT_BINDING;
++  return -EAGAIN;
++ }
++ if (ret)
++  goto failed;
++ if (status.binding_id != o->pd_binding) {
++  o->pd_binding = status.binding_id;
++  o->pd_prepared = status.binding_id == pd_history_binding && pd_history_prepared;
++ }
++ if (status.error) {
++  ret = status.error;
++  goto failed;
++ }
++ if (status.blocked) {
++  o->pd_error = -EBUSY;
++  return -EAGAIN;
++ }
++ if (!o->pd_lease.owner) {
++  /* Even an initialized replacement must see a real off before a new
++   * eligible epoch. Rebind of this same prepared instance is different. */
++  if (sample->present && (!status.initialized || !o->pd_prepared)) {
++   o->pd_phase = OWNER_PD_WAIT_FIRST_OFF;
++   return -EAGAIN;
++  }
++  if (owner_aborted(o))
++   return -ECANCELED;
++  ret = qcom_pmic_typec_5v_acquire(o->typec, &client, &o->pd_lease);
++  if (ret) {
++   /* Read-only metadata distinguishes pre-takeover instability from a
++    * failed/unknown power or write attempt. Never pardon the latter. */
++   int check = qcom_pmic_typec_5v_status(o->typec, bus_dev, &status);
++   if (!check && !status.error && (ret == -EAGAIN || ret == -EBUSY)) {
++    o->pd_error = ret;
++    o->pd_phase = OWNER_PD_WAIT_FIRST_OFF;
++    return -EAGAIN;
++   }
++   if (!check && status.error)
++    ret = status.error;
++   goto failed;
++  }
++  ret = qcom_pmic_typec_5v_status(o->typec, bus_dev, &status);
++  if (ret)
++   goto failed;
++  if (status.binding_id != o->pd_binding) {
++   /* Removal/reprobe may win between metadata and acquire. The real new
++    * lease is valid, but it cannot inherit this client's old off history. */
++   owner_pd_release(o);
++   o->pd_binding = status.binding_id;
++   o->pd_prepared = false;
++   o->pd_error = -ESTALE;
++   o->pd_phase = OWNER_PD_WAIT_FIRST_OFF;
++   return -EAGAIN;
++  }
++  if (!sample->present)
++   o->pd_prepared = true; /* actual first acquire verified vSafe0/off */
++ }
++ if (owner_aborted(o))
++  return -ECANCELED;
++ ret = samurai_pd5v_validate(&o->pd_lease);
++ if (ret) {
++  int check = qcom_pmic_typec_5v_status(o->typec, bus_dev, &status);
++  /* PM may publish revocation while this worker is finishing acquisition.
++   * Its cancel_join will release the lease after joining us. A known
++   * blocked binding with no actual error is cancellation, not a new fault. */
++  if (ret == -ESTALE && !check && status.blocked && !status.error) {
++   o->pd_error = ret;
++   o->pd_phase = OWNER_PD_WAIT_BINDING;
++   return -EAGAIN;
++  }
++  if (!check && status.error)
++   ret = status.error;
++  goto failed;
++ }
++ if (!sample->present) {
++  o->pd_phase = OWNER_PD_WAIT_ATTACH;
++  return 0;
++ }
++ memcpy(&wire, sample->raw, sizeof(wire));
++ ret = samurai_usb_decode(&wire, &budget);
++ if (ret || !budget.online) {
++  o->pd_error = ret ? ret : -EAGAIN;
++  return -EAGAIN;
++ }
++ if (!o->pd_prepared) {
++  o->pd_phase = OWNER_PD_WAIT_FIRST_OFF;
++  return -EAGAIN;
++ }
++ o->pd_phase = OWNER_PD_SINK_EPOCH;
++ return 0;
++failed:
++ o->pd_error = ret;
++ o->pd_phase = OWNER_PD_FAILED;
++ return ret;
++}
++
++/* A real PD5V lease alone is insufficient. Trusted EUD-off route, PHY
++ * provider withdrawal and final-transfer revalidation remain unimplemented.
++ * Keep a concrete failure before all analog/window/command entry. */
+ static int owner_entry_gate(struct samurai_apsd_owner *o)
+ {
+ 	if (!o->bus || !o->bus->read_sample || !o->bus->rerun_once)
+ 		return -ENODEV;
+-	return -EOPNOTSUPP;
++ /* Real PD acquisition is separate from these still-missing capabilities.
++  * This unconditional refusal MUST remain: no EUD/DWC/PHY begin or1341 path
++  * becomes reachable through the new PD bridge. */
++ return -EOPNOTSUPP; /* route + PHY withdrawal + final-write contract absent */
+ }
+ 
+ /* Only this worker or its joined lifecycle owner calls component functions.
+@@ -178,9 +391,19 @@
+ 	if (!sample.present) {
+ 		if (o->once.phase != SAMURAI_APSD_DETACHED)
+ 			samurai_apsd_detach(&o->once);
+-		return -ENOLINK;
+-	}
+-	if (o->once.phase == SAMURAI_APSD_DETACHED) {
++  if (o->pd_bridge) {
++   ret = owner_pd_observe(o, &sample);
++   if (ret)
++    return ret;
++  }
++  return -ENOLINK;
++ }
++	if (o->pd_bridge) {
++  ret = owner_pd_observe(o, &sample);
++  if (ret)
++   return ret;
++ }
++ if (o->once.phase == SAMURAI_APSD_DETACHED) {
+ 		ret = samurai_apsd_attach(&o->once, owner_now_ms());
+ 		if (ret)
+ 			return ret;
+@@ -198,6 +421,10 @@
+ 	if (owner_aborted(o))
+ 		return;
+ 	ret = owner_read(o);
++ if (o->pd_bridge && (ret == -EAGAIN || ret == -ENOLINK) && o->pd_phase != OWNER_PD_FAILED) {
++  owner_queue(o, msecs_to_jiffies(1000));
++  return;
++ }
+ 	if (ret == SAMURAI_APSD_REQUEST && !o->once.attempted) {
+ 		ret = owner_entry_gate(o);
+ 		if (ret) {
+@@ -265,6 +492,8 @@
+ 	if (o->once.phase != SAMURAI_APSD_DETACHED && o->once.attempted)
+ 		samurai_apsd_cancel(&o->once, o->once.epoch);
+ 	ret = owner_restore(o, retiring);
++ if (!ret)
++  owner_pd_release(o);
+ 	if (ret) {
+ 		owner_quarantine(o);
+ 		dev_err(o->dwc->dev, "APSD owner retained quiet: primary=%d phy=%d dwc=%d eud=%d\n",
+@@ -341,7 +570,17 @@
+ 	o = kzalloc(sizeof(*o), GFP_KERNEL);
+ 	if (!o)
+ 		goto out;
++ kref_init(&o->ref);
+ 	o->dwc = dwc;
++ o->pd_bridge = device_property_read_bool(dwc->dev, "samurai,apsd-pd5v-bridge");
++ if (o->pd_bridge) {
++  o->pd_phase = OWNER_PD_WAIT_BINDING;
++  if (!IS_ENABLED(CONFIG_USB_DWC3_SAMURAI_APSD_PD5V_CLIENT) ||
++      !IS_BUILTIN(CONFIG_TYPEC_QCOM_PMIC)) {
++   o->pd_error = -EOPNOTSUPP;
++   o->pd_phase = OWNER_PD_FAILED;
++  }
++ }
+ 	o->bus = bus_ops;
+ 	o->bus_ctx = bus_ctx;
+ 	o->once = protocol_history;
+@@ -352,7 +591,7 @@
+ 		o->blocked = DWC3_APSD_UDC;
+ 	ret = power_supply_reg_notifier(&o->notifier);
+ 	if (ret) {
+-		kfree(o);
++		kref_put(&o->ref, owner_free);
+ 		goto out;
+ 	}
+ 	o->registered = true;
+@@ -431,6 +670,8 @@
+ 	o->registered = false;
+ 	cancel_delayed_work_sync(&o->work);
+ 	protocol_history = o->once;
++ pd_history_binding = o->pd_binding;
++ pd_history_prepared = o->pd_prepared;
+ 	/* A retained failed PHY/EUD token is orphaned, not auto-restored through
+ 	 * removed MMIO. Keep the tombstone and refuse a replacement controller.
+ 	 */
+@@ -441,7 +682,8 @@
+ 		goto out;
+ 	}
+ 	bound_owner = NULL;
+-	kfree(o);
++ o->dwc = NULL;
++	kref_put(&o->ref, owner_free);
+ out:
+ 	mutex_unlock(&owner_registry);
+ }
+--- frozen/samurai-apsd-owner.h
++++ bridge/samurai-apsd-owner.h
+@@ -9,6 +9,7 @@
+ 	DWC3_APSD_CORE = 4,
+ 	DWC3_APSD_UDC = 8,
+ 	DWC3_APSD_EXIT = 16,
++ DWC3_APSD_PD = 32,
+ };
+ #if IS_ENABLED(CONFIG_USB_DWC3_SAMURAI_APSD_OWNER)
+ void dwc3_apsd_owner_bind(struct dwc3 *dwc);
+--- frozen/Kconfig.fragment
++++ bridge/Kconfig.fragment
+@@ -9,3 +9,15 @@
+ 	  Internal optional coordinator, additionally requiring the explicit
+ 	  samurai,apsd-owner property. Missing PD/route and EUD/PHY lifetime
+ 	  coverage refuses every hardware attempt. Not a deployable rerun path.
++
++config USB_DWC3_SAMURAI_APSD_PD5V_CLIENT
++ bool "Samurai pre-attach PD-disabled client bridge (no APSD command)"
++ depends on USB_DWC3_SAMURAI_APSD_OWNER && OF
++ depends on TYPEC_TCPM=y && TYPEC_QCOM_PMIC=y
++ default n
++ help
++   Same-Image internal client only; also requires the explicit DWC
++   samurai,apsd-pd5v-bridge and samurai,apsd-typec properties plus the
++   PD5V driver's double opt-in. Current TYPEC_QCOM_PMIC=m is refused.
++   Establishes real disabled-PD control only after physical detach.
++   Missing route/PHY/transfer gates still deny every APSD command.
+--- frozen/qcom_pmic_typec_5v.c
++++ bridge/qcom_pmic_typec_5v.c
+@@ -33,7 +33,7 @@
+ 	struct kref ref;
+ 	struct samurai_pd5v_client client;
+ 	struct samurai_pd5v_lease *active_lease;
+-	unsigned long long generation;
++	unsigned long long generation, binding_id;
+ 	bool powered, power_attempted, blocked, removed, initialized, attempted, leased;
+ 	int power_errno;
+ 	int error, write_errno, readback_errno, post_errno;
+@@ -48,6 +48,7 @@
+  * PM calls prepare with that device lock already held. */
+ static DEFINE_MUTEX(pd5v_registry_lock);
+ static struct samurai_pd5v *pd5v_bound;
++static unsigned long long pd5v_binding_serial;
+ 
+ static unsigned long long pd5v_now_ms(void)
+ {
+@@ -351,6 +352,42 @@
+ 	module_put(THIS_MODULE);
+ }
+ 
++int qcom_pmic_typec_5v_status(struct device *typec, struct device *source,
++ struct samurai_pd5v_status *status)
++{
++ struct samurai_pd5v *p = NULL;
++ struct samurai_pd5v_status value = { };
++ int ret = 0;
++ if (!typec || !source || !status || !source->parent)
++  return -EINVAL;
++ mutex_lock(&pd5v_registry_lock);
++ if (pd5v_bound && pd5v_bound->dev == typec && try_module_get(THIS_MODULE)) {
++  p = pd5v_bound;
++  kref_get(&p->ref);
++ }
++ mutex_unlock(&pd5v_registry_lock);
++ if (!p)
++  return -ENODEV;
++ mutex_lock(&p->lock);
++ if (p->removed)
++  ret = -ESHUTDOWN;
++ else if (p->dev->parent != source->parent ||
++     !dev_get_regmap(source->parent, NULL) ||
++     p->regmap != dev_get_regmap(source->parent, NULL))
++  ret = -EXDEV;
++ else {
++  value.binding_id = p->binding_id;
++  value.initialized = p->initialized;
++  value.blocked = p->blocked;
++  value.error = p->error;
++  *status = value;
++ }
++ mutex_unlock(&p->lock);
++ kref_put(&p->ref, pd5v_free);
++ module_put(THIS_MODULE);
++ return ret;
++}
++
+ int qcom_pmic_typec_5v_acquire(struct device *typec,
+ 		const struct samurai_pd5v_client *client,
+ 		struct samurai_pd5v_lease *lease)
+@@ -455,6 +492,12 @@
+ 		kref_put(&p->ref, pd5v_free);
+ 		return ERR_PTR(-EBUSY);
+ 	}
++	if (pd5v_binding_serial == ~0ULL) {
++		mutex_unlock(&pd5v_registry_lock);
++		kref_put(&p->ref, pd5v_free);
++		return ERR_PTR(-EOVERFLOW);
++	}
++	p->binding_id = ++pd5v_binding_serial;
+ 	pd5v_bound = p;
+ 	kref_get(&p->ref);
+ 	mutex_unlock(&pd5v_registry_lock);
+--- frozen/qcom_pmic_typec_5v.h
++++ bridge/qcom_pmic_typec_5v.h
+@@ -42,6 +42,16 @@
+ /* Resolves only a currently bound, opted-in instance of the real qcom
+  * platform driver. Caller supplies the actual Type-C device, not a label.
+  * A successful lease proves PD disabled, not DP/DM route or APSD permission. */
++/* Metadata only: not a lease or PD permission. Exact source/Type-C parent
++ * and regmap identity are checked. No physical I/O or supply operation.
++ * binding_id never reuses a removed instance's identity. */
++struct samurai_pd5v_status {
++ unsigned long long binding_id;
++ bool initialized, blocked;
++ int error;
++};
++int qcom_pmic_typec_5v_status(struct device *typec, struct device *source,
++ struct samurai_pd5v_status *status);
+ int qcom_pmic_typec_5v_acquire(struct device *typec,
+ 		const struct samurai_pd5v_client *client,
+ 		struct samurai_pd5v_lease *lease);

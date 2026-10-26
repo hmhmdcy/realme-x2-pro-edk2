@@ -1,0 +1,82 @@
+{
+  "scope": "cached BQ BatteryStatus FC mapping and retained healthy Full-hold semantics only",
+  "mapping_issue_established": false,
+  "gauge_source_sha256": "0aa3c533bab0ec9219364af5328d353334cbf5112f97c8529aa162f95fd88ffe",
+  "baseline_source_sha256": "b2cd415a995cb196559c0e4981988f737c17c98486449659d168314926aec69e",
+  "BQ28_selected_flags_register": "0x0a word",
+  "BQ28_selected_FC_mask": "0x0020 bit5",
+  "FC_mapping_unchanged_by_Image501": true,
+  "generic_BQ27XXX_bit9_not_selected": true,
+  "GaugingStatus0056_bit1_is_a_different_field": true,
+  "TI_manual": {
+    "url": "https://www.ti.com/lit/pdf/sluua65",
+    "version": "SLUUA65E June2023",
+    "pdf_sha256": "f62ec12bb5aa23631759e59a378f36d254f9b0e2b5b6b8523a0dd081a13e4139",
+    "cached_text_sha256": "bcfe082439dc058e6daaf03cfbb274279f6dbcd5a816cd151775733ff91024dd",
+    "sections": [
+      "4.6 p26",
+      "4.7 pp26-27",
+      "12.1.6 pp69-70",
+      "13.4.9 p106",
+      "13.6.7 p108"
+    ]
+  },
+  "actual_retained": {
+    "raw_sha256": "a7a9f5ac00b0336d0a32768c461588be990c7f6fadb5d069f8a1b7b0f1ca120b",
+    "public_receipt_sha256": "8ec2635e8ba5910f15226fedd1d58c0e36275c51388e4dbd0ae5cbd5cd41150d",
+    "gauge": {
+      "flag": "Y",
+      "status": "Not charging",
+      "current_now": "0",
+      "current_avg": "0",
+      "capacity": "100"
+    },
+    "telemetry": [
+      {
+        "flags": 192,
+        "full_cause": 3,
+        "desired_enable": 0,
+        "gauge_current_ua": 0,
+        "cell1_uv": 4327000,
+        "cell2_uv": 4326000,
+        "age_ms": 985
+      },
+      {
+        "flags": 192,
+        "full_cause": 3,
+        "desired_enable": 0,
+        "gauge_current_ua": -3000,
+        "cell1_uv": 4325000,
+        "cell2_uv": 4320000,
+        "age_ms": 32
+      }
+    ],
+    "FC_set": false,
+    "R8_cause3": "retained MP2650 hardware termination, not gauge FC or software counter"
+  },
+  "capacity100_does_not_require_FC": "RSOCL disabled permits rounded 100 percent; FC set/clear predicates are independently configurable",
+  "VCT_required_conditions": [
+    "charging/DSG clear",
+    "average below configured taper",
+    "max cell plus configured termination window reaches gauge charging target per series cell",
+    "positive accumulated charge above 0.25mAh in each of two consecutive 40-second periods"
+  ],
+  "conservative_CV_limit": "lower CV can prevent the configured voltage predicate, but does not necessarily do so; actual termination window and gauge target are unknown",
+  "factory2719_limits": [
+    "not proven to be standard 2610 firmware",
+    "FC/SOCFlagConfig/RSOCL/termination parameters not read",
+    "current FC-clear samples do not validate a physical FC set/clear transition"
+  ],
+  "R8_sources": {
+    "kernel-sources/drivers/power/supply/samurai-mp2650.c": "ed2e1d4d96ea4f2d55b514288b0e8da1d731864d385944d02a105d41b03a144c",
+    "kernel-sources/drivers/power/supply/oem-full-cycle.h": "91554031a1ea454e1a70fa8bae89316bd8770686c19c5a33ec6a1dbb06bdfba4"
+  },
+  "OEM_stock": {
+    "commit": "9668fcdc6ec15be7a10d66f7b93c347829e0fdb6",
+    "gauge_sha256": "c0c502065fcd46cc52173ab075074f3f3f66efe596f71845de0f8092291d5d84",
+    "set_battery_full_is_noop": true,
+    "generic_bit9_header_not_proof_of_a_used_BQ28_FC_getter": true
+  },
+  "recommended_change": "none from this evidence; preserve truthful Not charging and healthy Full hold, do not infer Full from capacity100 or force Charging",
+  "new_I2C_device_network_build_test_Git_operations": false
+}

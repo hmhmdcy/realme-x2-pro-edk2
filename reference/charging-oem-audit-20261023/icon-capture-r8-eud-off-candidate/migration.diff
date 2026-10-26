@@ -1,0 +1,307 @@
+--- R7/launcher.py
++++ R8-EUD-off/launcher.py
+@@ -1,4 +1,4 @@
+-"""R7 host launch/status/fetch for the unchanged read-only icon collector.
++"""R8 EUD-off host launch/status/fetch for the unchanged read-only icon collector.
+ 
+ Import is inert. No network call occurs except an explicit CLI action.
+ """
+@@ -16,14 +16,15 @@
+ import uuid
+ 
+ HERE = Path(__file__).resolve().parent
+-PRIVATE = Path('/mnt/e/edk2-samurai-out/charging-ui-audit-20261023/icon-capture-r7')
++PRIVATE = Path('/mnt/e/edk2-samurai-out/charging-ui-audit-20261023/icon-capture-r8-eud-off')
+ PINS = HERE / 'identity-pins.json'
+ MIGRATION = HERE / 'migration-test-result.json'
+-MANIFEST = '5638db4c183ec502ed1df4facfe91111d1956754bb2338a5ddaf8838e9552c68'
++MANIFEST = '320316c3d93c1dbcaae29440f1f17d72c75e4994d656a9da9fcd5aeb93c10a1f'
+ FROZEN = {'worker.py': '446cf5dbcbb0ae0a1c765c7b0887c27c4ee978f4d02b590c93be4ff0b3586b21',
+           'audit.py': '7a7c5342fcdef85b5d941d7d9cb351a240d561b9d219817790f63c4825a7a287',
+-          'baseline-test-result.json': '4aeb77e82f845a4f79c6cac44e3779ba3ed86561da2dd0f615e4ff2195b1be0f'}
+-REMOTE_BASE = '/root/charging-ui-audit-20261023/icon-capture-r7'
++          'baseline-test-result.json': '4aeb77e82f845a4f79c6cac44e3779ba3ed86561da2dd0f615e4ff2195b1be0f',
++          'capture-entry.py': '70fdc224f337e8f2e712aa3d8a8d2bf2bda1de0c224c17dc261287b9fa63b44d'}
++REMOTE_BASE = '/root/charging-ui-audit-20261023/icon-capture-r8-eud-off'
+ 
+ 
+ def sha(raw): return hashlib.sha256(raw).hexdigest()
+@@ -31,28 +32,42 @@
+ 
+ def reviewed_identity(pins=PINS):
+     entries = json.loads(pins.read_bytes()); evidence = {}
+-    if set(entries) != {'adoption', 'adopt_request', 'adopt_result', 'endpoint', 'probe', 'postboot', 'transport'}:
+-        raise ValueError('R7 reviewed identity pin set differs')
++    expected = {'adoption','adopt_request','adopt_result','endpoint','postboot','receiver','transport','key_transport'}
++    if set(entries) != expected: raise ValueError('EUD-off reviewed pin set differs')
+     for name, entry in entries.items():
+         raw = Path(entry['path']).read_bytes()
+-        if sha(raw) != entry['sha256']: raise ValueError('R7 identity/transport bytes differ: ' + name)
+-        if name != 'transport': evidence[name] = json.loads(raw)
+-    adopted, request, result, endpoint, probe, postboot = [evidence[n] for n in
+-        ['adoption', 'adopt_request', 'adopt_result', 'endpoint', 'probe', 'postboot']]
+-    if not (adopted.get('original_key_verified') is True and adopted.get('baseline440_verified') is True
+-            and adopted.get('charging_manifest_sha256') == MANIFEST and postboot.get('passed') is True
+-            and result.get('guard_created') is True and result.get('original_guard_preserved') is True):
+-        raise ValueError('R7 baseline/guard adoption not proved')
+-    boot, guard = request['boot'], request['guard']; path = PurePosixPath(guard)
+-    if str(uuid.UUID(boot)) != boot: raise ValueError('invalid adopted R7 boot')
+-    if guard != adopted.get('guard_path') or not guard.startswith('/var/lib/samurai/') or '..' in path.parts or chr(92) in guard or path.name != 'boot-id-private.txt':
+-        raise ValueError('R7 adopted guard differs')
+-    if not (endpoint.get('kind') == 'usb-ipv6' and endpoint.get('original_key_verified') is True
+-            and endpoint.get('host_key_alias') == '169.254.42.1' and endpoint.get('interface_index') == 29
+-            and endpoint.get('peer') == 'fe80::62:bcff:fe28:a101%29' and endpoint.get('observed_new_boot') == boot
+-            and probe.get('boot_id') == boot and probe.get('manifest_sha256') == MANIFEST and probe.get('taint') == '0'):
+-        raise ValueError('strict original-key R7 IPv6/new boot differs')
++        if sha(raw) != entry['sha256']: raise ValueError('EUD-off identity/transport bytes differ: '+name)
++        if name not in ['transport','key_transport']: evidence[name] = json.loads(raw)
++    a, r, result, e, post, receiver = [evidence[n] for n in
++        ['adoption','adopt_request','adopt_result','endpoint','postboot','receiver']]
++    raw = post['raw']; checks = post['result']['checks']
++    if not (a.get('original_key_verified') is True and a.get('baseline481_verified') is True
++            and a.get('charging_manifest_sha256') == r.get('manifest') == MANIFEST
++            and a.get('candidate_boot_sha256') == raw['boot_partition']['sha256'] == '4126a2978bc79b5cb95b6e1b86bb432a6b16ece627776237c163b93b323bbfcf'
++            and a.get('postboot_raw_sha256') == r.get('postboot_raw_sha256') == entries['postboot']['sha256']
++            and result.get('guard_created') is True and result.get('old_guards_preserved') is True
++            and receiver.get('passed') is True and receiver.get('transport_exit') == 0
++            and post.get('schema') == 'samurai-eud-postboot-readonly-v1' and post['result']['passed'] is True
++            and checks['R8_install']['R8_disk_and_live_notes'] is True
++            and checks['camera481']['camera481_files_packages_notes'] is True
++            and checks['EUD_producers']['DT_disabled_no_EUD_cmdline_or_active_producer'] is True):
++        raise ValueError('adopted R8/481/EUD-off baseline not proved')
++    boot, guard = r['boot'], r['guard']; path = PurePosixPath(guard)
++    if str(uuid.UUID(boot)) != boot: raise ValueError('invalid adopted boot')
++    if guard != a.get('guard_path') or guard != '/var/lib/samurai/eud-boot-r2-live-001-adopted/boot-id-private.txt' or '..' in path.parts:
++        raise ValueError('actual adopted EUD-off guard differs')
++    if not (raw['identity_before'] == raw['identity_after'] and raw['identity_after']['boot_id'] == boot
++            and e.get('kind') == 'usb-ipv6' and e.get('original_key_verified') is True and e.get('postboot_R3_passed') is True
++            and e.get('host_key_alias') == '169.254.42.1' and e.get('interface_index') == 29
++            and e.get('peer') == 'fe80::62:bcff:fe28:a101%29' and e.get('observed_new_boot') == boot and e.get('guard_path') == guard):
++        raise ValueError('strict original-key EUD-off endpoint/boot differs')
+     return boot, guard, entries
++
++
++def runtime_expected(pins=PINS):
++    _, _, entries = reviewed_identity(pins)
++    r = json.loads(Path(entries['adopt_request']['path']).read_bytes())
++    return {k:r[k] for k in ['release','version','rootfs','notes']}
+ 
+ 
+ def adopt_local(bundle=HERE, pins=PINS, migration=MIGRATION):
+@@ -64,7 +79,7 @@
+             tested['sha256'][name] != FROZEN[name] for name in ['worker.py', 'audit.py']):
+         raise ValueError('generic collector historical tests not proved')
+     migrated = json.loads(migration.read_bytes())
+-    if not (migrated.get('schema') == 'charging-icon-r7-migration-tests-v1' and migrated.get('passed') is True
++    if not (migrated.get('schema') == 'charging-icon-r8-eud-off-migration-tests-v1' and migrated.get('passed') is True
+             and migrated.get('launcher_sha256') == sha((bundle / 'launcher.py').read_bytes())
+             and migrated.get('identity_pins_sha256') == sha(pins.read_bytes())
+             and migrated.get('sha256') == FROZEN and migrated.get('manifest_sha256') == MANIFEST):
+@@ -107,8 +122,8 @@
+             deadline_remaining = request['max_seconds'] - (item['remote_boottime'] - data['clock_start']['boot'])
+             if not all(math.isfinite(v) for v in [age, remaining, deadline_remaining]): raise ValueError()
+             if not 0 <= age <= 3: reasons.append(f'observation {index}: status is stale or future-dated')
+-            if min(remaining, deadline_remaining) - roundtrip < 45:
+-                reasons.append(f'observation {index}: less than 45 seconds remain')
++            if min(remaining, deadline_remaining) - roundtrip < 130:
++                reasons.append(f'observation {index}: less than 130 seconds remain')
+             if abs(remaining - deadline_remaining) > 3:
+                 reasons.append(f'observation {index}: deadline accounting differs')
+         except (KeyError, TypeError, ValueError): reasons.append(f'observation {index}: timing evidence missing/invalid')
+@@ -132,16 +147,31 @@
+ import base64,hashlib,json,os,re,subprocess,sys,time,traceback
+ data=json.loads(sys.stdin.buffer.read());os.umask(0o077)
+ sha=lambda raw:hashlib.sha256(raw).hexdigest()
+-base=Path('/root/charging-ui-audit-20261023/icon-capture-r7')
++base=Path('/root/charging-ui-audit-20261023/icon-capture-r8-eud-off')
+ txn=data['transaction'];assert re.fullmatch(r'charging-icon-[a-z0-9][a-z0-9-]{0,40}',txn)
+ bundle=base/(txn+'-bundle');out=base/txn
+ assert str(bundle)==data['remote_bundle'] and str(out)==data['remote_output']
+ guard=Path(data['guard_path']);assert str(guard).startswith('/var/lib/samurai/') and '..' not in guard.parts and guard.name=='boot-id-private.txt'
+-def identity():
++def boot_identity():
+  boot=Path('/proc/sys/kernel/random/boot_id').read_text().strip()
+  assert boot==data['expected_boot']==guard.read_text().strip()
++ return True
++def identity():
++ boot_identity()
+  assert sha(Path('/usr/share/samurai-charging/manifest.json').read_bytes())==data['manifest_sha256']
++ e=data['identity_expected'];assert os.uname().release==e['release'] and os.uname().version==e['version']
++ assert sha(Path('/etc/samurai-rootfs-release').read_bytes())==e['rootfs']
++ for name,digest in e['notes'].items():
++  assert sha(Path('/sys/module',name,'notes/.note.gnu.build-id').read_bytes())==digest
++  assert Path('/sys/module',name,'initstate').read_text().strip()=='live'
+  return True
++identity_errors=[]
++def checked_identity():
++ boot_identity()
++ if data['action']!='fetch':return identity()
++ try:return identity()
++ except Exception:
++  identity_errors.append(traceback.format_exc());return False
+ def save(path,value):
+  with path.open('x') as f:json.dump(value,f);f.flush();os.fsync(f.fileno())
+ def read_json(path):
+@@ -159,18 +189,19 @@
+  state='alive' if ticks==expected and argv==receipt.get('argv') and tail[0]!='Z' else 'zombie' if ticks==expected and tail[0]=='Z' else 'pid_reused' if ticks!=expected else 'unknown'
+  return {'state':state,'pid':pid,'start_ticks':ticks,'argv':argv}
+ try:
+- identity()
++ identity_before=checked_identity()
++ assert data['max_seconds']==300
+  if data['action']=='launch':
+   assert not bundle.exists() and not out.exists();base.mkdir(mode=0o700,parents=True,exist_ok=True);bundle.mkdir(mode=0o700)
+   for name,digest in data['files'].items():
+-   assert name in ['worker.py','audit.py','baseline-test-result.json']
++   assert name in ['worker.py','audit.py','baseline-test-result.json','capture-entry.py']
+    raw=base64.b64decode(data['file_base64'][name],validate=True);assert sha(raw)==digest
+    with (bundle/name).open('xb') as f:f.write(raw);f.flush();os.fsync(f.fileno())
+   tested=read_json(bundle/'baseline-test-result.json');assert tested['passed'] is True and tested['tests_run']==32
+   assert all(tested['sha256'][n]==data['files'][n] for n in ['worker.py','audit.py'])
+   save(bundle/'request-private.json',data)
+   identity();assert not out.exists()
+-  argv=data['argv'];assert argv==['python3',str(bundle/'worker.py'),'--execute','--window-confirmed','--transaction',txn,'--output-root',str(base),'--boot-id',data['expected_boot'],'--manifest-sha256',data['manifest_sha256'],'--max-seconds',str(data['max_seconds'])]
++  argv=data['argv'];assert argv==['python3',str(bundle/'capture-entry.py'),'--execute','--window-confirmed','--transaction',txn,'--output-root',str(base),'--boot-id',data['expected_boot'],'--manifest-sha256',data['manifest_sha256'],'--max-seconds',str(data['max_seconds'])]
+   with (bundle/'worker-private.log').open('xb') as log:
+    child=subprocess.Popen(argv,stdin=subprocess.DEVNULL,stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
+   try:
+@@ -205,7 +236,9 @@
+     'monitor_started':monitor.get('started'),'monitor_errors':monitor.get('errors'),
+     'dbus_returncode':monitor.get('dbus_returncode'),'no_stop_or_cleanup_action_performed':True}
+  else:raise ValueError('invalid action')
+- response['identity_unchanged']=identity();print(json.dumps(response),flush=True)
++ identity_after=checked_identity()
++ response['identity_unchanged']=identity_before and identity_after
++ response['identity_errors']=identity_errors;print(json.dumps(response),flush=True)
+ except BaseException:
+  print(json.dumps({'remote_error':traceback.format_exc()}),flush=True);sys.exit(1)
+ '''
+@@ -247,13 +280,13 @@
+ 
+ 
+ def run(action, transaction, confirmed=False, *, ssh=None, private=PRIVATE,
+-        bundle=HERE, pins=PINS, migration=MIGRATION, max_seconds=180):
++        bundle=HERE, pins=PINS, migration=MIGRATION, max_seconds=300):
+     if action not in ['launch', 'status', 'fetch']: raise ValueError('invalid action')
+     if not re.fullmatch(r'charging-icon-[a-z0-9][a-z0-9-]{0,40}', transaction): raise ValueError('invalid transaction')
+     directory = private / transaction
+     if action == 'launch':
+         if not confirmed: raise ValueError('explicit camera/Bluetooth handback required before launch')
+-        if not 50 <= max_seconds <= 600: raise ValueError('invalid bounded deadline')
++        if max_seconds != 300: raise ValueError('this reviewed capture has a fixed 300-second deadline')
+         files, boot, guard = adopt_local(bundle, pins, migration)
+         directory.parent.mkdir(mode=0o700, parents=True, exist_ok=True); directory.mkdir(mode=0o700)
+         remote_bundle = REMOTE_BASE + '/' + transaction + '-bundle'
+@@ -261,8 +294,8 @@
+                        manifest_sha256=MANIFEST, guard_path=guard, files=FROZEN,
+                        remote_bundle=remote_bundle, remote_output=REMOTE_BASE + '/' + transaction,
+                        max_seconds=max_seconds, dispatch_count=1, identity_pins_sha256=sha(pins.read_bytes()),
+-                       candidate_revision="r7-ipv6-180-v1")
+-        request['argv'] = ['python3', remote_bundle + '/worker.py', '--execute', '--window-confirmed',
++                       candidate_revision="r8-eud-off-300-v1", identity_expected=runtime_expected(pins))
++        request['argv'] = ['python3', remote_bundle + '/capture-entry.py', '--execute', '--window-confirmed',
+                            '--transaction', transaction, '--output-root', REMOTE_BASE,
+                            '--boot-id', boot, '--manifest-sha256', MANIFEST, '--max-seconds', str(max_seconds)]
+         # Must survive an unknown SSH/Popen outcome. This transaction then becomes status/fetch only.
+@@ -271,7 +304,7 @@
+     else:
+         reviewed_identity(pins)
+         request = json.loads((directory / 'launch-request-private.json').read_bytes())
+-        if request['transaction'] != transaction or request['files'] != FROZEN or request['manifest_sha256'] != MANIFEST or request.get('identity_pins_sha256') != sha(pins.read_bytes()):
++        if request['transaction'] != transaction or request['files'] != FROZEN or request['manifest_sha256'] != MANIFEST or request.get('identity_pins_sha256') != sha(pins.read_bytes()) or request.get('identity_expected') != runtime_expected(pins):
+             raise ValueError('host launch marker differs from this reviewed collector')
+         payload = dict(request)
+     payload['action'] = action
+@@ -310,10 +343,13 @@
+ 
+ def main(argv=None):
+     parser = argparse.ArgumentParser(description=__doc__)
+-    parser.add_argument('action', choices=['launch', 'status', 'fetch'])
+-    parser.add_argument('--transaction', required=True); parser.add_argument('--window-confirmed', action='store_true')
+-    parser.add_argument('--max-seconds', type=int, default=180)
++    parser.add_argument('action', nargs='?', default='check-local', choices=['check-local','launch','status','fetch'])
++    parser.add_argument('--transaction'); parser.add_argument('--window-confirmed', action='store_true')
++    parser.add_argument('--max-seconds', type=int, default=300)
+     args = parser.parse_args(argv)
++    if args.action == 'check-local':
++        adopt_local(); print(json.dumps({'local_inputs_verified':True,'device_accessed':False,'deadline_seconds':300})); return
++    if not args.transaction: raise ValueError('fresh transaction required')
+     print(json.dumps(run(args.action, args.transaction, args.window_confirmed, max_seconds=args.max_seconds), indent=2))
+ 
+ 
+--- /dev/null
++++ R8-EUD-off/capture-entry.py
+@@ -0,0 +1,73 @@
++"""Thin read-only identity/sample adapter for the byte-frozen icon worker."""
++from pathlib import Path
++import hashlib
++import json
++import os
++import worker as collector
++
++REQUEST = Path(__file__).with_name('request-private.json')
++GUARD = '/var/lib/samurai/eud-boot-r2-live-001-adopted/boot-id-private.txt'
++
++
++class CaptureCycle(collector.Cycle):
++    """Keep the original off/gap rules; observe 90 seconds after stable on."""
++    def feed(self, row):
++        phase = super().feed(row)
++        if phase == 'complete' and row['t_end'] - self.settle_at < 90:
++            self.complete = False
++            return 'settling'
++        return phase
++
++
++class CaptureIO(collector.RealIO):
++    def check_identity(self, config):
++        super().check_identity(config)
++        request = json.loads(REQUEST.read_bytes())
++        expected = request['identity_expected']
++        if not (request['transaction'] == config['transaction']
++                and request['expected_boot'] == config['boot_id']
++                and request['manifest_sha256'] == config['manifest_sha256']
++                and request['guard_path'] == GUARD
++                and Path(GUARD).read_text().strip() == config['boot_id']
++                and os.uname().release == expected['release']
++                and os.uname().version == expected['version']
++                and hashlib.sha256(Path('/etc/samurai-rootfs-release').read_bytes()).hexdigest() == expected['rootfs']):
++            raise ValueError('adopted EUD-off guard/kernel/rootfs changed')
++        for name, digest in expected['notes'].items():
++            parent = Path('/sys/module') / name
++            if (hashlib.sha256((parent / 'notes/.note.gnu.build-id').read_bytes()).hexdigest() != digest
++                    or (parent / 'initstate').read_text().strip() != 'live'):
++                raise ValueError('adopted R8/camera481 live note changed: ' + name)
++
++    def sample(self, base):
++        row = super().sample(base)
++        ps = Path('/sys/class/power_supply')
++        row['extended_read_t_start'] = row['t_end']
++        row['source'] = {key: self.read(ps / 'samurai-usb-input' / filename, numeric)
++                         for key, filename, numeric in [
++                             ('usb_type', 'usb_type', False), ('current_max_ua', 'current_max', True),
++                             ('input_current_limit_ua', 'input_current_limit', True)]}
++        row['hardware_input'] = {'input_current_limit_ua': self.read(ps / 'mp2650-input/input_current_limit', True),
++                                 'status': self.read(ps / 'mp2650-input/status')}
++        row['udc'] = {key: self.read(Path('/sys/class/udc/a600000.usb') / key)
++                      for key in ['state', 'current_speed']}
++        row['MaxPower_ma'] = self.read('/sys/kernel/config/usb_gadget/samurai/configs/c.1/MaxPower', True)
++        row['battery']['current_avg_ua'] = self.read(self.battery / 'current_avg', True)
++        row['t_end'] = collector.time.monotonic() - base
++        return row
++
++
++def main(argv=None):
++    original = collector.RealIO
++    original_cycle = collector.Cycle
++    collector.RealIO = CaptureIO
++    collector.Cycle = CaptureCycle
++    try:
++        return collector.main(argv)
++    finally:
++        collector.RealIO = original
++        collector.Cycle = original_cycle
++
++
++if __name__ == '__main__':
++    raise SystemExit(main())

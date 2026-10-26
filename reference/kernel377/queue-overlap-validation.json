@@ -1,0 +1,34 @@
+{
+  "stage": 377,
+  "original_queue_lookup_and_async_map_overlap_checker_executed": true,
+  "debug_queue_storage_bytes": 102400,
+  "debug_firmware_mapping_start": "0x7403000",
+  "debug_firmware_mapping_bytes": 1048576,
+  "old_command_slot_overlaps_firmware_debug_mapping": true,
+  "separated_command_slot_is_outside_queue_mappings": true,
+  "tests": [
+    {
+      "config_address": "0x7420000",
+      "bytes": 4096,
+      "rejected": true,
+      "vmm_mapping_provider_called": false,
+      "reply_bytes": 44,
+      "header_error": 1,
+      "payload_error": 0
+    },
+    {
+      "config_address": "0x7600000",
+      "bytes": 4096,
+      "rejected": false,
+      "vmm_mapping_provider_called": true,
+      "reply_bytes": 44,
+      "header_error": 0,
+      "payload_error": 0
+    }
+  ],
+  "mmu_allocator_cache_log_and_post_message_providers_mocked": true,
+  "preexisting_debug_region_modelled_from_original_mapping_request": true,
+  "explains_observed_377_explicit_map_rejection_but_exact_hardware_error_code_not_logged": true,
+  "no_hardware_test_of_new_slot_yet": true,
+  "passed": true
+}

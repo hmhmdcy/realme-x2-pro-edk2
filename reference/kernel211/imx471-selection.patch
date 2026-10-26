@@ -1,0 +1,53 @@
+--- a/drivers/media/i2c/imx471.c
++++ b/drivers/media/i2c/imx471.c
+@@ -133,6 +133,9 @@
+ struct imx471_mode {
+ 	u32 width;
+ 	u32 height;
++
++	/* Analogue readout window in native pixel-array coordinates. */
++	struct v4l2_rect crop;
+ 
+ 	/* V-timing */
+ 	u32 fll_def;
+@@ -290,6 +293,12 @@
+ 	{
+ 		.width = 1928,
+ 		.height = 1088,
++		.crop = {
++			.left = 8,
++			.top = 408,
++			.width = 4640,
++			.height = 2644,
++		},
+ 		.fll_def = 1308,
+ 		.fll_min = 1308,
+ 		.llp = 2328,
+@@ -439,13 +448,15 @@
+ 
+ 	imx471_update_pad_format(sensor, mode, fmt);
+ 
++	if (fmt->which == V4L2_SUBDEV_FORMAT_ACTIVE &&
++	    media_entity_is_streaming(&sensor->sd.entity))
++		return -EBUSY;
++
+ 	*v4l2_subdev_state_get_format(sd_state, fmt->pad) = fmt->format;
++	*v4l2_subdev_state_get_crop(sd_state, fmt->pad) = mode->crop;
+ 
+ 	if (fmt->which == V4L2_SUBDEV_FORMAT_TRY)
+ 		return 0;
+-
+-	if (media_entity_is_streaming(&sensor->sd.entity))
+-		return -EBUSY;
+ 
+ 	ret = __v4l2_ctrl_modify_range(sensor->vblank,
+ 				       mode->fll_min - mode->height,
+@@ -471,7 +482,7 @@
+ 	switch (sel->target) {
+ 	case V4L2_SEL_TGT_CROP:
+ 		sel->r = *v4l2_subdev_state_get_crop(sd_state, sel->pad);
+-		break;
++		return 0;
+ 
+ 	case V4L2_SEL_TGT_NATIVE_SIZE:
+ 		sel->r.top = 0;

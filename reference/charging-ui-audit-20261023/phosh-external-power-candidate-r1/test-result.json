@@ -1,0 +1,65 @@
+{
+  "passed": true,
+  "actual_manager_groups": 10,
+  "new_client_calls": 14,
+  "enumeration_calls": 16,
+  "signals_before_every_enumeration": 16,
+  "watches_joined": 11,
+  "fake_device_finalizations": 24,
+  "fake_client_finalizations": 13,
+  "real_glib_tasks_signals_weakrefs": true,
+  "device_or_refresh_io": false,
+  "scope": "Complete actual candidate manager compiled and executed; real GLib/GIO with fake UPower and bus boundary; not a GTK or phone test",
+  "manager_sha256": "969e9204505d0ea57831817e071db2958538c2e330601d9bb7a4d6a815733866",
+  "fixture_sha256": "c110b1040360fd6570a66b8877e51f29e4963fde5aa91dc5eefc44535fd8b82a",
+  "fixture_headers": {
+    "battery-manager.h": "19ca3d4aecbd51fac85007349d52c31e57e59bf5c97b2a955e0e9afee10dde7c",
+    "manager.h": "2e151bdc2e5a12285921d770bbbef0b04c4240e9c4a2bf537715da8add30f5c2",
+    "phosh-config.h": "267f9f0f4b12885e023554acb4640abe8e5865d303e0030d0adb0d1810842898",
+    "upower.h": "a62ea987399d0c65765c3fd4ddb9d00420f62df387f0abbbba20d201893afdf4"
+  },
+  "compiler_flags": [
+    "-std=gnu11",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-Wno-unused-parameter",
+    "-g",
+    "-fsanitize=address,undefined",
+    "-fno-omit-frame-pointer"
+  ],
+  "compiler": "existing Ubuntu/root cc; no SDK/chroot",
+  "glib_version": "2.88.0",
+  "sanitizers": [
+    "ASan detect_leaks=1",
+    "UBSan halt_on_error=1"
+  ],
+  "compile_returncode": 0,
+  "run_returncode": 0,
+  "test_binary_sha256": "7846ddc0d60974a411d0d7b6a1b21ca9a66c2e5c0708121588799cdbd668b2b4",
+  "execution_tool_terminal_chunk": "8228de",
+  "observed_expected_failure_message": "Failed to get UPower Client: synthetic client error",
+  "earlier_fixture_compile_failure": {
+    "causes": [
+      "fixture included G_LOG_DOMAIN before actual source",
+      "original uint type needs GNU extensions rather than strict c11"
+    ],
+    "corrected_in_fixture_or_flags_only": true
+  },
+  "cases": [
+    "startup owner, signals before enumeration, Online OR and original Discharging icon unchanged",
+    "empty/unknown kind and later kind update",
+    "late enumeration cannot resurrect removed path",
+    "duplicate path replaces ref and old signal source",
+    "enumeration error unknown or positively observed connected",
+    "owner loss resets refs and ignores old completion/device",
+    "stale initial client generation ignored",
+    "dispose during client and enumeration requests",
+    "client failure does not busy-retry; reconnect and repeated dispose",
+    "property notification can dispose before owner replacement dispatch"
+  ],
+  "case_labels_grouped_into_actual_groups": 10,
+  "old_suites_rerun": false,
+  "full_Phosh_build_or_Gtk_instantiation": false,
+  "device_SDK_Git_used": false
+}

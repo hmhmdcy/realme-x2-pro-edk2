@@ -1,0 +1,117 @@
+--- previous/controller.py
++++ image501/controller.py
+@@ -1,14 +1,14 @@
+-"""One EUD activation host journal. Default check-local never uses transport."""
++"""One Image501 pair activation host journal. Default check-local never uses transport."""
+ from pathlib import Path,PurePosixPath
+ import argparse,ast,base64,hashlib,importlib.util,json,os,re,secrets,subprocess,sys,time
+ sys.dont_write_bytecode=True
+ HERE=Path(__file__).resolve().parent
+-WORKERS=HERE.parent/'eud-boot-activation-candidate'
+-PRIVATE=Path('/mnt/e/edk2-samurai-out/charging-management-20261023/eud-boot-activation')
++WORKERS=HERE
++PRIVATE=Path('/mnt/e/edk2-samurai-out/charging-management-20261023/image501-activation')
+ sha=lambda raw:hashlib.sha256(raw).hexdigest()
+ MUTATING={'prepare','quiesce','restart'}
+-WORKER_HASHES={'eud-quiesce.py':'311e416bc2c91a053c334b025327e79df24d7a68e82ce4ee393311284b34bc0c',
+- 'eud-restart.py':'0fb0948b49f7b15ca04015991d771056f1f5357539d7e9a834d4536928956ddf'}
++WORKER_HASHES={'eud-quiesce.py':'3830ffd16173b24b9ee859818e3c5a64f9144e4a0f36417af14fd7a5a2d733e9',
++ 'eud-restart.py':'5b9f309417342d297684e0e66766b0ba59e30dd68dfabd74c411a84875df727d'}
+ 
+ def create(path,raw):
+  with Path(path).open('xb') as f:f.write(raw);f.flush();os.fsync(f.fileno())
+@@ -19,6 +19,27 @@
+ def save(path,data):create(path,json.dumps(data,indent=2).encode())
+ def load_json(path):return json.loads(Path(path).read_bytes())
+ def fact(path):return {'path':Path(path).name,'sha256':sha(Path(path).read_bytes())}
++
++def profile(raw):
++ adopted=json.loads(raw['adoption']);endpoint=json.loads(raw['endpoint']);post=json.loads(raw['postboot_R3'])
++ assert post['result']['passed'] and post['result']['hardware_writes']==0
++ before,after=post['raw']['identity_before'],post['raw']['identity_after']
++ for k in ['boot_id','uname','rootfs','serial_sha256','compatible_b64']:assert before[k]==after[k]
++ assert before['boot_id']==endpoint['observed_new_boot']
++ assert adopted['guard_path']==endpoint['guard_path']=='/var/lib/samurai/eud-boot-r2-live-001-adopted/boot-id-private.txt'
++ assert adopted['original_key_verified'] and adopted['baseline481_verified'] and endpoint['original_key_verified'] and endpoint['postboot_R3_passed']
++ assert adopted['postboot_raw_sha256']==sha(raw['postboot_R3'])
++ assert adopted['candidate_boot_sha256']==post['raw']['boot_partition']['sha256']=='4126a2978bc79b5cb95b6e1b86bb432a6b16ece627776237c163b93b323bbfcf'
++ assert post['raw']['logdump_partition']['sha256']=='aca01bc2c91928f1a6a6690f62d14db014351ec5049e5684590b40c3c93de8da'
++ assert adopted['charging_manifest_sha256']==post['raw']['manifest']['sha256']=='320316c3d93c1dbcaae29440f1f17d72c75e4994d656a9da9fcd5aeb93c10a1f'
++ healthy=json.loads(raw['startup_health']);latency=json.loads(raw['latency_baseline'])
++ assert healthy['passed'] and healthy['taint']==0 and healthy['R8_camera_notes_unchanged']
++ assert healthy['startup_sha256']==sha(raw['startup_script'])=='2a364e12d72229ef7b0ddfd7620d5ff434b97eaf93eb60899fd24a03b5b9a54a'
++ assert healthy['snapshot']['MaxPower_ma']==500 and int(healthy['snapshot']['source']['current_max'])==500000
++ assert latency['kernel_release']==before['uname']['release']=='7.3.0-rc6-rmx1931-samurai-k363+'
++ assert latency['kernel_version']==before['uname']['version'] and before['uname']['version'].startswith('#363 ')
++ assert latency['MaxPower']=='500' and latency['source']['current_max']=='500000'
++ return {'identity':before,'board':{'serial_sha256':before['serial_sha256'],'compatible_sha256':sha(base64.b64decode(before['compatible_b64'],validate=True))}}
+ 
+ def local_inputs(require_tests=True):
+  pins=load_json(HERE/'input-pins.json');raw={}
+@@ -26,16 +47,13 @@
+   value=Path(p['path']).read_bytes();assert sha(value)==p['sha256'],name;raw[name]=value
+  for name,digest in WORKER_HASHES.items():assert sha((WORKERS/name).read_bytes())==digest
+  assert sha(raw['camera_wrapper'])=='1c4584915dade64a0978a0138c6775bf99e56af9f8036d7d2276c33f132f4705'
+- hand=load_json(pins['camera_return']['path']);adopt=load_json(pins['adoption']['path']);r8=json.loads(raw['r8_handoff'])
+- assert hand['released'] and hand['to_owner']=='charging' and hand['worker_absent'] and hand['active_child_absent'] and hand['actual_transaction_terminal']
+- assert hand['boot_id']==json.loads(raw['endpoint'])['observed_new_boot']==json.loads(raw['r7_adopt_request'])['boot']
+- assert hand['guard_path']==adopt['guard_path']==json.loads(raw['r7_adopt_request'])['guard']
+- assert adopt['original_key_verified'] is True
+- assert r8['passed'] and r8['worker_exited'] and r8['manifest_sha256']==hand['charging']['manifest_sha256']=='320316c3d93c1dbcaae29440f1f17d72c75e4994d656a9da9fcd5aeb93c10a1f'
+- assert r8['loaded_notes_sha256']=={k.replace('_','-'):v for k,v in hand['charging']['notes'].items()}
+- assert sha(raw['candidate'])=='4126a2978bc79b5cb95b6e1b86bb432a6b16ece627776237c163b93b323bbfcf' and len(raw['candidate'])==100663296
+- assert sha(raw['rollback'])=='a30fb4440726e1c3ab80ad65277db4e57fec9a0924380cc07830a5c6e69ec280' and len(raw['rollback'])==100663296
+- assert json.loads(raw['packaging_result'])['passed']
++ profile(raw)
++ expected={'candidate_boot':('97811cc4ae13b36fec98b2eae7cd54a4f12bca988864df0f3d8f663a8c67f695',100663296),
++ 'rollback_boot':('4126a2978bc79b5cb95b6e1b86bb432a6b16ece627776237c163b93b323bbfcf',100663296),
++ 'candidate_logdump':('7e5de5b437fbc884d97a103e77bd97a21b77c99151c67b7bcb1745d51076cbf9',67108864),
++ 'rollback_logdump':('aca01bc2c91928f1a6a6690f62d14db014351ec5049e5684590b40c3c93de8da',67108864)}
++ for name,(digest,size) in expected.items():assert sha(raw[name])==digest and len(raw[name])==size
++ assert json.loads(raw['carriers_delivery'])['status']=='passed-private-undeployed'
+  for p in [HERE/'remote.py',HERE/'controller.py',WORKERS/'eud-quiesce.py',WORKERS/'eud-restart.py']:ast.parse(p.read_text())
+  if require_tests:
+   tested=load_json(HERE/'test-result.json');assert tested['passed']
+@@ -43,12 +61,12 @@
+  return pins,raw
+ 
+ def ssh_argv(pins):
+- # Exact argument construction from pinned r7-transport.raw_ssh. Do not call
++ # Exact argument construction from pinned eud-postboot-transport.raw_ssh. Do not call
+  # its subprocess.run, which would kill an unknown mutator on host timeout.
+  spec=importlib.util.spec_from_file_location('eud_pinned_transport',pins['transport']['path'])
+  m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+  e=load_json(pins['endpoint']['path'])
+- assert e['kind']=='usb-ipv6' and e['original_key_verified'] is True
++ assert e['kind']=='usb-ipv6' and e['original_key_verified'] is True and e['postboot_R3_passed'] is True
+  assert e['host_key_alias']=='169.254.42.1' and e['interface_index']==29 and e['peer']=='fe80::62:bcff:fe28:a101%29'
+  return [m.base.SSH,'-6','-T',*m.base.OPTIONS,'-o','HostKeyAlias=169.254.42.1','root@'+e['peer'],'python3 -']
+ 
+@@ -197,7 +215,7 @@
+   'guard':'guard-private.json','quiesce_state':'quiesce-state-private.json','quiesce_summary':'quiesce-summary-private.json',
+   'quiesce_boot_id':'quiesce-boot-id-private.txt','quiesce_process':'quiesce-process-private.json',
+   'restart_dispatch':'restart-dispatch-private.json','restart_claim':'restart-claim-private.json'}.items()}
+- context={'schema':'samurai-eud-fastboot-context-v1','transaction_id':g['transaction_id'],'token':g['token'],
++ context={'schema':'samurai-image501-fastboot-context-v1','transaction_id':g['transaction_id'],'token':g['token'],
+   'old_boot_id':g['boot_id'],'guard_sha256':guard_sha,'files':files}
+  save(directory/'host-context-private.json',context);return context
+ 
+@@ -217,14 +235,14 @@
+ def run(action,tx,execute=False,window_confirmed=False,*,private=PRIVATE,start=start_job,require_tests=True):
+  assert action in ['prepare','quiesce','fetch','inspect-restart','restart']
+  assert execute and window_confirmed,'explicit execution and current exclusive window required'
+- assert re.fullmatch(r'eud-boot-[a-z0-9-]{8,64}',tx)
++ assert re.fullmatch(r'image501-[a-z0-9-]{8,64}',tx)
+  pins,raw=local_inputs(require_tests);directory=private/tx
+  if action=='prepare':
+   directory.parent.mkdir(mode=0o700,parents=True,exist_ok=True);directory.mkdir(mode=0o700)
+-  hand=json.loads(raw['camera_return']);adopt=json.loads(raw['r7_adopt_request']);board=json.loads(raw['board_receipt'])['board']
++  current=profile(raw);identity=current['identity'];board=current['board']
+   fixed=json.loads((WORKERS/'prepare-contract.json').read_bytes())['fixed_guard_fields']
+-  c={'transaction_id':tx,'token':secrets.token_hex(24),'expected_boot':hand['boot_id'],'expected_board':board,
+-   'expected_release':adopt['release'],'expected_version':adopt['version'],'expected_rootfs_sha256':adopt['rootfs'],
++  c={'transaction_id':tx,'token':secrets.token_hex(24),'expected_boot':identity['boot_id'],'expected_board':board,
++   'expected_release':identity['uname']['release'],'expected_version':identity['uname']['version'],'expected_rootfs_sha256':identity['rootfs']['sha256'],
+    'fixed':fixed,'worker_hashes':WORKER_HASHES,
+    'files':{name:{'sha256':sha(value),'base64':base64.b64encode(value).decode()} for name,value in {
+     **{n:(WORKERS/n).read_bytes() for n in WORKER_HASHES},'camera481-expected-private.json':raw['camera_wrapper']}.items()},

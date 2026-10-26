@@ -1,0 +1,8 @@
+ftrace.instance.display {
+    trace_clock = mono
+    buffer_size = 512KB
+    alloc_snapshot
+    tracing_on = 1
+    events = "dpu:*", "drm:drm_vblank_event*"
+    event.dpu.dpu_enc_frame_done_timeout.actions = "snapshot:1"
+}

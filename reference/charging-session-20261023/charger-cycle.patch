@@ -1,0 +1,92 @@
+--- a/samurai-mp2650.c
++++ b/samurai-mp2650.c
+@@ -14,6 +14,7 @@
+ #include <linux/workqueue.h>
+ 
+ #include "mp2650-core.h"
++#include "charge-cycle.h"
+ #include "gauge-i2c.h"
+ 
+ static bool control;
+@@ -34,9 +35,10 @@
+ 	struct sm_target target;
+ 	int cell_ceiling_uv, current_cap_ua, input_cap_ua;
+ 	int last_error, stop_error;
+-	bool auto_requested, latched, paused, session;
++	bool auto_requested, latched, paused, sample_full;
+ 	bool source_inhibit;
+-	ktime_t session_start, sampled_at;
++	ktime_t sampled_at;
++	struct sm_charge_cycle cycle;
+ 	struct notifier_block supply_notifier;
+ 	bool notifier_registered;
+ };
+@@ -97,6 +99,7 @@
+ 
+ 	*s = (struct sm_sample){ 0 };
+ 	c->source_inhibit = false;
++	c->sample_full = false;
+ 	ret = sm_psy_int(c->input, POWER_SUPPLY_PROP_ONLINE, &online);
+ 	if (ret) { c->source_inhibit = true; return ret; }
+ 	status = sm_read(c, 0x13);
+@@ -105,17 +108,11 @@
+ 	s->online = !!online;
+ 	if (!s->online) {
+ 		/* Only an agreed physical detach resets the session and fault latch. */
+-		c->session = false;
++		sm_cycle_update(&c->cycle, ktime_get_boottime_ns(), 0, 0);
+ 		c->latched = false;
+ 		s->valid = s->protection_ok = 1;
+ 		return 0;
+ 	}
+-	if (!c->session) {
+-		c->session_start = ktime_get_boottime();
+-		c->session = true;
+-	}
+-	s->session_seconds = ktime_to_ms(ktime_sub(ktime_get_boottime(),
+-						 c->session_start)) / 1000;
+ 	ret = sm_psy_int(c->input, POWER_SUPPLY_PROP_CURRENT_MAX, &s->budget_ua);
+ 	if (ret) { c->source_inhibit = true; return ret; }
+ 	if (s->budget_ua < 50000) { c->source_inhibit = true; return -ENODATA; }
+@@ -143,6 +140,7 @@
+ 		c->source_inhibit = true;
+ 		return -EAGAIN;
+ 	}
++	c->sample_full = (status & 0x0c) == 0x0c;
+ 	s->valid = 1;
+ 	return 0;
+ }
+@@ -150,11 +148,23 @@
+ /* Caller holds c->lock. Sysfs limits are applied synchronously, too. */
+ static int sm_step_locked(struct sm_charger *c)
+ {
+-	struct sm_target target = { 0 };
+-	int ret;
++	struct sm_target target = { 0 }, validation_target;
++	int ret, validation, source;
+ 
+ 	ret = sm_collect(c, &c->sample);
+ 	c->sampled_at = ktime_get_boottime();
++	/* Full starts a new OEM charge period only after every other policy
++	 * predicate has succeeded. Do not let Full clear an existing hard latch.
++	 */
++	validation = ret;
++	if (!validation)
++		validation = sm_policy(&c->sample, c->cell_ceiling_uv,
++				       c->current_cap_ua, c->input_cap_ua,
++				       &validation_target);
++	source = c->sample.online ? 1 : !ret && c->sample.valid ? 0 : -1;
++	c->sample.session_seconds = sm_cycle_update(&c->cycle,
++		ktime_get_boottime_ns(), source,
++		sm_cycle_full_allowed(c->sample_full, c->latched, validation));
+ 	if (!ret)
+ 		ret = sm_policy(&c->sample, c->cell_ceiling_uv,
+ 				c->current_cap_ua, c->input_cap_ua, &target);
+@@ -488,6 +498,7 @@
+ 	c->client = client;
+ 	c->io = (struct sm_io){ c, sm_read, sm_write };
+ 	mutex_init(&c->lock);
++	sm_cycle_init(&c->cycle, ktime_get_boottime_ns());
+ 	INIT_DELAYED_WORK(&c->work, sm_poll);
+ 	i2c_set_clientdata(client, c);
+ 	c->input = runtime_board ? sm_named_supply(dev, "samurai-usb-input") :

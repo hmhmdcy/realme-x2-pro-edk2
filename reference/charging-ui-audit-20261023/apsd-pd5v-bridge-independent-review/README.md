@@ -1,0 +1,15 @@
+# Narrow independent review of the default-off PD5V bridge
+
+No new blocker was found in the reviewed bridge delta: owner `d05d4f81…6d979`, metadata provider `b3b9a18e…58d52`, complete patch `30b9e07f…2d543`. The source remains an undeployed candidate; Image501 is unchanged.
+
+The metadata API checks the actual bound Type-C device and the exact registered source parent/regmap. Its nonzero binding ID cannot be reused, including after reprobe; overflow is refused. `initialized`, `blocked` and `error` describe that provider and do not grant a lease, PD inactivity, DP/DM routing or any APSD operation. A present source at startup stays in WAIT_FIRST_OFF. Real R2 stable-off/vSafe0 acquisition and validation must precede a subsequent strict sink epoch. Post-acquire metadata checks prevent a replaced provider from inheriting the earlier binding's prepared history.
+
+The new owner uses real krefs. The PD lease pins its context, and quiesce takes an extra reference under the PD lock before dropping that lock and invoking cancel/join. The callback serializes through the owner registry, joins the worker and releases the lease; the worker does not acquire that registry. Unbind drops the base reference only after joining/unregistering and nulling the DWC pointer. A delayed pinned callback can finish without borrowing removed DWC MMIO. Known blocked cancellation is distinguished from actual sticky power/write/readback/validation errors. Neither PM nor logical UDC/backend rebind clears a physical once attempt; a real detach is required.
+
+The final entry gate still returns EOPNOTSUPP unconditionally. There is no reachable EUD/DWC/PHY begin or 1341 transfer through this bridge, and no native-current or charging-policy permission is inferred.
+
+“Zero I/O metadata” applies to the metadata function's **direct control path**: it does not read/write PMIC registers or enable/disable a supply. It is not a claim that no concurrent lifecycle cleanup can occur. If its temporary reference becomes the last reference during retirement, its final put can execute the existing `pd5v_free` and `regulator_disable` cleanup. This ordinary last-reference cleanup is not a newly established lifetime or lock error, and does not grant session or 1341 permission. The frozen author source/receipts were not edited to change that wording.
+
+The retained 14-group ASan/UBSan/Werror receipt and whole actual owner/PD C fixture are bound to the delivered bytes. Seventeen prior PD R2 function bodies and the copied DWC core/header/gadget files are independently byte-equal to their frozen predecessors. The final two W=1/Werror owner-object receipts have exit0/no diagnostics; the unchanged metadata object is bound to its earlier exact-source receipt. The future-builtin compiler view is not a linked or adopted configuration. No suite or build was rerun, and deterministic fake boundaries are not full concurrency or hardware acceptance.
+
+`review.py` only checks retained local sources/receipts and writes this leaf's `review.json`; it does not invoke a candidate entry, test, build, mount, SDK, Git or device operation.

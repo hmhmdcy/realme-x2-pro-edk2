@@ -1,0 +1,64 @@
+{
+  "schema": "samurai-stage-host-independent-review-v1",
+  "passed": true,
+  "conclusion": "No new blocking issue found in the repaired R2 scope by static source and receipt review.",
+  "R1_finding_retained": "r1-finding.json",
+  "reviewer_source_sha256": "e3eab08bae91943f7f268cda7a2006b625e687ecf5273b674a8e45e98e8a0a24",
+  "inputs": {
+    "R1_delivery": "f126a56b680298f54313fb2a232f84462f8a218e8647fc3e706934f097221b17",
+    "R2_delivery": "ee53341c31c75970df3fdbe3a417fe5042aabd3096ec8717547a87de9751c956",
+    "R1_tests": "1a1afd91c7fe79f251586ef7d50eed0e198d02987d84c8d9377808a7d65f117f",
+    "R1_interface": "ac2bf86682fce5c91fb6cf906d5abef162179584db4cea306d6380476eb2e05f",
+    "R2_tests": "80677056d72383400032c7384c6bef464b4abb7dfcd745bdc031f5b61c3be411"
+  },
+  "R2_host_sha256": "84c53252d1993fc3ffce803e5c91d7cfe98f5a75c5f08e4e6c436d6615670660",
+  "R2_remote_sha256": "1dfeeb4fc8d6236750563c144e8d67603387c19b57bb1da5bbd1de594cfe8855",
+  "supervisor_byte_exact_R1_sha256": "b29ab985159ecc911571514cdc5fa72a1a44886037e35ff024dfa6fe623440cc",
+  "all_other_top_level_functions_byte_exact": {
+    "host.py:local": "a12447454e5f8f935f9acc13208984847446fa4fefa20890ba5344875a2fa7ee",
+    "host.py:need": "0cd4c0a0f818a5d314436fa04eb162ebe09526c798fd6b7564454e434d4b7061",
+    "host.py:create": "ab92af84c6ccc67380fe07dd7465c9911c914994e8ba17abe3db29d63362b3d7",
+    "host.py:save": "072c2d58b97acabdbedadb1739a53e2f4ae7d4a9dc502c931c7a07a24eb4ba7e",
+    "host.py:source_check": "810113e0cff19d3a2ce4f52ae1b5503091de8cf68322ac6c9e54267b83acf883",
+    "host.py:load_module": "1e2e5665b7c2dac8abf80ac4d6e464a77595e05a919f235fb27fae1037e344cb",
+    "host.py:validate_adoption": "eb420b7339be8316594302ed2757e42012de7fbb07209844d35255cd11f9229f",
+    "host.py:make_request": "daa0be355a7f817547cbb77a32c7718e8f1242c3bd650f3a63391f4b18933291",
+    "host.py:bind": "d3fa94d06549cabe3947eb4e755b5980ecea5acc503aa9df4deafc4ef14d0ca5",
+    "host.py:bound": "dbcaa2decfa3c4f0b5446771e72c2eb9404d58c802365cbbc0e8b6a0b9fbfc83",
+    "host.py:main": "045db63a0231680e98109554141fd73bd786ab4b5c788ae15158c8cb5387d13f",
+    "remote.py:need": "0cd4c0a0f818a5d314436fa04eb162ebe09526c798fd6b7564454e434d4b7061",
+    "remote.py:sha": "fc33541dab55897936faef1ad2869e455cbd6942f02508b99b41efdccc29be21",
+    "remote.py:save": "4e43e58a531cf21c95d2ecaa60fa4d57923b8c398d10bd496dea417e101772d2",
+    "remote.py:read_json": "a0ca7cfdb2ade1b0b3b929d45bb1256ca647512876ca0556010373335bd91c3f",
+    "remote.py:observed_json": "2530693e2a4084a34b00f77f0f31fb9fd767ba377f2aff7707d7ae3f460b0301",
+    "remote.py:process": "4733cb46e707e1032e82c6088eaa6e127aca221dd93193b537a5d3bae27a32a4"
+  },
+  "existing_evidence_reviewed_not_executed": {
+    "R1_actual_cases": 20,
+    "R1_in_memory_host_worker_interface_cases": 1,
+    "R2_new_actual_cases": 3,
+    "R2_default_source_only_terminal_returncode": 0,
+    "new_process_and_transport_boundaries_are_fake": true
+  },
+  "findings": [
+    "Actual complete Image502 postboot/adoption/executed-source/current-pointer/original-key endpoint gates precede runtime-directory and request creation; source-only check does not bind future identity.",
+    "Remote launch writes and fsyncs the exact request before dispatch. The supervisor passes that regular file descriptor to the sole actual worker Popen, not DEVNULL or a disappearing SSH pipe.",
+    "The supervisor owns the worker Popen and finally waits that exact child even after worker-receipt publication failure; its rc receipt is distinct from the SSH/parent dispatch result.",
+    "R2 covers host SSH receipt publication and communicate with the same try/finally. Failure closes only the owned stdin to EOF before same-child wait, retains the original error and terminal evidence, and never replays the once intent.",
+    "Status/fetch are read-only observations. On a different boot they classify source_boot_ended and avoid current PID lookup; unproved boot/guard remains unknown. A changed final identity invalidates PID attribution.",
+    "Malformed parent launch-receipt is retained as read_error and raw data. It cannot authorize PID attribution, worker terminal verification, relaunch or runtime success.",
+    "Launch claim and exact source/request/argv chain remain strict. No timeout-kill, retry, lease renewal, worker re-execution, module operation, evidence capture or reboot is added."
+  ],
+  "limits": [
+    "Static/fake-boundary evidence is not real transport, actual Image502 adoption, completed stage, activation, IRQ delivery or hardware acceptance.",
+    "A lost or malformed launch receipt remains unknown; raw retrieval alone is not a qualification or recovery authorization.",
+    "A future stage success still requires the actual worker result, original supervisor/worker terminal chain and all contract conditions; this host always reports runtime_validation_accepted=false."
+  ],
+  "review_actions": {
+    "author_entrypoints_imported_or_run": false,
+    "tests_run": false,
+    "device_SSH_USB_SDK_build_storage_Git_accessed": false,
+    "author_files_modified": false,
+    "runtime_request_or_guard_created": false
+  }
+}

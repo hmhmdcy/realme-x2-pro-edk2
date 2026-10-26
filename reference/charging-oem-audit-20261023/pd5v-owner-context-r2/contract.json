@@ -1,0 +1,23 @@
+{
+  "schema": "samurai-pd-disabled-context-lifetime-r2",
+  "base_delivery_sha256": "0c377f5776262a7622bf2e587ec78af369e21ebfab1259ff187339b535b9808a",
+  "base_contract": "../pd5v-owner-feasibility/contract.json",
+  "scope": "only real client-context lifetime pinning and failed-join binding lifetime; base PD/physical/supply/route restrictions remain",
+  "default_enabled": false,
+  "mandatory_operations": {
+    "get_unless_zero": "nonblocking and nonreentrant, called under PD5V mutex; must acquire a real context and callback code/data lifetime reference if nonzero, not return a policy boolean",
+    "put": "drops that reference, may destroy context and an embedded lease; always outside PD5V and registry mutexes",
+    "cancel_join": "synchronously stop/join client work and release its lease; called outside component locks with its own extra context reference, may call release synchronously",
+    "missing_any": "EINVAL before any hardware I/O, power enable or PD write",
+    "caller_input": "caller owns a live descriptor/context while entering acquire; after success caller may drop its own original reference because the lease owns another"
+  },
+  "acquire": "try_module_get before I/O; under PD5V lock take primary context get before physical/power/PD reads or writes. Failed initial get returns ENODEV and zero I/O. On later acquire failure unlock then put the acquired context. Success stores that real primary ref in the active lease",
+  "quiesce": "under lock block new acquires and increment control generation. If leased, get an extra reference while the lease primary reference is still held, then copy callback/context. Unlock before cancel_join and put. A concurrent release can destroy neither context nor callback code until this extra reference is put",
+  "extra_pin_failure": "EOWNERDEAD is an explicit lifetime-contract failure, not a hardware errno. No borrowed callback invocation, no unmatched put and no fabricated join. Keep blocked/sticky error and primary lease/context/power references. PM prepare returns the failure, and complete cannot re-enable the failed binding",
+  "release": "under lock clear actual lease/client and set lease owner NULL. Unlock before primary context put. That put may immediately free an embedded lease; release never dereferences lease/context afterward. The actual owner kref/module reference is still held through remaining cleanup",
+  "registry": "registry publication owns its own kref. A removed binding remains in the occupied slot if its active client could not join; removed/error checks deny all new acquisitions, and a replacement probe returns EBUSY. Final real release withdraws that retired slot and drops registry kref; binding and lease refs then finish normal cleanup",
+  "remove": "mark removed before quiesce, retain caller/base kref while quiesce runs, then unpublish only if no active lease and drop base. If pin or join failed, the retired registry+lease refs keep object/device/regulator alive. Removal does not pretend that client work stopped; permission is revoked and the failure is logged. No automatic successor or PD action is permitted",
+  "serialization": "quiesce/complete/destroy are internal driver lifecycle calls serialized by the generic device lifecycle. Consumer interface remains only actual-device acquire, validate and release; it does not call internal lifecycle functions under arbitrary locks",
+  "unchanged": ["default-off double opt-in and actual board/PMIC/supply binding", "probe zero enable/PD I/O", "500ms stable true off/vSafe0V and 250ms freshness", "BIST/TX/filter/EN exact zero sequence/readbacks and errors", "no retry or restore", "PD control generation is not physical attach epoch", "no PD/QC/APSD/role/budget/route grant", "no automatic consumer, EXPORT, current Image/module/DT deployment"],
+  "test_limits": "deterministic interleaves execute actual production functions with kernel/IO boundaries faked; heap contexts and embedded leases are genuinely freed under ASan/UBSan. Not a full concurrency, protocol or hardware proof"
+}

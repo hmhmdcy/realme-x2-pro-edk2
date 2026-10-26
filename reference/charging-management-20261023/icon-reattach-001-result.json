@@ -1,0 +1,933 @@
+{
+  "schema": "samurai-charger-reattach001-physical-summary-v1",
+  "transaction": "charging-icon-irq-reattach-001",
+  "installed_charger_sha256": "97c16c3dc0b458fa4d2c686912ffdf805b899abfb846201767843a0348cbffdd",
+  "manifest_sha256": "18e8a1049a2c497fbc47ace50f8319aefccd63a9cd1ce5a7e9ef06916773b4e5",
+  "physical_cycle_passed": true,
+  "terminal_reason": "cycle_complete",
+  "sample_count": 134,
+  "kernel_event_count": 21,
+  "dbus_signal_count": 43,
+  "duration_seconds": 147.32463962850034,
+  "raw_cycle_evidence": {
+    "ready_at": 2.2924522640005307,
+    "offline_confirmed": true,
+    "offline_begin": 51.26064134600074,
+    "online_begin": 54.41613328300082,
+    "offline_samples": 3,
+    "online_samples": 85,
+    "offline_span": 2.0502819429993906,
+    "online_span": 92.87933466499999,
+    "settling_complete": true,
+    "gap_sample_indices": []
+  },
+  "clock_mapping": {
+    "endpoints_consistent": true,
+    "endpoint_offset_change_seconds": 2.384185791015625e-07,
+    "anchor_bracket_seconds": 5.936999514233321e-06,
+    "quality": "endpoint-based estimates; no proof against cancelling clock steps inside the interval"
+  },
+  "edges": [
+    {
+      "edge": "detach",
+      "sample_evidence_t": 51.26064134600074,
+      "source_uevent_t": 51.66664387900073,
+      "acok_uevent_t": 50.6732252920001,
+      "battery_uevent_t": 51.68965305600068,
+      "battery_kernel_status": "Discharging",
+      "battery_state_events": [
+        {
+          "estimated_t": 51.7530612352901,
+          "state": 2
+        }
+      ],
+      "source_to_first_following_battery_state_event_seconds_estimated": 0.08641735628936686,
+      "display_state_events": [
+        {
+          "estimated_t": 51.75508230958283,
+          "state": 2
+        }
+      ],
+      "source_to_first_following_display_state_event_seconds_estimated": 0.08843843058210155
+    },
+    {
+      "edge": "attach",
+      "sample_evidence_t": 54.41613328300082,
+      "source_uevent_t": 53.54319063700041,
+      "acok_uevent_t": 53.44194465200053,
+      "battery_uevent_t": 55.64450343700082,
+      "battery_kernel_status": "Charging",
+      "battery_state_events": [
+        {
+          "estimated_t": 55.64238327330141,
+          "state": 1
+        },
+        {
+          "estimated_t": 127.01895222423285,
+          "state": 4
+        }
+      ],
+      "source_to_first_following_battery_state_event_seconds_estimated": 2.099192636301005,
+      "display_state_events": [
+        {
+          "estimated_t": 55.64621728246756,
+          "state": 1
+        },
+        {
+          "estimated_t": 127.02221116778686,
+          "state": 4
+        }
+      ],
+      "source_to_first_following_display_state_event_seconds_estimated": 2.1030266454671533
+    }
+  ],
+  "explicit_charging_display": {
+    "estimated_t": 55.64621728246756,
+    "state": 1,
+    "icon_name": "battery-full-charging-symbolic"
+  },
+  "source_to_target_display_charging_seconds_estimated": 2.1030266454671533,
+  "battery_uevent_to_target_display_seconds_estimated": 0.001713845466738917,
+  "previous_irq001_source_to_display_seconds_estimated": [
+    2.101,
+    2.1,
+    2.084
+  ],
+  "user_observation": "已接好，约2至5秒出现",
+  "measurable_latency_improvement_established": false,
+  "event_timeline_relative": [
+    {
+      "t": 50.655704606000654,
+      "POWER_SUPPLY_NAME": "samurai-usb-input"
+    },
+    {
+      "t": 50.65980403499998,
+      "POWER_SUPPLY_NAME": "samurai-usb-input"
+    },
+    {
+      "t": 50.6732252920001,
+      "POWER_SUPPLY_NAME": "mp2650-input",
+      "POWER_SUPPLY_ONLINE": "0",
+      "POWER_SUPPLY_STATUS": "Not charging",
+      "POWER_SUPPLY_INPUT_CURRENT_LIMIT": "500000"
+    },
+    {
+      "t": 51.66664387900073,
+      "POWER_SUPPLY_NAME": "samurai-usb-input",
+      "POWER_SUPPLY_ONLINE": "0",
+      "POWER_SUPPLY_CURRENT_MAX": "0",
+      "POWER_SUPPLY_USB_TYPE": "[Unknown] SDP DCP CDP C"
+    },
+    {
+      "t": 51.67388315300013,
+      "POWER_SUPPLY_NAME": "mp2650-input",
+      "POWER_SUPPLY_ONLINE": "0",
+      "POWER_SUPPLY_STATUS": "Not charging",
+      "POWER_SUPPLY_INPUT_CURRENT_LIMIT": "500000"
+    },
+    {
+      "t": 51.68965305600068,
+      "POWER_SUPPLY_NAME": "bq28z610-0",
+      "POWER_SUPPLY_STATUS": "Discharging",
+      "POWER_SUPPLY_CURRENT_NOW": "-69000",
+      "POWER_SUPPLY_CURRENT_AVG": "38000"
+    },
+    {
+      "t": 53.43086496000069,
+      "POWER_SUPPLY_NAME": "samurai-usb-input"
+    },
+    {
+      "t": 53.44194465200053,
+      "POWER_SUPPLY_NAME": "mp2650-input",
+      "POWER_SUPPLY_ONLINE": "1",
+      "POWER_SUPPLY_STATUS": "Not charging",
+      "POWER_SUPPLY_CURRENT_NOW": "18750",
+      "POWER_SUPPLY_INPUT_CURRENT_LIMIT": "500000"
+    },
+    {
+      "t": 53.54319063700041,
+      "POWER_SUPPLY_NAME": "samurai-usb-input",
+      "POWER_SUPPLY_ONLINE": "1",
+      "POWER_SUPPLY_INPUT_CURRENT_LIMIT": "100000",
+      "POWER_SUPPLY_USB_TYPE": "[Unknown] SDP DCP CDP C"
+    },
+    {
+      "t": 53.55129954700078,
+      "POWER_SUPPLY_NAME": "mp2650-input",
+      "POWER_SUPPLY_ONLINE": "1",
+      "POWER_SUPPLY_STATUS": "Not charging",
+      "POWER_SUPPLY_CURRENT_NOW": "25000",
+      "POWER_SUPPLY_INPUT_CURRENT_LIMIT": "500000"
+    },
+    {
+      "t": 53.653046834000634,
+      "POWER_SUPPLY_NAME": "samurai-usb-input",
+      "POWER_SUPPLY_ONLINE": "1",
+      "POWER_SUPPLY_INPUT_CURRENT_LIMIT": "500000",
+      "POWER_SUPPLY_USB_TYPE": "[Unknown] SDP DCP CDP C"
+    },
+    {
+      "t": 54.2687158180006,
+      "POWER_SUPPLY_NAME": "samurai-usb-input",
+      "POWER_SUPPLY_ONLINE": "1",
+      "POWER_SUPPLY_CURRENT_MAX": "500000",
+      "POWER_SUPPLY_INPUT_CURRENT_LIMIT": "500000",
+      "POWER_SUPPLY_USB_TYPE": "Unknown [SDP] DCP CDP C"
+    },
+    {
+      "t": 54.40486056900045,
+      "POWER_SUPPLY_NAME": "mp2650-input",
+      "POWER_SUPPLY_ONLINE": "1",
+      "POWER_SUPPLY_STATUS": "Not charging",
+      "POWER_SUPPLY_CURRENT_NOW": "18750",
+      "POWER_SUPPLY_INPUT_CURRENT_LIMIT": "500000"
+    },
+    {
+      "t": 54.84465921100036,
+      "POWER_SUPPLY_NAME": "mp2650-input",
+      "POWER_SUPPLY_ONLINE": "1",
+      "POWER_SUPPLY_STATUS": "Charging",
+      "POWER_SUPPLY_INPUT_CURRENT_LIMIT": "500000"
+    },
+    {
+      "t": 55.61570097599997,
+      "POWER_SUPPLY_NAME": "mp2650-input",
+      "POWER_SUPPLY_ONLINE": "1",
+      "POWER_SUPPLY_STATUS": "Charging",
+      "POWER_SUPPLY_CURRENT_NOW": "362500",
+      "POWER_SUPPLY_INPUT_CURRENT_LIMIT": "500000"
+    },
+    {
+      "t": 55.64450343700082,
+      "POWER_SUPPLY_NAME": "bq28z610-0",
+      "POWER_SUPPLY_STATUS": "Charging",
+      "POWER_SUPPLY_CURRENT_NOW": "41000",
+      "POWER_SUPPLY_CURRENT_AVG": "12000"
+    }
+  ],
+  "edge_samples_relative": [
+    {
+      "t_start": 48.95152798000072,
+      "t_end": 49.088047210000695,
+      "source_online": 1,
+      "acok_online": 1,
+      "telemetry": {
+        "shadow": 0,
+        "valid": 1,
+        "online": 1,
+        "protection_ok": 1,
+        "budget_ua": 500000,
+        "temp_decic": 251,
+        "pack_uv": 8680000,
+        "cell1_uv": 4343000,
+        "cell2_uv": 4337000,
+        "flags": 128,
+        "fault": 0,
+        "session_seconds": 226,
+        "desired_enable": 1,
+        "error": 0,
+        "stop_error": 0,
+        "latched": 0,
+        "source_inhibit": 0,
+        "thermal_inhibit": 0,
+        "thermal_band": 4,
+        "band_pre_shake": 252,
+        "cycle_timeout": 0,
+        "gauge_current_ua": 46000,
+        "logical_full": 0,
+        "full_holding": 0,
+        "hold_requested": 0,
+        "full_cause": 0,
+        "sw_full_count": 0,
+        "recharge_count": 0,
+        "gauge_charge_stop": 0,
+        "age_ms": 3
+      },
+      "battery": {
+        "status": "Charging",
+        "current_now_ua": 46000,
+        "current_avg_ua": 47000
+      },
+      "source": {
+        "usb_type": "Unknown [SDP] DCP CDP C",
+        "current_max_ua": 500000,
+        "input_current_limit_ua": 500000
+      },
+      "hardware_input": {
+        "input_current_limit_ua": 500000,
+        "status": "Charging"
+      }
+    },
+    {
+      "t_start": 50.09417918899999,
+      "t_end": 50.23899535000055,
+      "source_online": 1,
+      "acok_online": 1,
+      "telemetry": {
+        "shadow": 0,
+        "valid": 1,
+        "online": 1,
+        "protection_ok": 1,
+        "budget_ua": 500000,
+        "temp_decic": 251,
+        "pack_uv": 8680000,
+        "cell1_uv": 4343000,
+        "cell2_uv": 4337000,
+        "flags": 128,
+        "fault": 0,
+        "session_seconds": 226,
+        "desired_enable": 1,
+        "error": 0,
+        "stop_error": 0,
+        "latched": 0,
+        "source_inhibit": 0,
+        "thermal_inhibit": 0,
+        "thermal_band": 4,
+        "band_pre_shake": 252,
+        "cycle_timeout": 0,
+        "gauge_current_ua": 46000,
+        "logical_full": 0,
+        "full_holding": 0,
+        "hold_requested": 0,
+        "full_cause": 0,
+        "sw_full_count": 0,
+        "recharge_count": 0,
+        "gauge_charge_stop": 0,
+        "age_ms": 1024
+      },
+      "battery": {
+        "status": "Charging",
+        "current_now_ua": 33000,
+        "current_avg_ua": 45000
+      },
+      "source": {
+        "usb_type": "Unknown [SDP] DCP CDP C",
+        "current_max_ua": 500000,
+        "input_current_limit_ua": 500000
+      },
+      "hardware_input": {
+        "input_current_limit_ua": 500000,
+        "status": "Charging"
+      }
+    },
+    {
+      "t_start": 51.24623238100048,
+      "t_end": 51.26064134600074,
+      "source_online": 0,
+      "acok_online": 0,
+      "telemetry": {
+        "shadow": 0,
+        "valid": 0,
+        "online": 0,
+        "protection_ok": 0,
+        "budget_ua": 0,
+        "temp_decic": 0,
+        "pack_uv": 0,
+        "cell1_uv": 0,
+        "cell2_uv": 0,
+        "flags": 0,
+        "fault": 0,
+        "session_seconds": 227,
+        "desired_enable": 0,
+        "error": -61,
+        "stop_error": 0,
+        "latched": 0,
+        "source_inhibit": 1,
+        "thermal_inhibit": 0,
+        "thermal_band": 4,
+        "band_pre_shake": 252,
+        "cycle_timeout": 0,
+        "gauge_current_ua": 0,
+        "logical_full": 0,
+        "full_holding": 0,
+        "hold_requested": 0,
+        "full_cause": 0,
+        "sw_full_count": 0,
+        "recharge_count": 0,
+        "gauge_charge_stop": 0,
+        "age_ms": -1
+      },
+      "battery": {
+        "status": "Discharging",
+        "current_now_ua": -29000,
+        "current_avg_ua": 46000
+      },
+      "source": {
+        "usb_type": "[Unknown] SDP DCP CDP C",
+        "current_max_ua": 0,
+        "input_current_limit_ua": {
+          "errno": 61,
+          "error": "OSError"
+        }
+      },
+      "hardware_input": {
+        "input_current_limit_ua": 500000,
+        "status": "Not charging"
+      }
+    },
+    {
+      "t_start": 52.26694952300022,
+      "t_end": 52.28106687300078,
+      "source_online": 0,
+      "acok_online": 0,
+      "telemetry": {
+        "shadow": 0,
+        "valid": 1,
+        "online": 0,
+        "protection_ok": 1,
+        "budget_ua": 0,
+        "temp_decic": 0,
+        "pack_uv": 0,
+        "cell1_uv": 0,
+        "cell2_uv": 0,
+        "flags": 0,
+        "fault": 0,
+        "session_seconds": 0,
+        "desired_enable": 0,
+        "error": 0,
+        "stop_error": 0,
+        "latched": 0,
+        "source_inhibit": 0,
+        "thermal_inhibit": 0,
+        "thermal_band": -3,
+        "band_pre_shake": 999,
+        "cycle_timeout": 0,
+        "gauge_current_ua": 0,
+        "logical_full": 0,
+        "full_holding": 0,
+        "hold_requested": 0,
+        "full_cause": 0,
+        "sw_full_count": 0,
+        "recharge_count": 0,
+        "gauge_charge_stop": 0,
+        "age_ms": 600
+      },
+      "battery": {
+        "status": "Discharging",
+        "current_now_ua": -120000,
+        "current_avg_ua": 38000
+      },
+      "source": {
+        "usb_type": "[Unknown] SDP DCP CDP C",
+        "current_max_ua": 0,
+        "input_current_limit_ua": {
+          "errno": 61,
+          "error": "OSError"
+        }
+      },
+      "hardware_input": {
+        "input_current_limit_ua": 500000,
+        "status": "Not charging"
+      }
+    },
+    {
+      "t_start": 53.28845291400012,
+      "t_end": 53.31092328900013,
+      "source_online": 0,
+      "acok_online": 0,
+      "telemetry": {
+        "shadow": 0,
+        "valid": 1,
+        "online": 0,
+        "protection_ok": 1,
+        "budget_ua": 0,
+        "temp_decic": 0,
+        "pack_uv": 0,
+        "cell1_uv": 0,
+        "cell2_uv": 0,
+        "flags": 0,
+        "fault": 0,
+        "session_seconds": 0,
+        "desired_enable": 0,
+        "error": 0,
+        "stop_error": 0,
+        "latched": 0,
+        "source_inhibit": 0,
+        "thermal_inhibit": 0,
+        "thermal_band": -3,
+        "band_pre_shake": 999,
+        "cycle_timeout": 0,
+        "gauge_current_ua": 0,
+        "logical_full": 0,
+        "full_holding": 0,
+        "hold_requested": 0,
+        "full_cause": 0,
+        "sw_full_count": 0,
+        "recharge_count": 0,
+        "gauge_charge_stop": 0,
+        "age_ms": 599
+      },
+      "battery": {
+        "status": "Discharging",
+        "current_now_ua": -106000,
+        "current_avg_ua": 27000
+      },
+      "source": {
+        "usb_type": "[Unknown] SDP DCP CDP C",
+        "current_max_ua": 0,
+        "input_current_limit_ua": {
+          "errno": 61,
+          "error": "OSError"
+        }
+      },
+      "hardware_input": {
+        "input_current_limit_ua": 500000,
+        "status": "Not charging"
+      }
+    },
+    {
+      "t_start": 54.31739198700052,
+      "t_end": 54.41613328300082,
+      "source_online": 1,
+      "acok_online": 1,
+      "telemetry": {
+        "shadow": 0,
+        "valid": 1,
+        "online": 1,
+        "protection_ok": 1,
+        "budget_ua": 500000,
+        "temp_decic": 251,
+        "pack_uv": 8579000,
+        "cell1_uv": 4292000,
+        "cell2_uv": 4286000,
+        "flags": 128,
+        "fault": 0,
+        "session_seconds": 0,
+        "desired_enable": 1,
+        "error": 0,
+        "stop_error": 0,
+        "latched": 0,
+        "source_inhibit": 0,
+        "thermal_inhibit": 0,
+        "thermal_band": 4,
+        "band_pre_shake": 251,
+        "cycle_timeout": 0,
+        "gauge_current_ua": -115000,
+        "logical_full": 0,
+        "full_holding": 0,
+        "hold_requested": 0,
+        "full_cause": 0,
+        "sw_full_count": 0,
+        "recharge_count": 0,
+        "gauge_charge_stop": 0,
+        "age_ms": 9
+      },
+      "battery": {
+        "status": "Discharging",
+        "current_now_ua": -115000,
+        "current_avg_ua": 18000
+      },
+      "source": {
+        "usb_type": "Unknown [SDP] DCP CDP C",
+        "current_max_ua": 500000,
+        "input_current_limit_ua": 500000
+      },
+      "hardware_input": {
+        "input_current_limit_ua": 500000,
+        "status": "Not charging"
+      }
+    },
+    {
+      "t_start": 55.42221385500034,
+      "t_end": 55.440842197000165,
+      "source_online": 1,
+      "acok_online": 1,
+      "telemetry": {
+        "shadow": 0,
+        "valid": 1,
+        "online": 1,
+        "protection_ok": 1,
+        "budget_ua": 500000,
+        "temp_decic": 253,
+        "pack_uv": 8638000,
+        "cell1_uv": 4319000,
+        "cell2_uv": 4319000,
+        "flags": 128,
+        "fault": 0,
+        "session_seconds": 1,
+        "desired_enable": 1,
+        "error": 0,
+        "stop_error": 0,
+        "latched": 0,
+        "source_inhibit": 0,
+        "thermal_inhibit": 0,
+        "thermal_band": 4,
+        "band_pre_shake": 251,
+        "cycle_timeout": 0,
+        "gauge_current_ua": -33000,
+        "logical_full": 0,
+        "full_holding": 0,
+        "hold_requested": 0,
+        "full_cause": 0,
+        "sw_full_count": 0,
+        "recharge_count": 0,
+        "gauge_charge_stop": 0,
+        "age_ms": 207
+      },
+      "battery": {
+        "status": "Charging",
+        "current_now_ua": 3000,
+        "current_avg_ua": 10000
+      },
+      "source": {
+        "usb_type": "Unknown [SDP] DCP CDP C",
+        "current_max_ua": 500000,
+        "input_current_limit_ua": 500000
+      },
+      "hardware_input": {
+        "input_current_limit_ua": 500000,
+        "status": "Charging"
+      }
+    },
+    {
+      "t_start": 56.44985323900073,
+      "t_end": 56.49896586600062,
+      "source_online": 1,
+      "acok_online": 1,
+      "telemetry": {
+        "shadow": 0,
+        "valid": 1,
+        "online": 1,
+        "protection_ok": 1,
+        "budget_ua": 500000,
+        "temp_decic": 251,
+        "pack_uv": 8668000,
+        "cell1_uv": 4334000,
+        "cell2_uv": 4334000,
+        "flags": 128,
+        "fault": 0,
+        "session_seconds": 2,
+        "desired_enable": 1,
+        "error": 0,
+        "stop_error": 0,
+        "latched": 0,
+        "source_inhibit": 0,
+        "thermal_inhibit": 0,
+        "thermal_band": 4,
+        "band_pre_shake": 251,
+        "cycle_timeout": 0,
+        "gauge_current_ua": 41000,
+        "logical_full": 0,
+        "full_holding": 0,
+        "hold_requested": 0,
+        "full_cause": 0,
+        "sw_full_count": 0,
+        "recharge_count": 0,
+        "gauge_charge_stop": 0,
+        "age_ms": 22
+      },
+      "battery": {
+        "status": "Charging",
+        "current_now_ua": 41000,
+        "current_avg_ua": 14000
+      },
+      "source": {
+        "usb_type": "Unknown [SDP] DCP CDP C",
+        "current_max_ua": 500000,
+        "input_current_limit_ua": 500000
+      },
+      "hardware_input": {
+        "input_current_limit_ua": 500000,
+        "status": "Charging"
+      }
+    },
+    {
+      "t_start": 57.506361908000144,
+      "t_end": 57.52114441499998,
+      "source_online": 1,
+      "acok_online": 1,
+      "telemetry": {
+        "shadow": 0,
+        "valid": 1,
+        "online": 1,
+        "protection_ok": 1,
+        "budget_ua": 500000,
+        "temp_decic": 251,
+        "pack_uv": 8672000,
+        "cell1_uv": 4338000,
+        "cell2_uv": 4335000,
+        "flags": 128,
+        "fault": 0,
+        "session_seconds": 3,
+        "desired_enable": 1,
+        "error": 0,
+        "stop_error": 0,
+        "latched": 0,
+        "source_inhibit": 0,
+        "thermal_inhibit": 0,
+        "thermal_band": 4,
+        "band_pre_shake": 251,
+        "cycle_timeout": 0,
+        "gauge_current_ua": 41000,
+        "logical_full": 0,
+        "full_holding": 0,
+        "hold_requested": 0,
+        "full_cause": 0,
+        "sw_full_count": 0,
+        "recharge_count": 0,
+        "gauge_charge_stop": 0,
+        "age_ms": 814
+      },
+      "battery": {
+        "status": "Charging",
+        "current_now_ua": 40000,
+        "current_avg_ua": 16000
+      },
+      "source": {
+        "usb_type": "Unknown [SDP] DCP CDP C",
+        "current_max_ua": 500000,
+        "input_current_limit_ua": 500000
+      },
+      "hardware_input": {
+        "input_current_limit_ua": 500000,
+        "status": "Charging"
+      }
+    },
+    {
+      "t_start": 58.52783410200027,
+      "t_end": 58.546843433000504,
+      "source_online": 1,
+      "acok_online": 1,
+      "telemetry": {
+        "shadow": 0,
+        "valid": 1,
+        "online": 1,
+        "protection_ok": 1,
+        "budget_ua": 500000,
+        "temp_decic": 251,
+        "pack_uv": 8678000,
+        "cell1_uv": 4341000,
+        "cell2_uv": 4338000,
+        "flags": 128,
+        "fault": 0,
+        "session_seconds": 4,
+        "desired_enable": 1,
+        "error": 0,
+        "stop_error": 0,
+        "latched": 0,
+        "source_inhibit": 0,
+        "thermal_inhibit": 0,
+        "thermal_band": 4,
+        "band_pre_shake": 251,
+        "cycle_timeout": 0,
+        "gauge_current_ua": 42000,
+        "logical_full": 0,
+        "full_holding": 0,
+        "hold_requested": 0,
+        "full_cause": 0,
+        "sw_full_count": 0,
+        "recharge_count": 0,
+        "gauge_charge_stop": 0,
+        "age_ms": 667
+      },
+      "battery": {
+        "status": "Charging",
+        "current_now_ua": 47000,
+        "current_avg_ua": 18000
+      },
+      "source": {
+        "usb_type": "Unknown [SDP] DCP CDP C",
+        "current_max_ua": 500000,
+        "input_current_limit_ua": 500000
+      },
+      "hardware_input": {
+        "input_current_limit_ua": 500000,
+        "status": "Charging"
+      }
+    },
+    {
+      "t_start": 59.55390973500016,
+      "t_end": 59.57166005600084,
+      "source_online": 1,
+      "acok_online": 1,
+      "telemetry": {
+        "shadow": 0,
+        "valid": 1,
+        "online": 1,
+        "protection_ok": 1,
+        "budget_ua": 500000,
+        "temp_decic": 251,
+        "pack_uv": 8676000,
+        "cell1_uv": 4340000,
+        "cell2_uv": 4336000,
+        "flags": 128,
+        "fault": 0,
+        "session_seconds": 5,
+        "desired_enable": 1,
+        "error": 0,
+        "stop_error": 0,
+        "latched": 0,
+        "source_inhibit": 0,
+        "thermal_inhibit": 0,
+        "thermal_band": 4,
+        "band_pre_shake": 251,
+        "cycle_timeout": 0,
+        "gauge_current_ua": 48000,
+        "logical_full": 0,
+        "full_holding": 0,
+        "hold_requested": 0,
+        "full_cause": 0,
+        "sw_full_count": 0,
+        "recharge_count": 0,
+        "gauge_charge_stop": 0,
+        "age_ms": 508
+      },
+      "battery": {
+        "status": "Charging",
+        "current_now_ua": 56000,
+        "current_avg_ua": 20000
+      },
+      "source": {
+        "usb_type": "Unknown [SDP] DCP CDP C",
+        "current_max_ua": 500000,
+        "input_current_limit_ua": 500000
+      },
+      "hardware_input": {
+        "input_current_limit_ua": 500000,
+        "status": "Charging"
+      }
+    },
+    {
+      "t_start": 60.578961254000205,
+      "t_end": 60.59473584400075,
+      "source_online": 1,
+      "acok_online": 1,
+      "telemetry": {
+        "shadow": 0,
+        "valid": 1,
+        "online": 1,
+        "protection_ok": 1,
+        "budget_ua": 500000,
+        "temp_decic": 251,
+        "pack_uv": 8682000,
+        "cell1_uv": 4343000,
+        "cell2_uv": 4339000,
+        "flags": 128,
+        "fault": 0,
+        "session_seconds": 6,
+        "desired_enable": 1,
+        "error": 0,
+        "stop_error": 0,
+        "latched": 0,
+        "source_inhibit": 0,
+        "thermal_inhibit": 0,
+        "thermal_band": 4,
+        "band_pre_shake": 251,
+        "cycle_timeout": 0,
+        "gauge_current_ua": 62000,
+        "logical_full": 0,
+        "full_holding": 0,
+        "hold_requested": 0,
+        "full_cause": 0,
+        "sw_full_count": 0,
+        "recharge_count": 0,
+        "gauge_charge_stop": 0,
+        "age_ms": 372
+      },
+      "battery": {
+        "status": "Charging",
+        "current_now_ua": 59000,
+        "current_avg_ua": 23000
+      },
+      "source": {
+        "usb_type": "Unknown [SDP] DCP CDP C",
+        "current_max_ua": 500000,
+        "input_current_limit_ua": 500000
+      },
+      "hardware_input": {
+        "input_current_limit_ua": 500000,
+        "status": "Charging"
+      }
+    }
+  ],
+  "telemetry_value_counts": {
+    "fault": {
+      "0": 134
+    },
+    "latched": {
+      "0": 134
+    },
+    "stop_error": {
+      "0": 134
+    },
+    "error": {
+      "0": 133,
+      "-61": 1
+    },
+    "logical_full": {
+      "0": 114,
+      "1": 20
+    },
+    "full_holding": {
+      "0": 114,
+      "1": 20
+    },
+    "cycle_timeout": {
+      "0": 134
+    }
+  },
+  "hardware_input_limit_value_counts": {
+    "500000": 134
+  },
+  "final_sample": {
+    "t_start": 147.26890335200005,
+    "t_end": 147.2954679480008,
+    "source_online": 1,
+    "acok_online": 1,
+    "telemetry": {
+      "shadow": 0,
+      "valid": 1,
+      "online": 1,
+      "protection_ok": 1,
+      "budget_ua": 500000,
+      "temp_decic": 249,
+      "pack_uv": 8654000,
+      "cell1_uv": 4327000,
+      "cell2_uv": 4326000,
+      "flags": 192,
+      "fault": 0,
+      "session_seconds": 0,
+      "desired_enable": 0,
+      "error": 0,
+      "stop_error": 0,
+      "latched": 0,
+      "source_inhibit": 0,
+      "thermal_inhibit": 0,
+      "thermal_band": 4,
+      "band_pre_shake": 251,
+      "cycle_timeout": 0,
+      "gauge_current_ua": 0,
+      "logical_full": 1,
+      "full_holding": 1,
+      "hold_requested": 1,
+      "full_cause": 3,
+      "sw_full_count": 0,
+      "recharge_count": 0,
+      "gauge_charge_stop": 0,
+      "age_ms": 279
+    },
+    "battery": {
+      "status": "Not charging",
+      "current_now_ua": 0,
+      "current_avg_ua": 9000
+    },
+    "hardware_input": {
+      "input_current_limit_ua": 500000,
+      "status": "Not charging"
+    }
+  },
+  "cleanup_confirmed": true,
+  "identity_unchanged": true,
+  "screen_latency_verified": false,
+  "desktop_changed": false,
+  "raw_sha256": {
+    "capture-private.json": "257fd278624c2619e4d40e6253e92b28ee0f1730ac59159ed41b8dc1f40b192c",
+    "samples-private.jsonl": "2e8af5639458a2dc52efca07e578ee5dc1d54dd8e5c2ae8322ba3e9d305c1898",
+    "kernel-events-private.jsonl": "fcca2c40eed5a31efb23f89ff69d3186b2d8627083ea575ff76e82521c6989dc",
+    "upower-dbus-private.log": "1d9c98f10e804c0b2074786e791f28e47b74760fbcec25f152c0b5b7f6def594",
+    "result.json": "6a92998224766d703bd687cea10c491943cb05de73d46a5dbadc6d966683b41e",
+    "clock-start.json": "272f66f56bc724b45847797458954fb7f38c2c6da90148416d5517fc42e8d8a0",
+    "clock-end.json": "02bc5d89948354a1d7ec71f5ee95f264ff5d4ecbbcf3e1f73b85b7851c809bfa"
+  },
+  "limits": "仅同一次真实周期的数字源/状态及端点时钟估算；不是电气边沿、屏幕像素、IRQ因果或统计显著性证明。新250ms短观察未在这些样本中证明比旧约2.1秒更快；不据此继续提高轮询频率。后段进入Full保持，不能把正常非Charging当断源。"
+}

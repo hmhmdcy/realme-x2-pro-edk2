@@ -1,0 +1,10 @@
+/* Merge into the paired final DT, not the live tree. Existing EUD hardware
+ * node stays disabled. usb_1_dwc3 must be the actual 0x0a600000 controller. */
+&soc {
+	samurai_eud_route: eud-off-route {
+		compatible = "realme,rmx1931-eud-off-route";
+		realme,eud-hardware = <&eud_com>;
+		realme,usb-controller = <&usb_1_dwc3>;
+		status = "disabled";
+	};
+};

@@ -1,0 +1,38 @@
+{
+  "passed": true,
+  "source_sha256": "eda995b4a7f50fdd8e792a8989d570fa4be9e3466a5afb946282456fba27198a",
+  "candidate_source_sha256": "7cbff9cc3dab17b36a76940fdd7dd34145c3a9109b2776d7ca45a1acb192dab7",
+  "patch_sha256": "7c78a62fc8bcd2191b513a8b18691719812c4decac1d0625d1192ec5b0043e10",
+  "design_sha256": "ca2c28f528bd58f10e6ada8c8e7760eb77f938f929655fda583a4001ba9e5494",
+  "design_amendment_sha256": "9810f1ebb1584e9154823ce738dedadf2fb03684eca3fb9ef3843279734de3bf",
+  "original_cmdline": "earlycon=eud,mmio,0x88e0000 console=tty0 console=eud loglevel=7 ignore_loglevel panic=15 clk_ignore_unused pd_ignore_unused regulator_ignore_unused",
+  "candidate_cmdline": "console=tty0 loglevel=7 ignore_loglevel panic=15 clk_ignore_unused pd_ignore_unused regulator_ignore_unused",
+  "removed_tokens": [
+    "earlycon=eud,mmio,0x88e0000",
+    "console=eud"
+  ],
+  "other_tokens_unchanged": true,
+  "native_base_sha256": "c559d2c4c9a83e85473b1b24724bb8938f1084bd3efcae9c4b67f37c2a4c4503",
+  "native_candidate_path": "/mnt/e/edk2-samurai-out/charging-management-20261023/eud-boot-policy-private/samurai-eud-off-policy-private.dtb",
+  "native_candidate_sha256": "9271d9cc33b3701ad0675c6345d43e9a5c404aa6c192126edc3eb715b0914358",
+  "dt_semantic_changes": [
+    {
+      "node": "/chosen",
+      "property": "bootargs"
+    },
+    {
+      "node": "/soc@0/serial@88e0000",
+      "property": "status"
+    }
+  ],
+  "all_other_dt_properties_byte_exact": true,
+  "image_preserved_sha256": "15746aab311eed32478cdee4e13c1677716ff48c8a04316c9c15cf606c9d6468",
+  "native_DTB_is_firmware_input": true,
+  "source_header_or_kernel_ABI_changed": false,
+  "firmware_built": false,
+  "SDK_invoked": false,
+  "shared_tree_modified": false,
+  "phone_accessed": false,
+  "hardware_CSR_zero_proven": false,
+  "direct_USB_or_SDP500_proven": false
+}

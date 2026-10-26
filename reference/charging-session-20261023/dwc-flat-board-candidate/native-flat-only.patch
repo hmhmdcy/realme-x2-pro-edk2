@@ -1,0 +1,97 @@
+--- native9271.dts
++++ native-flat.dts
+@@ -4025,58 +4025,48 @@
+ 			phandle = <0x05>;
+ 		};
+ 
+-		usb@a6f8800 {
+-			compatible = "qcom,sm8150-dwc3", "qcom,dwc3";
+-			reg = <0x00 0xa6f8800 0x00 0x400>;
++		usb@a600000 {
++			compatible = "qcom,sm8150-dwc3", "qcom,snps-dwc3";
++			reg = <0x0 0xa600000 0x0 0x100000>;
+ 			status = "okay";
+-			#address-cells = <0x02>;
+-			#size-cells = <0x02>;
+-			ranges;
+-			dma-ranges;
+-			clocks = <0x2e 0x0c 0x2e 0xac 0x2e 0x05 0x2e 0xb0 0x2e 0xae 0x2e 0xbb>;
++			clocks = <0x2e 0xc 0x2e 0xac 0x2e 0x5 0x2e 0xb0 0x2e 0xae 0x2e 0xbb>;
+ 			clock-names = "cfg_noc", "core", "iface", "sleep", "mock_utmi", "xo";
+ 			assigned-clocks = <0x2e 0xae 0x2e 0xac>;
+ 			assigned-clock-rates = <0x124f800 0xbebc200>;
+-			interrupts-extended = <0x01 0x00 0x82 0x04 0x01 0x00 0x83 0x04 0x8d 0x09 0x03 0x8d 0x08 0x03 0x8d 0x06 0x04>;
+-			interrupt-names = "pwr_event", "hs_phy_irq", "dp_hs_phy_irq", "dm_hs_phy_irq", "ss_phy_irq";
+-			power-domains = <0x2e 0x04>;
++			interrupts-extended = <0x1 0x0 0x85 0x4 0x1 0x0 0x82 0x4 0x1 0x0 0x83 0x4 0x8d 0x9 0x3 0x8d 0x8 0x3 0x8d 0x6 0x4>;
++			interrupt-names = "dwc_usb3", "pwr_event", "hs_phy_irq", "dp_hs_phy_irq", "dm_hs_phy_irq", "ss_phy_irq";
++			power-domains = <0x2e 0x4>;
+ 			resets = <0x2e 0x1a>;
+-			interconnects = <0xc9 0x04 0x00 0x06 0x01 0x00 0x05 0x00 0x00 0x76 0x30 0x00>;
++			interconnects = <0xc9 0x4 0x0 0x6 0x1 0x0 0x5 0x0 0x0 0x76 0x30 0x0>;
+ 			interconnect-names = "usb-ddr", "apps-usb";
+-
+-			usb@a600000 {
+-				usb-psy-name = "samurai-usb-input";
+-				compatible = "snps,dwc3";
+-				reg = <0x00 0xa600000 0x00 0xcd00>;
+-				interrupts = <0x00 0x85 0x04>;
+-				iommus = <0x2d 0x140 0x00>;
+-				snps,dis_u2_susphy_quirk;
+-				snps,dis_u3_susphy_quirk;
+-				snps,dis_enblslpm_quirk;
+-				snps,dis-u1-entry-quirk;
+-				snps,dis-u2-entry-quirk;
+-				phys = <0xca 0xcb 0x00>;
+-				phy-names = "usb2-phy", "usb3-phy";
+-				dr_mode = "peripheral";
+-
+-				ports {
+-					#address-cells = <0x01>;
+-					#size-cells = <0x00>;
+-
+-					port@0 {
+-						reg = <0x00>;
+-
+-						endpoint {
+-						};
+-					};
+-
+-					port@1 {
+-						reg = <0x01>;
+-
+-						endpoint {
+-							remote-endpoint = <0xcc>;
+-							phandle = <0xc2>;
+-						};
++			usb-psy-name = "samurai-usb-input";
++			iommus = <0x2d 0x140 0x0>;
++			snps,dis_u2_susphy_quirk;
++			snps,dis_u3_susphy_quirk;
++			snps,dis_enblslpm_quirk;
++			snps,dis-u1-entry-quirk;
++			snps,dis-u2-entry-quirk;
++			phys = <0xca 0xcb 0x0>;
++			phy-names = "usb2-phy", "usb3-phy";
++			dr_mode = "peripheral";
++
++			ports {
++				#address-cells = <0x01>;
++				#size-cells = <0x00>;
++
++				port@0 {
++					reg = <0x00>;
++
++					endpoint {
++					};
++				};
++
++				port@1 {
++					reg = <0x01>;
++
++					endpoint {
++						remote-endpoint = <0xcc>;
++						phandle = <0xc2>;
+ 					};
+ 				};
+ 			};

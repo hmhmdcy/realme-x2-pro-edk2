@@ -1,0 +1,150 @@
+{
+  "stage": 201,
+  "window_cases": 10,
+  "url_cases": 6,
+  "payload_cases": 8,
+  "redirect_rejections": 3,
+  "flow_cases": [
+    {
+      "name": "already current",
+      "status": "current",
+      "calls": []
+    },
+    {
+      "name": "expired refresh",
+      "status": "refreshed",
+      "calls": [
+        [
+          "download",
+          0
+        ],
+        [
+          "inject"
+        ],
+        [
+          "query"
+        ]
+      ]
+    },
+    {
+      "name": "future start is not current",
+      "status": "refreshed",
+      "calls": [
+        [
+          "download",
+          0
+        ],
+        [
+          "inject"
+        ],
+        [
+          "query"
+        ]
+      ]
+    },
+    {
+      "name": "transport ACK does not prove validity",
+      "status": "not-current-after-injection",
+      "calls": [
+        [
+          "download",
+          0
+        ],
+        [
+          "inject"
+        ],
+        [
+          "query"
+        ]
+      ]
+    },
+    {
+      "name": "all downloads fail",
+      "status": "download-failed",
+      "calls": [
+        [
+          "download",
+          0
+        ],
+        [
+          "download",
+          1
+        ]
+      ]
+    },
+    {
+      "name": "client stops while downloading",
+      "status": "inactive",
+      "calls": [
+        [
+          "download",
+          0
+        ]
+      ]
+    },
+    {
+      "name": "injection failure never retries another server",
+      "status": "exception",
+      "calls": [
+        [
+          "download",
+          0
+        ],
+        [
+          "inject"
+        ]
+      ]
+    },
+    {
+      "name": "readback failure never reports current",
+      "status": "exception",
+      "calls": [
+        [
+          "download",
+          0
+        ],
+        [
+          "inject"
+        ],
+        [
+          "query"
+        ]
+      ]
+    },
+    {
+      "name": "credential URL skipped",
+      "status": "refreshed",
+      "calls": [
+        [
+          "download",
+          1
+        ],
+        [
+          "inject"
+        ],
+        [
+          "query"
+        ]
+      ]
+    },
+    {
+      "name": "zero duration is not validity",
+      "status": "refreshed",
+      "calls": [
+        [
+          "download",
+          0
+        ],
+        [
+          "inject"
+        ],
+        [
+          "query"
+        ]
+      ]
+    }
+  ],
+  "old191_window_rejected": true,
+  "absolute_epoch_and_end_boundary_checked": true,
+  "known_bad_payload_and_future_window_reconsideration_checked": true
+}

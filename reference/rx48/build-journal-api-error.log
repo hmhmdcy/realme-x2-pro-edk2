@@ -1,0 +1,14 @@
+  CC      drivers/tty/serial/eud.o
+drivers/tty/serial/eud.c: In function ‘eud_shutdown’:
+drivers/tty/serial/eud.c:360:13: error: too few arguments to function ‘eud_send_frame’; expected 4, have 3
+  360 |             eud_send_frame(port, buf, n);
+      |             ^~~~~~~~~~~~~~
+drivers/tty/serial/eud.c:223:13: note: declared here
+  223 | static void eud_send_frame(struct uart_port *port, const u8 *s, unsigned int n,
+      |             ^~~~~~~~~~~~~~
+make[5]: *** [scripts/Makefile.build:290: drivers/tty/serial/eud.o] Error 1
+make[4]: *** [scripts/Makefile.build:551: drivers/tty/serial] Error 2
+make[3]: *** [scripts/Makefile.build:551: drivers/tty] Error 2
+make[2]: *** [scripts/Makefile.build:551: drivers] Error 2
+make[1]: *** [/home/cy122/x2pro-linux/linux/Makefile:2229: .] Error 2
+make: *** [Makefile:248: __sub-make] Error 2

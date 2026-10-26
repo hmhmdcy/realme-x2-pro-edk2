@@ -1,0 +1,2870 @@
+{
+  "drivers/base/dd.c": {
+    "sha256": "03dbcf0f223b28da2006cc9fe851c8782c4c17f50e35027c94e2b4ef208b0e52",
+    "lines": [
+      {
+        "line": 593,
+        "text": "static void device_unbind_cleanup(struct device *dev)"
+      },
+      {
+        "line": 594,
+        "text": "{"
+      },
+      {
+        "line": 595,
+        "text": "\tif (dev->driver->p_cb.post_unbind_rust)"
+      },
+      {
+        "line": 596,
+        "text": "\t\tdev->driver->p_cb.post_unbind_rust(dev);"
+      },
+      {
+        "line": 597,
+        "text": "\tdevres_release_all(dev);"
+      },
+      {
+        "line": 598,
+        "text": "\tarch_teardown_dma_ops(dev);"
+      },
+      {
+        "line": 599,
+        "text": "\tkfree(dev->dma_range_map);"
+      },
+      {
+        "line": 600,
+        "text": "\tdev->dma_range_map = NULL;"
+      },
+      {
+        "line": 601,
+        "text": "\tdevice_set_driver(dev, NULL);"
+      },
+      {
+        "line": 602,
+        "text": "\tdev_set_drvdata(dev, NULL);"
+      },
+      {
+        "line": 603,
+        "text": "\tdev_pm_domain_detach(dev, dev->power.detach_power_off);"
+      },
+      {
+        "line": 604,
+        "text": "\tif (dev->pm_domain && dev->pm_domain->dismiss)"
+      },
+      {
+        "line": 605,
+        "text": "\t\tdev->pm_domain->dismiss(dev);"
+      },
+      {
+        "line": 606,
+        "text": "\tpm_runtime_reinit(dev);"
+      },
+      {
+        "line": 607,
+        "text": "\tdev_pm_set_driver_flags(dev, 0);"
+      },
+      {
+        "line": 608,
+        "text": "}"
+      },
+      {
+        "line": 610,
+        "text": "static void device_remove(struct device *dev)"
+      },
+      {
+        "line": 611,
+        "text": "{"
+      },
+      {
+        "line": 612,
+        "text": "\tdevice_remove_file(dev, &dev_attr_state_synced);"
+      },
+      {
+        "line": 613,
+        "text": "\tdevice_remove_groups(dev, dev->driver->dev_groups);"
+      },
+      {
+        "line": 614,
+        "text": ""
+      },
+      {
+        "line": 615,
+        "text": "\tif (dev->bus && dev->bus->remove)"
+      },
+      {
+        "line": 616,
+        "text": "\t\tdev->bus->remove(dev);"
+      },
+      {
+        "line": 617,
+        "text": "\telse if (dev->driver->remove)"
+      },
+      {
+        "line": 618,
+        "text": "\t\tdev->driver->remove(dev);"
+      },
+      {
+        "line": 619,
+        "text": "}"
+      },
+      {
+        "line": 620,
+        "text": ""
+      },
+      {
+        "line": 621,
+        "text": "static int call_driver_probe(struct device *dev, const struct device_driver *drv)"
+      },
+      {
+        "line": 622,
+        "text": "{"
+      },
+      {
+        "line": 623,
+        "text": "\tint ret = 0;"
+      },
+      {
+        "line": 624,
+        "text": ""
+      },
+      {
+        "line": 625,
+        "text": "\tif (dev->bus->probe)"
+      },
+      {
+        "line": 626,
+        "text": "\t\tret = dev->bus->probe(dev);"
+      },
+      {
+        "line": 627,
+        "text": "\telse if (drv->probe)"
+      },
+      {
+        "line": 628,
+        "text": "\t\tret = drv->probe(dev);"
+      },
+      {
+        "line": 629,
+        "text": ""
+      },
+      {
+        "line": 630,
+        "text": "\tswitch (ret) {"
+      },
+      {
+        "line": 631,
+        "text": "\tcase 0:"
+      },
+      {
+        "line": 632,
+        "text": "\t\tbreak;"
+      },
+      {
+        "line": 732,
+        "text": "\t\tret = device_create_file(dev, &dev_attr_state_synced);"
+      },
+      {
+        "line": 733,
+        "text": "\t\tif (ret) {"
+      },
+      {
+        "line": 734,
+        "text": "\t\t\tdev_err(dev, \"state_synced sysfs add failed\\n\");"
+      },
+      {
+        "line": 735,
+        "text": "\t\t\tgoto dev_sysfs_state_synced_failed;"
+      },
+      {
+        "line": 736,
+        "text": "\t\t}"
+      },
+      {
+        "line": 737,
+        "text": "\t}"
+      },
+      {
+        "line": 738,
+        "text": ""
+      },
+      {
+        "line": 739,
+        "text": "\tif (test_remove) {"
+      },
+      {
+        "line": 740,
+        "text": "\t\ttest_remove = false;"
+      },
+      {
+        "line": 741,
+        "text": ""
+      },
+      {
+        "line": 742,
+        "text": "\t\tdevice_remove(dev);"
+      },
+      {
+        "line": 743,
+        "text": "\t\tdriver_sysfs_remove(dev);"
+      },
+      {
+        "line": 744,
+        "text": "\t\tif (dev->bus && dev->bus->dma_cleanup)"
+      },
+      {
+        "line": 745,
+        "text": "\t\t\tdev->bus->dma_cleanup(dev);"
+      },
+      {
+        "line": 746,
+        "text": "\t\tdevice_unbind_cleanup(dev);"
+      },
+      {
+        "line": 747,
+        "text": ""
+      },
+      {
+        "line": 1315,
+        "text": " * __device_release_driver() must be called with @dev lock held."
+      },
+      {
+        "line": 1316,
+        "text": " * When called for a USB interface, @dev->parent lock must be held as well."
+      },
+      {
+        "line": 1317,
+        "text": " */"
+      },
+      {
+        "line": 1318,
+        "text": "static void __device_release_driver(struct device *dev, struct device *parent)"
+      },
+      {
+        "line": 1319,
+        "text": "{"
+      },
+      {
+        "line": 1320,
+        "text": "\tstruct device_driver *drv;"
+      },
+      {
+        "line": 1321,
+        "text": ""
+      },
+      {
+        "line": 1322,
+        "text": "\tdrv = dev->driver;"
+      },
+      {
+        "line": 1323,
+        "text": "\tif (drv) {"
+      },
+      {
+        "line": 1324,
+        "text": "\t\tpm_runtime_get_sync(dev);"
+      },
+      {
+        "line": 1325,
+        "text": ""
+      },
+      {
+        "line": 1326,
+        "text": "\t\twhile (device_links_busy(dev)) {"
+      },
+      {
+        "line": 1327,
+        "text": "\t\t\t__device_driver_unlock(dev, parent);"
+      },
+      {
+        "line": 1328,
+        "text": ""
+      },
+      {
+        "line": 1329,
+        "text": "\t\t\tdevice_links_unbind_consumers(dev);"
+      },
+      {
+        "line": 1330,
+        "text": ""
+      },
+      {
+        "line": 1331,
+        "text": "\t\t\t__device_driver_lock(dev, parent);"
+      },
+      {
+        "line": 1332,
+        "text": "\t\t\t/*"
+      },
+      {
+        "line": 1333,
+        "text": "\t\t\t * A concurrent invocation of the same function might"
+      },
+      {
+        "line": 1334,
+        "text": "\t\t\t * have released the driver successfully while this one"
+      },
+      {
+        "line": 1335,
+        "text": "\t\t\t * was waiting, so check for that."
+      },
+      {
+        "line": 1336,
+        "text": "\t\t\t */"
+      },
+      {
+        "line": 1337,
+        "text": "\t\t\tif (dev->driver != drv) {"
+      },
+      {
+        "line": 1338,
+        "text": "\t\t\t\tpm_runtime_put(dev);"
+      },
+      {
+        "line": 1339,
+        "text": "\t\t\t\treturn;"
+      },
+      {
+        "line": 1340,
+        "text": "\t\t\t}"
+      },
+      {
+        "line": 1341,
+        "text": "\t\t}"
+      },
+      {
+        "line": 1342,
+        "text": ""
+      },
+      {
+        "line": 1343,
+        "text": "\t\tdriver_sysfs_remove(dev);"
+      },
+      {
+        "line": 1344,
+        "text": ""
+      },
+      {
+        "line": 1345,
+        "text": "\t\tbus_notify(dev, BUS_NOTIFY_UNBIND_DRIVER);"
+      },
+      {
+        "line": 1346,
+        "text": ""
+      },
+      {
+        "line": 1347,
+        "text": "\t\tpm_runtime_put_sync(dev);"
+      },
+      {
+        "line": 1348,
+        "text": ""
+      },
+      {
+        "line": 1349,
+        "text": "\t\tdevice_remove(dev);"
+      },
+      {
+        "line": 1350,
+        "text": ""
+      },
+      {
+        "line": 1351,
+        "text": "\t\tif (dev->bus && dev->bus->dma_cleanup)"
+      },
+      {
+        "line": 1352,
+        "text": "\t\t\tdev->bus->dma_cleanup(dev);"
+      },
+      {
+        "line": 1353,
+        "text": ""
+      },
+      {
+        "line": 1354,
+        "text": "\t\tdevice_unbind_cleanup(dev);"
+      },
+      {
+        "line": 1355,
+        "text": "\t\tdevice_links_driver_cleanup(dev);"
+      },
+      {
+        "line": 1356,
+        "text": ""
+      },
+      {
+        "line": 1357,
+        "text": "\t\tklist_remove(&dev->p->knode_driver);"
+      },
+      {
+        "line": 1358,
+        "text": "\t\tdevice_pm_check_callbacks(dev);"
+      },
+      {
+        "line": 1359,
+        "text": ""
+      },
+      {
+        "line": 1360,
+        "text": "\t\tbus_notify(dev, BUS_NOTIFY_UNBOUND_DRIVER);"
+      }
+    ]
+  },
+  "drivers/base/devres.c": {
+    "sha256": "71e9a931b8746a85a0c67c9f2370aace6aa2c1c67e1110cf49e157fb79522d4d",
+    "lines": [
+      {
+        "line": 479,
+        "text": "static int remove_nodes(struct device *dev,"
+      },
+      {
+        "line": 480,
+        "text": "\t\t\tstruct list_head *first, struct list_head *end,"
+      },
+      {
+        "line": 481,
+        "text": "\t\t\tstruct list_head *todo)"
+      },
+      {
+        "line": 482,
+        "text": "{"
+      },
+      {
+        "line": 483,
+        "text": "\tstruct devres_node *node, *n;"
+      },
+      {
+        "line": 484,
+        "text": "\tint cnt = 0, nr_groups = 0;"
+      },
+      {
+        "line": 485,
+        "text": ""
+      },
+      {
+        "line": 486,
+        "text": "\t/* First pass - move normal devres entries to @todo and clear"
+      },
+      {
+        "line": 487,
+        "text": "\t * devres_group colors."
+      },
+      {
+        "line": 488,
+        "text": "\t */"
+      },
+      {
+        "line": 489,
+        "text": "\tnode = list_entry(first, struct devres_node, entry);"
+      },
+      {
+        "line": 490,
+        "text": "\tlist_for_each_entry_safe_from(node, n, end, entry) {"
+      },
+      {
+        "line": 491,
+        "text": "\t\tstruct devres_group *grp;"
+      },
+      {
+        "line": 492,
+        "text": ""
+      },
+      {
+        "line": 493,
+        "text": "\t\tgrp = node_to_group(node);"
+      },
+      {
+        "line": 494,
+        "text": "\t\tif (grp) {"
+      },
+      {
+        "line": 495,
+        "text": "\t\t\t/* clear color of group markers in the first pass */"
+      },
+      {
+        "line": 496,
+        "text": "\t\t\tgrp->color = 0;"
+      },
+      {
+        "line": 497,
+        "text": "\t\t\tnr_groups++;"
+      },
+      {
+        "line": 498,
+        "text": "\t\t} else {"
+      },
+      {
+        "line": 499,
+        "text": "\t\t\t/* regular devres entry */"
+      },
+      {
+        "line": 500,
+        "text": "\t\t\tif (&node->entry == first)"
+      },
+      {
+        "line": 501,
+        "text": "\t\t\t\tfirst = first->next;"
+      },
+      {
+        "line": 502,
+        "text": "\t\t\tlist_move_tail(&node->entry, todo);"
+      },
+      {
+        "line": 503,
+        "text": "\t\t\tcnt++;"
+      },
+      {
+        "line": 504,
+        "text": "\t\t}"
+      },
+      {
+        "line": 505,
+        "text": "\t}"
+      },
+      {
+        "line": 506,
+        "text": ""
+      },
+      {
+        "line": 507,
+        "text": "\tif (!nr_groups)"
+      },
+      {
+        "line": 508,
+        "text": "\t\treturn cnt;"
+      },
+      {
+        "line": 509,
+        "text": ""
+      },
+      {
+        "line": 510,
+        "text": "\t/* Second pass - Scan groups and color them.  A group gets"
+      },
+      {
+        "line": 511,
+        "text": "\t * color value of two iff the group is wholly contained in"
+      },
+      {
+        "line": 512,
+        "text": "\t * [current node, end). That is, for a closed group, both opening"
+      },
+      {
+        "line": 513,
+        "text": "\t * and closing markers should be in the range, while just the"
+      },
+      {
+        "line": 514,
+        "text": "\t * opening marker is enough for an open group."
+      },
+      {
+        "line": 515,
+        "text": "\t */"
+      },
+      {
+        "line": 516,
+        "text": "\tnode = list_entry(first, struct devres_node, entry);"
+      },
+      {
+        "line": 517,
+        "text": "\tlist_for_each_entry_safe_from(node, n, end, entry) {"
+      },
+      {
+        "line": 518,
+        "text": "\t\tstruct devres_group *grp;"
+      },
+      {
+        "line": 519,
+        "text": ""
+      },
+      {
+        "line": 520,
+        "text": "\t\tgrp = node_to_group(node);"
+      },
+      {
+        "line": 521,
+        "text": "\t\tBUG_ON(!grp || list_empty(&grp->node[0].entry));"
+      },
+      {
+        "line": 522,
+        "text": ""
+      },
+      {
+        "line": 523,
+        "text": "\t\tgrp->color++;"
+      },
+      {
+        "line": 524,
+        "text": "\t\tif (list_empty(&grp->node[1].entry))"
+      },
+      {
+        "line": 525,
+        "text": "\t\t\tgrp->color++;"
+      },
+      {
+        "line": 526,
+        "text": ""
+      },
+      {
+        "line": 527,
+        "text": "\t\tBUG_ON(grp->color <= 0 || grp->color > 2);"
+      },
+      {
+        "line": 528,
+        "text": "\t\tif (grp->color == 2) {"
+      },
+      {
+        "line": 529,
+        "text": "\t\t\t/* No need to update current node or end. The removed"
+      },
+      {
+        "line": 530,
+        "text": "\t\t\t * nodes are always before both."
+      },
+      {
+        "line": 531,
+        "text": "\t\t\t */"
+      },
+      {
+        "line": 532,
+        "text": "\t\t\tlist_move_tail(&grp->node[0].entry, todo);"
+      },
+      {
+        "line": 533,
+        "text": "\t\t\tlist_del_init(&grp->node[1].entry);"
+      },
+      {
+        "line": 534,
+        "text": "\t\t}"
+      },
+      {
+        "line": 535,
+        "text": "\t}"
+      },
+      {
+        "line": 536,
+        "text": ""
+      },
+      {
+        "line": 537,
+        "text": "\treturn cnt;"
+      },
+      {
+        "line": 538,
+        "text": "}"
+      },
+      {
+        "line": 539,
+        "text": ""
+      },
+      {
+        "line": 540,
+        "text": "static void release_nodes(struct device *dev, struct list_head *todo)"
+      },
+      {
+        "line": 541,
+        "text": "{"
+      },
+      {
+        "line": 542,
+        "text": "\tstruct devres_node *node, *tmp;"
+      },
+      {
+        "line": 543,
+        "text": ""
+      },
+      {
+        "line": 544,
+        "text": "\tlist_for_each_entry_safe_reverse(node, tmp, todo, entry) {"
+      },
+      {
+        "line": 545,
+        "text": "\t\tdevres_log(dev, node, \"REL\");"
+      },
+      {
+        "line": 546,
+        "text": "\t\tnode->release(dev, node);"
+      },
+      {
+        "line": 547,
+        "text": "\t\tfree_node(node);"
+      },
+      {
+        "line": 548,
+        "text": "\t}"
+      },
+      {
+        "line": 549,
+        "text": "}"
+      },
+      {
+        "line": 552,
+        "text": " * devres_release_all - Release all managed resources"
+      },
+      {
+        "line": 553,
+        "text": " * @dev: Device to release resources for"
+      },
+      {
+        "line": 554,
+        "text": " *"
+      },
+      {
+        "line": 555,
+        "text": " * Release all resources associated with @dev.  This function is"
+      },
+      {
+        "line": 556,
+        "text": " * called on driver detach."
+      },
+      {
+        "line": 557,
+        "text": " */"
+      },
+      {
+        "line": 558,
+        "text": "int devres_release_all(struct device *dev)"
+      },
+      {
+        "line": 559,
+        "text": "{"
+      },
+      {
+        "line": 560,
+        "text": "\tunsigned long flags;"
+      },
+      {
+        "line": 561,
+        "text": "\tLIST_HEAD(todo);"
+      },
+      {
+        "line": 562,
+        "text": "\tint cnt;"
+      },
+      {
+        "line": 563,
+        "text": ""
+      },
+      {
+        "line": 564,
+        "text": "\t/* Looks like an uninitialized device structure */"
+      },
+      {
+        "line": 565,
+        "text": "\tif (WARN_ON(dev->devres_head.next == NULL))"
+      },
+      {
+        "line": 566,
+        "text": "\t\treturn -ENODEV;"
+      },
+      {
+        "line": 567,
+        "text": ""
+      },
+      {
+        "line": 568,
+        "text": "\t/* Nothing to release if list is empty */"
+      },
+      {
+        "line": 569,
+        "text": "\tif (list_empty(&dev->devres_head))"
+      },
+      {
+        "line": 570,
+        "text": "\t\treturn 0;"
+      },
+      {
+        "line": 571,
+        "text": ""
+      },
+      {
+        "line": 572,
+        "text": "\tspin_lock_irqsave(&dev->devres_lock, flags);"
+      },
+      {
+        "line": 573,
+        "text": "\tcnt = remove_nodes(dev, dev->devres_head.next, &dev->devres_head, &todo);"
+      },
+      {
+        "line": 574,
+        "text": "\tspin_unlock_irqrestore(&dev->devres_lock, flags);"
+      },
+      {
+        "line": 575,
+        "text": ""
+      },
+      {
+        "line": 576,
+        "text": "\trelease_nodes(dev, &todo);"
+      },
+      {
+        "line": 577,
+        "text": "\treturn cnt;"
+      }
+    ]
+  },
+  "drivers/base/power/main.c": {
+    "sha256": "a704473ddbabfc19fea20d24944b12e6e1889a230d7a76b66ef92bce1cc77eb4",
+    "lines": [
+      {
+        "line": 2199,
+        "text": "static int device_prepare(struct device *dev, pm_message_t state)"
+      },
+      {
+        "line": 2200,
+        "text": "{"
+      },
+      {
+        "line": 2201,
+        "text": "\tint (*callback)(struct device *) = NULL;"
+      },
+      {
+        "line": 2202,
+        "text": "\tbool smart_suspend;"
+      },
+      {
+        "line": 2203,
+        "text": "\tint ret = 0;"
+      },
+      {
+        "line": 2204,
+        "text": ""
+      },
+      {
+        "line": 2205,
+        "text": "\t/*"
+      },
+      {
+        "line": 2206,
+        "text": "\t * If a device's parent goes into runtime suspend at the wrong time,"
+      },
+      {
+        "line": 2207,
+        "text": "\t * it won't be possible to resume the device.  To prevent this we"
+      },
+      {
+        "line": 2208,
+        "text": "\t * block runtime suspend here, during the prepare phase, and allow"
+      },
+      {
+        "line": 2209,
+        "text": "\t * it again during the complete phase."
+      },
+      {
+        "line": 2210,
+        "text": "\t */"
+      },
+      {
+        "line": 2211,
+        "text": "\tpm_runtime_get_noresume(dev);"
+      },
+      {
+        "line": 2212,
+        "text": "\t/*"
+      },
+      {
+        "line": 2213,
+        "text": "\t * If runtime PM is disabled for the device at this point and it has"
+      },
+      {
+        "line": 2214,
+        "text": "\t * never been enabled so far, it should not be enabled until this system"
+      },
+      {
+        "line": 2215,
+        "text": "\t * suspend-resume cycle is complete, so prepare to trigger a warning on"
+      },
+      {
+        "line": 2216,
+        "text": "\t * subsequent attempts to enable it."
+      },
+      {
+        "line": 2217,
+        "text": "\t */"
+      },
+      {
+        "line": 2218,
+        "text": "\tsmart_suspend = !pm_runtime_block_if_disabled(dev);"
+      },
+      {
+        "line": 2219,
+        "text": ""
+      },
+      {
+        "line": 2220,
+        "text": "\tif (dev->power.syscore)"
+      },
+      {
+        "line": 2221,
+        "text": "\t\treturn 0;"
+      },
+      {
+        "line": 2222,
+        "text": ""
+      },
+      {
+        "line": 2223,
+        "text": "\tdevice_lock(dev);"
+      },
+      {
+        "line": 2224,
+        "text": ""
+      },
+      {
+        "line": 2225,
+        "text": "\tdev->power.wakeup_path = false;"
+      },
+      {
+        "line": 2226,
+        "text": "\tdev->power.out_band_wakeup = false;"
+      },
+      {
+        "line": 2227,
+        "text": ""
+      },
+      {
+        "line": 2228,
+        "text": "\tif (dev->power.no_pm_callbacks)"
+      },
+      {
+        "line": 2229,
+        "text": "\t\tgoto unlock;"
+      },
+      {
+        "line": 2230,
+        "text": ""
+      },
+      {
+        "line": 2231,
+        "text": "\tif (dev->pm_domain)"
+      },
+      {
+        "line": 2232,
+        "text": "\t\tcallback = dev->pm_domain->ops.prepare;"
+      },
+      {
+        "line": 2233,
+        "text": "\telse if (dev->type && dev->type->pm)"
+      },
+      {
+        "line": 2234,
+        "text": "\t\tcallback = dev->type->pm->prepare;"
+      },
+      {
+        "line": 2235,
+        "text": "\telse if (dev->class && dev->class->pm)"
+      },
+      {
+        "line": 2236,
+        "text": "\t\tcallback = dev->class->pm->prepare;"
+      },
+      {
+        "line": 2237,
+        "text": "\telse if (dev->bus && dev->bus->pm)"
+      },
+      {
+        "line": 2238,
+        "text": "\t\tcallback = dev->bus->pm->prepare;"
+      },
+      {
+        "line": 2239,
+        "text": ""
+      },
+      {
+        "line": 2240,
+        "text": "\tif (!callback && dev->driver && dev->driver->pm)"
+      },
+      {
+        "line": 2241,
+        "text": "\t\tcallback = dev->driver->pm->prepare;"
+      },
+      {
+        "line": 2242,
+        "text": ""
+      },
+      {
+        "line": 2243,
+        "text": "\tif (callback)"
+      },
+      {
+        "line": 2244,
+        "text": "\t\tret = callback(dev);"
+      },
+      {
+        "line": 2245,
+        "text": ""
+      },
+      {
+        "line": 2246,
+        "text": "unlock:"
+      },
+      {
+        "line": 2247,
+        "text": "\tdevice_unlock(dev);"
+      },
+      {
+        "line": 2248,
+        "text": ""
+      },
+      {
+        "line": 2249,
+        "text": "\tif (ret < 0) {"
+      },
+      {
+        "line": 2250,
+        "text": "\t\tsuspend_report_result(dev, callback, ret);"
+      },
+      {
+        "line": 2251,
+        "text": "\t\tpm_runtime_unblock(dev);"
+      },
+      {
+        "line": 2252,
+        "text": "\t\tpm_runtime_put(dev);"
+      },
+      {
+        "line": 2253,
+        "text": "\t\treturn ret;"
+      },
+      {
+        "line": 2254,
+        "text": "\t}"
+      },
+      {
+        "line": 2255,
+        "text": "\t/* Do not enable \"smart suspend\" for devices with disabled runtime PM. */"
+      },
+      {
+        "line": 2256,
+        "text": "\tif (smart_suspend)"
+      },
+      {
+        "line": 2257,
+        "text": "\t\tsmart_suspend = device_prepare_smart_suspend(dev);"
+      },
+      {
+        "line": 2258,
+        "text": ""
+      },
+      {
+        "line": 2259,
+        "text": "\tspin_lock_irq(&dev->power.lock);"
+      },
+      {
+        "line": 2260,
+        "text": ""
+      }
+    ]
+  },
+  "drivers/base/power/runtime.c": {
+    "sha256": "3ba6c4baf1adeaa90043f46db08dfc9df2809209b4e29386e9148d26da827a9a",
+    "lines": [
+      {
+        "line": 374,
+        "text": "static int __rpm_callback(int (*cb)(struct device *), struct device *dev)"
+      },
+      {
+        "line": 375,
+        "text": "\t__releases(&dev->power.lock) __acquires(&dev->power.lock)"
+      },
+      {
+        "line": 376,
+        "text": "{"
+      },
+      {
+        "line": 377,
+        "text": "\tint retval = 0, idx;"
+      },
+      {
+        "line": 378,
+        "text": "\tbool use_links = dev->power.links_count > 0;"
+      },
+      {
+        "line": 379,
+        "text": ""
+      },
+      {
+        "line": 380,
+        "text": "\tif (dev->power.irq_safe) {"
+      },
+      {
+        "line": 381,
+        "text": "\t\tspin_unlock(&dev->power.lock);"
+      },
+      {
+        "line": 382,
+        "text": "\t} else {"
+      },
+      {
+        "line": 383,
+        "text": "\t\tspin_unlock_irq(&dev->power.lock);"
+      },
+      {
+        "line": 384,
+        "text": ""
+      },
+      {
+        "line": 385,
+        "text": "\t\t/*"
+      },
+      {
+        "line": 386,
+        "text": "\t\t * Resume suppliers if necessary."
+      },
+      {
+        "line": 387,
+        "text": "\t\t *"
+      },
+      {
+        "line": 388,
+        "text": "\t\t * The device's runtime PM status cannot change until this"
+      },
+      {
+        "line": 389,
+        "text": "\t\t * routine returns, so it is safe to read the status outside of"
+      },
+      {
+        "line": 390,
+        "text": "\t\t * the lock."
+      },
+      {
+        "line": 391,
+        "text": "\t\t */"
+      },
+      {
+        "line": 392,
+        "text": "\t\tif (use_links && dev->power.runtime_status == RPM_RESUMING) {"
+      },
+      {
+        "line": 393,
+        "text": "\t\t\tidx = device_links_read_lock();"
+      },
+      {
+        "line": 394,
+        "text": ""
+      },
+      {
+        "line": 395,
+        "text": "\t\t\tretval = rpm_get_suppliers(dev);"
+      },
+      {
+        "line": 396,
+        "text": "\t\t\tif (retval) {"
+      },
+      {
+        "line": 397,
+        "text": "\t\t\t\trpm_put_suppliers(dev);"
+      },
+      {
+        "line": 398,
+        "text": "\t\t\t\tgoto fail;"
+      },
+      {
+        "line": 399,
+        "text": "\t\t\t}"
+      },
+      {
+        "line": 400,
+        "text": ""
+      },
+      {
+        "line": 401,
+        "text": "\t\t\tdevice_links_read_unlock(idx);"
+      },
+      {
+        "line": 402,
+        "text": "\t\t}"
+      },
+      {
+        "line": 403,
+        "text": "\t}"
+      },
+      {
+        "line": 404,
+        "text": ""
+      },
+      {
+        "line": 405,
+        "text": "\tif (cb)"
+      },
+      {
+        "line": 406,
+        "text": "\t\tretval = cb(dev);"
+      },
+      {
+        "line": 407,
+        "text": ""
+      },
+      {
+        "line": 408,
+        "text": "\tif (dev->power.irq_safe) {"
+      },
+      {
+        "line": 409,
+        "text": "\t\tspin_lock(&dev->power.lock);"
+      },
+      {
+        "line": 410,
+        "text": "\t} else {"
+      },
+      {
+        "line": 411,
+        "text": "\t\t/*"
+      },
+      {
+        "line": 412,
+        "text": "\t\t * If the device is suspending and the callback has returned"
+      },
+      {
+        "line": 413,
+        "text": "\t\t * success, drop the usage counters of the suppliers that have"
+      },
+      {
+        "line": 414,
+        "text": "\t\t * been reference counted on its resume."
+      },
+      {
+        "line": 415,
+        "text": "\t\t *"
+      },
+      {
+        "line": 416,
+        "text": "\t\t * Do that if resume fails too."
+      },
+      {
+        "line": 417,
+        "text": "\t\t */"
+      },
+      {
+        "line": 418,
+        "text": "\t\tif (use_links &&"
+      },
+      {
+        "line": 419,
+        "text": "\t\t    ((dev->power.runtime_status == RPM_SUSPENDING && !retval) ||"
+      },
+      {
+        "line": 420,
+        "text": "\t\t    (dev->power.runtime_status == RPM_RESUMING && retval))) {"
+      },
+      {
+        "line": 421,
+        "text": "\t\t\tidx = device_links_read_lock();"
+      },
+      {
+        "line": 422,
+        "text": ""
+      },
+      {
+        "line": 423,
+        "text": "\t\t\t__rpm_put_suppliers(dev, false);"
+      },
+      {
+        "line": 424,
+        "text": ""
+      },
+      {
+        "line": 425,
+        "text": "fail:"
+      },
+      {
+        "line": 426,
+        "text": "\t\t\tdevice_links_read_unlock(idx);"
+      },
+      {
+        "line": 427,
+        "text": "\t\t}"
+      },
+      {
+        "line": 428,
+        "text": ""
+      },
+      {
+        "line": 429,
+        "text": "\t\tspin_lock_irq(&dev->power.lock);"
+      },
+      {
+        "line": 1216,
+        "text": " * Otherwise, return 0 without changing the usage counter."
+      },
+      {
+        "line": 1217,
+        "text": " *"
+      },
+      {
+        "line": 1218,
+        "text": " * If @ign_usage_count is %true, this function can be used to prevent suspending"
+      },
+      {
+        "line": 1219,
+        "text": " * the device when its runtime PM status is %RPM_ACTIVE."
+      },
+      {
+        "line": 1220,
+        "text": " *"
+      },
+      {
+        "line": 1221,
+        "text": " * If @ign_usage_count is %false, this function can be used to prevent"
+      },
+      {
+        "line": 1222,
+        "text": " * suspending the device when both its runtime PM status is %RPM_ACTIVE and its"
+      },
+      {
+        "line": 1223,
+        "text": " * runtime PM usage counter is not zero."
+      },
+      {
+        "line": 1224,
+        "text": " *"
+      },
+      {
+        "line": 1225,
+        "text": " * The caller is responsible for decrementing the runtime PM usage counter of"
+      },
+      {
+        "line": 1226,
+        "text": " * @dev after this function has returned a positive value for it."
+      },
+      {
+        "line": 1227,
+        "text": " */"
+      },
+      {
+        "line": 1228,
+        "text": "static int pm_runtime_get_conditional(struct device *dev, bool ign_usage_count)"
+      },
+      {
+        "line": 1229,
+        "text": "{"
+      },
+      {
+        "line": 1230,
+        "text": "\tunsigned long flags;"
+      },
+      {
+        "line": 1231,
+        "text": "\tint retval;"
+      },
+      {
+        "line": 1232,
+        "text": ""
+      },
+      {
+        "line": 1233,
+        "text": "\tspin_lock_irqsave(&dev->power.lock, flags);"
+      },
+      {
+        "line": 1234,
+        "text": "\tif (dev->power.disable_depth > 0) {"
+      },
+      {
+        "line": 1235,
+        "text": "\t\tretval = -EINVAL;"
+      },
+      {
+        "line": 1236,
+        "text": "\t} else if (dev->power.runtime_status != RPM_ACTIVE) {"
+      },
+      {
+        "line": 1237,
+        "text": "\t\tretval = 0;"
+      },
+      {
+        "line": 1238,
+        "text": "\t} else if (ign_usage_count || (!dev->power.ignore_children &&"
+      },
+      {
+        "line": 1239,
+        "text": "\t\t   atomic_read(&dev->power.child_count) > 0)) {"
+      },
+      {
+        "line": 1240,
+        "text": "\t\tretval = 1;"
+      },
+      {
+        "line": 1241,
+        "text": "\t\tatomic_inc(&dev->power.usage_count);"
+      },
+      {
+        "line": 1242,
+        "text": "\t} else {"
+      },
+      {
+        "line": 1243,
+        "text": "\t\tretval = atomic_inc_not_zero(&dev->power.usage_count);"
+      },
+      {
+        "line": 1244,
+        "text": "\t}"
+      },
+      {
+        "line": 1245,
+        "text": "\ttrace_rpm_usage(dev, 0);"
+      },
+      {
+        "line": 1246,
+        "text": "\tspin_unlock_irqrestore(&dev->power.lock, flags);"
+      },
+      {
+        "line": 1247,
+        "text": ""
+      },
+      {
+        "line": 1248,
+        "text": "\treturn retval;"
+      },
+      {
+        "line": 1249,
+        "text": "}"
+      },
+      {
+        "line": 1250,
+        "text": ""
+      },
+      {
+        "line": 1251,
+        "text": "/**"
+      },
+      {
+        "line": 1252,
+        "text": " * pm_runtime_get_if_active - Bump up runtime PM usage counter if the device is"
+      },
+      {
+        "line": 1253,
+        "text": " *\t\t\t      in active state"
+      },
+      {
+        "line": 1254,
+        "text": " * @dev: Target device."
+      },
+      {
+        "line": 1255,
+        "text": " *"
+      },
+      {
+        "line": 1256,
+        "text": " * Increment the runtime PM usage counter of @dev if its runtime PM status is"
+      },
+      {
+        "line": 1257,
+        "text": " * %RPM_ACTIVE, in which case it returns 1. If the device is in a different"
+      },
+      {
+        "line": 1258,
+        "text": " * state, 0 is returned. -EINVAL is returned if runtime PM is disabled for the"
+      },
+      {
+        "line": 1259,
+        "text": " * device, in which case also the usage_count will remain unmodified."
+      },
+      {
+        "line": 1260,
+        "text": " */"
+      },
+      {
+        "line": 1261,
+        "text": "int pm_runtime_get_if_active(struct device *dev)"
+      },
+      {
+        "line": 1262,
+        "text": "{"
+      },
+      {
+        "line": 1263,
+        "text": "\treturn pm_runtime_get_conditional(dev, true);"
+      },
+      {
+        "line": 1264,
+        "text": "}"
+      },
+      {
+        "line": 1265,
+        "text": "EXPORT_SYMBOL_GPL(pm_runtime_get_if_active);"
+      },
+      {
+        "line": 1416,
+        "text": " * __pm_runtime_barrier - Cancel pending requests and wait for completions."
+      },
+      {
+        "line": 1417,
+        "text": " * @dev: Device to handle."
+      },
+      {
+        "line": 1418,
+        "text": " *"
+      },
+      {
+        "line": 1419,
+        "text": " * Flush all pending requests for the device from pm_wq and wait for all"
+      },
+      {
+        "line": 1420,
+        "text": " * runtime PM operations involving the device in progress to complete."
+      },
+      {
+        "line": 1421,
+        "text": " *"
+      },
+      {
+        "line": 1422,
+        "text": " * Should be called under dev->power.lock with interrupts disabled."
+      },
+      {
+        "line": 1423,
+        "text": " */"
+      },
+      {
+        "line": 1424,
+        "text": "static void __pm_runtime_barrier(struct device *dev)"
+      },
+      {
+        "line": 1425,
+        "text": "{"
+      },
+      {
+        "line": 1426,
+        "text": "\tpm_runtime_deactivate_timer(dev);"
+      },
+      {
+        "line": 1427,
+        "text": ""
+      },
+      {
+        "line": 1428,
+        "text": "\tif (dev->power.request_pending) {"
+      },
+      {
+        "line": 1429,
+        "text": "\t\tdev->power.request = RPM_REQ_NONE;"
+      },
+      {
+        "line": 1430,
+        "text": "\t\tspin_unlock_irq(&dev->power.lock);"
+      },
+      {
+        "line": 1431,
+        "text": ""
+      },
+      {
+        "line": 1432,
+        "text": "\t\tcancel_work_sync(&dev->power.work);"
+      },
+      {
+        "line": 1433,
+        "text": ""
+      },
+      {
+        "line": 1434,
+        "text": "\t\tspin_lock_irq(&dev->power.lock);"
+      },
+      {
+        "line": 1435,
+        "text": "\t\tdev->power.request_pending = false;"
+      },
+      {
+        "line": 1436,
+        "text": "\t}"
+      },
+      {
+        "line": 1437,
+        "text": ""
+      },
+      {
+        "line": 1438,
+        "text": "\tif (dev->power.runtime_status == RPM_SUSPENDING ||"
+      },
+      {
+        "line": 1439,
+        "text": "\t    dev->power.runtime_status == RPM_RESUMING ||"
+      },
+      {
+        "line": 1440,
+        "text": "\t    dev->power.idle_notification) {"
+      },
+      {
+        "line": 1441,
+        "text": "\t\tDEFINE_WAIT(wait);"
+      },
+      {
+        "line": 1442,
+        "text": ""
+      },
+      {
+        "line": 1443,
+        "text": "\t\t/* Suspend, wake-up or idle notification in progress. */"
+      },
+      {
+        "line": 1444,
+        "text": "\t\tfor (;;) {"
+      },
+      {
+        "line": 1445,
+        "text": "\t\t\tprepare_to_wait(&dev->power.wait_queue, &wait,"
+      },
+      {
+        "line": 1446,
+        "text": "\t\t\t\t\tTASK_UNINTERRUPTIBLE);"
+      },
+      {
+        "line": 1447,
+        "text": "\t\t\tif (dev->power.runtime_status != RPM_SUSPENDING"
+      },
+      {
+        "line": 1448,
+        "text": "\t\t\t    && dev->power.runtime_status != RPM_RESUMING"
+      },
+      {
+        "line": 1449,
+        "text": "\t\t\t    && !dev->power.idle_notification)"
+      },
+      {
+        "line": 1450,
+        "text": "\t\t\t\tbreak;"
+      },
+      {
+        "line": 1451,
+        "text": "\t\t\tspin_unlock_irq(&dev->power.lock);"
+      },
+      {
+        "line": 1452,
+        "text": ""
+      },
+      {
+        "line": 1453,
+        "text": "\t\t\tschedule();"
+      },
+      {
+        "line": 1454,
+        "text": ""
+      },
+      {
+        "line": 1455,
+        "text": "\t\t\tspin_lock_irq(&dev->power.lock);"
+      },
+      {
+        "line": 1456,
+        "text": "\t\t}"
+      },
+      {
+        "line": 1457,
+        "text": "\t\tfinish_wait(&dev->power.wait_queue, &wait);"
+      },
+      {
+        "line": 1458,
+        "text": "\t}"
+      },
+      {
+        "line": 1459,
+        "text": "}"
+      },
+      {
+        "line": 1460,
+        "text": ""
+      },
+      {
+        "line": 1461,
+        "text": "/**"
+      },
+      {
+        "line": 1462,
+        "text": " * pm_runtime_barrier - Flush pending requests and wait for completions."
+      },
+      {
+        "line": 1463,
+        "text": " * @dev: Device to handle."
+      },
+      {
+        "line": 1512,
+        "text": "void __pm_runtime_disable(struct device *dev, bool check_resume)"
+      },
+      {
+        "line": 1513,
+        "text": "{"
+      },
+      {
+        "line": 1514,
+        "text": "\tspin_lock_irq(&dev->power.lock);"
+      },
+      {
+        "line": 1515,
+        "text": ""
+      },
+      {
+        "line": 1516,
+        "text": "\tif (dev->power.disable_depth > 0) {"
+      },
+      {
+        "line": 1517,
+        "text": "\t\tdev->power.disable_depth++;"
+      },
+      {
+        "line": 1518,
+        "text": "\t\tgoto out;"
+      },
+      {
+        "line": 1519,
+        "text": "\t}"
+      },
+      {
+        "line": 1520,
+        "text": ""
+      },
+      {
+        "line": 1521,
+        "text": "\t/*"
+      },
+      {
+        "line": 1522,
+        "text": "\t * Wake up the device if there's a resume request pending, because that"
+      },
+      {
+        "line": 1523,
+        "text": "\t * means there probably is some I/O to process and disabling runtime PM"
+      },
+      {
+        "line": 1524,
+        "text": "\t * shouldn't prevent the device from processing the I/O."
+      },
+      {
+        "line": 1525,
+        "text": "\t */"
+      },
+      {
+        "line": 1526,
+        "text": "\tif (check_resume && dev->power.request_pending &&"
+      },
+      {
+        "line": 1527,
+        "text": "\t    dev->power.request == RPM_REQ_RESUME) {"
+      },
+      {
+        "line": 1528,
+        "text": "\t\t/*"
+      },
+      {
+        "line": 1529,
+        "text": "\t\t * Prevent suspends and idle notifications from being carried"
+      },
+      {
+        "line": 1530,
+        "text": "\t\t * out after we have woken up the device."
+      },
+      {
+        "line": 1531,
+        "text": "\t\t */"
+      },
+      {
+        "line": 1532,
+        "text": "\t\tpm_runtime_get_noresume(dev);"
+      },
+      {
+        "line": 1533,
+        "text": ""
+      },
+      {
+        "line": 1534,
+        "text": "\t\trpm_resume(dev, 0);"
+      },
+      {
+        "line": 1535,
+        "text": ""
+      },
+      {
+        "line": 1536,
+        "text": "\t\tpm_runtime_put_noidle(dev);"
+      },
+      {
+        "line": 1537,
+        "text": "\t}"
+      },
+      {
+        "line": 1538,
+        "text": ""
+      },
+      {
+        "line": 1539,
+        "text": "\t/* Update time accounting before disabling PM-runtime. */"
+      },
+      {
+        "line": 1540,
+        "text": "\tupdate_pm_runtime_accounting(dev);"
+      },
+      {
+        "line": 1541,
+        "text": ""
+      },
+      {
+        "line": 1542,
+        "text": "\tif (!dev->power.disable_depth++) {"
+      },
+      {
+        "line": 1543,
+        "text": "\t\t__pm_runtime_barrier(dev);"
+      },
+      {
+        "line": 1544,
+        "text": "\t\tdev->power.last_status = dev->power.runtime_status;"
+      },
+      {
+        "line": 1545,
+        "text": "\t}"
+      },
+      {
+        "line": 1546,
+        "text": ""
+      },
+      {
+        "line": 1547,
+        "text": " out:"
+      },
+      {
+        "line": 1548,
+        "text": "\tspin_unlock_irq(&dev->power.lock);"
+      },
+      {
+        "line": 1549,
+        "text": "}"
+      },
+      {
+        "line": 1550,
+        "text": "EXPORT_SYMBOL_GPL(__pm_runtime_disable);"
+      },
+      {
+        "line": 1617,
+        "text": "}"
+      },
+      {
+        "line": 1618,
+        "text": ""
+      },
+      {
+        "line": 1619,
+        "text": "/**"
+      },
+      {
+        "line": 1620,
+        "text": " * devm_pm_runtime_enable - devres-enabled version of pm_runtime_enable."
+      },
+      {
+        "line": 1621,
+        "text": " *"
+      },
+      {
+        "line": 1622,
+        "text": " * NOTE: this will also handle calling pm_runtime_dont_use_autosuspend() for"
+      },
+      {
+        "line": 1623,
+        "text": " * you at driver exit time if needed."
+      },
+      {
+        "line": 1624,
+        "text": " *"
+      },
+      {
+        "line": 1625,
+        "text": " * @dev: Device to handle."
+      },
+      {
+        "line": 1626,
+        "text": " */"
+      },
+      {
+        "line": 1627,
+        "text": "int devm_pm_runtime_enable(struct device *dev)"
+      },
+      {
+        "line": 1628,
+        "text": "{"
+      },
+      {
+        "line": 1629,
+        "text": "\tpm_runtime_enable(dev);"
+      },
+      {
+        "line": 1630,
+        "text": ""
+      },
+      {
+        "line": 1631,
+        "text": "\treturn devm_add_action_or_reset(dev, pm_runtime_disable_action, dev);"
+      },
+      {
+        "line": 1632,
+        "text": "}"
+      },
+      {
+        "line": 1633,
+        "text": "EXPORT_SYMBOL_GPL(devm_pm_runtime_enable);"
+      },
+      {
+        "line": 1634,
+        "text": ""
+      },
+      {
+        "line": 1635,
+        "text": "static void pm_runtime_put_noidle_action(void *data)"
+      }
+    ]
+  },
+  "include/linux/pm_runtime.h": {
+    "sha256": "1c1383101d72ce3028df6d9ad3640c2020a041f5c1820b1698d1657b648b04f6",
+    "lines": [
+      {
+        "line": 118,
+        "text": " * @dev: Target device."
+      },
+      {
+        "line": 119,
+        "text": " */"
+      },
+      {
+        "line": 120,
+        "text": "static inline void pm_runtime_get_noresume(struct device *dev)"
+      },
+      {
+        "line": 121,
+        "text": "{"
+      },
+      {
+        "line": 122,
+        "text": "\tatomic_inc(&dev->power.usage_count);"
+      },
+      {
+        "line": 123,
+        "text": "}"
+      },
+      {
+        "line": 124,
+        "text": ""
+      },
+      {
+        "line": 125,
+        "text": "/**"
+      },
+      {
+        "line": 126,
+        "text": " * pm_runtime_put_noidle - Drop runtime PM usage counter of a device."
+      },
+      {
+        "line": 127,
+        "text": " * @dev: Target device."
+      },
+      {
+        "line": 128,
+        "text": " *"
+      },
+      {
+        "line": 129,
+        "text": " * Decrement the runtime PM usage counter of @dev unless it is 0 already."
+      },
+      {
+        "line": 130,
+        "text": " */"
+      },
+      {
+        "line": 131,
+        "text": "static inline void pm_runtime_put_noidle(struct device *dev)"
+      },
+      {
+        "line": 132,
+        "text": "{"
+      },
+      {
+        "line": 133,
+        "text": "\tatomic_add_unless(&dev->power.usage_count, -1, 0);"
+      },
+      {
+        "line": 134,
+        "text": "}"
+      },
+      {
+        "line": 135,
+        "text": ""
+      },
+      {
+        "line": 136,
+        "text": "/**"
+      },
+      {
+        "line": 137,
+        "text": " * pm_runtime_suspended - Check whether or not a device is runtime-suspended."
+      },
+      {
+        "line": 537,
+        "text": "static inline int pm_runtime_resume_and_get(struct device *dev)"
+      },
+      {
+        "line": 538,
+        "text": "{"
+      },
+      {
+        "line": 539,
+        "text": "\treturn pm_runtime_get_active(dev, 0);"
+      },
+      {
+        "line": 540,
+        "text": "}"
+      },
+      {
+        "line": 541,
+        "text": ""
+      },
+      {
+        "line": 542,
+        "text": "/**"
+      },
+      {
+        "line": 543,
+        "text": " * pm_runtime_put - Drop device usage counter and queue up \"idle check\" if 0."
+      },
+      {
+        "line": 544,
+        "text": " * @dev: Target device."
+      },
+      {
+        "line": 545,
+        "text": " *"
+      },
+      {
+        "line": 546,
+        "text": " * Decrement the runtime PM usage counter of @dev and if it turns out to be"
+      },
+      {
+        "line": 547,
+        "text": " * equal to 0, queue up a work item for @dev like in pm_request_idle()."
+      },
+      {
+        "line": 548,
+        "text": " */"
+      },
+      {
+        "line": 549,
+        "text": "static inline void pm_runtime_put(struct device *dev)"
+      },
+      {
+        "line": 550,
+        "text": "{"
+      },
+      {
+        "line": 551,
+        "text": "\t__pm_runtime_idle(dev, RPM_GET_PUT | RPM_ASYNC);"
+      },
+      {
+        "line": 552,
+        "text": "}"
+      },
+      {
+        "line": 553,
+        "text": ""
+      },
+      {
+        "line": 554,
+        "text": "/**"
+      },
+      {
+        "line": 573,
+        "text": "static inline int __pm_runtime_put_autosuspend(struct device *dev)"
+      },
+      {
+        "line": 574,
+        "text": "{"
+      },
+      {
+        "line": 575,
+        "text": "\treturn __pm_runtime_suspend(dev, RPM_GET_PUT | RPM_ASYNC | RPM_AUTO);"
+      },
+      {
+        "line": 576,
+        "text": "}"
+      },
+      {
+        "line": 577,
+        "text": ""
+      },
+      {
+        "line": 578,
+        "text": "/**"
+      },
+      {
+        "line": 579,
+        "text": " * pm_runtime_put_autosuspend - Update the last access time of a device, drop"
+      },
+      {
+        "line": 580,
+        "text": " * its usage counter and queue autosuspend if the usage counter becomes 0."
+      },
+      {
+        "line": 581,
+        "text": " * @dev: Target device."
+      },
+      {
+        "line": 582,
+        "text": " *"
+      },
+      {
+        "line": 583,
+        "text": " * Update the last access time of @dev, decrement runtime PM usage counter of"
+      },
+      {
+        "line": 584,
+        "text": " * @dev and if it turns out to be equal to 0, queue up a work item for @dev like"
+      },
+      {
+        "line": 585,
+        "text": " * in pm_request_autosuspend()."
+      },
+      {
+        "line": 586,
+        "text": " *"
+      },
+      {
+        "line": 587,
+        "text": " * Return:"
+      },
+      {
+        "line": 588,
+        "text": " * * 1: Success. Usage counter dropped to zero, but device was already suspended."
+      },
+      {
+        "line": 589,
+        "text": " * * 0: Success."
+      },
+      {
+        "line": 590,
+        "text": " * * -EINVAL: Runtime PM error."
+      },
+      {
+        "line": 591,
+        "text": " * * -EACCES: Runtime PM disabled."
+      },
+      {
+        "line": 592,
+        "text": " * * -EAGAIN: Runtime PM usage counter became non-zero or Runtime PM status"
+      },
+      {
+        "line": 593,
+        "text": " *            change ongoing."
+      },
+      {
+        "line": 594,
+        "text": " * * -EBUSY: Runtime PM child_count non-zero."
+      },
+      {
+        "line": 595,
+        "text": " * * -EPERM: Device PM QoS resume latency 0."
+      },
+      {
+        "line": 596,
+        "text": " * * -EINPROGRESS: Suspend already in progress."
+      },
+      {
+        "line": 597,
+        "text": " * * -ENOSYS: CONFIG_PM not enabled."
+      },
+      {
+        "line": 598,
+        "text": " */"
+      },
+      {
+        "line": 599,
+        "text": "static inline int pm_runtime_put_autosuspend(struct device *dev)"
+      },
+      {
+        "line": 600,
+        "text": "{"
+      },
+      {
+        "line": 601,
+        "text": "\tpm_runtime_mark_last_busy(dev);"
+      },
+      {
+        "line": 602,
+        "text": "\treturn __pm_runtime_put_autosuspend(dev);"
+      },
+      {
+        "line": 603,
+        "text": "}"
+      }
+    ]
+  },
+  "drivers/phy/phy-core.c": {
+    "sha256": "2535dc20688c48082b30f2498a05931897dc7b5db902bb02c5f5322d31c80117",
+    "lines": [
+      {
+        "line": 270,
+        "text": "\t\treturn 0;"
+      },
+      {
+        "line": 271,
+        "text": ""
+      },
+      {
+        "line": 272,
+        "text": "\tret = phy_pm_runtime_get_sync(phy);"
+      },
+      {
+        "line": 273,
+        "text": "\tif (ret < 0 && ret != -ENOTSUPP)"
+      },
+      {
+        "line": 274,
+        "text": "\t\treturn ret;"
+      },
+      {
+        "line": 275,
+        "text": "\tret = 0; /* Override possible ret == -ENOTSUPP */"
+      },
+      {
+        "line": 276,
+        "text": ""
+      },
+      {
+        "line": 277,
+        "text": "\tmutex_lock(&phy->mutex);"
+      },
+      {
+        "line": 278,
+        "text": "\tif (phy->init_count == 1 && phy->ops->exit) {"
+      },
+      {
+        "line": 279,
+        "text": "\t\tret = phy->ops->exit(phy);"
+      },
+      {
+        "line": 280,
+        "text": "\t\tif (ret < 0) {"
+      },
+      {
+        "line": 281,
+        "text": "\t\t\tdev_err(&phy->dev, \"phy exit failed --> %d\\n\", ret);"
+      },
+      {
+        "line": 282,
+        "text": "\t\t\tgoto out;"
+      },
+      {
+        "line": 283,
+        "text": "\t\t}"
+      },
+      {
+        "line": 284,
+        "text": "\t}"
+      },
+      {
+        "line": 285,
+        "text": "\t--phy->init_count;"
+      },
+      {
+        "line": 286,
+        "text": ""
+      },
+      {
+        "line": 287,
+        "text": "out:"
+      },
+      {
+        "line": 288,
+        "text": "\tmutex_unlock(&phy->mutex);"
+      },
+      {
+        "line": 289,
+        "text": "\tphy_pm_runtime_put(phy);"
+      },
+      {
+        "line": 290,
+        "text": "\treturn ret;"
+      },
+      {
+        "line": 291,
+        "text": "}"
+      },
+      {
+        "line": 292,
+        "text": "EXPORT_SYMBOL_GPL(phy_exit);"
+      },
+      {
+        "line": 293,
+        "text": ""
+      },
+      {
+        "line": 294,
+        "text": "/**"
+      },
+      {
+        "line": 295,
+        "text": " * phy_power_on - Enable the phy and enter proper operation"
+      },
+      {
+        "line": 296,
+        "text": " * @phy: the phy returned by phy_get()"
+      },
+      {
+        "line": 297,
+        "text": " *"
+      },
+      {
+        "line": 298,
+        "text": " * Must be called after phy_init()."
+      },
+      {
+        "line": 299,
+        "text": " *"
+      },
+      {
+        "line": 300,
+        "text": " * Return: %0 if successful, a negative error code otherwise"
+      },
+      {
+        "line": 301,
+        "text": " */"
+      },
+      {
+        "line": 302,
+        "text": "int phy_power_on(struct phy *phy)"
+      },
+      {
+        "line": 303,
+        "text": "{"
+      },
+      {
+        "line": 304,
+        "text": "\tint ret = 0;"
+      },
+      {
+        "line": 305,
+        "text": ""
+      },
+      {
+        "line": 306,
+        "text": "\tif (!phy)"
+      },
+      {
+        "line": 307,
+        "text": "\t\tgoto out;"
+      },
+      {
+        "line": 308,
+        "text": ""
+      },
+      {
+        "line": 309,
+        "text": "\tif (phy->pwr) {"
+      },
+      {
+        "line": 310,
+        "text": "\t\tret = regulator_enable(phy->pwr);"
+      },
+      {
+        "line": 311,
+        "text": "\t\tif (ret)"
+      },
+      {
+        "line": 312,
+        "text": "\t\t\tgoto out;"
+      },
+      {
+        "line": 313,
+        "text": "\t}"
+      },
+      {
+        "line": 314,
+        "text": ""
+      },
+      {
+        "line": 315,
+        "text": "\tret = phy_pm_runtime_get_sync(phy);"
+      },
+      {
+        "line": 316,
+        "text": "\tif (ret < 0 && ret != -ENOTSUPP)"
+      },
+      {
+        "line": 317,
+        "text": "\t\tgoto err_pm_sync;"
+      },
+      {
+        "line": 318,
+        "text": ""
+      },
+      {
+        "line": 319,
+        "text": "\tret = 0; /* Override possible ret == -ENOTSUPP */"
+      },
+      {
+        "line": 320,
+        "text": ""
+      },
+      {
+        "line": 321,
+        "text": "\tmutex_lock(&phy->mutex);"
+      },
+      {
+        "line": 322,
+        "text": "\tif (phy->power_count == 0 && phy->ops->power_on) {"
+      },
+      {
+        "line": 323,
+        "text": "\t\tret = phy->ops->power_on(phy);"
+      },
+      {
+        "line": 324,
+        "text": "\t\tif (ret < 0) {"
+      },
+      {
+        "line": 325,
+        "text": "\t\t\tdev_err(&phy->dev, \"phy poweron failed --> %d\\n\", ret);"
+      },
+      {
+        "line": 326,
+        "text": "\t\t\tgoto err_pwr_on;"
+      },
+      {
+        "line": 327,
+        "text": "\t\t}"
+      },
+      {
+        "line": 328,
+        "text": "\t}"
+      },
+      {
+        "line": 329,
+        "text": "\t++phy->power_count;"
+      },
+      {
+        "line": 330,
+        "text": "\tmutex_unlock(&phy->mutex);"
+      },
+      {
+        "line": 331,
+        "text": "\treturn 0;"
+      },
+      {
+        "line": 332,
+        "text": ""
+      },
+      {
+        "line": 333,
+        "text": "err_pwr_on:"
+      },
+      {
+        "line": 334,
+        "text": "\tmutex_unlock(&phy->mutex);"
+      },
+      {
+        "line": 335,
+        "text": "\tphy_pm_runtime_put_sync(phy);"
+      },
+      {
+        "line": 336,
+        "text": "err_pm_sync:"
+      },
+      {
+        "line": 337,
+        "text": "\tif (phy->pwr)"
+      },
+      {
+        "line": 338,
+        "text": "\t\tregulator_disable(phy->pwr);"
+      },
+      {
+        "line": 339,
+        "text": "out:"
+      },
+      {
+        "line": 340,
+        "text": "\treturn ret;"
+      },
+      {
+        "line": 688,
+        "text": "\tget_device(&phy->dev);"
+      },
+      {
+        "line": 689,
+        "text": ""
+      },
+      {
+        "line": 690,
+        "text": "\treturn phy;"
+      },
+      {
+        "line": 691,
+        "text": "}"
+      },
+      {
+        "line": 692,
+        "text": "EXPORT_SYMBOL_GPL(of_phy_get);"
+      },
+      {
+        "line": 693,
+        "text": ""
+      },
+      {
+        "line": 694,
+        "text": "/**"
+      },
+      {
+        "line": 695,
+        "text": " * of_phy_put() - release the PHY"
+      },
+      {
+        "line": 696,
+        "text": " * @phy: the phy returned by of_phy_get()"
+      },
+      {
+        "line": 697,
+        "text": " *"
+      },
+      {
+        "line": 698,
+        "text": " * Releases a refcount the caller received from of_phy_get()."
+      },
+      {
+        "line": 699,
+        "text": " */"
+      },
+      {
+        "line": 700,
+        "text": "void of_phy_put(struct phy *phy)"
+      },
+      {
+        "line": 701,
+        "text": "{"
+      },
+      {
+        "line": 702,
+        "text": "\tif (!phy || IS_ERR(phy))"
+      },
+      {
+        "line": 703,
+        "text": "\t\treturn;"
+      },
+      {
+        "line": 704,
+        "text": ""
+      },
+      {
+        "line": 705,
+        "text": "\tmutex_lock(&phy->mutex);"
+      },
+      {
+        "line": 706,
+        "text": "\tif (phy->ops->release)"
+      },
+      {
+        "line": 707,
+        "text": "\t\tphy->ops->release(phy);"
+      },
+      {
+        "line": 708,
+        "text": "\tmutex_unlock(&phy->mutex);"
+      },
+      {
+        "line": 709,
+        "text": ""
+      },
+      {
+        "line": 710,
+        "text": "\tmodule_put(phy->ops->owner);"
+      },
+      {
+        "line": 711,
+        "text": "\tput_device(&phy->dev);"
+      },
+      {
+        "line": 712,
+        "text": "}"
+      },
+      {
+        "line": 713,
+        "text": "EXPORT_SYMBOL_GPL(of_phy_put);"
+      },
+      {
+        "line": 714,
+        "text": ""
+      },
+      {
+        "line": 715,
+        "text": "/**"
+      },
+      {
+        "line": 716,
+        "text": " * phy_put() - release the PHY"
+      },
+      {
+        "line": 717,
+        "text": " * @dev: device that wants to release this phy"
+      },
+      {
+        "line": 718,
+        "text": " * @phy: the phy returned by phy_get()"
+      },
+      {
+        "line": 719,
+        "text": " *"
+      },
+      {
+        "line": 720,
+        "text": " * Releases a refcount the caller received from phy_get()."
+      },
+      {
+        "line": 721,
+        "text": " */"
+      },
+      {
+        "line": 722,
+        "text": "void phy_put(struct device *dev, struct phy *phy)"
+      },
+      {
+        "line": 723,
+        "text": "{"
+      },
+      {
+        "line": 724,
+        "text": "\tdevice_link_remove(dev, &phy->dev);"
+      },
+      {
+        "line": 725,
+        "text": "\tof_phy_put(phy);"
+      },
+      {
+        "line": 726,
+        "text": "}"
+      },
+      {
+        "line": 727,
+        "text": "EXPORT_SYMBOL_GPL(phy_put);"
+      },
+      {
+        "line": 728,
+        "text": ""
+      },
+      {
+        "line": 729,
+        "text": "/**"
+      },
+      {
+        "line": 730,
+        "text": " * devm_phy_put() - release the PHY"
+      },
+      {
+        "line": 731,
+        "text": " * @dev: device that wants to release this phy"
+      },
+      {
+        "line": 732,
+        "text": " * @phy: the phy returned by devm_phy_get()"
+      },
+      {
+        "line": 733,
+        "text": " *"
+      },
+      {
+        "line": 734,
+        "text": " * destroys the devres associated with this phy and invokes phy_put"
+      },
+      {
+        "line": 735,
+        "text": " * to release the phy."
+      },
+      {
+        "line": 803,
+        "text": "\tif (IS_ERR(phy))"
+      },
+      {
+        "line": 804,
+        "text": "\t\treturn phy;"
+      },
+      {
+        "line": 805,
+        "text": ""
+      },
+      {
+        "line": 806,
+        "text": "\tif (!try_module_get(phy->ops->owner))"
+      },
+      {
+        "line": 807,
+        "text": "\t\treturn ERR_PTR(-EPROBE_DEFER);"
+      },
+      {
+        "line": 808,
+        "text": ""
+      },
+      {
+        "line": 809,
+        "text": "\tget_device(&phy->dev);"
+      },
+      {
+        "line": 810,
+        "text": ""
+      },
+      {
+        "line": 811,
+        "text": "\tlink = device_link_add(dev, &phy->dev, DL_FLAG_STATELESS);"
+      },
+      {
+        "line": 812,
+        "text": "\tif (!link)"
+      },
+      {
+        "line": 813,
+        "text": "\t\tdev_dbg(dev, \"failed to create device link to %s\\n\","
+      },
+      {
+        "line": 814,
+        "text": "\t\t\tdev_name(phy->dev.parent));"
+      },
+      {
+        "line": 815,
+        "text": ""
+      },
+      {
+        "line": 816,
+        "text": "\treturn phy;"
+      }
+    ]
+  },
+  "include/linux/device.h": {
+    "sha256": "0b969470fc9791cf21e4fb232d1bc8558a1bf8e56119ff5df427b07ca43891b1",
+    "lines": [
+      {
+        "line": 1102,
+        "text": "static inline void device_lock(struct device *dev)"
+      },
+      {
+        "line": 1103,
+        "text": "{"
+      },
+      {
+        "line": 1104,
+        "text": "\tmutex_lock(&dev->mutex);"
+      },
+      {
+        "line": 1105,
+        "text": "}"
+      },
+      {
+        "line": 1106,
+        "text": ""
+      },
+      {
+        "line": 1107,
+        "text": "static inline int device_lock_interruptible(struct device *dev)"
+      },
+      {
+        "line": 1108,
+        "text": "{"
+      },
+      {
+        "line": 1109,
+        "text": "\treturn mutex_lock_interruptible(&dev->mutex);"
+      },
+      {
+        "line": 1110,
+        "text": "}"
+      },
+      {
+        "line": 1111,
+        "text": ""
+      },
+      {
+        "line": 1112,
+        "text": "static inline int device_trylock(struct device *dev)"
+      },
+      {
+        "line": 1113,
+        "text": "{"
+      },
+      {
+        "line": 1114,
+        "text": "\treturn mutex_trylock(&dev->mutex);"
+      },
+      {
+        "line": 1115,
+        "text": "}"
+      },
+      {
+        "line": 1116,
+        "text": ""
+      },
+      {
+        "line": 1117,
+        "text": "static inline void device_unlock(struct device *dev)"
+      },
+      {
+        "line": 1118,
+        "text": "{"
+      },
+      {
+        "line": 1119,
+        "text": "\tmutex_unlock(&dev->mutex);"
+      },
+      {
+        "line": 1120,
+        "text": "}"
+      }
+    ]
+  },
+  "include/linux/device/devres.h": {
+    "sha256": "49ec364f41898a3c781d62fc2ead91f10340f0a6230e8efac524def0575b46ed",
+    "lines": [
+      {
+        "line": 169,
+        "text": "static inline int __devm_add_action_or_reset(struct device *dev, void (*action)(void *),"
+      },
+      {
+        "line": 170,
+        "text": "\t\t\t\t\t     void *data, const char *name)"
+      },
+      {
+        "line": 171,
+        "text": "{"
+      },
+      {
+        "line": 172,
+        "text": "\tint ret;"
+      },
+      {
+        "line": 173,
+        "text": ""
+      },
+      {
+        "line": 174,
+        "text": "\tret = __devm_add_action(dev, action, data, name);"
+      },
+      {
+        "line": 175,
+        "text": "\tif (ret)"
+      },
+      {
+        "line": 176,
+        "text": "\t\taction(data);"
+      },
+      {
+        "line": 177,
+        "text": ""
+      },
+      {
+        "line": 178,
+        "text": "\treturn ret;"
+      },
+      {
+        "line": 179,
+        "text": "}"
+      },
+      {
+        "line": 180,
+        "text": "#define devm_add_action_or_reset(dev, action, data) \\"
+      },
+      {
+        "line": 181,
+        "text": "\t__devm_add_action_or_reset(dev, action, data, #action)"
+      },
+      {
+        "line": 182,
+        "text": ""
+      }
+    ]
+  }
+}

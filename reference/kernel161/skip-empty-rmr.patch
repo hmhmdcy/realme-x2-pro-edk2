@@ -1,0 +1,24 @@
+Subject: [PATCH] iommu/arm-smmu: avoid disabling clients for an empty RMR list
+
+RMR setup disables client access before installing bypass stream mappings.
+Device-tree systems do not provide ACPI IORT RMR entries, but currently
+take the same client-disable path even when no entries are available.
+Avoid that unnecessary interruption to bootloader scanout. Keep the
+existing nonempty RMR setup and normal SMMU reset unchanged.
+
+---
+
+diff --git a/drivers/iommu/arm/arm-smmu/arm-smmu.c b/drivers/iommu/arm/arm-smmu/arm-smmu.c
+--- a/drivers/iommu/arm/arm-smmu/arm-smmu.c
++++ b/drivers/iommu/arm/arm-smmu/arm-smmu.c
+@@ -2077,6 +2077,10 @@
+ 	INIT_LIST_HEAD(&rmr_list);
+ 	iort_get_rmr_sids(dev_fwnode(smmu->dev), &rmr_list);
+ 
++	/* Do not disturb firmware clients when there are no RMRs to install. */
++	if (list_empty(&rmr_list))
++		return;
++
+ 	/*
+ 	 * Rather than trying to look at existing mappings that
+ 	 * are setup by the firmware and then invalidate the ones

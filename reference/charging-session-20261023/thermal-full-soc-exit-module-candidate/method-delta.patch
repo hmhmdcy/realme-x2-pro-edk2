@@ -1,0 +1,72 @@
+--- frozen-97c-builder/build-ko.py
++++ thermal-full-soc-exit/build-ko.py
+@@ -4,13 +4,13 @@
+ sys.dont_write_bytecode = True
+ HERE = Path(__file__).resolve().parent
+ REF = HERE.parents[1]
+-AUTHOR = HERE.parent/'charger-reattach-observation-candidate'
++AUTHOR = HERE.parent/'thermal-full-soc-exit-candidate'
+ R8 = HERE.parent/'r8-source-integration/kernel-sources/drivers/power/supply'
+ IMAGE = REF/'charging-ui-audit-20261023/gauge-image502-notify-candidate'
+ BASE = Path('/home/cy122/charging-management-20261023/gauge-image502-notify-01')
+-OUT = Path('/home/cy122/charging-management-20261023/charger-reattach-observation-module-01')
+-EXPORT = Path('/mnt/e/edk2-samurai-out/charging-management-20261023/charger-reattach-observation-module-private-01')
+-AUTHOR_DELIVERY = '6aa4d49a203258ae70f84308eb70119207e9aa1fa2ac5862ca9b88d7cf215138'
++OUT = Path('/home/cy122/charging-management-20261023/thermal-full-soc-exit-module-01')
++EXPORT = Path('/mnt/e/edk2-samurai-out/charging-management-20261023/thermal-full-soc-exit-module-private-01')
++AUTHOR_DELIVERY = '780e6591e09062da575910f1a771fd5a1605df416f79f8f9740298b844239e25'
+ def sha(p):
+     with Path(p).open('rb') as f: return hashlib.file_digest(f, 'sha256').hexdigest()
+ def save(p, value):
+@@ -29,17 +29,20 @@
+     baseline = json.loads((REF/'charging-management-20261023/thermal-bands-build-result.json').read_bytes())
+     assert baseline['passed'] and baseline['module_sha256'] == '10ec06fb9d798d72e08495617cfc04e7e49c77e536a12f205053e9cdbfa6297f'
+     for name, digest in baseline['sources'].items(): assert sha(R8/name) == digest
+-    paths = {name:R8/name for name in baseline['sources'] if name != 'samurai-mp2650.c'}
+-    paths['samurai-mp2650.c'] = AUTHOR/'samurai-mp2650.c'
++    paths = {name:R8/name for name in baseline['sources']}
++    for name in ['samurai-mp2650.c','mp2650-core.h','oem-full-cycle.h']:
++        assert name in delivery['files']; paths[name] = AUTHOR/name
++    reattach = HERE.parent/'charger-reattach-observation-candidate'
++    assert sha(reattach/'delivery.json') == '6aa4d49a203258ae70f84308eb70119207e9aa1fa2ac5862ca9b88d7cf215138'
++    assert sha(reattach/'reattach-observation.h') == '49cb61042d431492d91ccad917f197cbbe2fff58bc53e378aeb92c573e9666c1'
++    paths['reattach-observation.h'] = reattach/'reattach-observation.h'
+     includes = set(re.findall(r'^#include "([a-z0-9-]+\.h)"', paths['samurai-mp2650.c'].read_text(), re.M))
+-    added = includes-set(paths); assert len(added)==1
+-    for name in added:
+-        assert name in delivery['files']; paths[name] = AUTHOR/name
++    assert not includes-set(paths),includes-set(paths)
+     return paths
+ 
+ def main():
+     paths = source_inputs()
+-    if sys.argv[1:] == ['--check-local']:
++    if sys.argv[1:] in ([], ['--check-local']):
+         print(json.dumps({'passed':True,'source_files':list(paths),'hardware_access':False})); return
+     assert sys.argv[1:] == ['--execute'] and os.geteuid()==0
+     assert not OUT.exists() and not EXPORT.exists() and not (HERE/'ko-result.json').exists(), 'Unique output exists; inspect original process, do not replay'
+@@ -63,9 +66,15 @@
+     old_module=Path('/home/cy122/charging-management-20261023/thermal-bands-candidate/kbuild/drivers/power/supply/samurai-mp2650.ko')
+     assert sha(old_module)=='10ec06fb9d798d72e08495617cfc04e7e49c77e536a12f205053e9cdbfa6297f'
+     tracked.append(old_module)
++    original97c=Path('/mnt/e/edk2-samurai-out/charging-management-20261023/charger-reattach-observation-module-private-01/samurai-mp2650-reattach-observation-private.ko')
++    assert sha(original97c)=='97c16c3dc0b458fa4d2c686912ffdf805b899abfb846201767843a0348cbffdd'
++    tracked += [original97c,HERE.parent/'charger-reattach-observation-candidate/reattach-observation.h',
++                Path('/mnt/e/edk2-samurai-out/charging-management-20261023/charger-reattach-observation-payload-private-01/forward-two-files.tar.gz'),
++                Path('/mnt/e/edk2-samurai-out/charging-management-20261023/charger-reattach-observation-payload-private-01/manifest-new.json')]
+     before={str(p):sha(p) for p in tracked}
+     OUT.mkdir(mode=0o700); source=OUT/'source-view'; build=OUT/'kbuild'
+     result={'passed':False,'source_delivery_sha256':AUTHOR_DELIVERY,'sources':{n:sha(p) for n,p in paths.items()},
++            'old11groups91assertions_reused_not_rerun':True,'current97c_or_manifest_changed':False,
+             'device_access':False,'installed':False,'new_Image':False,'SDK_used':False,'commands':[],'before':before}
+     try:
+         def branch(src,dst,branches):
+@@ -115,7 +124,7 @@
+         assert all(len(r)==2 and r[0]=='U' and r[1] in exports for r in undefined)
+         imports={r[1]:exports[r[1]] for r in undefined};save(OUT/'Image502-import-map.json',imports)
+         module_note,build_id=util.note(ko.read_bytes());(OUT/'note.gnu.build-id').write_bytes(module_note)
+-        EXPORT.mkdir(mode=0o700);private=EXPORT/'samurai-mp2650-reattach-observation-private.ko';shutil.copy2(ko,private)
++        EXPORT.mkdir(mode=0o700);private=EXPORT/'samurai-mp2650-thermal-full-soc-exit-private.ko';shutil.copy2(ko,private)
+         shutil.copy2(OUT/'note.gnu.build-id',EXPORT/'note.gnu.build-id'); assert sha(private)==sha(ko)
+         assert all(sha(supply/name)==sha(p) for name,p in paths.items())
+         result.update(passed=True,module_path=str(ko),private_module_path=str(private),module_sha256=sha(ko),module_bytes=ko.stat().st_size,

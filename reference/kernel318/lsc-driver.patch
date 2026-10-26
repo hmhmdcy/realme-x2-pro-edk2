@@ -1,0 +1,455 @@
+diff --git a/drivers/media/platform/qcom/camss/Makefile b/drivers/media/platform/qcom/camss/Makefile
+index f68cb16f9..1fa700903 100644
+--- a/drivers/media/platform/qcom/camss/Makefile
++++ b/drivers/media/platform/qcom/camss/Makefile
+@@ -26,6 +26,7 @@ qcom-camss-objs += \
+ 		camss-vfe-175-camif.o \
+ 		camss-vfe-175-output.o \
+ 		camss-vfe-175-pixel.o \
++		camss-vfe-175-lsc.o \
+ 		camss-vfe-175-stats.o \
+ 		camss-vfe-175-demosaic.o \
+ 		camss-vfe-175-cst.o \
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe-175-lsc.c b/drivers/media/platform/qcom/camss/camss-vfe-175-lsc.c
+new file mode 100644
+index 000000000..8bf29c88c
+--- /dev/null
++++ b/drivers/media/platform/qcom/camss/camss-vfe-175-lsc.c
+@@ -0,0 +1,195 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/* VFE175 regular mesh lens shading: no module tuning or calibration policy. */
++
++#include <linux/bitfield.h>
++#include <linux/io.h>
++#include <linux/qcom-camss-config.h>
++#include <linux/string.h>
++
++#include "camss.h"
++#include "camss-vfe.h"
++#include "camss-vfe-175-lsc.h"
++
++#define LENS_CGC_OVERRIDE	0x02c
++#define LENS_ENABLE		0x040
++#define LSC_ENABLE		BIT(8)
++#define LSC_CFG			0x6bc
++#define LSC_BANK			BIT(16)
++#define LSC_COLUMNS		GENMASK(23, 18)
++#define LSC_ROWS			GENMASK(29, 24)
++#define LSC_GRID0		0x6c0
++#define LSC_GRID1		0x6c4
++#define LSC_GRID2		0x6c8
++#define LSC_RIGHT_GRID0		0x6cc
++#define LSC_RIGHT_GRID1		0x6d0
++#define LSC_RIGHT_GRID2		0x6d4
++#define LSC_STRIPE0		0x6d8
++#define LSC_STRIPE1		0x6dc
++#define LSC_RIGHT_STRIPE0		0x6e0
++#define LSC_RIGHT_STRIPE1		0x6e4
++#define DMI_CFG			0xc24
++#define DMI_ADDR			0xc28
++#define DMI_DATA_LO		0xc30
++#define DMI_SELECT		GENMASK(7, 0)
++#define LSC_GAIN_MASK		GENMASK(12, 0)
++
++static void lsc_enable(struct vfe_device *vfe, bool enable)
++{
++	u32 value = readl_relaxed(vfe->base + LENS_ENABLE);
++
++	value &= ~LSC_ENABLE;
++	if (enable)
++		value |= LSC_ENABLE;
++	writel_relaxed(value, vfe->base + LENS_ENABLE);
++}
++
++int vfe_175_lsc_validate(struct device *dev,
++			 const struct v4l2_isp_block_header *block)
++{
++	const struct camss_params_lsc *lsc;
++	unsigned int scale, channel, point;
++
++	if (block->flags & ~(V4L2_ISP_PARAMS_FL_BLOCK_ENABLE |
++			     V4L2_ISP_PARAMS_FL_BLOCK_DISABLE) ||
++	    block->flags == (V4L2_ISP_PARAMS_FL_BLOCK_ENABLE |
++			     V4L2_ISP_PARAMS_FL_BLOCK_DISABLE))
++		return -EINVAL;
++	if (block->flags & V4L2_ISP_PARAMS_FL_BLOCK_DISABLE)
++		return 0;
++	lsc = container_of(block, struct camss_params_lsc, header);
++	if (lsc->subdivision > 3 || memchr_inv(lsc->_pad, 0, sizeof(lsc->_pad)))
++		return -EINVAL;
++	scale = 1U << lsc->subdivision;
++	if (lsc->cell_width < 18 || lsc->cell_width > 2048 ||
++	    lsc->cell_height < 9 || lsc->cell_height > 1024 ||
++	    lsc->cell_width % scale || lsc->cell_height % scale ||
++	    lsc->cell_width / scale < 9 || lsc->cell_height / scale < 9 ||
++	    lsc->x_start >= (CAMSS_LSC_MESH_WIDTH - 1) * lsc->cell_width ||
++	    lsc->y_start >= (CAMSS_LSC_MESH_HEIGHT - 1) * lsc->cell_height)
++		return -EINVAL;
++	for (channel = 0; channel < CAMSS_LSC_CHANNELS; channel++)
++		for (point = 0; point < CAMSS_LSC_MESH_POINTS; point++)
++			if (lsc->gains[channel][point] < 1024 ||
++			    lsc->gains[channel][point] > LSC_GAIN_MASK)
++				return -EINVAL;
++	return 0;
++}
++
++int vfe_175_params_validate_line(struct vfe_line *line,
++				 const struct v4l2_isp_buffer *params)
++{
++	size_t offset = 0;
++
++	/* Common validation has already checked every block's bounds and type. */
++	while (offset < params->data_size) {
++		const struct v4l2_isp_block_header *block =
++			(const void *)&params->data[offset];
++
++		if (block->type == CAMSS_PARAMS_LSC &&
++		    !(block->flags & V4L2_ISP_PARAMS_FL_BLOCK_DISABLE)) {
++			const struct camss_params_lsc *lsc =
++				container_of(block, struct camss_params_lsc, header);
++			const struct v4l2_mbus_framefmt *format =
++				&line->fmt[MSM_VFE_PAD_SINK];
++
++			if (!format->width || !format->height ||
++			    lsc->x_start + DIV_ROUND_UP(format->width, 2) >
++				(CAMSS_LSC_MESH_WIDTH - 1) * lsc->cell_width ||
++			    lsc->y_start + DIV_ROUND_UP(format->height, 2) >
++				(CAMSS_LSC_MESH_HEIGHT - 1) * lsc->cell_height)
++				return -EINVAL;
++		}
++		offset += block->size;
++	}
++	return 0;
++}
++
++void vfe_175_lsc_params(struct vfe_device *vfe,
++			const struct v4l2_isp_block_header *block)
++{
++	const struct camss_params_lsc *lsc;
++	u32 dmi_cfg, dmi_addr, cgc, config, grid0, grid1, grid2, stripe0, stripe1;
++	u32 sw, sh, dx, dy, x, y, bx, by, sx, sy, px, py;
++	unsigned int table, i;
++	u8 bank;
++
++	if (block->flags & V4L2_ISP_PARAMS_FL_BLOCK_DISABLE) {
++		vfe->pixel175.lsc_enabled = false;
++		lsc_enable(vfe, false);
++		return;
++	}
++	lsc = container_of(block, struct camss_params_lsc, header);
++	sw = lsc->cell_width >> lsc->subdivision;
++	sh = lsc->cell_height >> lsc->subdivision;
++	dx = BIT(20) / sw;
++	dy = BIT(20) / sh;
++	bx = lsc->x_start / lsc->cell_width;
++	by = lsc->y_start / lsc->cell_height;
++	x = lsc->x_start % lsc->cell_width;
++	y = lsc->y_start % lsc->cell_height;
++	sx = x / sw;
++	sy = y / sh;
++	px = x % sw;
++	py = y % sh;
++	grid0 = (lsc->cell_width - 1) | (lsc->cell_height - 1) << 16;
++	grid1 = (sh - 1) | dy << 12 | (u32)lsc->subdivision << 30;
++	grid2 = (sw - 1) | dx << 12;
++	stripe0 = bx | by << 6 | (dy * py) << 12;
++	stripe1 = px | py << 12 | sx << 24 | sy << 28;
++	bank = !vfe->pixel175.lsc_bank;
++	dmi_cfg = readl_relaxed(vfe->base + DMI_CFG);
++	dmi_addr = readl_relaxed(vfe->base + DMI_ADDR);
++	cgc = readl_relaxed(vfe->base + LENS_CGC_OVERRIDE);
++	writel(cgc | LSC_ENABLE, vfe->base + LENS_CGC_OVERRIDE);
++	/* output_lock serializes parameters; Gamma only uses DMI before PIX starts. */
++	for (table = 0; table < 2; table++) {
++		u32 selector = (bank ? 18 : 14) + table;
++
++		writel((dmi_cfg & ~DMI_SELECT) | selector, vfe->base + DMI_CFG);
++		for (i = 0; i < CAMSS_LSC_MESH_POINTS; i++) {
++			u32 value;
++
++			if (!table)
++				value = lsc->gains[0][i] | (u32)lsc->gains[1][i] << 13;
++			else
++				value = lsc->gains[3][i] | (u32)lsc->gains[2][i] << 13;
++			writel(i, vfe->base + DMI_ADDR);
++			writel(value, vfe->base + DMI_DATA_LO);
++		}
++	}
++	writel(dmi_cfg, vfe->base + DMI_CFG);
++	writel(dmi_addr, vfe->base + DMI_ADDR);
++	wmb();
++	config = FIELD_PREP(LSC_COLUMNS, CAMSS_LSC_MESH_WIDTH - 2) |
++		 FIELD_PREP(LSC_ROWS, CAMSS_LSC_MESH_HEIGHT - 2) |
++		 (bank ? LSC_BANK : 0);
++	writel_relaxed(config, vfe->base + LSC_CFG);
++	writel_relaxed(grid0, vfe->base + LSC_GRID0);
++	writel_relaxed(grid1, vfe->base + LSC_GRID1);
++	writel_relaxed(grid2, vfe->base + LSC_GRID2);
++	writel_relaxed(grid0, vfe->base + LSC_RIGHT_GRID0);
++	writel_relaxed(grid1, vfe->base + LSC_RIGHT_GRID1);
++	writel_relaxed(grid2, vfe->base + LSC_RIGHT_GRID2);
++	writel_relaxed(stripe0, vfe->base + LSC_STRIPE0);
++	writel_relaxed(stripe1, vfe->base + LSC_STRIPE1);
++	writel_relaxed(stripe0, vfe->base + LSC_RIGHT_STRIPE0);
++	writel_relaxed(stripe1, vfe->base + LSC_RIGHT_STRIPE1);
++	wmb();
++	writel(cgc, vfe->base + LENS_CGC_OVERRIDE);
++	vfe->pixel175.lsc_bank = bank;
++	if (block->flags & V4L2_ISP_PARAMS_FL_BLOCK_ENABLE)
++		vfe->pixel175.lsc_enabled = true;
++	lsc_enable(vfe, vfe->pixel175.lsc_enabled);
++}
++
++void vfe_175_lsc_init(struct vfe_device *vfe)
++{
++	vfe->pixel175.lsc_bank = !!(readl_relaxed(vfe->base + LSC_CFG) & LSC_BANK);
++	vfe_175_lsc_stop(vfe);
++}
++
++void vfe_175_lsc_stop(struct vfe_device *vfe)
++{
++	vfe->pixel175.lsc_enabled = false;
++	lsc_enable(vfe, false);
++}
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe-175-lsc.h b/drivers/media/platform/qcom/camss/camss-vfe-175-lsc.h
+new file mode 100644
+index 000000000..facf5e5e5
+--- /dev/null
++++ b/drivers/media/platform/qcom/camss/camss-vfe-175-lsc.h
+@@ -0,0 +1,20 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++#ifndef CAMSS_VFE_175_LSC_H
++#define CAMSS_VFE_175_LSC_H
++
++struct device;
++struct vfe_device;
++struct vfe_line;
++struct v4l2_isp_block_header;
++struct v4l2_isp_buffer;
++
++int vfe_175_lsc_validate(struct device *dev,
++			 const struct v4l2_isp_block_header *block);
++int vfe_175_params_validate_line(struct vfe_line *line,
++				 const struct v4l2_isp_buffer *params);
++void vfe_175_lsc_params(struct vfe_device *vfe,
++			const struct v4l2_isp_block_header *block);
++void vfe_175_lsc_init(struct vfe_device *vfe);
++void vfe_175_lsc_stop(struct vfe_device *vfe);
++
++#endif
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe-175-pixel.c b/drivers/media/platform/qcom/camss/camss-vfe-175-pixel.c
+index 252f37189..79eb01c0d 100644
+--- a/drivers/media/platform/qcom/camss/camss-vfe-175-pixel.c
++++ b/drivers/media/platform/qcom/camss/camss-vfe-175-pixel.c
+@@ -12,6 +12,7 @@
+ #include "camss-vfe-175-cst.h"
+ #include "camss-vfe-175-round.h"
+ #include "camss-vfe-175-gamma.h"
++#include "camss-vfe-175-lsc.h"
+ #include "camss-vfe-175-demux.h"
+ #include "camss-vfe-175-mnds.h"
+ 
+@@ -143,7 +144,7 @@ static int vfe_175_params_unsupported(struct device *dev,
+ 	return -EINVAL;
+ }
+ 
+-const struct v4l2_isp_params_block_type_info vfe_175_params_info[6] = {
++const struct v4l2_isp_params_block_type_info vfe_175_params_info[7] = {
+ 	[0] = {
+ 		.size = sizeof(struct v4l2_isp_block_header),
+ 		.block_validate = vfe_175_params_unsupported,
+@@ -164,6 +165,10 @@ const struct v4l2_isp_params_block_type_info vfe_175_params_info[6] = {
+ 		.size = sizeof(struct camss_params_gamma),
+ 		.block_validate = vfe_175_params_unsupported,
+ 	},
++	[CAMSS_PARAMS_LSC] = {
++		.size = sizeof(struct camss_params_lsc),
++		.block_validate = vfe_175_lsc_validate,
++	},
+ 	[CAMSS_PARAMS_AEC_BHIST] = {
+ 		.size = sizeof(struct camss_params_aec_bhist),
+ 		.block_validate = vfe_175_bhist_validate,
+@@ -222,6 +227,7 @@ int vfe_175_pixel_prepare(struct vfe_line *line)
+ 		.wb_enabled = true,
+ 	};
+ 	vfe_175_wb_write(vfe);
++	vfe_175_lsc_init(vfe);
+ 	ret = vfe_175_stats_prepare(line);
+ 	if (ret)
+ 		goto error;
+@@ -236,6 +242,7 @@ int vfe_175_pixel_prepare(struct vfe_line *line)
+ void vfe_175_pixel_stop(struct vfe_device *vfe)
+ {
+ 	vfe_175_blc_enable(vfe, false);
++	vfe_175_lsc_stop(vfe);
+ 	vfe_175_round_stop(vfe);
+ 	vfe_175_mnds_stop(vfe);
+ 	vfe_175_gamma_stop(vfe);
+@@ -257,6 +264,11 @@ void vfe_175_params_apply(struct vfe_device *vfe, struct vfe_line *line,
+ 			(const void *)&params->data[offset];
+ 		const struct camss_params_wb_gain *wb;
+ 
++		if (block->type == CAMSS_PARAMS_LSC) {
++			vfe_175_lsc_params(vfe, block);
++			offset += block->size;
++			continue;
++		}
+ 		if (block->type == CAMSS_PARAMS_AEC_BHIST) {
+ 			vfe_175_stats_params(vfe, line, block);
+ 			offset += block->size;
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe-175-pixel.h b/drivers/media/platform/qcom/camss/camss-vfe-175-pixel.h
+index 7122ed196..6caac6177 100644
+--- a/drivers/media/platform/qcom/camss/camss-vfe-175-pixel.h
++++ b/drivers/media/platform/qcom/camss/camss-vfe-175-pixel.h
+@@ -18,10 +18,12 @@ struct vfe_175_pixel_state {
+ 	u16 r_gain;
+ 	u16 black_level;
+ 	bool wb_enabled;
++	bool lsc_enabled;
++	u8 lsc_bank;
+ 	struct vfe_175_stats_state stats;
+ };
+ 
+-extern const struct v4l2_isp_params_block_type_info vfe_175_params_info[6];
++extern const struct v4l2_isp_params_block_type_info vfe_175_params_info[7];
+ int vfe_175_pixel_prepare(struct vfe_line *line);
+ void vfe_175_pixel_stop(struct vfe_device *vfe);
+ void vfe_175_params_apply(struct vfe_device *vfe, struct vfe_line *line,
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe-17x.c b/drivers/media/platform/qcom/camss/camss-vfe-17x.c
+index 6e0721ab6..46fa27425 100644
+--- a/drivers/media/platform/qcom/camss/camss-vfe-17x.c
++++ b/drivers/media/platform/qcom/camss/camss-vfe-17x.c
+@@ -9,6 +9,7 @@
+ 
+ #include <linux/interrupt.h>
+ #include <linux/io.h>
++#include <linux/qcom-camss-config.h>
+ #include <linux/iopoll.h>
+ 
+ #include <media/v4l2-event.h>
+@@ -16,6 +17,7 @@
+ #include "camss.h"
+ #include "camss-vfe.h"
+ #include "camss-vfe-175-camif.h"
++#include "camss-vfe-175-lsc.h"
+ #include "camss-vfe-175-output.h"
+ 
+ #define VFE_GLOBAL_RESET_CMD			(0x018)
+@@ -741,6 +743,8 @@ static void vfe_output_update_175(struct vfe_device *vfe,
+ /* SM8150 full IFE: shared RDI transport, matched CAMIF and FULL DMA. */
+ const struct vfe_hw_ops vfe_ops_175 = {
+ 	.vfe_stats_fill = vfe_175_stats_fill,
++	.params_max_payload = CAMSS_PARAMS_IFE_LSC_MAX_PAYLOAD,
++	.params_validate = vfe_175_params_validate_line,
+ 	.params_info = vfe_175_params_info,
+ 	.params_num_types = ARRAY_SIZE(vfe_175_params_info),
+ 	.vfe_params_apply = vfe_175_params_apply,
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe.c b/drivers/media/platform/qcom/camss/camss-vfe.c
+index 2d2c0aa90..ff85a3ba7 100644
+--- a/drivers/media/platform/qcom/camss/camss-vfe.c
++++ b/drivers/media/platform/qcom/camss/camss-vfe.c
+@@ -711,9 +711,12 @@ int vfe_params_prepare(struct camss_video *vid, struct camss_buffer *buf)
+ 	if (ret)
+ 		return ret;
+ 
+-	return v4l2_isp_params_validate_buffer(vfe->camss->dev, vb, buf->meta,
+-					       ops->params_info,
+-					       ops->params_num_types);
++	ret = v4l2_isp_params_validate_buffer(vfe->camss->dev, vb, buf->meta,
++					      ops->params_info,
++					      ops->params_num_types);
++	if (ret)
++		return ret;
++	return ops->params_validate ? ops->params_validate(output->line, buf->meta) : 0;
+ }
+ 
+ static struct vfe_output *vfe_params_output(struct vfe_line *line)
+@@ -2964,7 +2967,8 @@ static int vfe_register_meta_nodes(struct vfe_device *vfe,
+ 			video->active_fmt.fmt.meta.dataformat =
+ 				V4L2_META_FMT_QCOM_ISP_PARAMS;
+ 			video->active_fmt.fmt.meta.buffersize =
+-				v4l2_isp_buffer_size(CAMSS_PARAMS_IFE_MAX_PAYLOAD);
++				v4l2_isp_buffer_size(vfe->res->hw_ops->params_max_payload ?:
++					     CAMSS_PARAMS_IFE_MAX_PAYLOAD);
+ 			suffix = "params";
+ 		} else {
+ 			continue;
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe.h b/drivers/media/platform/qcom/camss/camss-vfe.h
+index 0ac9cfb25..7d63f8532 100644
+--- a/drivers/media/platform/qcom/camss/camss-vfe.h
++++ b/drivers/media/platform/qcom/camss/camss-vfe.h
+@@ -214,6 +214,9 @@ struct vfe_hw_ops {
+ 	 * block type, and how to apply a validated parameters buffer. Applying
+ 	 * runs with output_lock held, ahead of a reg update.
+ 	 */
++	unsigned int params_max_payload;
++	int (*params_validate)(struct vfe_line *line,
++			       const struct v4l2_isp_buffer *params);
+ 	const struct v4l2_isp_params_block_type_info *params_info;
+ 	unsigned int params_num_types;
+ 	void (*vfe_params_apply)(struct vfe_device *vfe, struct vfe_line *line,
+diff --git a/include/uapi/linux/qcom-camss-config.h b/include/uapi/linux/qcom-camss-config.h
+index 8c7e63741..cb37f990f 100644
+--- a/include/uapi/linux/qcom-camss-config.h
++++ b/include/uapi/linux/qcom-camss-config.h
+@@ -25,6 +25,7 @@
+  *	&struct camss_params_color_correct
+  * @CAMSS_PARAMS_GAMMA: per-channel gamma correction curves (CLC_GLUT),
+  *	&struct camss_params_gamma
++ * @CAMSS_PARAMS_LSC: regular lens shading mesh, &struct camss_params_lsc
+  * @CAMSS_PARAMS_AEC_BHIST: region of the AEC Bayer histogram statistics,
+  *	&struct camss_params_aec_bhist
+  */
+@@ -34,6 +35,7 @@ enum camss_params_block_type {
+ 	CAMSS_PARAMS_COLOR_CORRECT = 3,
+ 	CAMSS_PARAMS_GAMMA = 4,
+ 	CAMSS_PARAMS_AEC_BHIST = 5,
++	CAMSS_PARAMS_LSC = 6,
+ };
+ 
+ /* Number of entries in each gamma channel LUT. */
+@@ -238,6 +240,44 @@ struct camss_params_aec_bhist {
+ 	(sizeof(struct camss_params_aec_bhist) +	\
+ 	 sizeof(struct camss_params_wb_gain))
+ 
++/* Fixed mesh, expressed in Bayer input coordinates before image scaling. */
++#define CAMSS_LSC_MESH_WIDTH	17
++#define CAMSS_LSC_MESH_HEIGHT	13
++#define CAMSS_LSC_MESH_POINTS	(CAMSS_LSC_MESH_WIDTH * CAMSS_LSC_MESH_HEIGHT)
++#define CAMSS_LSC_CHANNELS	4
++
++/**
++ * struct camss_params_lsc - Lens shading correction mesh
++ *
++ * @header: block header; type is CAMSS_PARAMS_LSC
++ * @cell_width: horizontal mesh cell spacing, in 2-pixel Bayer quads
++ * @cell_height: vertical mesh cell spacing, in 2-line Bayer quads
++ * @x_start: first input quad's horizontal position relative to mesh node (0,0)
++ * @y_start: first input quad's vertical position relative to mesh node (0,0)
++ * @subdivision: log2 of the number of interpolation subgrids per cell (0..3)
++ * @_pad: reserved; must be zero
++ * @gains: row-major R, GR, GB, B gains, Q10 in [1024, 8191] (1024 is unity)
++ *
++ * The last node is at ((WIDTH-1)*cell_width, (HEIGHT-1)*cell_height).
++ * The mesh must cover the active Bayer sink image. Width and height must
++ * be divisible by 2^subdivision; hardware interpolation subgrids have
++ * minimum dimensions of 9 quads. Calibration and crop/mode resampling
++ * are userspace operations; these fields describe the resulting mesh.
++ */
++struct camss_params_lsc {
++	struct v4l2_isp_params_block_header header;
++	__u16 cell_width;
++	__u16 cell_height;
++	__u16 x_start;
++	__u16 y_start;
++	__u8 subdivision;
++	__u8 _pad[7];
++	__u16 gains[CAMSS_LSC_CHANNELS][CAMSS_LSC_MESH_POINTS];
++} __attribute__((aligned(8)));
++
++#define CAMSS_PARAMS_IFE_LSC_MAX_PAYLOAD \
++	(CAMSS_PARAMS_IFE_MAX_PAYLOAD + sizeof(struct camss_params_lsc))
++
+ /**
+  * enum camss_stats_block_type - CAMSS ISP statistics block identifiers
+  *

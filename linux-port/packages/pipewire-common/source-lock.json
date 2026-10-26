@@ -1,0 +1,63 @@
+{
+  "stage": 265,
+  "version": "1.6.9-r3",
+  "alpine_commit": "0afac626498565714f7a06c04589112584cc95f4",
+  "upstream_recipe_files": {
+    "APKBUILD": {
+      "url": "https://raw.githubusercontent.com/alpinelinux/aports/0afac626498565714f7a06c04589112584cc95f4/community/pipewire/APKBUILD",
+      "upstream_blob_sha256": "09f9941b7f06c4c22fa8258b9beed39be39181250dddec882d3d75ac2cfcbac9",
+      "materialized_sha256": "09f9941b7f06c4c22fa8258b9beed39be39181250dddec882d3d75ac2cfcbac9"
+    },
+    "pipewire.desktop": {
+      "url": "https://raw.githubusercontent.com/alpinelinux/aports/0afac626498565714f7a06c04589112584cc95f4/community/pipewire/pipewire.desktop",
+      "upstream_blob_sha256": "b98dad0fe525dce717afa19e70eaa2426453d54f9560a288c938fd9770089b0c",
+      "materialized_sha256": "b98dad0fe525dce717afa19e70eaa2426453d54f9560a288c938fd9770089b0c"
+    },
+    "pipewire-launcher.sh": {
+      "url": "https://raw.githubusercontent.com/alpinelinux/aports/0afac626498565714f7a06c04589112584cc95f4/community/pipewire/pipewire-launcher.sh",
+      "upstream_blob_sha256": "6fdafc9eb9715d0b5b58354c6f34f26f14071c886500bdb1fd192ff1203dd05d",
+      "materialized_sha256": "6fdafc9eb9715d0b5b58354c6f34f26f14071c886500bdb1fd192ff1203dd05d"
+    },
+    "pipewire.initd": {
+      "url": "https://raw.githubusercontent.com/alpinelinux/aports/0afac626498565714f7a06c04589112584cc95f4/community/pipewire/pipewire.initd",
+      "upstream_blob_sha256": "2cc01e7a8173102c09b123407d21202fa21ef368cab017aeda726cb421f5037f",
+      "materialized_sha256": "2cc01e7a8173102c09b123407d21202fa21ef368cab017aeda726cb421f5037f"
+    },
+    "pipewire-pulse.initd": {
+      "url": "https://raw.githubusercontent.com/alpinelinux/aports/0afac626498565714f7a06c04589112584cc95f4/community/pipewire/pipewire-pulse.initd",
+      "upstream_blob_sha256": "091f98cddde451bceacc30b30a86568a0c00a3026932a379324533ea128a9cc7",
+      "materialized_sha256": "091f98cddde451bceacc30b30a86568a0c00a3026932a379324533ea128a9cc7"
+    },
+    "systemd-units-wo-libsystemd.patch": {
+      "url": "https://raw.githubusercontent.com/alpinelinux/aports/0afac626498565714f7a06c04589112584cc95f4/community/pipewire/systemd-units-wo-libsystemd.patch",
+      "upstream_blob_sha256": "b2834d433b6a690d6f28e59aa068aaa4656edad4610394b3c54fc22e666ae8b1",
+      "materialized_sha256": "b2834d433b6a690d6f28e59aa068aaa4656edad4610394b3c54fc22e666ae8b1"
+    },
+    "pipewire.post-upgrade": {
+      "url": "https://raw.githubusercontent.com/alpinelinux/aports/0afac626498565714f7a06c04589112584cc95f4/community/pipewire/pipewire.post-upgrade",
+      "upstream_blob_sha256": "3ad8a438f97eea76d09d6f5dd8d10828dc1044b6a68d733f22617b71296fe539",
+      "materialized_sha256": "3ad8a438f97eea76d09d6f5dd8d10828dc1044b6a68d733f22617b71296fe539"
+    },
+    "pipewire.post-install": {
+      "url": "https://raw.githubusercontent.com/alpinelinux/aports/0afac626498565714f7a06c04589112584cc95f4/community/pipewire/pipewire.post-install",
+      "upstream_blob_sha256": "a5d35642984ab49912e6f2b64a631312a846ba31c96f893944f6cd1832e5e66b",
+      "materialized_sha256": "a5d35642984ab49912e6f2b64a631312a846ba31c96f893944f6cd1832e5e66b"
+    }
+  },
+  "source_tar": {
+    "url": "https://github.com/PipeWire/pipewire/archive/refs/tags/1.6.9.tar.gz",
+    "sha256": "dbc3624cf71215c26a22fc98f6f71f7b8599f5f6b415eab4a5c90ca96c170c7c",
+    "sha512": "91a4790123f95c2a52592e4dcd7de90add681883710d3baa068f973c1477c4a9b7696df6afedbcb6c9f42abfdfa10dc01c383aa5d7ced33d781287a07bb18fd3"
+  },
+  "patch_sha256": {
+    "0001-gst-defer-pool-recycle.patch": "91053acdeaadfac5a4a5fe90cf4eda85bd4a34ff1d7df05b641436c91ec19cc2",
+    "0002-gst-optional-camera-copy.patch": "7a68a8e837235a6c03d44a9f7598d4b1b330eb197c7462719e9047ce4378c903",
+    "0003-camera-broadcast-lifecycle.patch": "da24c792b07e869b88a6384bcff6957b103af512a4f7851ed924293de2a8ffce",
+    "0004-libcamera-buffer-lifecycle.patch": "dfb8723b0b702b887557f93865a67f2422b805e12e5de69ca24d9317587e8185",
+    "0005-memory-region-lookup.patch": "ad8d9d05951cb64d7fb61b05b82cb096b0f942aad60e5723d4996a02ec898806",
+    "0006-gst-retained-buffer-ownership.patch": "d6815436983a4fda22ccf8778476a7eb40f0dfdac9aed14e07201a1263ddbccc"
+  },
+  "paired_dependency": "pipewire-spa-libcamera and gst-plugin-pipewire depend on pipewire-libs=1.6.9-r3",
+  "phone_packages_built_by_incremental_source_compile_and_signed_upstream_payload_repack": true,
+  "complete_abuild_recipe_prepared_not_full_build_yet": true
+}

@@ -1,0 +1,58 @@
+{
+  "schema": "samurai-apsd-phy-lifetime-independent-review-v1",
+  "decision": "accepted_in_reviewed_offline_component_scope",
+  "blocking_findings": [],
+  "author_delivery_sha256": "006ccd88790a8ca70f39d212cdaa2873e92cb217df43b44571f2cac954c7b807",
+  "author_files_verified": 23,
+  "author_history_files_verified": 7,
+  "component_base_files_verified": 6,
+  "actual_extraction_manifest_verified": 27,
+  "unchanged_actual_functions_or_bodies": [
+    "owner_free",
+    "owner_pd_get",
+    "owner_pd_put",
+    "owner_work",
+    "owner_join",
+    "owner_queue",
+    "owner_notify",
+    "owner_pd_observe",
+    "qcom_snps_hsphy_window_write",
+    "qcom_snps_hsphy_write_mask",
+    "qcom_snps_hsphy_suspend",
+    "qcom_snps_hsphy_resume",
+    "qcom_snps_hsphy_window_begin body",
+    "qcom_snps_hsphy_window_end body"
+  ],
+  "checks": {
+    "single_enable_and_idempotent_disable_wrapper": true,
+    "early_terminal_PM_barrier_before_generic_PHY_devres": true,
+    "cancel_join_and_PM_wait_outside_registry_and_PHY_mutex": true,
+    "callback_primary_and_extra_real_kref_lifetime": true,
+    "unregister_does_not_wait_for_callback_holding_owner_registry": true,
+    "admitted_operations_drained_before_terminal_resource_release": true,
+    "old_binding_identity_checked_before_old_PHY_dereference": true,
+    "system_runtime_reason_specific_complete_and_terminal_no_republish": true,
+    "default_optin_and_final_EOPNOTSUPP_preserved": true
+  },
+  "reused_author_evidence": {
+    "test_sha256": "0a85e701901ec327ebec23cbdc5801b5739d77e2ca69bf85272a97e2033a4c2a",
+    "actual_groups": 9,
+    "old_8_14_groups_not_rerun": true,
+    "build_sha256": "75d7ca7b2a797138c7b1234b44ccc5d6e2d6d09840d90acebafbb5fd950817b6",
+    "build_objects": {
+      "phy-lifetime.o": "e7f0ff2e88ecb91abb11b34384a1b4334b1dbd384d98ac393bd933c6f86f5dce",
+      "owner-current-m.o": "38ecbf32f913478fe713b1835a2ea5764183ab15f550907c595b7cb92d5c69e3",
+      "owner-future-builtin.o": "e2b0049edda90a5a86fb3bdf7be022eb4c2799f222be712edf8d55aa490c0dc6"
+    },
+    "W1_Werror": true
+  },
+  "not_covered": [
+    "Kernel lockdep and all possible unrelated generic PHY consumers.",
+    "Real hardware power/reset behavior, route ownership, write-time physical-generation lease, PD protocol or final1341 authority.",
+    "Physical timing/USB/PM acceptance or deployment approval."
+  ],
+  "author_generators_tests_or_builds_executed_by_reviewer": false,
+  "phone_SSH_USB_SDK_Git_or_storage_guard_accessed_by_reviewer": false,
+  "author_frozen_bytes_modified": false,
+  "review_source_sha256": "778d0629c1b7823a6c7a5e72a96dc0f2845481717a2303a6f98384e174b5cefe"
+}

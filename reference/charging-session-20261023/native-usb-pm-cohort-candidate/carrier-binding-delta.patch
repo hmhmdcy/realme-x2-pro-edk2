@@ -1,0 +1,36 @@
+--- tested1938/cohort.py
++++ bound504/cohort.py
+@@ -54,6 +54,19 @@
+     compressed=io.BytesIO()
+     with gzip.GzipFile(filename='',mode='wb',fileobj=compressed,mtime=0) as sink:sink.write(stream.getvalue())
+     raw=compressed.getvalue();check_archive(raw,files);return raw
++def validate_carrier(receipt,carrier,image):
++    need(receipt.get('passed') is True,'completed carrier receipt')
++    for key in ['only_Image_file_changed','other_entries_and_contents_exact','all_non_Image_bytes_exact',
++                'Image_readback_exact','fsck_readonly_passed','native_DTB_untouched',
++                'rootfs_R8_camera_untouched','no_device_or_deployment','parent_inputs_unchanged','parent_mountinfo_unchanged']:
++        need(receipt.get(key) is True,'carrier completion: '+key)
++    need(image=={'sha256':'f6477d01d029cec888cafa739db0336e570274e9a3c38d4d5233959dd218a3f4','bytes':59243008},'actual Image504 build row')
++    need(receipt.get('Image504_sha256')==image['sha256'] and receipt.get('Image504')==image and carrier.get('Image504_sha256')==image['sha256'],'actual carrier Image504 written/read back')
++    rollback='ace2e261bbfbd923fc3e631e857163f172d09bfb3489f7107782394fbf763ed1'
++    need(receipt.get('rollback_logdump_sha256')==rollback and receipt.get('rollback',{}).get('sha256')==rollback and receipt['rollback'].get('bytes')==67108864,'actual saved502 input')
++    row={k:carrier['logdump'][k] for k in ['sha256','bytes']}
++    need(row['bytes']==67108864 and {k:receipt['candidate'][k] for k in ['sha256','bytes']}==row and receipt.get('logdump_sha256')==row['sha256'] and receipt.get('logdump_bytes')==row['bytes'],'actual carrier output')
++    need(receipt.get('actual_phone_502_adoption_claimed') is False,'saved candidate is not phone adoption')
+ def local_inputs():
+     pins=json.loads((HERE/'input-pins.json').read_bytes())
+     receipts={name:json.loads(pinned(row).read_bytes()) for name,row in pins['receipts'].items()}
+@@ -89,11 +102,10 @@
+     need(pins['carriers']['rollback_logdump']['sha256']=='ace2e261bbfbd923fc3e631e857163f172d09bfb3489f7107782394fbf763ed1','future preflight502 rollback candidate')
+     carrier=json.loads((HERE/'carrier-input.json').read_bytes())
+     carrier_receipt=json.loads(pinned(carrier['receipt']).read_bytes())
+-    need(carrier_receipt['passed'] and carrier['Image504_sha256']==image['outputs']['arch/arm64/boot/Image']['sha256'],'new carrier passed source')
+-    need({k:carrier_receipt['candidate'][k] for k in ['sha256','bytes']}=={k:carrier['logdump'][k] for k in ['sha256','bytes']},'new carrier actual output binding')
++    validate_carrier(carrier_receipt,carrier,image['outputs']['arch/arm64/boot/Image'])
+     pinned(carrier['logdump'])
+     need(carrier['logdump']['bytes']==67108864,'new carrier64MiB')
+-    tests=json.loads((HERE/'test-result.json').read_bytes())
++    tests=json.loads((HERE/'package-verification.json').read_bytes())
+     need(tests['passed'] and tests['cohort_source_sha256']==file_sha(Path(__file__)),'affected two-file package tests')
+     new=make_manifest(old,sha(new_usb));target=old['modules'][USB]['target']
+     check_manifest_delta(old,new,sha(new_usb))

@@ -1,0 +1,95 @@
+{
+  "profile": "R8 / boot4126 / EUD-off direct-root NCM",
+  "changed_condition_from_old_R7_trial": "EUD hub removed; real direct root-hub topology, current R8 and adopted new boot",
+  "passed": true,
+  "dispatch_count": 1,
+  "original_worker_terminal_verified": true,
+  "original_worker_process_state": "absent",
+  "native500_accepted": true,
+  "restore100_verified": true,
+  "current_runtime_MaxPower_ma": 100,
+  "permanent_startup_edited": false,
+  "phases": {
+    "500": {
+      "samples": 18,
+      "span_seconds": 13.515759333,
+      "UDC_states": [
+        "configured"
+      ],
+      "native_ua": [
+        500000
+      ],
+      "source_budget_ua": [
+        500000
+      ],
+      "hardware_input_ua": [
+        500000
+      ],
+      "charge_cap_ua": [
+        250000
+      ],
+      "cell_cv_cap_uv": [
+        4362500
+      ],
+      "instant_current_ua_range": [
+        -159000,
+        100000
+      ],
+      "instant_positive_samples": 16
+    },
+    "100": {
+      "samples": 18,
+      "span_seconds": 13.503289055,
+      "UDC_states": [
+        "configured"
+      ],
+      "native_ua": [
+        100000
+      ],
+      "source_budget_ua": [
+        100000
+      ],
+      "hardware_input_ua": [
+        100000
+      ],
+      "charge_cap_ua": [
+        250000
+      ],
+      "cell_cv_cap_uv": [
+        4362500
+      ],
+      "instant_current_ua_range": [
+        -156000,
+        -35000
+      ],
+      "instant_positive_samples": 0
+    }
+  },
+  "host": {
+    "direct_root_hub": true,
+    "ports": 14,
+    "pinned_NCM_port": 5,
+    "reader_terminal": true,
+    "reader_duration_seconds": 140.0099547,
+    "query_errors": 2,
+    "stop_reason": "deadline",
+    "explicit_power_rejection_observed": false,
+    "reader_watchdog_killed": false
+  },
+  "trace": {
+    "control_and_native_500_draw_observed": true,
+    "selected_lines": [
+      "    irq/198-dwc3-9429    [000] D..1.  1682.097361: dwc3_ctrl_req: 0x000000000a600000: Set Configuration(Config = 1)",
+      "    irq/198-dwc3-9429    [000] D..2.  1682.097435: usb_gadget_vbus_draw: speed 3/6 state 7 500mA [sg:bus-powered:activated:connected] --> 0",
+      "    irq/198-dwc3-9473    [000] D..1.  1698.451450: dwc3_ctrl_req: 0x000000000a600000: Set Configuration(Config = 1)"
+    ],
+    "overrun_or_dropped_events": false,
+    "tracing_disabled_and_instance_removed": true,
+    "sha256": "76ee4fd84fcc6ea223722e55b6311955e56d068e9754adc404765b965dc5201e"
+  },
+  "power_supply_budget_direct_writes": 0,
+  "charge_CV_camera_environment_preserved": true,
+  "physical_icon_latency_accepted": false,
+  "full_charging_adaptation_complete": false,
+  "next": "Make the proven 500mA descriptor request the normal startup setting, preserving native host authorization and protection caps; verify the next real physical attach. Do not claim all charging modes or PM complete."
+}

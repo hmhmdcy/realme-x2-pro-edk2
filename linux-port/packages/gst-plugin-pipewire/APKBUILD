@@ -1,0 +1,44 @@
+# Maintainer: Realme X2 Pro Linux port
+pkgname=gst-plugin-pipewire
+pkgver=1.6.9
+pkgrel=1
+pkgdesc="PipeWire GStreamer plugin with opt-in CPU camera buffer ownership"
+url="https://pipewire.org"
+arch="aarch64"
+license="MIT"
+depends="pipewire-session-manager gst-plugins-base"
+install_if="pipewire=$pkgver-r0 gstreamer"
+makedepends="pipewire-dev=$pkgver-r0 gstreamer-dev gst-plugins-base-dev"
+source="pipewire-$pkgver.tar.gz::https://github.com/PipeWire/pipewire/archive/refs/tags/$pkgver.tar.gz
+	0001-defer-pool-buffer-recycle.patch
+	0002-camera-copy-profile.patch"
+builddir="$srcdir/pipewire-$pkgver"
+options="!check" # Real camera regression is performed on the handset.
+
+build() {
+	cat > "$srcdir/config.h" <<-EOF
+	#define PACKAGE "pipewire"
+	#define PACKAGE_VERSION "$pkgver"
+	#define HAVE_GSTREAMER_DEVICE_PROVIDER 1
+	#define HAVE_GSTREAMER_DMA_DRM 1
+	#define HAVE_GSTREAMER_SHM_ALLOCATOR 1
+	EOF
+	cc -shared -fPIC $CFLAGS $LDFLAGS \
+		-I"$srcdir" -Isrc \
+		$(pkg-config --cflags libpipewire-0.3 gstreamer-1.0 gstreamer-base-1.0 \
+		gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-net-1.0 gstreamer-allocators-1.0) \
+		src/gst/*.c \
+		$(pkg-config --libs libpipewire-0.3 gstreamer-1.0 gstreamer-base-1.0 \
+		gstreamer-video-1.0 gstreamer-audio-1.0 gstreamer-net-1.0 gstreamer-allocators-1.0) \
+		-lm -o libgstpipewire.so
+}
+
+package() {
+	install -Dm755 libgstpipewire.so "$pkgdir/usr/lib/gstreamer-1.0/libgstpipewire.so"
+}
+
+sha512sums="
+91a4790123f95c2a52592e4dcd7de90add681883710d3baa068f973c1477c4a9b7696df6afedbcb6c9f42abfdfa10dc01c383aa5d7ced33d781287a07bb18fd3  pipewire-1.6.9.tar.gz
+014766c373bc84b46e0bfabb7cf8a10de469817c1233086de594785e4c8125f979416610135ccb1bafbfa389de722a2b96b465b889d0371deed11dd157f181fd  0001-defer-pool-buffer-recycle.patch
+63537a5c9918b54916422e3fbadf49e78abe9115cc22c189eba4763654b31c01ff80127c5e49609f21e96df92b68ffcb831676c3b05180919d035f8be96de2ca  0002-camera-copy-profile.patch
+"

@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+# The device service is started by OpenRC on subsequent boots. Adopting an
+# already running, byte-identical installation does not restart its worker.
+rc-update add samurai-gnss-assist default >/dev/null

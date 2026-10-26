@@ -1,0 +1,48 @@
+--- a/drivers/power/supply/Makefile
++++ b/drivers/power/supply/Makefile
+@@ -136,3 +136,5 @@
+ obj-$(CONFIG_FUEL_GAUGE_MM8013)	+= mm8013.o
+ obj-$(CONFIG_MACSMC_POWER)	+= macsmc-power.o
+ obj-$(CONFIG_CHARGER_MAX77759)	+= max77759_charger.o
++
++obj-$(CONFIG_USB_INPUT_SAMURAI) += samurai-usb-input.o
+--- a/drivers/power/supply/Kconfig
++++ b/drivers/power/supply/Kconfig
+@@ -1210,4 +1210,12 @@
+ 
+ 	  Say Y or M here if you have an Apple Silicon based Mac.
+ 
++config USB_INPUT_SAMURAI
++	bool "Realme X2 Pro USB power input status monitor"
++	depends on OF && MFD_SPMI_PMIC && POWER_SUPPLY
++	help
++	  Read PM8150B USBIN and Type-C source status on RMX1931. Expose
++	  BC1.2 or Type-C advertised current through a read-only power supply.
++	  This does not configure charging, negotiate PD, or change USB roles.
++
+ endif # POWER_SUPPLY
+--- a/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
++++ b/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
+@@ -404,7 +404,7 @@
+ 	status = "okay";
+ };
+ 
+-/* Stock QUP1 wiring; no charger client or charging policy is bound. */
++/* Stock QUP1 wiring; MP2650 provides read-only charging observation. */
+ &gpi_dma0 {
+ 	status = "okay";
+ };
+@@ -912,3 +912,13 @@
+ 	status = "okay";
+ 	vdda-phy-supply = <&vreg_l3c_1p2>;
+ };
++
++/* OEM PM8150B USBIN / Type-C status; no charging or PD control writes. */
++&spmi_bus {
++	pmic@2 {
++		usb-input@1300 {
++			compatible = "realme,rmx1931-usb-input";
++			reg = <0x1300>;
++		};
++	};
++};

@@ -1,0 +1,14 @@
+--- control/canvas-generic.cpp
++++ fixed/canvas-generic.cpp
+@@ -290,8 +290,9 @@
+     native_window_ = native_state_.window(cur_properties);
+     window_initialized_ = true;
+ 
+-    width_ = cur_properties.width;
+-    height_ = cur_properties.height;
++    const bool fixed_validation_size = offscreen_ && Options::validate && width > 0 && height > 0;
++    width_ = fixed_validation_size ? width : cur_properties.width;
++    height_ = fixed_validation_size ? height : cur_properties.height;
+ 
+     if (color_renderbuffer_) {
+         GLExtensions::BindRenderbuffer(GL_RENDERBUFFER, color_renderbuffer_);

@@ -1,0 +1,102 @@
+--- a/drivers/mux/core.c
++++ b/drivers/mux/core.c
+@@ -710,7 +710,7 @@
+ EXPORT_SYMBOL_GPL(devm_mux_control_get);
+ 
+ /**
+- * mux_state_get() - Get the mux-state for a device.
++ * __mux_state_get() - Get the mux-state for a device.
+  * @dev: The device that needs a mux-state.
+  * @mux_name: The name identifying the mux-state.
+  * @optional: Whether to return NULL and silence errors when mux doesn't exist.
+@@ -720,7 +720,7 @@
+  * errno on error, or NULL if optional is true and mux doesn't exist.
+  */
+ static struct mux_state *
+-mux_state_get(struct device *dev, const char *mux_name, bool optional,
++__mux_state_get(struct device *dev, const char *mux_name, bool optional,
+ 	      struct device_node *np)
+ {
+ 	struct mux_state *mstate;
+@@ -743,17 +743,33 @@
+ 	return mstate;
+ }
+ 
+-/*
++/**
++ * mux_state_get() - Get an unmanaged multiplexer state for a device.
++ * @dev: The device that needs a multiplexer state.
++ * @mux_name: The name identifying the multiplexer state.
++ *
++ * Return: A mux-state pointer, or an ERR_PTR with a negative errno.
++ * Caller must deselect a successfully selected state before mux_state_put().
++ * This gets the mux-chip device reference; it does not prevent supplier unbind.
++ */
++struct mux_state *mux_state_get(struct device *dev, const char *mux_name)
++{
++	return __mux_state_get(dev, mux_name, false, NULL);
++}
++EXPORT_SYMBOL_GPL(mux_state_get);
++
++/**
+  * mux_state_put() - Put away the mux-state for good.
+  * @mstate: The mux-state to put away.
+  *
+  * mux_state_put() reverses the effects of mux_state_get().
+  */
+-static void mux_state_put(struct mux_state *mstate)
++void mux_state_put(struct mux_state *mstate)
+ {
+ 	mux_control_put(mstate->mux);
+ 	kfree(mstate);
+ }
++EXPORT_SYMBOL_GPL(mux_state_put);
+ 
+ static void devm_mux_state_release(struct device *dev, void *res)
+ {
+@@ -787,7 +803,7 @@
+ 	struct mux_state *mstate;
+ 	int ret;
+ 
+-	mstate = mux_state_get(dev, mux_name, optional, np);
++	mstate = __mux_state_get(dev, mux_name, optional, np);
+ 	if (IS_ERR(mstate))
+ 		return ERR_CAST(mstate);
+ 	else if (optional && !mstate)
+--- a/include/linux/mux/consumer.h
++++ b/include/linux/mux/consumer.h
+@@ -15,6 +15,7 @@
+ struct device;
+ struct mux_control;
+ struct mux_state;
++struct device_node;
+ 
+ #if IS_ENABLED(CONFIG_MULTIPLEXER)
+ 
+@@ -60,6 +61,9 @@
+ void mux_control_put(struct mux_control *mux);
+ 
+ struct mux_control *devm_mux_control_get(struct device *dev, const char *mux_name);
++
++struct mux_state *mux_state_get(struct device *dev, const char *mux_name);
++void mux_state_put(struct mux_state *mstate);
+ 
+ struct mux_state *
+ devm_mux_state_get_from_np(struct device *dev, const char *mux_name, struct device_node *np);
+@@ -142,7 +146,15 @@
+ {
+ 	return ERR_PTR(-EOPNOTSUPP);
+ }
+-static inline struct mux_state *devm_mux_state_get(struct device *dev, const char *mux_name)
++static inline struct mux_state *mux_state_get(struct device *dev, const char *mux_name)
++{
++	return ERR_PTR(-EOPNOTSUPP);
++}
++static inline void mux_state_put(struct mux_state *mstate) {}
++
++static inline struct mux_state *devm_mux_state_get_from_np(struct device *dev,
++						    const char *mux_name,
++						    struct device_node *np)
+ {
+ 	return ERR_PTR(-EOPNOTSUPP);
+ }

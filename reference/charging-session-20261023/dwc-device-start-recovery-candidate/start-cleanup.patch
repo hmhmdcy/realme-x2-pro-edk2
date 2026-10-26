@@ -1,0 +1,33 @@
+--- a/drivers/usb/dwc3/gadget.c
++++ b/drivers/usb/dwc3/gadget.c
+@@ -2800,6 +2800,7 @@
+ 
+ static int dwc3_gadget_soft_connect(struct dwc3 *dwc)
+ {
++	unsigned long flags;
+ 	int ret;
+ 
+ 	/*
+@@ -2813,7 +2814,21 @@
+ 		return ret;
+ 
+ 	dwc3_event_buffers_setup(dwc);
+-	__dwc3_gadget_start(dwc);
++	ret = __dwc3_gadget_start(dwc);
++	if (ret) {
++		/* No RUN_STOP was issued by this attempt. Clear device IRQs and
++		 * both EP0 enables even when the partial start failed before the
++		 * software pullup flag was set: soft_disconnect() would skip it.
++		 * The event buffer/core stay valid for an already-running IRQ;
++		 * this is not a proof of physical HALT or a core PM unwind.
++		 */
++		spin_lock_irqsave(&dwc->lock, flags);
++		__dwc3_gadget_stop(dwc);
++		spin_unlock_irqrestore(&dwc->lock, flags);
++		dev_err(dwc->dev, "gadget endpoint start failed: %d; RUN_STOP skipped\n",
++			ret);
++		return ret;
++	}
+ 	return dwc3_gadget_run_stop(dwc, true);
+ }
+ 

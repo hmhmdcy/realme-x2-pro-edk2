@@ -1,0 +1,74 @@
+--- a/drivers/media/platform/qcom/camss/camss-icp-a5-m2m.c
++++ b/drivers/media/platform/qcom/camss/camss-icp-a5-m2m.c
+@@ -20,6 +20,59 @@
+ #include "camss-icp-a5-m2m.h"
+ 
+ #define IPE_IMAGE_MAX (64U * 1024U * 1024U)
++
++#ifdef CAMSS_A5_TEST_GAMMA
++#include "test-chain-fixture.h"
++static unsigned int test_gamma_mode;
++module_param(test_gamma_mode, uint, 0600);
++MODULE_PARM_DESC(test_gamma_mode, "Temporary fixed Gamma modes 0..9");
++static int test_gamma_run(struct camss_a5 *a5, struct camss_a5_session *session,
++			  const struct camss_a5_ipe_job *job,
++			  enum camss_a5_ipe_result *result)
++{
++	struct camss_a5_ipe_colour colour = fixed_chain;
++	struct camss_a5_ipe_gamma *gamma;
++	u32 mode = READ_ONCE(test_gamma_mode), bank, i;
++	int ret;
++
++	if (!mode)
++		return camss_a5_ipe_run_status(a5, session, job, result);
++	if (mode > 9)
++		return -EINVAL;
++	colour.modules |= CAMSS_A5_IPE_COLOUR_CC;
++	colour.cc.matrix[0] = colour.cc.matrix[4] = colour.cc.matrix[8] = 128;
++	dev_info(a5->dev, "GAMMA_TEST mode=%u request=%u\n", mode, job->request_id);
++	if (mode == 1)
++		return camss_a5_ipe_run_colour_chain_status(a5, session, job, &colour, result);
++	gamma = kzalloc(sizeof(*gamma), GFP_KERNEL);
++	if (!gamma)
++		return -ENOMEM;
++	for (bank = 0; bank < 3; bank++) {
++		for (i = 0; i < 256; i++) {
++			u32 base = 4 * i, delta = i == 255 ? 3 : 4;
++
++			if (mode == 3 || (mode >= 5 && mode <= 7 && bank != mode - 5))
++				base = delta = 0;
++			else if (mode == 4) {
++				base = 2 * i;
++				delta = 2;
++			} else if (mode == 8) {
++				base = factory_base[i];
++				delta = factory_delta[i];
++			} else if (mode == 9) {
++				base = 512;
++				delta = 0;
++			}
++			gamma->base[bank][i] = base;
++			gamma->delta[bank][i] = delta;
++		}
++	}
++	ret = camss_a5_ipe_run_gamma_status(a5, session, job, &colour, gamma, result);
++	kfree(gamma);
++	return ret;
++}
++#endif
++
+ 
+ struct ipe_context {
+ 	struct v4l2_fh fh;
+@@ -243,7 +296,11 @@
+ 	if (ret)
+ 		goto hw_fail;
+ 	job.request_id = ctx->sequence + 1;
++	#ifdef CAMSS_A5_TEST_GAMMA
++	ret = test_gamma_run(dev->a5, &ctx->session, &job, &result);
++#else
+ 	ret = camss_a5_ipe_run_status(dev->a5, &ctx->session, &job, &result);
++#endif
+ 	/* A proven local rejection errors this queue, not the shared engine. */
+ 	if (!ret || result == CAMSS_A5_IPE_REJECTED)
+ 		goto finish;

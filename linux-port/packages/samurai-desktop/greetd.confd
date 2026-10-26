@@ -1,0 +1,4 @@
+cfgfile="/etc/greetd/samurai-phosh.toml"
+# The desktop discovers SensorProxy at startup. Let the SSC service satisfy
+# its own firmware/radio dependencies before exposing the desktop session.
+rc_need="dbus iio-sensor-proxy ${rc_need:-}"

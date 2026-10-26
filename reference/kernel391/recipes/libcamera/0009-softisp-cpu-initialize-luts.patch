@@ -1,0 +1,11 @@
+--- a/src/libcamera/software_isp/debayer_cpu.cpp
++++ b/src/libcamera/software_isp/debayer_cpu.cpp
+@@ -697,7 +697,7 @@
+ 	 * own parameters. Let's enforce recomputing lookup tables by setting the
+ 	 * stored last used gamma to an out-of-range value.
+ 	 */
+-	params_.gamma = 1.0;
++	params_.gamma = -1.0;
+ 
+ 	window_.x = ((inputCfg.size.width - outputCfg.size.width) / 2) &
+ 		    ~(inputConfig_.patternSize.width - 1);

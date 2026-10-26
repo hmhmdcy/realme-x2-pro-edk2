@@ -1,0 +1,72 @@
+{
+  "passed": true,
+  "scope": "local snapshot/source correlation only",
+  "oem_commit": "9668fcdc6ec15be7a10d66f7b93c347829e0fdb6",
+  "oem_sources": {
+    "drivers/power/supply/qcom/smb5-reg.h": {
+      "sha256": "d8b7ac8b704f8c7be4399249296f0c7acc156e5b44db20c71f406142a179e508",
+      "url": "https://github.com/realme-kernel-opensource/realmeX2Pro-kernel-source/blob/9668fcdc6ec15be7a10d66f7b93c347829e0fdb6/drivers/power/supply/qcom/smb5-reg.h"
+    },
+    "drivers/power/supply/qcom/qpnp-smb5.c": {
+      "sha256": "f0d9e00b3b03bee11478162cb2eec01d4ec1900cdfeadc1b89b38a91d3374511",
+      "url": "https://github.com/realme-kernel-opensource/realmeX2Pro-kernel-source/blob/9668fcdc6ec15be7a10d66f7b93c347829e0fdb6/drivers/power/supply/qcom/qpnp-smb5.c"
+    },
+    "drivers/power/supply/qcom/smb5-lib.c": {
+      "sha256": "5203488026f12fddc65ca899f16c8eb461e0da08dc151c4c5be18501204342a8",
+      "url": "https://github.com/realme-kernel-opensource/realmeX2Pro-kernel-source/blob/9668fcdc6ec15be7a10d66f7b93c347829e0fdb6/drivers/power/supply/qcom/smb5-lib.c"
+    }
+  },
+  "actual_oem_functions": [
+    {
+      "function": "smb5_configure_typec",
+      "path": "drivers/power/supply/qcom/qpnp-smb5.c",
+      "line": 3285,
+      "end_line": 3409,
+      "sha256": "6ed9954f4d3516ca41be32ec0e40078c3bfb7d2f374319a7302abcf915b0b5be"
+    },
+    {
+      "function": "typec_disable_cmd_work",
+      "path": "drivers/power/supply/qcom/smb5-lib.c",
+      "line": 7172,
+      "end_line": 7206,
+      "sha256": "280d49c83f6d722532483690c3874f5980cea6925044d933fe226b5599abea04"
+    }
+  ],
+  "snapshot_file": "/mnt/e/RealmeX2Pro edk2/reference/charging-management-20261023/pd-controls-r8-result.json",
+  "snapshot_sha256": "b31b31b10caa02477fb7be79b9c825e9aefc01b584a9424ec710e612ca13a65d",
+  "observed": [
+    {
+      "start_boottime_ns": 6504935738916,
+      "end_boottime_ns": 6504937739180,
+      "usbin_type_c_cfg": 192,
+      "start_on_cc_bit": true,
+      "source_detection_enabled": true,
+      "apsd_status": 17,
+      "result": 1
+    },
+    {
+      "start_boottime_ns": 6505037987802,
+      "end_boottime_ns": 6505038991971,
+      "usbin_type_c_cfg": 192,
+      "start_on_cc_bit": true,
+      "source_detection_enabled": true,
+      "apsd_status": 17,
+      "result": 1
+    }
+  ],
+  "provider_sha256": "b712764fbd4ab24475ae1ba030ee4c26c7eb048a6038488a5435b44ef7eb7098",
+  "conclusions": {
+    "start_on_cc_clear_postcondition_mismatch": true,
+    "bc1p2_source_enable_missing": false,
+    "current_provider_performs_oem_configure": false,
+    "historical_initialization_never_occurred_proven": false,
+    "sdp_classification_caused_by_bit7_proven": false,
+    "pd_contract_inactive_proven": false,
+    "eud_route_causality_proven": false
+  },
+  "old_function_test_result_sha256": "0ccb9b6329ad25a75cc98ca981f001b24c437ac420915e344f20844bb8cc718f",
+  "old_suites_repeated": false,
+  "phone_accessed": false,
+  "hardware_writes": 0,
+  "sdk_invoked": false
+}

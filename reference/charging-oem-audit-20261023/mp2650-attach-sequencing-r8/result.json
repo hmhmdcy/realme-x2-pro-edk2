@@ -1,0 +1,83 @@
+{
+  "schema": "samurai-mp2650-r8-attach-sequencing-source-audit-v1",
+  "scope": "static source sequencing and burst-counter semantics only; no code change or hardware measurement",
+  "files": {
+    "samurai-mp2650.c": {
+      "path": "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/r8-source-integration/kernel-sources/drivers/power/supply/samurai-mp2650.c",
+      "sha256": "ed2e1d4d96ea4f2d55b514288b0e8da1d731864d385944d02a105d41b03a144c",
+      "bytes": 27477
+    },
+    "mp2650-core.h": {
+      "path": "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/r8-source-integration/kernel-sources/drivers/power/supply/mp2650-core.h",
+      "sha256": "df9caed5c3678551b84e04d416c53caafd2b51036f2244b26974a87aa1ced4e8",
+      "bytes": 11489
+    },
+    "gauge-i2c.h": {
+      "path": "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/r8-source-integration/kernel-sources/drivers/power/supply/gauge-i2c.h",
+      "sha256": "897a961d765f794af2358205b46998ac4889f4ad9e91db2265d99cd70d701e77",
+      "bytes": 1308
+    },
+    "oem-full-cycle.h": {
+      "path": "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/r8-source-integration/kernel-sources/drivers/power/supply/oem-full-cycle.h",
+      "sha256": "91554031a1ea454e1a70fa8bae89316bd8770686c19c5a33ec6a1dbb06bdfba4",
+      "bytes": 8768
+    },
+    "charge-cycle.h": {
+      "path": "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/r8-source-integration/kernel-sources/drivers/power/supply/charge-cycle.h",
+      "sha256": "717e7ae2579cbf970f3802a21dcfa0fe0124e7fd236588661c613fcd3903e07b",
+      "bytes": 2821
+    },
+    "charging-notify.h": {
+      "path": "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/r8-source-integration/kernel-sources/drivers/power/supply/charging-notify.h",
+      "sha256": "3619110d1ef2b2abb2c5b64fe6188e3c0a5f900ef3d7e5d39dec9c0614efd5dd",
+      "bytes": 1716
+    },
+    "oem_mp2650": {
+      "path": "/mnt/e/edk2-samurai-out/kernel83/realme-kernel-opensource--realmeX2pro-X3-AndroidR-kernel-source--drivers--power--oppo--charger_ic--oplus_mp2650.c",
+      "sha256": "b6313a6592732597eee41c7171ca210a45f0ce05685447c3cb354a8df79d123e",
+      "bytes": 65142
+    },
+    "oem_policy": {
+      "path": "/mnt/e/edk2-samurai-out/kernel83/realme-kernel-opensource--realmeX2pro-X3-AndroidR-kernel-source--drivers--power--oppo--oplus_charger.c",
+      "sha256": "6cfb97b4367afe25094f3f342db4c9cce7982a22708371bc08ac6ed8bc9aa2d4",
+      "bytes": 276515
+    }
+  },
+  "source_manifest_sha256": "66f794d79d9a9b85b81d37cf2ea413bb423b42ac138809001550f62f361def87",
+  "actual_R8_build_receipt_sha256": "bc4350fa1ba40ae9eb42acdeab3d8e55419db7943f99b3d3c8fbd2df7e6efe56",
+  "R8_charger_module_sha256": "10ec06fb9d798d72e08495617cfc04e7e49c77e536a12f205053e9cdbfa6297f",
+  "original_OEM_commit": "23172a1571bd91156032cc9fef16284a82b63d2c",
+  "source_excerpts_sha256": "d1b4a520e27b3efa60e60e9c9f526457c809e8fbf2d610851557aa12b5c8679b",
+  "findings": {
+    "extra_whole_poll_before_first_safe_apply_found": false,
+    "REG13_notification_read_is_after_apply": true,
+    "REG13_STATUS_property_reads_hardware_in_getter": true,
+    "input_or_protection_event_requeues_immediately": true,
+    "fixed_driver_or_apply_sleep_found": false,
+    "gauge_MAC_delay_us_range": [
+      1000,
+      1500
+    ],
+    "normal_poll_delay_ms": 1000,
+    "ADC_read_does_not_gate_sm_collect_or_sm_apply": true,
+    "software_full_recharge_tick_ns": 5000000000,
+    "full_counter_increments_per_due_step_max": 1,
+    "catchup_loop": false,
+    "unobserved_gap_reset_ns": 10000000000,
+    "burst_calls_cannot_increase_software_counts_before_next_5s_tick": true,
+    "charge_timeout_uses_boottime_delta_not_poll_count": true,
+    "short_poll_code_added": false,
+    "hardware_required_delay_shortened": false
+  },
+  "limits": [
+    "No fixed end-to-end latency or root-cause claim follows from source ordering.",
+    "REG13 can physically change after the immediate post-apply read; a later normal poll can observe it.",
+    "Sequential source/protection/gauge/REG reads and workqueue latency are not atomic or a hard time bound.",
+    "Legacy source-manifest boot/USB100 text is historical; this audit uses its unchanged R8 charging-source mapping only.",
+    "No claim about current USB IRQ or gauge/UPower latency work owned by the other agent."
+  ],
+  "tests_or_builds_run": false,
+  "phone_or_SSH_or_USB_or_SDK_or_Git_accessed": false,
+  "production_or_frozen_candidate_bytes_modified": false,
+  "audit_source_sha256": "04158b520a597a258a90a76506a5a59d2ffae895c22d137473c30c2b84e1ec1f"
+}

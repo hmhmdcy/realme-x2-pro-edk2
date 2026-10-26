@@ -1,0 +1,36 @@
+{
+  "stage": 440,
+  "goal_active": true,
+  "phase": "release-installed-verified-and-locally-committed",
+  "last_terminal_worker": "phone k440-install-r3 worker659/client terminal,passed;56 current IPE,taint0/no newfault",
+  "r2_hardware_audit": "406 automatic images386math+20bootstrap;90 RAW-only+6dual;totalIPE412;all four native+isolated;passed",
+  "source": "/mnt/samurai-full282/libcamera440-release-r32/src/libcamera-v0.7.2",
+  "source_baseline439_preserved": true,
+  "mirror_head": "01a71e6fd9ac33b0f91539354f540b39213eafc3",
+  "r1": {
+    "worker_terminal": true,
+    "passed": false,
+    "four_camera_native_isolated_images": 399,
+    "successful_math": 378,
+    "bootstrap_images": 21,
+    "raw_dual_images": 6,
+    "failure": "RAW-only configure rejected because IPA PD10 hint was required without an IPE consumer",
+    "formal_restored": true,
+    "new_faults": 0,
+    "taint": 0
+  },
+  "r2_fix": "0051-camss-raw-only-pd10-policy.patch, requiresPd10 = processedEnabled && sensorConfiguration.pd10; IPA/kernel unchanged",
+  "patch_chain": "420 baseline plus0042..0051 zero-fuzz/offset matches48 current source files",
+  "next": [
+    "Extend real-PD10 automatic dual-pass to additional dimensions, original striping/DC grid and mode data first",
+    "Full video/HDR/optical/fifth2MP/individual/multicamera scope remains active"
+  ],
+  "formal_installed": true,
+  "formal_versions": {
+    "libcamera": "99990.7.2-r32",
+    "config": "0.1.0-r27"
+  },
+  "note": "Every WSL source/build access first root284/storage.mounted_build. No agents. No full goal completion; optical/full modes/video/HDR/fifth2MP/multicam scope remains.",
+  "local_public_export_complete": true,
+  "local_commit_receipt": "E:/edk2-samurai-out/kernel440/local-mirror-validation-private.json"
+}

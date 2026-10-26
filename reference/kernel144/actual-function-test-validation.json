@@ -1,0 +1,59 @@
+{
+  "stage": 144,
+  "actual_driver_functions_extracted": [
+    "to_eud_port",
+    "eud_put",
+    "eud_send_frame",
+    "eud_tx_work",
+    "eud_shutdown",
+    "eud_console_write_legacy",
+    "eud_console_device_lock",
+    "eud_console_device_unlock",
+    "eud_console_write_thread",
+    "eud_console_write_atomic",
+    "eud_restore_ahb2phy",
+    "eud_reboot_cmd"
+  ],
+  "candidate_source_sha256": "16670a85501bf1bb1d8ae5bd856d991a73ac199028e33275f34f1774991c7bfd",
+  "candidate_cases": 26,
+  "baseline143_regressions_reproduced": [
+    "queued F1 not sent before disable",
+    "TTY MMIO after hardware disable"
+  ],
+  "results": {
+    "baseline143-plain": {
+      "returncode": 0,
+      "cases": 18,
+      "compiler_diagnostics_empty": true,
+      "sanitizer_diagnostics_empty": true
+    },
+    "baseline143-asan-ubsan": {
+      "returncode": 0,
+      "cases": 18,
+      "compiler_diagnostics_empty": true,
+      "sanitizer_diagnostics_empty": true
+    },
+    "candidate144-plain": {
+      "returncode": 0,
+      "cases": 26,
+      "compiler_diagnostics_empty": true,
+      "sanitizer_diagnostics_empty": true
+    },
+    "candidate144-asan-ubsan": {
+      "returncode": 0,
+      "cases": 26,
+      "compiler_diagnostics_empty": true,
+      "sanitizer_diagnostics_empty": true
+    }
+  },
+  "previous16_normal_cases_preserved": true,
+  "queued_notice_flush_and_printer_retirement_checked": true,
+  "hardware_handoff_excludes_late_normal_and_atomic_tx": true,
+  "rx_irq_synchronization_duplicate_and_bad_length_checked": true,
+  "failed_first_flush_followed_by_unregister_flush_checked": true,
+  "active_printer_and_reboot_concurrency_checked": true,
+  "limits": "Host models printk queue and core flush/retirement; real host F1 receipt, panic and DSI acceptance remain required.",
+  "actual_functions_tested": true,
+  "deployed": false,
+  "goal_complete": false
+}

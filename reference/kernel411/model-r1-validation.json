@@ -1,0 +1,10 @@
+{
+  "stage": 411,
+  "attempt": "initial target knee output layout fixture",
+  "cases": 1301,
+  "differing_finite_cases": 1279,
+  "reason": "Initial fixture read the target ADRC kneeX and kneeY arrays in reverse order. Stack stores prove kneeX at output+16 and kneeY at output+32.",
+  "correction": "Read target output arrays in their actual ABI order; target instructions and public math unchanged at this step.",
+  "phone_accessed": false,
+  "passed": false
+}

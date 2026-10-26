@@ -1,0 +1,52 @@
+{
+  "stage": 214,
+  "signature_verification_with_host_apk_passed": true,
+  "config_payloads_exact_and_modes_verified": true,
+  "no_runtime_scripts": true,
+  "packages": [
+    {
+      "name": "samurai-camera-config",
+      "version": "0.1.0-r0",
+      "file": "samurai-camera-config-0.1.0-r0.apk",
+      "sha256": "d86813431e482057cb4db5830074cc146a8089c863c6c9ff0b2f30c87f68136e",
+      "bytes": 1874,
+      "files": {
+        "etc/libcamera/configuration.yaml": {
+          "sha256": "771c516f85cb3c408e42a561beaa4a4bd56f2db9890c81d40e28468205ecc12e",
+          "mode": 420
+        },
+        "etc/modules-load.d/samurai-camera-heaps.conf": {
+          "sha256": "3dcdfeb7f6c25f12603fa19510a5cbc412b9e4af1c5b5655f89367bbacd27440",
+          "mode": 420
+        },
+        "etc/udev/rules.d/70-samurai-camera-heaps.rules": {
+          "sha256": "edaa592dd125f84da3c59b4d90465a2d1202a8cceda3f0aec5febf31f817f02d",
+          "mode": 420
+        }
+      },
+      "dependencies": [
+        "libcamera=99990.7.2-r5",
+        "libcamera-ipa=99990.7.2-r5",
+        "openrc",
+        "eudev"
+      ]
+    },
+    {
+      "name": "samurai-camera-stack",
+      "version": "0.1.0-r0",
+      "file": "samurai-camera-stack-0.1.0-r0.apk",
+      "sha256": "5c31846e0a5e91a81274510ed63f1da9045fcf43ed343afeec35d2a047cd39fe",
+      "bytes": 989,
+      "files": {},
+      "dependencies": [
+        "samurai-camera-config=0.1.0-r0",
+        "libcamera=99990.7.2-r5",
+        "libcamera-ipa=99990.7.2-r5",
+        "libcamera-tools=99990.7.2-r5",
+        "libcamera-gstreamer=99990.7.2-r5",
+        "libcamera-v4l2=99990.7.2-r5"
+      ]
+    }
+  ],
+  "phone_not_modified": true
+}

@@ -1,0 +1,21 @@
+#!/sbin/openrc-run
+description="Temporary one-boot modem diagnostic capture"
+command="/usr/bin/python3"
+command_args="/var/lib/samurai/k247-nextboot/boot-observe.py"
+command_background="yes"
+pidfile="/run/samurai-diag247.pid"
+depend() {
+    need localmount
+    after udev
+    before samurai-radio
+}
+start_post() {
+    n=0
+    while [ "$n" -lt 100 ]; do
+        [ -e /run/samurai-diag247-ready ] && return 0
+        sleep 0.1
+        n=$((n+1))
+    done
+    ewarn "Diagnostic readiness timed out; radio boot continues"
+    return 0
+}

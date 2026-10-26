@@ -1,0 +1,27 @@
+[Defines]
+  INF_VERSION = 0x0001001B
+  BASE_NAME = RxProbe
+  FILE_GUID = 73c95184-7a67-44ad-989e-d8a73e58785a
+  MODULE_TYPE = UEFI_APPLICATION
+  VERSION_STRING = 0.1
+  ENTRY_POINT = UefiMain
+
+[Sources]
+  RxProbe.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  ArmPkg/ArmPkg.dec
+
+[LibraryClasses]
+  UefiApplicationEntryPoint
+  UefiBootServicesTableLib
+  BaseLib
+  DevicePathLib
+  IoLib
+  MemoryAllocationLib
+  PrintLib
+  TimerLib
+
+[Protocols]
+  gEfiLoadedImageProtocolGuid

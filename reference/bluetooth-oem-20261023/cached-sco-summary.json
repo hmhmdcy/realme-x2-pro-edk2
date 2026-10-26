@@ -1,0 +1,95 @@
+{
+  "source": "existing stage185 private HCI monitor capture; no new handset operation",
+  "monitor_header": "little-endian opcode,index,length; targeted Command Complete decoding only",
+  "enhanced_sync_supported_commands": "byte29 bits3/4 after status byte",
+  "windows": [
+    {
+      "evidence_window": "k185-scan-before",
+      "results": [],
+      "sco_tx_monitor_packets": 0,
+      "sco_rx_monitor_packets": 0
+    },
+    {
+      "evidence_window": "k185-scan-before-v2",
+      "results": [
+        {
+          "command": "ReadLocalSupportedCommands",
+          "enhanced_setup_sync": true,
+          "enhanced_accept_sync": true
+        },
+        {
+          "command": "ReadBufferSize",
+          "status": 0,
+          "acl_mtu": 1024,
+          "sco_mtu": 60,
+          "acl_packets": 7,
+          "sco_packets": 8
+        }
+      ],
+      "sco_tx_monitor_packets": 0,
+      "sco_rx_monitor_packets": 0
+    },
+    {
+      "evidence_window": "k185-scan-after",
+      "results": [
+        {
+          "command": "ReadLocalSupportedCommands",
+          "enhanced_setup_sync": true,
+          "enhanced_accept_sync": true
+        },
+        {
+          "command": "ReadBufferSize",
+          "status": 0,
+          "acl_mtu": 1024,
+          "sco_mtu": 60,
+          "acl_packets": 7,
+          "sco_packets": 8
+        }
+      ],
+      "sco_tx_monitor_packets": 0,
+      "sco_rx_monitor_packets": 0
+    },
+    {
+      "evidence_window": "k185-scan-after-suspend",
+      "results": [
+        {
+          "command": "ReadLocalSupportedCommands",
+          "enhanced_setup_sync": true,
+          "enhanced_accept_sync": true
+        },
+        {
+          "command": "ReadBufferSize",
+          "status": 0,
+          "acl_mtu": 1024,
+          "sco_mtu": 60,
+          "acl_packets": 7,
+          "sco_packets": 8
+        }
+      ],
+      "sco_tx_monitor_packets": 0,
+      "sco_rx_monitor_packets": 0
+    },
+    {
+      "evidence_window": "k185-scan-postresume",
+      "results": [
+        {
+          "command": "ReadLocalSupportedCommands",
+          "enhanced_setup_sync": true,
+          "enhanced_accept_sync": true
+        },
+        {
+          "command": "ReadBufferSize",
+          "status": 0,
+          "acl_mtu": 1024,
+          "sco_mtu": 60,
+          "acl_packets": 7,
+          "sco_packets": 8
+        }
+      ],
+      "sco_tx_monitor_packets": 0,
+      "sco_rx_monitor_packets": 0
+    }
+  ],
+  "does_not_prove_actual_sco_audio_or_hci_route": true,
+  "identifiers_addresses_and_other_payloads_omitted": true
+}

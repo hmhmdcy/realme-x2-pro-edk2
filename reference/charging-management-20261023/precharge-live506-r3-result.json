@@ -1,0 +1,169 @@
+{
+  "outcome": "completed_verified_after_control_recovery",
+  "physical_precharge_verified": true,
+  "formal_kernel": 506,
+  "boot_prefix": "075f658d",
+  "supervisor": {
+    "pid": 7491,
+    "startticks": 92596
+  },
+  "worker": {
+    "pid": 7492,
+    "startticks": 92608
+  },
+  "load": [
+    {
+      "pid": 7505,
+      "startticks": 93199,
+      "cpu": 4
+    },
+    {
+      "pid": 7506,
+      "startticks": 93199,
+      "cpu": 5
+    },
+    {
+      "pid": 7507,
+      "startticks": 93199,
+      "cpu": 7
+    }
+  ],
+  "start_from_healthy_midcharge": true,
+  "initial_logical_full": 0,
+  "stopped_session_seconds": 832,
+  "default_Full_start_gate_preserved": true,
+  "offline_control_tests": {
+    "passed": true,
+    "cases": 17,
+    "observer_sha256": "79f344c778bd0d6fe3031ce574e1eded01c0e76237c9592e0b7f00adc8968aa5",
+    "test_sha256": "0cc4cdd1febf290f0e520af5a247a885da7dc08cb84114a8329bc9c13cc36c55"
+  },
+  "load_control": {
+    "target_discharge_ua": 300000,
+    "maximum_duty": 0.6,
+    "at_minimum_cell_uv": 3500000,
+    "then_cpus": [
+      0,
+      1,
+      2
+    ],
+    "then_maximum_duty": 0.1,
+    "temperature_cap_decic": 360,
+    "temperature_zero_duty_decic": 380
+  },
+  "bounds": {
+    "discharge_seconds": 28800,
+    "recharge_seconds": 3500,
+    "supervisor_seconds": 32460,
+    "target_maximum_cell_uv": 3300000,
+    "early_stop_minimum_cell_uv": 3250000,
+    "abort_minimum_cell_uv": 3200000,
+    "maximum_imbalance_uv": 30000,
+    "temperature_decic": [
+      180,
+      400
+    ]
+  },
+  "caps": {
+    "input_current_ua": 500000,
+    "charge_current_ua": 250000,
+    "pack_cv_uv": 8725000
+  },
+  "normal_stop_and_AUTO_cleanup": true,
+  "parent_death_stops_load": true,
+  "kernel_modules_manifest_desktop_unchanged": true,
+  "MAC_query_or_rearm": false,
+  "acceptance": "Actual phase1/precharge and positive net current, then two consecutive phase2/fast-charge positive-current samples; running is not acceptance.",
+  "low_voltage_load_reduction": {
+    "observed": true,
+    "trigger_boottime": 8187.479613635,
+    "trigger_cells_uv": [
+      3500000,
+      3523000
+    ],
+    "trigger_gauge_current_ua": -303000,
+    "actual_affinity_readbacks": [
+      {
+        "pid": 7505,
+        "before": [
+          4
+        ],
+        "after": [
+          0
+        ]
+      },
+      {
+        "pid": 7506,
+        "before": [
+          5
+        ],
+        "after": [
+          1
+        ]
+      },
+      {
+        "pid": 7507,
+        "before": [
+          7
+        ],
+        "after": [
+          2
+        ]
+      }
+    ],
+    "maximum_duty": 0.1,
+    "followup": {
+      "boottime": 8258.657381956,
+      "cells_uv": [
+        3603000,
+        3605000
+      ],
+      "gauge_current_ua": -81000,
+      "temp_decic": 342,
+      "session_seconds": 832,
+      "fault": 0,
+      "error": 0,
+      "load_duty": 0.1
+    },
+    "precharge_not_yet_observed": true
+  },
+  "control_connection_loss": {
+    "last_success_boottime": 8877.29595205,
+    "last_capacity_percent": 3,
+    "last_cells_uv": [
+      3611000,
+      3612000
+    ],
+    "last_temp_decic": 312,
+    "last_fault": 0,
+    "last_error": 0,
+    "last_paused_seconds": 832,
+    "last_process_states": {
+      "7491": "S",
+      "7492": "S",
+      "7505": "S",
+      "7506": "S",
+      "7507": "S"
+    },
+    "ssh_ipv4_ipv6": "connection_refused",
+    "native_NCM_still_present": true,
+    "IPv6_ping_responding": true,
+    "current_phone_process_state_known": false,
+    "AUTO_cleanup_verified": false,
+    "UPower_low_percent_action_source_reproduced": true,
+    "actual_shutdown_cause_proven": false,
+    "test_restarted": false,
+    "scope": "Historical snapshot while the original boot could not be queried; recovered outcome is above."
+  },
+  "private_evidence": "precharge506-private-03; host watch42972; phone precharge506-live-20261025-03; ssh-loss-private-01",
+  "recovery": {
+    "original_transaction_replayed": false,
+    "actual_records": 1299,
+    "original_boot_ended": true,
+    "AUTO_cleanup_verified": true,
+    "worker_returncode": 0,
+    "cpu_load_joined": true,
+    "source": "precharge-live506-r3-recovered-result.json",
+    "former_unknown_state_is_historical": true
+  }
+}

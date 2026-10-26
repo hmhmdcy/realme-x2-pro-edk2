@@ -1,0 +1,42 @@
+--- a/net/qrtr/af_qrtr.c
++++ b/net/qrtr/af_qrtr.c
+@@ -14,6 +14,7 @@
+ #include <net/sock.h>
+ 
+ #include "qrtr.h"
++#include <trace/events/qrtr.h>
+ 
+ #define QRTR_PROTO_VER_1 1
+ #define QRTR_PROTO_VER_2 3
+@@ -348,10 +349,13 @@
+ 	struct qrtr_hdr_v1 *hdr;
+ 	size_t len = skb->len;
+ 	int rc, confirm_rx;
++	u32 wire_node = READ_ONCE(node->nid);
+ 
+ 	mutex_lock(&node->ep_lock);
+ 	if (!node->hello_sent && type != QRTR_TYPE_HELLO) {
+ 		mutex_unlock(&node->ep_lock);
++		trace_qrtr_endpoint_tx(READ_ONCE(node->nid), wire_node, type,
++			from->sq_port, to->sq_port, len, -EAGAIN);
+ 		kfree_skb(skb);
+ 		return -EAGAIN;
+ 	}
+@@ -378,6 +382,7 @@
+ 
+ 	hdr->size = cpu_to_le32(len);
+ 	hdr->confirm_rx = cpu_to_le32(!!confirm_rx);
++	wire_node = le32_to_cpu(hdr->dst_node_id);
+ 
+ 	rc = skb_put_padto(skb, ALIGN(len, 4) + sizeof(*hdr));
+ 
+@@ -396,6 +401,9 @@
+ 	 * confirm_rx flag if we dropped this one */
+ 	if (rc && confirm_rx)
+ 		qrtr_tx_flow_failed(node, to->sq_node, to->sq_port);
++
++	trace_qrtr_endpoint_tx(READ_ONCE(node->nid), wire_node, type,
++		from->sq_port, to->sq_port, len, rc);
+ 
+ 	if (rc == -EAGAIN && type == QRTR_TYPE_HELLO)
+ 		schedule_delayed_work(&node->say_hello, msecs_to_jiffies(100));

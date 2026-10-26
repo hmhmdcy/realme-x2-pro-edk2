@@ -1,0 +1,45 @@
+--- a/drivers/slimbus/qcom-ngd-ctrl.c
++++ b/drivers/slimbus/qcom-ngd-ctrl.c
+@@ -585,6 +585,14 @@
+ 						DMA_MEM_TO_DEV,
+ 						DMA_PREP_INTERRUPT);
+ 	if (!desc->desc) {
++		struct dma_chan *chan = ctrl->dma_tx_channel;
++		struct dma_device *dma = chan ? chan->device : NULL;
++
++		dev_err_once(ctrl->dev,
++			     "TX DMA diagnostic: state=%d qmi=%d channel=%d device=%d sg=%d config_sg=%d len=%d\n",
++			     ctrl->state, !!ctrl->qmi.handle, !!chan, !!dma,
++			     dma && !!dma->device_prep_slave_sg,
++			     dma && !!dma->device_prep_config_sg, len);
+ 		/* tx_lock serializes reservations; this slot was never queued. */
+ 		desc->comp = NULL;
+ 		ctrl->tx_tail = index;
+@@ -1741,6 +1749,11 @@
+ 		return 0;
+ 
+ 	ret = qcom_slim_qmi_power_request(ctrl, false);
++	if (ret)
++		dev_info_once(ctrl->dev,
++			      "NGD suspend rejected: ret=%d state=%d tx_channel=%d rx_channel=%d\n",
++			      ret, ctrl->state, !!ctrl->dma_tx_channel,
++			      !!ctrl->dma_rx_channel);
+ 	if (ret && ret != -EBUSY)
+ 		dev_info(ctrl->dev, "slim resource not idle:%d\n", ret);
+ 	if (!ret || ret == -ETIMEDOUT)
+--- a/drivers/dma/qcom/bam_dma.c
++++ b/drivers/dma/qcom/bam_dma.c
+@@ -692,8 +692,12 @@
+ 	/* allocate enough room to accommodate the number of entries */
+ 	num_alloc = sg_nents_for_dma(sgl, sg_len, BAM_FIFO_SIZE);
+ 	async_desc = kzalloc_flex(*async_desc, desc, num_alloc, GFP_NOWAIT);
+-	if (!async_desc)
++	if (!async_desc) {
++		dev_err_once(bdev->dev,
++			     "BAM DMA diagnostic: allocation failed count=%u sg_len=%u len=%u direction=%d\n",
++			     num_alloc, sg_len, sg_dma_len(sgl), direction);
+ 		return NULL;
++	}
+ 
+ 	if (flags & DMA_PREP_FENCE)
+ 		async_desc->flags |= DESC_FLAG_NWD;

@@ -1,0 +1,16 @@
+{
+  "stage": 423,
+  "passed": false,
+  "reason": "The reset sequence occurs in both init and configure; preparation incorrectly required one occurrence and stopped before writing camss.cpp. A build was started before checking preparation completion.",
+  "fixed_by": "Handle both reset sites, resume only script-owned incomplete preparation from the baseline, and require source_prepared before building.",
+  "preparation_phone_accessed": false,
+  "followup_hardware_phone_accessed": true,
+  "permanent_device_runtime_modified": false,
+  "temporary_services_restored_after_failed_enumeration": true,
+  "source_changed_during_first_build": true,
+  "first_build_artifacts_discarded": true,
+  "incremental_second_build_retained_stale_pipeline_object": true,
+  "first_hardware_attempt_failed_at_ipa_enumeration_before_ipe_jobs": true,
+  "corrective_action": "Force recompilation of every changed caller and generated interface input before another hardware attempt.",
+  "corrected_build_started_only_after_first_build_terminal": true
+}

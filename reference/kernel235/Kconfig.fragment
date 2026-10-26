@@ -1,0 +1,9 @@
+config REGULATOR_QCOM_PM8008_IMX319_LAB
+	tristate "RMX1931 experimental PM8008 P L1/L4 regulators"
+	depends on OF && I2C && REGULATOR
+	select REGMAP_I2C
+	help
+	  Strict two-output laboratory profile. Unresolved physical VIN ownership
+	  prevents treating this as a complete product PM8008 regulator binding.
+
+# Existing CONFIG_VIDEO_IMX319 must be enabled as a module for this candidate.

@@ -1,0 +1,122 @@
+Subject: [PATCH] misc: fastrpc: reclaim the SDSP reserved pool at teardown
+
+SDSP probe assigns the reserved DMA pool away from HLOS but neither its
+failure path nor rpmsg remove restores the ownership. A second SLPI boot
+then requests a transition from HLOS and fails with EINVAL repeatedly.
+Track the successful SCM transition and reclaim this pool on probe unwind
+and channel removal. Keep failed transitions visible and retain their
+ownership bookkeeping; never infer success from an SCM error.
+
+---
+
+diff --git a/drivers/misc/fastrpc.c b/drivers/misc/fastrpc.c
+index 8f39f4bed..19c0eee8f 100644
+--- a/drivers/misc/fastrpc.c
++++ b/drivers/misc/fastrpc.c
+@@ -325,6 +325,9 @@ struct fastrpc_channel_ctx {
+ 	/* Per-channel sequence counter; incremented on every context allocation */
+ 	atomic_t ctx_seq;
+ 	u64 dma_mask;
++	phys_addr_t reserved_pool_phys;
++	size_t reserved_pool_size;
++	u64 reserved_pool_perms;
+ 	const struct fastrpc_soc_data *soc_data;
+ };
+ 
+@@ -2533,6 +2536,57 @@ static const struct of_device_id fastrpc_poll_supported_machines[] __maybe_unuse
+ 	{},
+ };
+ 
++static int fastrpc_assign_reserved_pool(struct device *dev,
++					struct fastrpc_channel_ctx *cctx)
++{
++	struct resource res;
++	u64 src_perms = BIT(QCOM_SCM_VMID_HLOS);
++	int ret;
++
++	if (!cctx->vmcount)
++		return 0;
++
++	ret = of_reserved_mem_region_to_resource(dev->of_node, 0, &res);
++	if (ret)
++		return 0;
++
++	ret = qcom_scm_assign_mem(res.start, resource_size(&res), &src_perms,
++				  cctx->vmperms, cctx->vmcount);
++	if (ret)
++		return ret;
++
++	/* SCM returns the new owner mask only after a successful transition. */
++	cctx->reserved_pool_phys = res.start;
++	cctx->reserved_pool_size = resource_size(&res);
++	cctx->reserved_pool_perms = src_perms;
++
++	return 0;
++}
++
++static int fastrpc_unassign_reserved_pool(struct device *dev,
++					  struct fastrpc_channel_ctx *cctx)
++{
++	struct qcom_scm_vmperm perm = {
++		.vmid = QCOM_SCM_VMID_HLOS,
++		.perm = QCOM_SCM_PERM_RWX,
++	};
++	int ret;
++
++	if (!cctx->reserved_pool_size)
++		return 0;
++
++	ret = qcom_scm_assign_mem(cctx->reserved_pool_phys,
++				  cctx->reserved_pool_size,
++				  &cctx->reserved_pool_perms, &perm, 1);
++	if (ret) {
++		dev_err(dev, "failed to reclaim reserved pool: %d\n", ret);
++		return ret;
++	}
++
++	cctx->reserved_pool_size = 0;
++	return 0;
++}
++
+ static int fastrpc_rpmsg_probe(struct rpmsg_device *rpdev)
+ {
+ 	struct device *rdev = &rpdev->dev;
+@@ -2581,19 +2635,9 @@ static int fastrpc_rpmsg_probe(struct rpmsg_device *rpdev)
+ 	}
+ 
+ 	if (domain_id == SDSP_DOMAIN_ID) {
+-		struct resource res;
+-		u64 src_perms;
+-
+-		err = of_reserved_mem_region_to_resource(rdev->of_node, 0, &res);
+-		if (!err) {
+-			src_perms = BIT(QCOM_SCM_VMID_HLOS);
+-
+-			err = qcom_scm_assign_mem(res.start, resource_size(&res), &src_perms,
+-				    data->vmperms, data->vmcount);
+-			if (err)
+-				goto err_free_data;
+-		}
+-
++		err = fastrpc_assign_reserved_pool(rdev, data);
++		if (err)
++			goto err_free_data;
+ 	}
+ 
+ 	secure_dsp = !(of_property_read_bool(rdev->of_node, "qcom,non-secure-domain"));
+@@ -2655,6 +2699,7 @@ static int fastrpc_rpmsg_probe(struct rpmsg_device *rpdev)
+ 		misc_deregister(&data->secure_fdevice->miscdev);
+ 
+ err_free_data:
++	fastrpc_unassign_reserved_pool(rdev, data);
+ 	kfree(data);
+ 	return err;
+ }
+@@ -2697,6 +2742,7 @@ static void fastrpc_rpmsg_remove(struct rpmsg_device *rpdev)
+ 	if (cctx->remote_heap)
+ 		fastrpc_buf_free(cctx->remote_heap);
+ 
++	fastrpc_unassign_reserved_pool(&rpdev->dev, cctx);
+ 	of_platform_depopulate(&rpdev->dev);
+ 
+ 	fastrpc_channel_ctx_put(cctx);

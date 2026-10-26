@@ -1,0 +1,755 @@
+Subject: [PATCH] simple: support manual exposure and delayed source metadata
+
+Expose independent exposure/gain modes and values, preserve queued request
+controls, ignore manual values in Auto, freeze Auto-to-Manual transitions,
+seed Auto from the last manual target, and apply start controls before SOF.
+Keep opaque mode tags in the same delayed slots as the sensor values and
+snapshot them at capture, instead of echoing the current request modes.
+
+---
+diff --git a/include/libcamera/internal/delayed_controls.h b/include/libcamera/internal/delayed_controls.h
+--- a/include/libcamera/internal/delayed_controls.h
++++ b/include/libcamera/internal/delayed_controls.h
+@@ -7,6 +7,7 @@
+ 
+ #pragma once
+ 
++#include <optional>
+ #include <stdint.h>
+ #include <unordered_map>
+ 
+@@ -29,10 +30,10 @@
+ 	DelayedControls(V4L2Device *device,
+ 			const std::unordered_map<uint32_t, ControlParams> &controlParams);
+ 
+-	void reset();
++	void reset(uint32_t cookie = 0);
+ 
+-	bool push(const ControlList &controls);
+-	ControlList get(uint32_t sequence);
++	bool push(const ControlList &controls, std::optional<uint32_t> cookie = std::nullopt);
++	ControlList get(uint32_t sequence, uint32_t *cookie = nullptr);
+ 
+ 	void applyControls(uint32_t sequence);
+ 
+@@ -74,6 +75,9 @@
+ 	std::unordered_map<const ControlId *, ControlParams> controlParams_;
+ 	unsigned int maxDelay_;
+ 
++	/* Opaque source tags follow the same delayed target slots as controls. */
++	std::array<uint32_t, listSize> cookies_;
++
+ 	uint32_t queueCount_;
+ 	uint32_t writeCount_;
+ 	/* \todo Evaluate if we should index on ControlId * or unsigned int */
+diff --git a/include/libcamera/internal/software_isp/software_isp.h b/include/libcamera/internal/software_isp/software_isp.h
+--- a/include/libcamera/internal/software_isp/software_isp.h
++++ b/include/libcamera/internal/software_isp/software_isp.h
+@@ -66,15 +66,15 @@
+ 
+ 	int configure(const StreamConfiguration &inputCfg,
+ 		      const std::vector<std::reference_wrapper<const StreamConfiguration>> &outputCfgs,
+-		      const ipa::soft::IPAConfigInfo &configInfo);
++		      const ipa::soft::IPAConfigInfo &configInfo, ControlInfoMap *ipaControls);
+ 
+ 	int exportBuffers(const Stream *stream, unsigned int count,
+ 			  std::vector<std::unique_ptr<FrameBuffer>> *buffers);
+ 
+ 	void processStats(const uint32_t frame, const uint32_t bufferId,
+-			  const ControlList &sensorControls);
++			  const ControlList &sensorControls, uint32_t source);
+ 
+-	int start();
++	int start(const ControlList &controls, ControlList *sensorControls, uint32_t *source);
+ 	void stop();
+ 
+ 	void queueRequest(const uint32_t frame, const ControlList &controls);
+@@ -87,11 +87,11 @@
+ 	Signal<FrameBuffer *> outputBufferReady;
+ 	Signal<uint32_t, uint32_t> ispStatsReady;
+ 	Signal<uint32_t, const ControlList &> metadataReady;
+-	Signal<const ControlList &> setSensorControls;
++	Signal<const ControlList &, uint32_t> setSensorControls;
+ 
+ private:
+ 	void saveIspParams();
+-	void setSensorCtrls(const ControlList &sensorControls);
++	void setSensorCtrls(const ControlList &sensorControls, uint32_t source);
+ 	void statsReady(uint32_t frame, uint32_t bufferId);
+ 	void inputReady(FrameBuffer *input);
+ 	void outputReady(FrameBuffer *output);
+diff --git a/include/libcamera/ipa/soft.mojom b/include/libcamera/ipa/soft.mojom
+--- a/include/libcamera/ipa/soft.mojom
++++ b/include/libcamera/ipa/soft.mojom
+@@ -20,20 +20,22 @@
+ 	     libcamera.IPACameraSensorInfo sensorInfo,
+ 	     libcamera.ControlInfoMap sensorControls)
+ 		=> (int32 ret, libcamera.ControlInfoMap ipaControls, bool ccmEnabled);
+-	start() => (int32 ret);
++	start(libcamera.ControlList controls)
++		=> (int32 ret, libcamera.ControlList sensorControls, uint32 source);
+ 	stop();
+ 	configure(IPAConfigInfo configInfo)
+-		=> (int32 ret);
++		=> (int32 ret, libcamera.ControlInfoMap ipaControls);
+ 
+ 	[async] queueRequest(uint32 frame, libcamera.ControlList sensorControls);
+ 	[async] computeParams(uint32 frame);
+ 	[async] processStats(uint32 frame,
+ 			     uint32 bufferId,
+-			     libcamera.ControlList sensorControls);
++			     libcamera.ControlList sensorControls,
++			     uint32 source);
+ };
+ 
+ interface IPASoftEventInterface {
+-	setSensorControls(libcamera.ControlList sensorControls);
++	setSensorControls(libcamera.ControlList sensorControls, uint32 source);
+ 	setIspParams();
+ 	metadataReady(uint32 frame, libcamera.ControlList metadata);
+ };
+diff --git a/src/ipa/simple/algorithms/agc.cpp b/src/ipa/simple/algorithms/agc.cpp
+--- a/src/ipa/simple/algorithms/agc.cpp
++++ b/src/ipa/simple/algorithms/agc.cpp
+@@ -14,6 +14,8 @@
+ #include <libcamera/base/log.h>
+ 
+ #include "control_ids.h"
++
++#include <linux/v4l2-controls.h>
+ 
+ namespace libcamera {
+ 
+@@ -63,6 +65,104 @@
+ 
+ Agc::Agc()
+ {
++}
++
++int Agc::init(IPAContext &context, [[maybe_unused]] const ValueNode &tuningData)
++{
++	context.ctrlMap[&controls::AeEnable] = ControlInfo(false, true, true);
++	context.ctrlMap[&controls::ExposureTimeMode] =
++		ControlInfo(static_cast<int32_t>(controls::ExposureTimeModeAuto),
++			    static_cast<int32_t>(controls::ExposureTimeModeManual),
++			    static_cast<int32_t>(controls::ExposureTimeModeAuto));
++	context.ctrlMap[&controls::AnalogueGainMode] =
++		ControlInfo(static_cast<int32_t>(controls::AnalogueGainModeAuto),
++			    static_cast<int32_t>(controls::AnalogueGainModeManual),
++			    static_cast<int32_t>(controls::AnalogueGainModeAuto));
++	return 0;
++}
++
++int Agc::configure(IPAContext &context, const IPAConfigInfo &configInfo)
++{
++	auto &state = context.activeState.agc;
++	state.exposure = std::clamp(configInfo.sensorControls.at(V4L2_CID_EXPOSURE).def().get<int32_t>(),
++				    context.configuration.agc.exposureMin,
++				    context.configuration.agc.exposureMax);
++	state.again = context.configuration.agc.againMin;
++	state.manualExposure = state.exposure;
++	state.manualGain = state.again;
++	state.queueAutoExposure = state.queueAutoGain = true;
++	state.preparedAutoExposure = state.preparedAutoGain = true;
++	state.requestedExposure.reset();
++	state.requestedGain.reset();
++	return 0;
++}
++
++void Agc::queueRequest(IPAContext &context, [[maybe_unused]] const uint32_t frame,
++		       IPAFrameContext &frameContext, const ControlList &controls)
++{
++	auto &state = context.activeState.agc;
++	const auto exposureMode = controls.get(controls::ExposureTimeMode);
++	const auto gainMode = controls.get(controls::AnalogueGainMode);
++	/* Camera patches AeEnable before this call, including explicit-mode precedence. */
++	if (exposureMode) {
++		bool automatic = *exposureMode == controls::ExposureTimeModeAuto;
++		if (automatic != state.queueAutoExposure)
++			state.requestedExposure.reset();
++		state.queueAutoExposure = automatic;
++	}
++	if (gainMode) {
++		bool automatic = *gainMode == controls::AnalogueGainModeAuto;
++		if (automatic != state.queueAutoGain)
++			state.requestedGain.reset();
++		state.queueAutoGain = automatic;
++	}
++
++	/* Values supplied in Auto are ignored, including for future transitions. */
++	if (const auto value = controls.get(controls::ExposureTime);
++	    value && !state.queueAutoExposure) {
++		double lineUs = context.configuration.agc.lineDuration.get<std::micro>();
++		double lines = std::clamp(*value / lineUs,
++					 static_cast<double>(context.configuration.agc.exposureMin),
++					 static_cast<double>(context.configuration.agc.exposureMax));
++		state.requestedExposure = static_cast<int32_t>(std::llround(lines));
++	}
++	if (const auto value = controls.get(controls::AnalogueGain);
++	    value && !state.queueAutoGain && std::isfinite(*value))
++		state.requestedGain = std::clamp(static_cast<double>(*value),
++					       context.configuration.agc.againMin,
++					       context.configuration.agc.againMax);
++
++	frameContext.agc.autoExposure = state.queueAutoExposure;
++	frameContext.agc.autoGain = state.queueAutoGain;
++	frameContext.agc.requestedExposure = state.requestedExposure;
++	frameContext.agc.requestedGain = state.requestedGain;
++}
++
++void Agc::prepare(IPAContext &context, [[maybe_unused]] const uint32_t frame,
++		  IPAFrameContext &frameContext, [[maybe_unused]] DebayerParams *params)
++{
++	auto &state = context.activeState.agc;
++	auto &target = frameContext.agc;
++	if (!target.autoExposure) {
++		if (target.requestedExposure)
++			state.manualExposure = *target.requestedExposure;
++		else if (state.preparedAutoExposure)
++			state.manualExposure = state.exposure;
++	} else if (!state.preparedAutoExposure) {
++		state.exposure = state.manualExposure;
++	}
++	if (!target.autoGain) {
++		if (target.requestedGain)
++			state.manualGain = *target.requestedGain;
++		else if (state.preparedAutoGain)
++			state.manualGain = state.again;
++	} else if (!state.preparedAutoGain) {
++		state.again = state.manualGain;
++	}
++	state.preparedAutoExposure = target.autoExposure;
++	state.preparedAutoGain = target.autoGain;
++	target.exposure = target.autoExposure ? state.exposure : state.manualExposure;
++	target.gain = target.autoGain ? state.again : state.manualGain;
+ }
+ 
+ void Agc::updateExposure(IPAContext &context, IPAFrameContext &frameContext, double exposureMSV)
+@@ -86,10 +186,10 @@
+ 
+ 	if (factor > 1.0f) {
+ 		/* Scene too dark: increase exposure first, then gain. */
+-		if (exposure < context.configuration.agc.exposureMax) {
++		if (frameContext.agc.autoExposure && exposure < context.configuration.agc.exposureMax) {
+ 			int32_t next = static_cast<int32_t>(exposure * factor);
+ 			exposure = std::max(next, exposure + 1);
+-		} else {
++		} else if (frameContext.agc.autoGain) {
+ 			double next = again * factor;
+ 			if (next - again < context.configuration.agc.againMinStep)
+ 				again += context.configuration.agc.againMinStep;
+@@ -98,13 +198,13 @@
+ 		}
+ 	} else {
+ 		/* Scene too bright: decrease gain first, then exposure. */
+-		if (again > context.configuration.agc.again10) {
++		if (frameContext.agc.autoGain && again > context.configuration.agc.again10) {
+ 			double next = again * factor;
+ 			if (again - next < context.configuration.agc.againMinStep)
+ 				again -= context.configuration.agc.againMinStep;
+ 			else
+ 				again = next;
+-		} else {
++		} else if (frameContext.agc.autoExposure) {
+ 			int32_t next = static_cast<int32_t>(exposure * factor);
+ 			exposure = std::min(next, exposure - 1);
+ 		}
+@@ -115,8 +215,7 @@
+ 	again = std::clamp(again, context.configuration.agc.againMin,
+ 			   context.configuration.agc.againMax);
+ 
+-	context.activeState.agc.exposure = exposure;
+-	context.activeState.agc.again = again;
++
+ 
+ 	LOG(IPASoftExposure, Debug)
+ 		<< "exposureMSV " << exposureMSV
+@@ -135,25 +234,22 @@
+ 	metadata.set(controls::ExposureTime, exposureTime.get<std::micro>());
+ 	metadata.set(controls::AnalogueGain, frameContext.sensor.gain);
+ 
+-	if (!context.activeState.agc.valid) {
+-		/*
+-		 * Init active-state from sensor values in case updateExposure()
+-		 * does not run for the first frame.
+-		 */
+-		context.activeState.agc.exposure = frameContext.sensor.exposure;
+-		context.activeState.agc.again = frameContext.sensor.gain;
+-		context.activeState.agc.valid = true;
+-	}
+-
+-	if (!stats->valid) {
+-		/*
+-		 * Use the new exposure and gain values calculated the last time
+-		 * there were valid stats.
+-		 */
+-		frameContext.sensor.exposure = context.activeState.agc.exposure;
+-		frameContext.sensor.gain = context.activeState.agc.again;
++	metadata.set(controls::ExposureTimeMode,
++		     (frameContext.sensor.source & 1) ? controls::ExposureTimeModeManual
++						    : controls::ExposureTimeModeAuto);
++	metadata.set(controls::AnalogueGainMode,
++		     (frameContext.sensor.source & 2) ? controls::AnalogueGainModeManual
++						    : controls::AnalogueGainModeAuto);
++
++	/* Targets belong to this request; metadata above belongs to the captured SOF. */
++	bool sourcesMatch = frameContext.sensor.source == frameContext.agc.source();
++	if (!frameContext.agc.autoExposure || !sourcesMatch)
++		frameContext.sensor.exposure = frameContext.agc.exposure;
++	if (!frameContext.agc.autoGain || !sourcesMatch)
++		frameContext.sensor.gain = frameContext.agc.gain;
++	if (!stats->valid || !sourcesMatch ||
++	    (!frameContext.agc.autoExposure && !frameContext.agc.autoGain))
+ 		return;
+-	}
+ 
+ 	/*
+ 	 * Calculate Mean Sample Value (MSV) according to formula from:
+@@ -190,6 +286,10 @@
+ 
+ 	float exposureMSV = (denom == 0 ? 0 : static_cast<float>(num) / denom);
+ 	updateExposure(context, frameContext, exposureMSV);
++	if (frameContext.agc.autoExposure)
++		context.activeState.agc.exposure = frameContext.sensor.exposure;
++	if (frameContext.agc.autoGain)
++		context.activeState.agc.again = frameContext.sensor.gain;
+ }
+ 
+ REGISTER_IPA_ALGORITHM(Agc, "Agc")
+diff --git a/src/ipa/simple/algorithms/agc.h b/src/ipa/simple/algorithms/agc.h
+--- a/src/ipa/simple/algorithms/agc.h
++++ b/src/ipa/simple/algorithms/agc.h
+@@ -19,6 +19,13 @@
+ 	Agc();
+ 	~Agc() = default;
+ 
++	int init(IPAContext &context, const ValueNode &tuningData) override;
++	int configure(IPAContext &context, const IPAConfigInfo &configInfo) override;
++	void queueRequest(IPAContext &context, const uint32_t frame,
++			  IPAFrameContext &frameContext, const ControlList &controls) override;
++	void prepare(IPAContext &context, const uint32_t frame,
++		     IPAFrameContext &frameContext, DebayerParams *params) override;
++
+ 	void process(IPAContext &context, const uint32_t frame,
+ 		     IPAFrameContext &frameContext,
+ 		     const SwIspStats *stats,
+diff --git a/src/ipa/simple/ipa_context.h b/src/ipa/simple/ipa_context.h
+--- a/src/ipa/simple/ipa_context.h
++++ b/src/ipa/simple/ipa_context.h
+@@ -39,7 +39,14 @@
+ 	struct {
+ 		int32_t exposure;
+ 		double again;
+-		bool valid;
++		int32_t manualExposure;
++		double manualGain;
++		bool queueAutoExposure;
++		bool queueAutoGain;
++		bool preparedAutoExposure;
++		bool preparedAutoGain;
++		std::optional<int32_t> requestedExposure;
++		std::optional<double> requestedGain;
+ 	} agc;
+ 
+ 	struct {
+@@ -69,7 +76,21 @@
+ 	struct {
+ 		int32_t exposure;
+ 		double gain;
++		uint32_t source;
+ 	} sensor;
++
++	struct {
++		bool autoExposure;
++		bool autoGain;
++		std::optional<int32_t> requestedExposure;
++		std::optional<double> requestedGain;
++		int32_t exposure;
++		double gain;
++		uint32_t source() const
++		{
++			return (autoExposure ? 0 : 1) | (autoGain ? 0 : 2);
++		}
++	} agc;
+ 
+ 	RGB<float> gains;
+ 
+diff --git a/src/ipa/simple/soft_simple.cpp b/src/ipa/simple/soft_simple.cpp
+--- a/src/ipa/simple/soft_simple.cpp
++++ b/src/ipa/simple/soft_simple.cpp
+@@ -59,21 +59,23 @@
+ 		 const ControlInfoMap &sensorControls,
+ 		 ControlInfoMap *ipaControls,
+ 		 bool *ccmEnabled) override;
+-	int configure(const IPAConfigInfo &configInfo) override;
+-
+-	int start() override;
++	int configure(const IPAConfigInfo &configInfo, ControlInfoMap *ipaControls) override;
++
++	int start(const ControlList &controls, ControlList *sensorControls, uint32_t *source) override;
+ 	void stop() override;
+ 
+ 	void queueRequest(const uint32_t frame, const ControlList &controls) override;
+ 	void computeParams(const uint32_t frame) override;
+ 	void processStats(const uint32_t frame, const uint32_t bufferId,
+-			  const ControlList &sensorControls) override;
++			  const ControlList &sensorControls, uint32_t source) override;
+ 
+ protected:
+ 	std::string logPrefix() const override;
+ 
+ private:
+-	void updateExposure(double exposureMSV);
++	void updateControls(ControlInfoMap *ipaControls);
++	ControlList sensorControls(const IPAFrameContext &frameContext) const;
++	IPAConfigInfo configInfo_;
+ 
+ 	DebayerParams *params_;
+ 	SwIspStats *stats_;
+@@ -178,8 +180,6 @@
+ 		stats_ = static_cast<SwIspStats *>(mem);
+ 	}
+ 
+-	ControlInfoMap::Map ctrlMap = context_.ctrlMap;
+-	*ipaControls = ControlInfoMap(std::move(ctrlMap), controls::controls);
+ 
+ 	/*
+ 	 * Check if the sensor driver supports the controls required by the
+@@ -197,16 +197,20 @@
+ 		return -EINVAL;
+ 	}
+ 
++	configInfo_ = { sensorInfo, sensorControls };
++	sensorInfoMap_ = sensorControls;
++	updateControls(ipaControls);
+ 	return 0;
+ }
+ 
+-int IPASoftSimple::configure(const IPAConfigInfo &configInfo)
++int IPASoftSimple::configure(const IPAConfigInfo &configInfo, ControlInfoMap *ipaControls)
+ {
+ 	if (!configInfo.sensorInfo.pixelRate || !configInfo.sensorInfo.minLineLength) {
+ 		LOG(IPASoft, Error) << "Invalid sensor timing for software ISP";
+ 		return -EINVAL;
+ 	}
+ 
++	configInfo_ = configInfo;
+ 	context_.sensorInfo = configInfo.sensorInfo;
+ 	sensorInfoMap_ = configInfo.sensorControls;
+ 
+@@ -280,11 +284,57 @@
+ 		<< context_.configuration.agc.againMax
+ 		<< " (" << context_.configuration.agc.againMinStep << ")";
+ 
++	updateControls(ipaControls);
+ 	return 0;
+ }
+ 
+-int IPASoftSimple::start()
+-{
++void IPASoftSimple::updateControls(ControlInfoMap *ipaControls)
++{
++	const ControlInfo &exposure = sensorInfoMap_.at(V4L2_CID_EXPOSURE);
++	const ControlInfo &gain = sensorInfoMap_.at(V4L2_CID_ANALOGUE_GAIN);
++	double lineUs = context_.sensorInfo.minLineLength * 1000000.0 / context_.sensorInfo.pixelRate;
++	context_.ctrlMap[&controls::ExposureTime] =
++		ControlInfo(static_cast<int32_t>(std::ceil(exposure.min().get<int32_t>() * lineUs)),
++			    static_cast<int32_t>(std::floor(exposure.max().get<int32_t>() * lineUs)),
++			    static_cast<int32_t>(exposure.def().get<int32_t>() * lineUs));
++	context_.ctrlMap[&controls::AnalogueGain] =
++		ControlInfo(static_cast<float>(camHelper_ ? camHelper_->gain(gain.min().get<int32_t>()) : gain.min().get<int32_t>()),
++			    static_cast<float>(camHelper_ ? camHelper_->gain(gain.max().get<int32_t>()) : gain.max().get<int32_t>()),
++			    static_cast<float>(camHelper_ ? camHelper_->gain(gain.def().get<int32_t>()) : gain.def().get<int32_t>()));
++	ControlInfoMap::Map map = context_.ctrlMap;
++	*ipaControls = ControlInfoMap(std::move(map), controls::controls);
++}
++
++ControlList IPASoftSimple::sensorControls(const IPAFrameContext &frameContext) const
++{
++	ControlList controls(sensorInfoMap_);
++	controls.set(V4L2_CID_EXPOSURE, frameContext.sensor.exposure);
++	double gain = frameContext.sensor.gain;
++	controls.set(V4L2_CID_ANALOGUE_GAIN,
++		     static_cast<int32_t>(camHelper_ ? camHelper_->gainCode(gain) : gain));
++	return controls;
++}
++
++int IPASoftSimple::start(const ControlList &controls, ControlList *sensorControls, uint32_t *source)
++{
++	/* A restart without configure() must also restore the default Auto modes. */
++	context_.activeState = {};
++	context_.frameContexts.clear();
++	for (const auto &algo : algorithms()) {
++		int ret = algo->configure(context_, configInfo_);
++		if (ret)
++			return ret;
++	}
++	IPAFrameContext initial{};
++	context_.activeState.combinedMatrix = Matrix<float, 3, 3>::identity();
++	for (const auto &algo : algorithms())
++		algo->queueRequest(context_, 0, initial, controls);
++	for (const auto &algo : algorithms())
++		algo->prepare(context_, 0, initial, params_);
++	initial.sensor.exposure = initial.agc.exposure;
++	initial.sensor.gain = initial.agc.gain;
++	*sensorControls = this->sensorControls(initial);
++	*source = initial.agc.source();
+ 	return 0;
+ }
+ 
+@@ -315,9 +365,15 @@
+ 
+ void IPASoftSimple::processStats(const uint32_t frame,
+ 				 [[maybe_unused]] const uint32_t bufferId,
+-				 const ControlList &sensorControls)
+-{
++				 const ControlList &sensorControls, uint32_t source)
++{
++	if (!sensorControls.contains(V4L2_CID_EXPOSURE) ||
++	    !sensorControls.contains(V4L2_CID_ANALOGUE_GAIN)) {
++		LOG(IPASoft, Error) << "Control(s) missing";
++		return;
++	}
+ 	IPAFrameContext &frameContext = context_.frameContexts.get(frame);
++	frameContext.sensor.source = source;
+ 
+ 	frameContext.sensor.exposure =
+ 		sensorControls.get(V4L2_CID_EXPOSURE).get<int32_t>();
+@@ -329,21 +385,7 @@
+ 		algo->process(context_, frame, frameContext, stats_, metadata);
+ 	metadataReady.emit(frame, metadata);
+ 
+-	/* Sanity check */
+-	if (!sensorControls.contains(V4L2_CID_EXPOSURE) ||
+-	    !sensorControls.contains(V4L2_CID_ANALOGUE_GAIN)) {
+-		LOG(IPASoft, Error) << "Control(s) missing";
+-		return;
+-	}
+-
+-	ControlList ctrls(sensorInfoMap_);
+-
+-	auto &againNew = frameContext.sensor.gain;
+-	ctrls.set(V4L2_CID_EXPOSURE, frameContext.sensor.exposure);
+-	ctrls.set(V4L2_CID_ANALOGUE_GAIN,
+-		  static_cast<int32_t>(camHelper_ ? camHelper_->gainCode(againNew) : againNew));
+-
+-	setSensorControls.emit(ctrls);
++	setSensorControls.emit(this->sensorControls(frameContext), frameContext.agc.source());
+ }
+ 
+ std::string IPASoftSimple::logPrefix() const
+diff --git a/src/libcamera/delayed_controls.cpp b/src/libcamera/delayed_controls.cpp
+--- a/src/libcamera/delayed_controls.cpp
++++ b/src/libcamera/delayed_controls.cpp
+@@ -113,8 +113,9 @@
+  * Resets the state machine to a starting position based on control values
+  * retrieved from the device.
+  */
+-void DelayedControls::reset()
+-{
++void DelayedControls::reset(uint32_t cookie)
++{
++	cookies_.fill(cookie);
+ 	queueCount_ = 1;
+ 	writeCount_ = 0;
+ 
+@@ -140,13 +141,14 @@
+ /**
+  * \brief Push a set of controls on the queue
+  * \param[in] controls List of controls to add to the device queue
++ * \param[in] cookie Optional opaque source tag; an omitted tag retains the previous one
+  *
+  * Push a set of controls to the control queue. This increases the control queue
+  * depth by one.
+  *
+  * \returns true if \a controls are accepted, or false otherwise
+  */
+-bool DelayedControls::push(const ControlList &controls)
++bool DelayedControls::push(const ControlList &controls, std::optional<uint32_t> cookie)
+ {
+ 	/* Copy state from previous frame. */
+ 	for (auto &ctrl : values_) {
+@@ -180,6 +182,8 @@
+ 			<< " at index " << queueCount_;
+ 	}
+ 
++	cookies_[queueCount_ % listSize] =
++		cookie.value_or(cookies_[(queueCount_ - 1) % listSize]);
+ 	queueCount_++;
+ 
+ 	return true;
+@@ -200,9 +204,13 @@
+  *
+  * \return The controls at \a sequence number
+  */
+-ControlList DelayedControls::get(uint32_t sequence)
++ControlList DelayedControls::get(uint32_t sequence, uint32_t *cookie)
+ {
+ 	unsigned int index = std::max<int>(0, sequence - maxDelay_);
++	if (cookie)
++		*cookie = cookies_[index % listSize];
++	LOG(DelayedControls, Debug) << "Reading source cookie "
++		<< cookies_[index % listSize] << " at index " << index;
+ 
+ 	ControlList out(device_->controls());
+ 	for (const auto &ctrl : values_) {
+diff --git a/src/libcamera/pipeline/simple/simple.cpp b/src/libcamera/pipeline/simple/simple.cpp
+--- a/src/libcamera/pipeline/simple/simple.cpp
++++ b/src/libcamera/pipeline/simple/simple.cpp
+@@ -200,6 +200,7 @@
+ 	bool metadataRequired;
+ 	bool metadataProcessed;
+ 	std::optional<ControlList> sensorControls;
++	uint32_t sensorControlSource = 0;
+ };
+ 
+ class SimpleFrames
+@@ -377,7 +378,7 @@
+ 
+ 	void ispStatsReady(uint32_t frame, uint32_t bufferId);
+ 	void metadataReady(uint32_t frame, const ControlList &metadata);
+-	void setSensorControls(const ControlList &sensorControls);
++	void setSensorControls(const ControlList &sensorControls, uint32_t source);
+ };
+ 
+ class SimpleCameraConfiguration : public CameraConfiguration
+@@ -972,7 +973,7 @@
+ 			/* Snapshot before ISP processing can evict the sensor history. */
+ 			uint32_t sequence = frameStartEmitter_
+ 				? buffer->metadata().sequence : request->sequence();
+-			info->sensorControls = delayedCtrls_->get(sequence);
++			info->sensorControls = delayedCtrls_->get(sequence, &info->sensorControlSource);
+ 			LOG(SimplePipeline, Debug)
+ 				<< "Captured request " << request->sequence()
+ 				<< " from sequence " << buffer->metadata().sequence
+@@ -1056,7 +1057,7 @@
+ 		return;
+ 
+ 	ASSERT(info->sensorControls.has_value());
+-	swIsp_->processStats(frame, bufferId, *info->sensorControls);
++	swIsp_->processStats(frame, bufferId, *info->sensorControls, info->sensorControlSource);
+ }
+ 
+ void SimpleCameraData::metadataReady(uint32_t frame, const ControlList &metadata)
+@@ -1070,9 +1071,9 @@
+ 	tryCompleteRequest(info->request);
+ }
+ 
+-void SimpleCameraData::setSensorControls(const ControlList &sensorControls)
+-{
+-	delayedCtrls_->push(sensorControls);
++void SimpleCameraData::setSensorControls(const ControlList &sensorControls, uint32_t source)
++{
++	delayedCtrls_->push(sensorControls, source);
+ 	/*
+ 	 * Directly apply controls now if there is no frameStart signal.
+ 	 *
+@@ -1641,7 +1642,7 @@
+ 		if (ret)
+ 			return ret;
+ 		configInfo.sensorControls = data->sensor_->controls();
+-		return data->swIsp_->configure(inputCfg, outputCfgs, configInfo);
++		return data->swIsp_->configure(inputCfg, outputCfgs, configInfo, &data->controlInfo_);
+ 	}
+ }
+ 
+@@ -1663,7 +1664,7 @@
+ 		return data->video_->exportBuffers(count, buffers);
+ }
+ 
+-int SimplePipelineHandler::start(Camera *camera, [[maybe_unused]] const ControlList *controls)
++int SimplePipelineHandler::start(Camera *camera, const ControlList *controls)
+ {
+ 	SimpleCameraData *data = cameraData(camera);
+ 	V4L2VideoDevice *video = data->video_;
+@@ -1700,7 +1701,21 @@
+ 
+ 	video->bufferReady.connect(data, &SimpleCameraData::imageBufferReady);
+ 
+-	data->delayedCtrls_->reset();
++	uint32_t initialSource = 0;
++	if (data->useConversion_ && data->swIsp_) {
++		ControlList sensorControls;
++		ControlList emptyControls(libcamera::controls::controls);
++		ret = data->swIsp_->start(controls ? *controls : emptyControls,
++					&sensorControls, &initialSource);
++		if (!ret)
++			ret = data->sensor_->setControls(&sensorControls);
++		if (ret) {
++			stop(camera);
++			return ret < 0 ? ret : -EINVAL;
++		}
++	}
++	/* Seed both values and their source before the first SOF can arrive. */
++	data->delayedCtrls_->reset(initialSource);
+ 	if (frameStartEmitter) {
+ 		ret = frameStartEmitter->setFrameStartEnabled(true);
+ 		if (ret) {
+@@ -1720,8 +1735,7 @@
+ 	if (data->useConversion_) {
+ 		if (data->converter_)
+ 			ret = data->converter_->start();
+-		else if (data->swIsp_)
+-			ret = data->swIsp_->start();
++
+ 		else
+ 			ret = 0;
+ 
+diff --git a/src/libcamera/software_isp/software_isp.cpp b/src/libcamera/software_isp/software_isp.cpp
+--- a/src/libcamera/software_isp/software_isp.cpp
++++ b/src/libcamera/software_isp/software_isp.cpp
+@@ -250,10 +250,10 @@
+  * values for the sensor.
+  */
+ void SoftwareIsp::processStats(const uint32_t frame, const uint32_t bufferId,
+-			       const ControlList &sensorControls)
++			       const ControlList &sensorControls, uint32_t source)
+ {
+ 	ASSERT(ipa_);
+-	ipa_->processStats(frame, bufferId, sensorControls);
++	ipa_->processStats(frame, bufferId, sensorControls, source);
+ }
+ 
+ /**
+@@ -335,13 +335,13 @@
+ 
+ int SoftwareIsp::configure(const StreamConfiguration &inputCfg,
+ 			   const std::vector<std::reference_wrapper<const StreamConfiguration>> &outputCfgs,
+-			   const ipa::soft::IPAConfigInfo &configInfo)
++			   const ipa::soft::IPAConfigInfo &configInfo, ControlInfoMap *ipaControls)
+ {
+ 	ASSERT(ipa_ && debayer_);
+ 
+ 	if (imx471_ && inputCfg.size == Size(4608, 3456) && !nativeQuadCpu_)
+ 		return -EINVAL;
+-	int ret = ipa_->configure(configInfo);
++	int ret = ipa_->configure(configInfo, ipaControls);
+ 	if (ret < 0)
+ 		return ret;
+ 
+@@ -435,9 +435,9 @@
+  * \brief Starts the Software ISP streaming operation
+  * \return 0 on success, any other value indicates an error
+  */
+-int SoftwareIsp::start()
+-{
+-	int ret = ipa_->start();
++int SoftwareIsp::start(const ControlList &controls, ControlList *sensorControls, uint32_t *source)
++{
++	int ret = ipa_->start(controls, sensorControls, source);
+ 	if (ret)
+ 		return ret;
+ 
+@@ -496,9 +496,9 @@
+ 	debayerParams_ = *sharedParams_;
+ }
+ 
+-void SoftwareIsp::setSensorCtrls(const ControlList &sensorControls)
+-{
+-	setSensorControls.emit(sensorControls);
++void SoftwareIsp::setSensorCtrls(const ControlList &sensorControls, uint32_t source)
++{
++	setSensorControls.emit(sensorControls, source);
+ }
+ 
+ void SoftwareIsp::statsReady(uint32_t frame, uint32_t bufferId)

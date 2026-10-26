@@ -1,0 +1,399 @@
+{
+  "stage": 453,
+  "scope": "offline OEM AF source recovery and nondeployable typed candidates",
+  "modules": [
+    {
+      "model": "imx319",
+      "declared_variant": "sunny_imx319",
+      "sensor_mode": 2,
+      "module_source_sha256": "e2d68359e85af97dbc686d63ca140ae2af87542023245c7307a57d3aeba21704",
+      "actuator_xml_sha256": "2abc15a962fc0673a86d990a24077665ac62f43c664557efa7bf3207b3990839",
+      "matched_actuator_tuned_region_and_both_damping_directions": true,
+      "eeprom_prefix_and_duplicate_reads_checked": true,
+      "individual_af_applied": false,
+      "original_af_mode_manager_match": true,
+      "preview_video_af_root_same": true,
+      "af_algo_root_uid": 96,
+      "af_algo_root_version": 9,
+      "selected_af_algo_sha256": "e6db0d1d171093a5bc6133a66ff5c5b4caf2cf642b4f150f620c86273d9af439",
+      "original_contrast_af_mode_manager_match": true,
+      "selected_contrast_af_root_uid": 68,
+      "selected_contrast_af_sha256": "22162f7e34b551ed30b083801d3e15f528f733fd0a8c3d97121e99714cfa86c7",
+      "complete_typed_af_roots_xml_matched": 25,
+      "source_common_bounds_valid_in_nominal_table": true,
+      "selected_logic_step_and_phase_frame_fields_decoded": true,
+      "actual_ipa_lens_match_name": "bu64253",
+      "mapped_fields": [
+        "lens",
+        "maximumCode",
+        "minimumCode"
+      ],
+      "unresolved_required_fields": [
+        "coarseStep",
+        "fineStep",
+        "samples",
+        "settleMs",
+        "timeoutMs",
+        "minimumPeak",
+        "peakRatio",
+        "verifyRatio"
+      ],
+      "field_provenance": {
+        "lens": {
+          "state": "mapped",
+          "source": "453 bu64253.c i2c_driver.driver.name and current CameraLens model matching"
+        },
+        "minimumCode": {
+          "state": "nominal_mode_bound_candidate",
+          "source": "selected AFAlgoTuning/commonElements logical bound through exact retained native nominal step table",
+          "individual_safe_endpoint": false
+        },
+        "maximumCode": {
+          "state": "nominal_mode_bound_candidate",
+          "source": "selected AFAlgoTuning/commonElements logical bound through exact retained native nominal step table",
+          "individual_safe_endpoint": false
+        },
+        "coarseStep": {
+          "state": "decoded_logical_region_tables_not_uniform_dac_policy",
+          "source": "selected ContrastAF v9 singleSearch/TAFStepTable and CAFStepTable; native quantized delta alternatives retained privately"
+        },
+        "fineStep": {
+          "state": "decoded_logical_region_tables_not_uniform_dac_policy",
+          "source": "selected ContrastAF v9 singleSearch/TAFStepTable and CAFStepTable; native quantized delta alternatives retained privately"
+        },
+        "samples": {
+          "state": "not_mapped",
+          "source": "original AF statistics domain and current ContrastAf sampling policy differ"
+        },
+        "settleMs": {
+          "state": "source_phase_frame_delays_decoded_no_fixed_ms_mapping",
+          "source": "selected ContrastAF fullSweep/frameDelayInf,Norm,Final; singleSearch/frameDelay base,coarse,fine; miscellaneous/frameSkipGoToPeak; dampingDelayUs is a different quantity"
+        },
+        "timeoutMs": {
+          "state": "policy_not_selected",
+          "source": "current ContrastAf total search deadline; no factory equivalent accepted"
+        },
+        "minimumPeak": {
+          "state": "metric_not_equivalent",
+          "source": "current luma FoM requires threshold in its own domain"
+        },
+        "peakRatio": {
+          "state": "metric_not_equivalent",
+          "source": "current luma FoM/coarse-minimum peak policy"
+        },
+        "verifyRatio": {
+          "state": "metric_not_equivalent",
+          "source": "current selected-position verification policy"
+        },
+        "frame_guard": {
+          "state": "existing_runtime_value",
+          "source": "IPACamss::processFocus immutable frameLength + exposureLines, scaled by lineUs; ACK completion clock plus settle handled by ContrastAf"
+        }
+      },
+      "native_nominal_step_table_replayed_and_equal": true,
+      "nominal_only_no_verified_eeprom_margins": true,
+      "deployable": false
+    },
+    {
+      "model": "s5k3m5",
+      "declared_variant": "qtech_s5k3m5sx",
+      "sensor_mode": 3,
+      "module_source_sha256": "823404fcc1d9cf3afa4fa126ecfa456d160188e594a9defd0bf519786988bc77",
+      "actuator_xml_sha256": "da13ddf217a3992768b29cf263c766750e67e753a4c90f4b922e838126f50fe4",
+      "matched_actuator_tuned_region_and_both_damping_directions": true,
+      "eeprom_prefix_and_duplicate_reads_checked": true,
+      "individual_af_applied": false,
+      "original_af_mode_manager_match": true,
+      "preview_video_af_root_same": true,
+      "af_algo_root_uid": 96,
+      "af_algo_root_version": 9,
+      "selected_af_algo_sha256": "963df4c8187b79c23bfde175461d230fe2ff928b2cc122d4ac4917c4727f9400",
+      "original_contrast_af_mode_manager_match": true,
+      "selected_contrast_af_root_uid": 68,
+      "selected_contrast_af_sha256": "929e31e5de425dc6bf8874ff21074a56bcab085d206f6e53190dec668a23ef59",
+      "complete_typed_af_roots_xml_matched": 14,
+      "source_common_bounds_valid_in_nominal_table": true,
+      "selected_logic_step_and_phase_frame_fields_decoded": true,
+      "actual_ipa_lens_match_name": "bu64253",
+      "mapped_fields": [
+        "lens",
+        "maximumCode",
+        "minimumCode"
+      ],
+      "unresolved_required_fields": [
+        "coarseStep",
+        "fineStep",
+        "samples",
+        "settleMs",
+        "timeoutMs",
+        "minimumPeak",
+        "peakRatio",
+        "verifyRatio"
+      ],
+      "field_provenance": {
+        "lens": {
+          "state": "mapped",
+          "source": "453 bu64253.c i2c_driver.driver.name and current CameraLens model matching"
+        },
+        "minimumCode": {
+          "state": "nominal_mode_bound_candidate",
+          "source": "selected AFAlgoTuning/commonElements logical bound through exact retained native nominal step table",
+          "individual_safe_endpoint": false
+        },
+        "maximumCode": {
+          "state": "nominal_mode_bound_candidate",
+          "source": "selected AFAlgoTuning/commonElements logical bound through exact retained native nominal step table",
+          "individual_safe_endpoint": false
+        },
+        "coarseStep": {
+          "state": "decoded_logical_region_tables_not_uniform_dac_policy",
+          "source": "selected ContrastAF v9 singleSearch/TAFStepTable and CAFStepTable; native quantized delta alternatives retained privately"
+        },
+        "fineStep": {
+          "state": "decoded_logical_region_tables_not_uniform_dac_policy",
+          "source": "selected ContrastAF v9 singleSearch/TAFStepTable and CAFStepTable; native quantized delta alternatives retained privately"
+        },
+        "samples": {
+          "state": "not_mapped",
+          "source": "original AF statistics domain and current ContrastAf sampling policy differ"
+        },
+        "settleMs": {
+          "state": "source_phase_frame_delays_decoded_no_fixed_ms_mapping",
+          "source": "selected ContrastAF fullSweep/frameDelayInf,Norm,Final; singleSearch/frameDelay base,coarse,fine; miscellaneous/frameSkipGoToPeak; dampingDelayUs is a different quantity"
+        },
+        "timeoutMs": {
+          "state": "policy_not_selected",
+          "source": "current ContrastAf total search deadline; no factory equivalent accepted"
+        },
+        "minimumPeak": {
+          "state": "metric_not_equivalent",
+          "source": "current luma FoM requires threshold in its own domain"
+        },
+        "peakRatio": {
+          "state": "metric_not_equivalent",
+          "source": "current luma FoM/coarse-minimum peak policy"
+        },
+        "verifyRatio": {
+          "state": "metric_not_equivalent",
+          "source": "current selected-position verification policy"
+        },
+        "frame_guard": {
+          "state": "existing_runtime_value",
+          "source": "IPACamss::processFocus immutable frameLength + exposureLines, scaled by lineUs; ACK completion clock plus settle handled by ContrastAf"
+        }
+      },
+      "native_nominal_step_table_replayed_and_equal": true,
+      "nominal_only_no_verified_eeprom_margins": true,
+      "deployable": false
+    }
+  ],
+  "current_ipa_source_sha256": "d963f91d55b52b7693b73c6a05ad0ad282de47335592fb5c02821ddc9cb7520c",
+  "per_mode_autofocus_overrides_root_supported": true,
+  "existing_immutable_exposure_plus_readout_guard_preserved": true,
+  "damping_delay_not_optical_settle_time": true,
+  "protocol_limits_not_used_as_search_limits": true,
+  "complete_af_algo_schema_not_retained_in_inspected_sources": false,
+  "schemas_recovered_from_existing_pinned_git_objects": true,
+  "source_schema_files": 18,
+  "complete_typed_af_roots_xml_matched": 39,
+  "af_mode_queries_original_manager_equal": 8,
+  "schema_sources": [
+    {
+      "repository": "https://github.com/bjzhou/CamxChi",
+      "commit": "9f17f1b568626b393e785b369c5dc94543774d7a",
+      "path": "chi-cdk/api/chromatix/XSD/stats/af/af.xsd",
+      "bytes": 2325,
+      "sha256": "0fad921eeb36d12306bf188585c94049ded8e16b91005eeeedc070ba2beba904"
+    },
+    {
+      "repository": "https://github.com/bjzhou/CamxChi",
+      "commit": "9f17f1b568626b393e785b369c5dc94543774d7a",
+      "path": "chi-cdk/api/chromatix/XSD/stats/af/afglobalelements.xsd",
+      "bytes": 637,
+      "sha256": "ed4635fbddfb7de8a1eb7421714f181640a027d68f98ed9990b5684a3fae1263"
+    },
+    {
+      "repository": "https://github.com/bjzhou/CamxChi",
+      "commit": "9f17f1b568626b393e785b369c5dc94543774d7a",
+      "path": "chi-cdk/api/chromatix/XSD/stats/af/afcontrastafelements.xsd",
+      "bytes": 75609,
+      "sha256": "b52a7571f0270744bba705467bd28d7d20c71143908a723d1d5e2ad809a4c759"
+    },
+    {
+      "repository": "https://github.com/bjzhou/CamxChi",
+      "commit": "9f17f1b568626b393e785b369c5dc94543774d7a",
+      "path": "chi-cdk/api/chromatix/XSD/stats/af/afalgotuningelements.xsd",
+      "bytes": 81374,
+      "sha256": "ef5be1639008caf1fc2cb12d606effad339e54352d0e0c153cdebe489a9a6384"
+    },
+    {
+      "repository": "https://github.com/bjzhou/CamxChi",
+      "commit": "9f17f1b568626b393e785b369c5dc94543774d7a",
+      "path": "chi-cdk/api/chromatix/XSD/stats/af/afhafelements.xsd",
+      "bytes": 40964,
+      "sha256": "379ed9afebc8478777ed9e75781618a187009631ef9d9880e5b94dbad282fd75"
+    },
+    {
+      "repository": "https://github.com/bjzhou/CamxChi",
+      "commit": "9f17f1b568626b393e785b369c5dc94543774d7a",
+      "path": "chi-cdk/api/chromatix/XSD/stats/af/afbafelements.xsd",
+      "bytes": 31399,
+      "sha256": "047f3f1bdba2c0c2af896a394536dcb01c5340e475dd8317ae1ff822bee5d510"
+    },
+    {
+      "repository": "https://github.com/bjzhou/CamxChi",
+      "commit": "9f17f1b568626b393e785b369c5dc94543774d7a",
+      "path": "chi-cdk/api/chromatix/XSD/stats/af/afpdafelements.xsd",
+      "bytes": 70025,
+      "sha256": "7b9a380ccd088637813a022d79a1f24fb8dc0b212f6f070df8bd627364135a44"
+    },
+    {
+      "repository": "https://github.com/bjzhou/CamxChi",
+      "commit": "9f17f1b568626b393e785b369c5dc94543774d7a",
+      "path": "chi-cdk/api/chromatix/XSD/stats/af/afdciafelements.xsd",
+      "bytes": 16138,
+      "sha256": "80777b469e8fac671f155eebada356033908728b7d58d17d3c448bb0340f9429"
+    },
+    {
+      "repository": "https://github.com/bjzhou/CamxChi",
+      "commit": "9f17f1b568626b393e785b369c5dc94543774d7a",
+      "path": "chi-cdk/api/chromatix/XSD/stats/af/aftofelements.xsd",
+      "bytes": 24312,
+      "sha256": "88ae6f85722c0211367ebaeffb14af48b264fc5ad97c6b97029b1e8a4358de2b"
+    },
+    {
+      "repository": "https://github.com/bjzhou/CamxChi",
+      "commit": "9f17f1b568626b393e785b369c5dc94543774d7a",
+      "path": "chi-cdk/api/chromatix/XSD/stats/af/afdepthafelements.xsd",
+      "bytes": 17634,
+      "sha256": "b2692177d469eaf22a4d92ae0b9e6fe9a0ea24cbf12e5a73f9bd4653b8494983"
+    },
+    {
+      "repository": "https://github.com/bjzhou/CamxChi",
+      "commit": "9f17f1b568626b393e785b369c5dc94543774d7a",
+      "path": "chi-cdk/api/chromatix/XSD/stats/af/afmonitorelements.xsd",
+      "bytes": 35191,
+      "sha256": "85e7dd005aad98e2c5a5efd80e2ffd29b365db6547af2cb1a7e72961b2aa9f2b"
+    },
+    {
+      "repository": "https://github.com/bjzhou/CamxChi",
+      "commit": "9f17f1b568626b393e785b369c5dc94543774d7a",
+      "path": "chi-cdk/api/chromatix/XSD/stats/af/afpdlibelements.xsd",
+      "bytes": 45233,
+      "sha256": "7edba866daee6042805243c03b34328a7a57a032fe31cad35a7bd375823cc7ce"
+    },
+    {
+      "repository": "https://github.com/bjzhou/CamxChi",
+      "commit": "9f17f1b568626b393e785b369c5dc94543774d7a",
+      "path": "chi-cdk/api/chromatix/XSD/stats/af/afsoftwarestatelements.xsd",
+      "bytes": 9467,
+      "sha256": "9e3a58f3468290cc0584d5bc3d7dd6071ac6f9ef0d9b72ff091894a0ca4dfda7"
+    },
+    {
+      "repository": "https://github.com/bjzhou/CamxChi",
+      "commit": "9f17f1b568626b393e785b369c5dc94543774d7a",
+      "path": "chi-cdk/api/chromatix/XSD/stats/af/afextensionelements.xsd",
+      "bytes": 1466,
+      "sha256": "2d2a324f2714863bab86fc8d8668d2ec69df5218722575a208629187d0521bf6"
+    },
+    {
+      "repository": "https://github.com/bjzhou/CamxChi",
+      "commit": "9f17f1b568626b393e785b369c5dc94543774d7a",
+      "path": "chi-cdk/api/chromatix/XSD/common/globalelements.xsd",
+      "bytes": 1902,
+      "sha256": "bc436d80451094091486478b5f2cf314e3f2c6bc16ca73e2c465906ebffb6201"
+    },
+    {
+      "repository": "https://github.com/bjzhou/CamxChi",
+      "commit": "9f17f1b568626b393e785b369c5dc94543774d7a",
+      "path": "chi-cdk/api/chromatix/XSD/stats/common/statsroidifference.xsd",
+      "bytes": 1826,
+      "sha256": "7de048115a7fcd892cb56bc1510e6ef29bc2155d9878e46c3f3e6675e7ef7d24"
+    },
+    {
+      "repository": "https://github.com/bjzhou/CamxChi",
+      "commit": "9f17f1b568626b393e785b369c5dc94543774d7a",
+      "path": "chi-cdk/api/chromatix/XSD/stats/common/statsroipriority.xsd",
+      "bytes": 2455,
+      "sha256": "9d3c1bd5a7ef86bf1e5f384db69efb6c66bdaa3273a15790e330597fb3d320cd"
+    },
+    {
+      "repository": "https://github.com/bjzhou/CamxChi",
+      "commit": "9f17f1b568626b393e785b369c5dc94543774d7a",
+      "path": "chi-cdk/api/chromatix/XSD/stats/common/statsglobalelements.xsd",
+      "bytes": 6105,
+      "sha256": "12d3bbeb0937bb5231732a45ec35262b76a3ba8e8758eaf5c1e6a8a525165c0b"
+    }
+  ],
+  "native_semantics_sources": [
+    {
+      "path": "camx/src/core/camxactuatordata.cpp",
+      "repository": "https://github.com/bjzhou/CamxChi",
+      "commit": "9f17f1b568626b393e785b369c5dc94543774d7a",
+      "source": "existing pinned git object",
+      "bytes": 27941,
+      "sha256": "6efd44df3b579d85b6dba818661a04150eefcc707de9141308846c0d866f879c"
+    },
+    {
+      "path": "camx/src/core/camxactuatordata.h",
+      "repository": "https://github.com/bjzhou/CamxChi",
+      "commit": "9f17f1b568626b393e785b369c5dc94543774d7a",
+      "source": "existing pinned git object",
+      "bytes": 12869,
+      "sha256": "b84166982e06bcd01cf9f8f3980f84cc2466a7e4d1f8372ffdcf6982d48d08d2"
+    },
+    {
+      "path": "camx/src/swl/sensor/camxactuator.cpp",
+      "repository": "https://github.com/bjzhou/CamxChi",
+      "commit": "9f17f1b568626b393e785b369c5dc94543774d7a",
+      "source": "existing pinned git object",
+      "bytes": 28746,
+      "sha256": "b8572aba1eb962f78ac2b5c90c91e7f31d198b3e6d366dfacd27ef37118b7d99"
+    },
+    {
+      "path": "camx/src/swl/sensor/camxactuator.h",
+      "repository": "https://github.com/bjzhou/CamxChi",
+      "commit": "9f17f1b568626b393e785b369c5dc94543774d7a",
+      "source": "existing pinned git object",
+      "bytes": 16024,
+      "sha256": "33d1ec3ca00b99bbc8374a45f168e7b8213792530e0ec97429c32f220bfd740d"
+    },
+    {
+      "path": "camx/src/core/camxeepromdata.cpp",
+      "repository": "https://github.com/bjzhou/CamxChi",
+      "commit": "9f17f1b568626b393e785b369c5dc94543774d7a",
+      "source": "existing pinned git object",
+      "bytes": 127500,
+      "sha256": "0609e0ea70fafa1e143536561111152c5618afd4cd92ded52f803f16b19bc7a9"
+    },
+    {
+      "path": "chi-cdk/api/stats/chiafcommon.h",
+      "repository": "https://github.com/bjzhou/CamxChi",
+      "commit": "9f17f1b568626b393e785b369c5dc94543774d7a",
+      "source": "existing pinned git object",
+      "bytes": 40639,
+      "sha256": "4c9d239cec69dba740b2569ce6a18a7443883ad9e877b5f0074875b069cfa597"
+    },
+    {
+      "path": "chi-cdk/api/stats/chiafinterface.h",
+      "repository": "https://github.com/bjzhou/CamxChi",
+      "commit": "9f17f1b568626b393e785b369c5dc94543774d7a",
+      "source": "existing pinned git object",
+      "bytes": 23767,
+      "sha256": "059bf20caf078affec5a4d919a431ce0d52dc0a9c265998b97469062c32945cc"
+    }
+  ],
+  "retained_hal_native_step_core": {
+    "binary_sha256": "e2b1b9b6379507052464d9f9573c2a5a1b1cf37c43947b53645ddc8948a70dde",
+    "begin": "0x4f8718",
+    "end_exclusive": "0x4f89b4",
+    "sha256": "6f5c25830bbc9eb8eb026f14fd82fd54de60622039ce35807af4c99a8e51769d",
+    "modules_replayed": 2,
+    "every_output_step_equal": true
+  },
+  "pinned_schema_commit": "9f17f1b568626b393e785b369c5dc94543774d7a",
+  "factory_tuning_values_and_unit_data_private": true,
+  "no_phone_sdk_compile_production_changes": true,
+  "automatic_focus_ready": false,
+  "offline_checks_passed": true
+}

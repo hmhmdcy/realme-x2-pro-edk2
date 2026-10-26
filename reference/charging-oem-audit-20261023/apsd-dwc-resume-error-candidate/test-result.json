@@ -1,0 +1,35 @@
+{
+  "passed": true,
+  "original_false_success_reproduced": true,
+  "cases": [
+    "runtime gadget error propagated and gate released",
+    "system gadget error propagated without later success actions",
+    "original core-init error path preserved",
+    "successful device resume preserved",
+    "rejected PM claim does not release another gate",
+    "matching OTG device branch reports its error",
+    "host full-init path preserved",
+    "automatic OTG no-op path preserved"
+  ],
+  "actual_function": "dwc3_resume_common",
+  "flags": [
+    "-std=c11",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-Wno-unused-parameter",
+    "-fsanitize=address,undefined",
+    "-fno-omit-frame-pointer"
+  ],
+  "files_sha256": {
+    "core.c": "cdff700a415cfa0de231dded3b00b18a31aae23de19dd4a894c894517bc06e2d",
+    "resume-error.patch": "6adf32ea8799757fba31d9eeb5190629a81bf7b96d5157913e80a66019398385",
+    "original-resume.inc": "a891cd3387c34c924db569dcbdcf9e0beb2381d1e975a4a8665ee5137baf8e72",
+    "candidate-resume.inc": "43b5b1e8027605a7ccbf1b3ae8b99cde5a016a5d2e05ec9a75896e628a55909d",
+    "test-resume.c": "aa30caa4d85b88ca9a8657b1b04eb49b309c79d36a32545468a882ab8331ce91"
+  },
+  "r2_suites_rerun": false,
+  "phone_accessed": false,
+  "sdk_invoked": false,
+  "real_pm_or_usb_recovery_accepted": false
+}

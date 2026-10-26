@@ -1,0 +1,14 @@
+--- a/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
++++ b/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
+@@ -264,8 +264,10 @@
+ 	status = "disabled";
+ };
+ 
++/* PAS auto_boot is false: expose MPSS for explicit firmware tests only. */
+ &remoteproc_mpss {
+-	status = "disabled";
++	firmware-name = "qcom/sm8150/realme/samurai/modem.mdt";
++	status = "okay";
+ };
+ 
+ &remoteproc_slpi {

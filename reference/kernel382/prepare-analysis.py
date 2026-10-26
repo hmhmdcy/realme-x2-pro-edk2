@@ -1,0 +1,16 @@
+from pathlib import Path
+HERE=Path(__file__).resolve().parent;OLD=HERE.parent/'kernel381'
+s=(OLD/'check-pixels.py').read_text().replace('stage=381','stage=382')
+s=s.replace("transfer=shifted['Y']['exact_bytes']==307200 and shifted['UV']['mae']<0.1", "levels=planes['Y']['exact_bytes']==307200 and planes['UV']['mae']<1.0\ntransfer=levels")
+s=s.replace('nv12_identity_or_expected_level_validation_passed=identity,zero_iq_output_level_mismatch_observed=True,','nv12_identity_or_expected_level_validation_passed=levels,prior_zero_iq_output_level_mismatch_corrected=levels,')
+s=s.replace('observed_scale_does_not_identify_register_root_cause=True,','four_ica_defaults_changed_together_not_single_field_hardware_isolation=True,')
+(HERE/'check-pixels.py').write_text(s)
+s=(OLD/'audit-runtime.py').read_text().replace('stage=381','stage=382').replace('normal_nv12_levels_verified=False','normal_nv12_levels_verified=True')
+s=s.replace("and pixels['actual_pixel_transfer_verified']", "and pixels['actual_pixel_transfer_verified'] and pixels['nv12_identity_or_expected_level_validation_passed']")
+(HERE/'audit-runtime.py').write_text(s)
+(HERE/'current-health.py').write_text((OLD/'current-health.py').read_text().replace('stage=381','stage=382'))
+s=(OLD/'final-state.py').read_text().replace("(HERE/'camera-runtime-validation.json')","(HERE.parent/'kernel381/camera-runtime-validation.json')").replace("b'/var/lib/samurai/k381-'","b'/var/lib/samurai/k381-',b'/var/lib/samurai/k382-'")
+s=s.replace('stage=381','stage=382').replace('normal_camera_capture_reference_stage=382,camera_capture_repeated=True','normal_camera_capture_reference_stage=381,camera_capture_repeated=False')
+s=s.replace('samurai-ipe381-','samurai-ipe382-').replace(",'samurai-ipe382-iq.bin'",'').replace('ipe_nv12_levels_correct=False','ipe_nv12_levels_correct=True')
+(HERE/'final-state.py').write_text(s)
+print('Prepared pixel-level comparison and closeout; unchanged four-camera baseline remains stage381 on the same boot.')

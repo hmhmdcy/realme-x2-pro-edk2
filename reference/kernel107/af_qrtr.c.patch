@@ -1,0 +1,64 @@
+--- a/net/qrtr/af_qrtr.c
++++ b/net/qrtr/af_qrtr.c
+@@ -122,7 +122,6 @@
+  * @nid: node id
+  * @qrtr_tx_flow: xarray of qrtr_tx_flow, keyed by node << 32 | port
+  * @qrtr_tx_lock: lock for qrtr_tx_flow inserts
+- * @hello_sent: hello packet send successful
+  * @rx_queue: receive queue
+  * @item: list item for broadcast list
+  * @say_hello: delayed work for sending hello packet
+@@ -135,8 +134,6 @@
+ 
+ 	struct xarray qrtr_tx_flow;
+ 	struct mutex qrtr_tx_lock; /* for qrtr_tx_flow */
+-
+-	bool hello_sent;
+ 
+ 	struct sk_buff_head rx_queue;
+ 	struct list_head item;
+@@ -351,16 +348,6 @@
+ 	int rc, confirm_rx;
+ 	u32 wire_node = READ_ONCE(node->nid);
+ 
+-	mutex_lock(&node->ep_lock);
+-	if (!node->hello_sent && type != QRTR_TYPE_HELLO) {
+-		mutex_unlock(&node->ep_lock);
+-		trace_qrtr_endpoint_tx(READ_ONCE(node->nid), wire_node, type,
+-			from->sq_port, to->sq_port, len, -EAGAIN);
+-		kfree_skb(skb);
+-		return -EAGAIN;
+-	}
+-	mutex_unlock(&node->ep_lock);
+-
+ 	confirm_rx = qrtr_tx_wait(node, to->sq_node, to->sq_port, type);
+ 	if (confirm_rx < 0) {
+ 		kfree_skb(skb);
+@@ -393,8 +380,6 @@
+ 			rc = node->ep->xmit(node->ep, skb);
+ 		else
+ 			kfree_skb(skb);
+-		if (!rc && type == QRTR_TYPE_HELLO)
+-			node->hello_sent = true;
+ 		mutex_unlock(&node->ep_lock);
+ 	}
+ 	/* Need to ensure that a subsequent message carries the otherwise lost
+@@ -636,10 +621,6 @@
+ {
+ 	struct qrtr_node *node = ep->node;
+ 
+-	mutex_lock(&node->ep_lock);
+-	node->hello_sent = false;
+-	mutex_unlock(&node->ep_lock);
+-
+ 	schedule_delayed_work(&node->say_hello, 0);
+ }
+ EXPORT_SYMBOL_GPL(qrtr_endpoint_hello);
+@@ -669,7 +650,6 @@
+ 	node->nid = QRTR_EP_NID_AUTO;
+ 	node->ep = ep;
+ 
+-	node->hello_sent = false;
+ 	INIT_DELAYED_WORK(&node->say_hello, qrtr_hello_work);
+ 
+ 	xa_init(&node->qrtr_tx_flow);

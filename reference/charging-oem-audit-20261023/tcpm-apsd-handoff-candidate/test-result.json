@@ -1,0 +1,45 @@
+{
+  "passed": true,
+  "phone_accessed": false,
+  "complete_coexistence": false,
+  "tests": [
+    {
+      "name": "handoff",
+      "passed": true,
+      "stdout": "production handoff: 105 assertions; 28 takeover IO fault points",
+      "sanitizers": [
+        "ASan",
+        "UBSan"
+      ],
+      "compiler_diagnostics": ""
+    },
+    {
+      "name": "owner",
+      "passed": true,
+      "stdout": "production owner: 21 assertions; real worker/input-lock join passed",
+      "sanitizers": [
+        "ASan",
+        "UBSan"
+      ],
+      "compiler_diagnostics": ""
+    },
+    {
+      "name": "actual-integration",
+      "passed": true,
+      "assertions": 10
+    }
+  ],
+  "extracted_functions": [
+    "owner_aborted",
+    "owner_queue",
+    "owner_join",
+    "samurai_apsd_tcpm_quiesce",
+    "samurai_apsd_tcpm_release"
+  ],
+  "production_sources": {
+    "qcom_pmic_typec_apsd.c": "3a007ccc35426c32d87a30b9ea316bc8324f389c68b12d22efa9f782f820a459",
+    "samurai-apsd-owner.c": "f2f5d44edd1e7abff234604c7badde4e9d62773502576e15d493c009beacd2d6",
+    "qcom_pmic_typec.c": "229b0c5922ee00e7a598fedf73c222cd80ce1c7290f5fafda59c1df23a3d584b",
+    "qcom_pmic_typec_pdphy.c": "dc7bd93006354183e3c97653a6394ce6738913fbde49b02910ca463bb6bebad3"
+  }
+}

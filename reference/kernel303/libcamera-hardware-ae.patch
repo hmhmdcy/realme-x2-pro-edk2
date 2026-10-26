@@ -1,0 +1,436 @@
+--- a/include/libcamera/ipa/camss.mojom
++++ b/include/libcamera/ipa/camss.mojom
+@@ -13,12 +13,19 @@
+ 	uint32 gainCode;
+ 	uint32 source;
+ };
++struct AutoSensorUpdate {
++ bool valid;
++ uint32 revision;
++ uint32 exposureLines;
++ uint32 gainCode;
++};
+ struct Statistics {
+ 	int32 status;
+ 	uint64 population;
+ 	uint64 weightedSum;
+ 	bool parametersKnown;
+ 	bool sensorControlsKnown;
++ AutoSensorUpdate automaticUpdate;
+ };
+ 
+ interface IPACamssInterface {
+--- a/src/ipa/camss-vfe/camss.cpp
++++ b/src/ipa/camss-vfe/camss.cpp
+@@ -21,6 +21,7 @@
+ #include "libcamera/internal/yaml_parser.h"
+ #include "parameter_encoder.h"
+ #include "../libipa/camera_sensor_helper.h"
++#include "hardware_agc.h"
+ 
+ namespace libcamera::ipa::camss {
+ 
+@@ -43,6 +44,11 @@
+  int describeSensor(const IPACameraSensorInfo &info, const ControlInfoMap &controls, ControlInfoMap *ipaControls);
+  int translate(const ControlList &controls, bool startup, ControlList *sensorControls);
+  std::unique_ptr<CameraSensorHelper> helper_;
++ std::unique_ptr<HardwareAgc> agc_;
++ bool automatic_ = false;
++ uint32_t revision_ = 0;
++ std::optional<AutoSensorUpdate> awaiting_;
++ bool autoAvailable_ = false;
+  ControlInfoMap sensorControls_;
+  double lineUs_ = 0;
+  int32_t minLines_ = 0, maxLines_ = 0, minGainCode_ = 0, maxGainCode_ = 0;
+@@ -101,6 +107,7 @@
+  int ret = describeSensor(info, sensorControls, ipaControls);
+  if (ret) return ret;
+  configured_ = false;
++ agc_.reset(); autoAvailable_ = false;
+  LOG(IPACamss, Info) << "IPA init pid=" << getpid() << " model=" << model_;
+  return 0;
+ }
+@@ -111,6 +118,7 @@
+ {
+  if (running_) return -EBUSY;
+  configured_ = false;
++ agc_.reset(); autoAvailable_ = false;
+  if (!sensorConfiguration) return -EINVAL;
+  *sensorConfiguration = {};
+  if (info.model != model_ || info.outputSize != input || info.bitsPerPixel != 10 ||
+@@ -142,6 +150,22 @@
+        !*exposureDelay || *exposureDelay > 4) return -EINVAL;
+    *sensorConfiguration = { true, *exposureDelay, *gainDelay };
+   }
++  const auto &agc = (*root)["agc"];
++  if (!agc.isEmpty()) {
++   if (!sensorConfiguration->enabled || !agc.isDictionary()) return -EINVAL;
++   auto candidate = std::make_unique<HardwareAgc>();
++   ret = candidate->initialise(agc, lineUs_, minLines_, maxLines_, minGain_, maxGain_, helper_.get());
++   if (ret) return ret;
++   agc_ = std::move(candidate);
++   autoAvailable_ = true;
++   ControlInfoMap::Map map;
++   for (const auto &[id, value] : *ipaControls) map.emplace(id, value);
++   map[&controls::ExposureTimeMode] = ControlInfo(std::vector<ControlValue>{
++    int32_t(controls::ExposureTimeModeAuto), int32_t(controls::ExposureTimeModeManual)}, int32_t(controls::ExposureTimeModeManual));
++   map[&controls::AnalogueGainMode] = ControlInfo(std::vector<ControlValue>{
++    int32_t(controls::AnalogueGainModeAuto), int32_t(controls::AnalogueGainModeManual)}, int32_t(controls::AnalogueGainModeManual));
++   *ipaControls = ControlInfoMap(std::move(map), controls::controls);
++  }
+  }
+  input_ = input; configured_ = true;
+  LOG(IPACamss, Info) << "Sensor configuration model=" << model_ << " pixel-rate=" << info.pixelRate
+@@ -159,7 +183,9 @@
+   if (id == controls::ExposureTimeMode.id() || id == controls::AnalogueGainMode.id()) {
+    if (value.type() != ControlTypeInteger32 || value.isArray()) return -EINVAL;
+    const int32_t wanted = id == controls::ExposureTimeMode.id() ? int32_t(controls::ExposureTimeModeManual) : int32_t(controls::AnalogueGainModeManual);
+-   if (value.get<int32_t>() != wanted) return -ENOTSUP;
++   if (!startup && value.get<int32_t>() != wanted) return -ENOTSUP;
++   const int32_t autoMode = id == controls::ExposureTimeMode.id() ? int32_t(controls::ExposureTimeModeAuto) : int32_t(controls::AnalogueGainModeAuto);
++   if (startup && value.get<int32_t>() != wanted && value.get<int32_t>() != autoMode) return -ENOTSUP;
+    continue;
+   }
+   if (id == controls::ExposureTime.id()) {
+@@ -183,6 +209,7 @@
+ int IPACamss::convertControls(uint64_t epoch, const ControlList &controls, ControlList *sensorControls)
+ {
+  if (!running_ || epoch != epoch_) return -ESTALE;
++ if (automatic_ && !controls.empty()) return -ENOTSUP;
+  return translate(controls, false, sensorControls);
+ }
+ 
+@@ -227,8 +254,15 @@
+ 		return -EBUSY;
+ 	if (!configured_ || !epoch || epoch <= epoch_)
+ 		return -EINVAL;
+-	int translated = translate(controls, true, sensorControls);
+-	if (translated) return translated;
++ if (!sensorControls) return -EINVAL;
++ ControlList initial(sensorControls_);
++ int translated = translate(controls, true, &initial);
++ if (translated) return translated;
++ const int32_t exposureMode = controls.get(controls::ExposureTimeMode).value_or(controls::ExposureTimeModeManual);
++ const int32_t gainMode = controls.get(controls::AnalogueGainMode).value_or(controls::AnalogueGainModeManual);
++ const bool automatic = exposureMode == controls::ExposureTimeModeAuto && gainMode == controls::AnalogueGainModeAuto;
++ const bool manual = exposureMode == controls::ExposureTimeModeManual && gainMode == controls::AnalogueGainModeManual;
++ if ((!automatic && !manual) || (automatic && !autoAvailable_)) return -ENOTSUP;
+ 	double red = 1, blue = 1;
+ 	for (const auto &[id, value] : controls) {
+ 		if (id != controls::ColourGains.id())
+@@ -245,7 +279,12 @@
+ 	int ret = encodeParameters(packet, profile_, red, blue, input_, Rectangle(input_), &used);
+ 	if (ret)
+ 		return ret;
+-	epoch_ = epoch;
++ *sensorControls = initial;
++ automatic_ = automatic;
++ revision_ = 0;
++ awaiting_.reset();
++ if (agc_) agc_->resetFrameCount();
++ epoch_ = epoch;
+ 	red_ = red; blue_ = blue;
+ 	applied_ = effective_ = false;
+ 	lastStats_.reset();
+@@ -256,6 +295,7 @@
+ void IPACamss::stop()
+ {
+ 	running_ = false;
++ automatic_ = false; awaiting_.reset();
+ 	applied_ = effective_ = false;
+ 	lastStats_.reset();
+ }
+@@ -331,12 +371,23 @@
+      sensorContext.exposureLines <= uint32_t(maxLines_) && sensorContext.gainCode >= uint32_t(minGainCode_) &&
+      sensorContext.gainCode <= uint32_t(maxGainCode_)) {
+   result.sensorControlsKnown = true;
+-  metadata.set(controls::ExposureTimeMode, controls::ExposureTimeModeManual);
+-  metadata.set(controls::AnalogueGainMode, controls::AnalogueGainModeManual);
++  metadata.set(controls::ExposureTimeMode, int32_t(automatic_ ? controls::ExposureTimeModeAuto : controls::ExposureTimeModeManual));
++  metadata.set(controls::AnalogueGainMode, int32_t(automatic_ ? controls::AnalogueGainModeAuto : controls::AnalogueGainModeManual));
+   metadata.set(controls::ExposureTime, int32_t(std::lround(sensorContext.exposureLines * lineUs_)));
+   metadata.set(controls::AnalogueGain, float(helper_->gain(sensorContext.gainCode)));
+  }
+-	complete();
++ if (automatic_ && effective_ && result.sensorControlsKnown &&
++     (!awaiting_ || (sensorContext.source == awaiting_->revision &&
++      sensorContext.exposureLines == awaiting_->exposureLines && sensorContext.gainCode == awaiting_->gainCode))) {
++  awaiting_.reset();
++  uint32_t lines, code;
++  if (!agc_->calculate(histogram.bins, sensorContext.exposureLines, sensorContext.gainCode, &lines, &code) &&
++      (lines != sensorContext.exposureLines || code != sensorContext.gainCode) && revision_ < UINT32_MAX - 1) {
++   result.automaticUpdate = { true, ++revision_, lines, code };
++   awaiting_ = result.automaticUpdate;
++  }
++ }
++ complete();
+ }
+ 
+ } /* namespace libcamera::ipa::camss */
+--- /dev/null
++++ b/src/ipa/camss-vfe/hardware_agc.cpp
+@@ -0,0 +1,84 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#include "hardware_agc.h"
++#include <algorithm>
++#include <cerrno>
++#include <chrono>
++#include <cmath>
++#include <libcamera/control_ids.h>
++#include "../libipa/camera_sensor_helper.h"
++
++namespace libcamera::ipa::camss {
++
++int HardwareAgc::initialise(const ValueNode &tuning, double lineUs, int32_t minLines,
++ int32_t maxLines, double minGain, double maxGain, const CameraSensorHelper *helper)
++{
++ if (!tuning.isDictionary() || !helper || !std::isfinite(lineUs) || lineUs <= 0 ||
++     minLines <= 0 || maxLines < minLines || !std::isfinite(minGain) || !std::isfinite(maxGain) ||
++     minGain <= 0 || maxGain < minGain) return -EINVAL;
++ /* Require explicit policy. It is experimental tuning, not factory calibration. */
++ auto target = tuning["relativeLuminanceTarget"].get<double>();
++ if (!target || !std::isfinite(*target) || *target <= 0 || *target > .95 ||
++     !tuning["AeConstraintMode"].isDictionary() || !tuning["AeExposureMode"].isDictionary()) return -EINVAL;
++ const auto &constraints = tuning["AeConstraintMode"]["ConstraintNormal"];
++ const auto &exposure = tuning["AeExposureMode"]["ExposureNormal"];
++ if (tuning["AeConstraintMode"].size() != 1 || tuning["AeExposureMode"].size() != 1 ||
++     !constraints.isDictionary() || !constraints.size() || !exposure.isDictionary()) return -EINVAL;
++ for (const auto &[name, bound] : constraints.asDict()) {
++  auto lo = bound["qLo"].get<double>(), hi = bound["qHi"].get<double>(), y = bound["yTarget"].get<double>();
++  if ((name != "lower" && name != "upper") || !lo || !hi || !y ||
++      !std::isfinite(*lo) || !std::isfinite(*hi) || !std::isfinite(*y) ||
++      *lo < 0 || *hi > 1 || *lo >= *hi || *y <= 0 || *y > .95) return -EINVAL;
++ }
++ auto times = exposure["exposureTime"].get<std::vector<uint32_t>>();
++ auto gains = exposure["gain"].get<std::vector<double>>();
++ if (!times || !gains || times->empty() || times->size() != gains->size()) return -EINVAL;
++ for (size_t i = 0; i < times->size(); ++i)
++  if (!(*times)[i] || !std::isfinite((*gains)[i]) || (*gains)[i] <= 0 ||
++      (i && ((*times)[i] < (*times)[i - 1] || (*gains)[i] < (*gains)[i - 1]))) return -EINVAL;
++ int ret = parseTuningData(tuning);
++ if (ret) return ret;
++ if (constraintModes().size() != 1 || !constraintModes().count(controls::ConstraintNormal) ||
++     exposureModeHelpers().size() != 1 || !exposureModeHelpers().count(controls::ExposureNormal)) return -ENOTSUP;
++ lineUs_ = lineUs; minLines_ = minLines; maxLines_ = maxLines;
++ minGain_ = minGain; maxGain_ = maxGain; helper_ = helper;
++ configure(std::chrono::duration<double, std::micro>(lineUs), helper);
++ setLimits(std::chrono::duration<double, std::micro>(minLines * lineUs),
++           std::chrono::duration<double, std::micro>(maxLines * lineUs), minGain, maxGain, {});
++ resetFrameCount();
++ return 0;
++}
++
++double HardwareAgc::estimateLuminance(double gain) const
++{
++ double weighted = 0;
++ /* Bin centres avoid a zero estimate for a nonempty first bin. */
++ for (unsigned int i = 0; i < bins_.size(); ++i)
++  weighted += bins_[i] * std::min(1.0, (i + .5) / bins_.size() * gain);
++ return weighted / population_;
++}
++
++int HardwareAgc::calculate(Span<const uint32_t> bins, uint32_t exposureLines, uint32_t gainCode,
++ uint32_t *nextLines, uint32_t *nextCode)
++{
++ if (!helper_ || !nextLines || !nextCode || bins.size() != bins_.size() ||
++     exposureLines < uint32_t(minLines_) || exposureLines > uint32_t(maxLines_)) return -EINVAL;
++ double actualGain = helper_->gain(gainCode);
++ if (!std::isfinite(actualGain) || actualGain < minGain_ || actualGain > maxGain_) return -ERANGE;
++ population_ = 0;
++ std::copy(bins.begin(), bins.end(), bins_.begin());
++ for (uint32_t count : bins_) population_ += count;
++ if (!population_) return -ENODATA;
++ Histogram histogram(bins);
++ const auto [time, gain, quantization, digital] = calculateNewEv(controls::ConstraintNormal, controls::ExposureNormal,
++  histogram, std::chrono::duration<double, std::micro>(exposureLines * lineUs_ * actualGain));
++ (void)quantization; (void)digital;
++ double timeUs = std::chrono::duration<double, std::micro>(time).count();
++ if (!std::isfinite(timeUs) || !std::isfinite(gain) || timeUs <= 0 || gain <= 0) return -ERANGE;
++ const uint32_t lines = std::clamp<int64_t>(std::llround(timeUs / lineUs_), minLines_, maxLines_);
++ const uint32_t code = helper_->gainCode(std::clamp(gain, minGain_, maxGain_));
++ const double quantizedGain = helper_->gain(code);
++ if (!std::isfinite(quantizedGain) || quantizedGain < minGain_ || quantizedGain > maxGain_) return -ERANGE;
++ *nextLines = lines; *nextCode = code;
++ return 0;
++}
++}
+--- /dev/null
++++ b/src/ipa/camss-vfe/hardware_agc.h
+@@ -0,0 +1,27 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++
++#include <array>
++#include "../libipa/agc_mean_luminance.h"
++#include <linux/qcom-camss-config.h>
++
++namespace libcamera::ipa::camss {
++
++/* BHIST is post-BLS, pre-WB, linear Y; it supplies no RGB AWB information. */
++class HardwareAgc final : public AgcMeanLuminance
++{
++public:
++ int initialise(const ValueNode &tuning, double lineUs, int32_t minLines, int32_t maxLines,
++                double minGain, double maxGain, const CameraSensorHelper *helper);
++ int calculate(Span<const uint32_t> bins, uint32_t exposureLines, uint32_t gainCode,
++               uint32_t *nextLines, uint32_t *nextCode);
++private:
++ double estimateLuminance(double gain) const override;
++ std::array<uint32_t, CAMSS_STATS_BHIST_BINS> bins_{};
++ uint64_t population_ = 0;
++ double lineUs_ = 0;
++ int32_t minLines_ = 0, maxLines_ = 0;
++ double minGain_ = 0, maxGain_ = 0;
++ const CameraSensorHelper *helper_ = nullptr;
++};
++}
+--- a/src/ipa/camss-vfe/meson.build
++++ b/src/ipa/camss-vfe/meson.build
+@@ -1,6 +1,6 @@
+ # SPDX-License-Identifier: CC0-1.0
+ ipa_name = 'ipa_camss_vfe'
+-mod = shared_module(ipa_name, ['camss.cpp', 'parameter_encoder.cpp'],
++mod = shared_module(ipa_name, ['camss.cpp', 'parameter_encoder.cpp', 'hardware_agc.cpp'],
+     name_prefix : '',
+     include_directories : [ipa_includes],
+     dependencies : [libcamera_private, libipa_dep],
+--- a/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
++++ b/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
+@@ -90,6 +90,9 @@
+  std::map<uint32_t, ipa::camss::SensorContext> sensorContexts_;
+  std::optional<uint32_t> lastSof_;
+  bool sensorContextHealthy_ = false;
++ bool automatic_ = false;
++ uint32_t lastAutoRevision_ = 0;
++ std::optional<ipa::camss::AutoSensorUpdate> automaticUpdate_;
+ 
+ 	struct PendingStats { uint32_t sof; FrameBuffer *buffer; bool submitted; };
+ 	std::map<uint32_t, PendingStats> pendingStats_;
+@@ -124,6 +127,7 @@
+ 	explicit CamssVfePipeline(CameraManager *manager) : PipelineHandler(manager, 4) {}
+ 	bool match(DeviceEnumerator *enumerator) override;
+ 	int initIPA(CamssVfeData *data);
++	int configureIPA(CamssVfeData *data);
+ 	std::unique_ptr<CameraConfiguration> generateConfiguration(Camera *camera,
+ 					Span<const StreamRole> roles) override;
+ 	int configure(Camera *camera, CameraConfiguration *config) override;
+@@ -228,6 +232,17 @@
+ 	pix_->frameStart.connect(this, &CamssVfeData::frameStart);
+ 	properties_ = sensor_->properties();
+ 	return handler()->initIPA(this);
++}
++
++int CamssVfePipeline::configureIPA(CamssVfeData *d)
++{
++ int ret = initIPA(d);
++ if (ret) return ret;
++ IPACameraSensorInfo info;
++ ret = d->sensor_->sensorInfo(&info);
++ if (ret) return ret;
++ return d->ipa_->configure(info, d->input_, d->sensor_->controls(), d->ipaProfilePath_,
++                          &d->controlInfo_, &d->sensorConfiguration_);
+ }
+ 
+ void CamssVfeData::restoreLinks()
+@@ -386,6 +401,10 @@
+ 		d->restoreLinks();
+ 		return ret ? ret : -EINVAL;
+ 	}
++ const char *profile = utils::secure_getenv("LIBCAMERA_CAMSS_VFE_PROFILE");
++ d->ipaProfilePath_ = profile ? profile : "";
++ ret = configureIPA(d);
++ if (ret) { d->restoreLinks(); return ret; }
+ 	cfg->at(0).setStream(&d->stream_);
+ 	d->configuredFormat_ = cfg->sensorFormat_;
+ 	configured_ = d;
+@@ -434,16 +453,8 @@
+  ++d->epoch_;
+  d->paramsApplied_ = false;
+  d->images_.clear(); d->histograms_.clear(); d->histogramOrder_.clear(); d->pendingStats_.clear();
+- ret = initIPA(d);
++ ret = configureIPA(d);
+  if (ret) goto error;
+- {
+-  const char *profile = utils::secure_getenv("LIBCAMERA_CAMSS_VFE_PROFILE");
+-  IPACameraSensorInfo info;
+-  ret = d->sensor_->sensorInfo(&info);
+-  if (ret) goto error;
+-  ret = d->ipa_->configure(info, d->input_, d->sensor_->controls(), profile ? profile : "", &d->controlInfo_, &d->sensorConfiguration_);
+-  if (ret) goto error;
+- }
+  ret = d->image_->importBuffers(d->stream_.configuration().bufferCount);
+  if (ret) goto error;
+  ret = d->params_->allocateBuffers(1, &d->paramsBuffers_);
+@@ -467,6 +478,8 @@
+   ControlList initial(d->sensor_->controls());
+   ret = d->ipa_->start(d->epoch_, controls ? *controls : empty, &initial);
+   if (ret) goto error;
++  d->automatic_ = controls && controls->get(libcamera::controls::ExposureTimeMode).value_or(libcamera::controls::ExposureTimeModeManual) == libcamera::controls::ExposureTimeModeAuto;
++  d->lastAutoRevision_ = 0; d->automaticUpdate_.reset();
+   if (!initial.empty()) {
+    ret = d->sensor_->setControls(&initial);
+    if (ret) goto error;
+@@ -520,6 +533,7 @@
+ 	d->deadline_.stop();
+ 	d->sensorContextHealthy_ = false;
+ 	d->sensorUpdates_.clear();
++ d->automaticUpdate_.reset(); d->automatic_ = false;
+ 	/* streamOff callbacks finish every queued application buffer once. */
+ 	d->image_->streamOff();
+ 	d->params_->streamOff();
+@@ -594,7 +608,12 @@
+  if (delayedControls_ && sensorContextHealthy_) {
+   ControlList update(sensor_->controls());
+   std::optional<uint32_t> source;
+-  if (!sensorUpdates_.empty()) {
++  if (automatic_ && automaticUpdate_) {
++   update.set(V4L2_CID_EXPOSURE, int32_t(automaticUpdate_->exposureLines));
++   update.set(V4L2_CID_ANALOGUE_GAIN, int32_t(automaticUpdate_->gainCode));
++   source = automaticUpdate_->revision;
++   automaticUpdate_.reset();
++  } else if (!sensorUpdates_.empty()) {
+    update = sensorUpdates_.front().controls;
+    source = sensorUpdates_.front().source;
+    sensorUpdates_.pop_front();
+@@ -668,10 +687,12 @@
+ {
+  if (!running_ || !paramsApplied_) return;
+  /* No iterators cross a proxy call: a direct module may return immediately. */
+- std::vector<uint32_t> ready;
++ std::vector<std::pair<uint32_t, uint32_t>> ready;
+  for (const auto &[id, pending] : pendingStats_)
+-  if (!pending.submitted && lastSof_ && static_cast<int32_t>(*lastSof_ - pending.sof) >= 0) ready.push_back(id);
+- for (uint32_t id : ready) {
++  if (!pending.submitted && lastSof_ && static_cast<int32_t>(*lastSof_ - pending.sof) >= 0) ready.emplace_back(pending.sof, id);
++ std::sort(ready.begin(), ready.end());
++ for (const auto &[sequence, id] : ready) {
++  (void)sequence;
+   auto it = pendingStats_.find(id);
+   if (it == pendingStats_.end()) continue;
+   it->second.submitted = true;
+@@ -689,6 +710,25 @@
+  auto it = pendingStats_.find(id);
+  if (it == pendingStats_.end() || !it->second.submitted || it->second.sof != sof) return;
+  FrameBuffer *buffer = it->second.buffer;
++ const auto &update = statistics.automaticUpdate;
++ if (update.valid && automatic_ && sensorContextHealthy_) {
++  const auto &range = sensor_->controls();
++  bool valid = !statistics.status && statistics.parametersKnown && statistics.sensorControlsKnown && delayedControls_ &&
++   !automaticUpdate_ && update.revision == lastAutoRevision_ + 1 && update.revision < UINT32_MAX - 1 &&
++   lastSof_ && *lastSof_ >= sof && *lastSof_ - sof <= 4 &&
++   update.exposureLines >= uint32_t(range.at(V4L2_CID_EXPOSURE).min().get<int32_t>()) &&
++   update.exposureLines <= uint32_t(range.at(V4L2_CID_EXPOSURE).max().get<int32_t>()) &&
++   update.gainCode >= uint32_t(range.at(V4L2_CID_ANALOGUE_GAIN).min().get<int32_t>()) &&
++   update.gainCode <= uint32_t(range.at(V4L2_CID_ANALOGUE_GAIN).max().get<int32_t>());
++  if (valid) {
++   automaticUpdate_ = update; lastAutoRevision_ = update.revision;
++   LOG(CamssVfe, Info) << "AE update epoch=" << epoch << " stats-sof=" << sof << " revision=" << update.revision
++    << " exposure-lines=" << update.exposureLines << " gain-code=" << update.gainCode;
++  } else {
++   sensorContextHealthy_ = false;
++   LOG(CamssVfe, Error) << "Rejected AE update; sensor context invalid until restart";
++  }
++ }
+  pendingStats_.erase(it);
+  if (!statistics.status && statistics.population == uint64_t(input_.width / 2) * (input_.height / 2)) {
+   if (std::find(histogramOrder_.begin(), histogramOrder_.end(), sof) == histogramOrder_.end()) {

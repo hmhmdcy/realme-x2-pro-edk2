@@ -1,0 +1,93 @@
+{
+  "schema": "samurai-dwc-vbus-budget-fence-static-review-v1",
+  "review_state": "WIP source snapshot only; author fixtures/final delivery not yet reviewed",
+  "verdict": "no confirmed new blocker within normal DEVICE system-PM software-budget-work scope",
+  "scope": "Only the native power_supply vbus_draw_work and its two producers. No UDC/DMA/resource unwind, runtime/direct_complete support, or hardware PM claim.",
+  "inputs": {
+    "reference/charging-oem-audit-20261023/dwc-vbus-budget-fence-candidate/budget-fence.patch": {
+      "sha256": "a770c24f087f2800f71984fb936e0a3623dd61688393ce207c9fcfaad8946f55",
+      "bytes": 4526
+    },
+    "reference/charging-oem-audit-20261023/dwc-vbus-budget-fence-candidate/core.c": {
+      "sha256": "6c8e5e33cc890afcfafbcbe2d339164a590edc0024fe41d3178f90f410790e20",
+      "bytes": 77062
+    },
+    "reference/charging-oem-audit-20261023/dwc-vbus-budget-fence-candidate/core.h": {
+      "sha256": "e2a21d2edaf0b48b91e77dc257287516e009859981c0370f747afd9898fbdb79",
+      "bytes": 58678
+    },
+    "reference/charging-oem-audit-20261023/dwc-vbus-budget-fence-candidate/gadget.c": {
+      "sha256": "228caf6f2dd3bfcec12fb1ec22b1f72eb1d5b02520d7917393a094a4ffab6fbf",
+      "bytes": 134400
+    },
+    "reference/charging-oem-audit-20261023/dwc-vbus-budget-fence-candidate/source-result.json": {
+      "sha256": "65dc6cf6c79c56ad018a8575383a081b14650e985032ddc34d076272ff84f007",
+      "bytes": 2418
+    },
+    "reference/charging-management-20261023/image501-usb-pm-readonly-result.json": {
+      "sha256": "6bb0bc1dc9e8cf677b9c2f79c932aed4f118733f46f847dae96403d616e679c8",
+      "bytes": 2224
+    },
+    "reference/charging-oem-audit-20261023/usb-input-native-pm-link-candidate/samurai-usb-input.c": {
+      "sha256": "faa99156b26c1ae3a8147bb2009d5ed2b8c9e99d72a15acfd090bff793b6d9b0",
+      "bytes": 13912
+    },
+    "reference/charging-oem-audit-20261023/usb-input-native-pm-link-candidate/delivery.json": {
+      "sha256": "2e94d81cd4100df7259e100740f1eecfb93ed9db29fddd07a2f0891524f3bca0",
+      "bytes": 4906
+    }
+  },
+  "independent_checks": {
+    "fixed_baseline_hashes_matched": [
+      "core.c bd8a8aab",
+      "gadget.c 9eec86e4",
+      "core.h 525c1d5d"
+    ],
+    "candidate_patch_exactly_reconstructed_from_three_files": true,
+    "spin_lock_initialized_before_psy_work_registration": true,
+    "queue_sites_found": [
+      "core.c:2280 dwc3_psy_notifier",
+      "gadget.c:3181 dwc3_gadget_vbus_draw"
+    ],
+    "both_queue_sites_gate_and_enqueue_under_dwc_lock": true,
+    "worker_snapshot_under_dwc_lock_setter_after_unlock": true,
+    "close_order": [
+      "dwc.lock: block new requests; discard stored current_limit; capture owned supply",
+      "unlock dwc.lock",
+      "cancel_work_sync(vbus_draw_work)",
+      "synchronously request INPUT_CURRENT_LIMIT=0 if supply exists"
+    ],
+    "reopen_order": [
+      "clear current_limit to UNSPEC; reopen under dwc.lock",
+      "do not enqueue or republish old allowance",
+      "resume hardware",
+      "negative runtime-set-active/resume result closes fence again"
+    ],
+    "ordinary_suspend_failure_preserves_open_gate": true,
+    "old_phy_route_precedes_new_gadget_gate_unchanged": true,
+    "notifier_late_supply_cannot_enqueue_when_closed": true,
+    "work_has_no_self_requeue_or_pm_wait": true
+  },
+  "confirmed_blocking_findings": [],
+  "required_limits": [
+    {
+      "topic": "synchronous zero is conditional",
+      "detail": "close logs and discards a provider setter error; PM rc0 alone is not proof that zero was accepted. For the reviewed future provider-first normal system-PM ordering, the actual provider setter accepts zero when unpaused and has no register I/O. Do not claim successful revoke from a warning/error result."
+    },
+    {
+      "topic": "header consumers",
+      "detail": "New bool is inserted before fladj and changes subsequent struct layout. This is source for a consistent kernel, not a gadget-only module swap; every in-tree object using struct dwc3 must be rebuilt with the same header. The paired input provider does not dereference struct dwc3."
+    },
+    {
+      "topic": "scope",
+      "detail": "Automatic runtime/direct_complete, role switching, remove/unbind, old PHY callbacks, gadget primary errors ignored by unchanged resume_common, and full UDC/DMA safety are outside this change. The actual current #501 read-only on/active/suspended_time0 result does not prove future PM behavior or link adoption."
+    }
+  ],
+  "execution": {
+    "author_generator_or_entry_run": false,
+    "tests_run": false,
+    "objects_built": false,
+    "device_SDK_284_Git_access": false
+  },
+  "next_review": "Only bind final author source/receipt deltas after freeze; no deployment acceptance in this static result."
+}

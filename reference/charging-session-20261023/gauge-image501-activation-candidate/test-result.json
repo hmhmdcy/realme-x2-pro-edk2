@@ -1,0 +1,197 @@
+{
+  "passed": true,
+  "groups": [
+    {
+      "group": "actual new guard",
+      "cases": [
+        {
+          "label": "current4126/ACA/R8/startup500 pair profile",
+          "accepted": true
+        },
+        {
+          "label": "candidate logdump must match",
+          "accepted": false
+        },
+        {
+          "label": "rollback logdump must match",
+          "accepted": false
+        },
+        {
+          "label": "old eud transaction rejected",
+          "accepted": false
+        },
+        {
+          "label": "startup100 bytes rejected",
+          "accepted": false
+        },
+        {
+          "label": "MaxPower100 rejected",
+          "accepted": false
+        },
+        {
+          "label": "enabled COM rejected without hardware IO",
+          "accepted": false
+        },
+        {
+          "label": "bound COM rejected without controls",
+          "accepted": false
+        },
+        {
+          "label": "live EUD tty rejected",
+          "accepted": false
+        },
+        {
+          "label": "live eud console rejected",
+          "accepted": false
+        }
+      ]
+    },
+    {
+      "group": "unchanged quiesce and supervisor/once/unknown flow",
+      "same_functions": [
+        "create",
+        "save",
+        "process_identity",
+        "process_status",
+        "ssh_worker",
+        "start_job",
+        "terminal_job",
+        "require_known",
+        "reconcile",
+        "fetch_reconcile",
+        "retain_fetch",
+        "copy_exact",
+        "host_jobs"
+      ],
+      "remote_delta_only_owner_and_tx_regex": true
+    },
+    {
+      "group": "actual EUD-off restart tail",
+      "cases": [
+        {
+          "label": "single RESTART2",
+          "calls": 1,
+          "outcome": "transferred",
+          "events": [
+            "claim",
+            "fsync",
+            "fsync",
+            "close",
+            "sync",
+            "freeze",
+            "phase",
+            "print",
+            "syscall",
+            "close"
+          ]
+        },
+        {
+          "label": "log failure still single syscall",
+          "calls": 1,
+          "outcome": "transferred",
+          "events": [
+            "claim",
+            "fsync",
+            "fsync",
+            "close",
+            "sync",
+            "freeze",
+            "phase",
+            "syscall",
+            "close"
+          ]
+        },
+        {
+          "label": "existing claim blocks",
+          "calls": 0,
+          "outcome": "FileExistsError",
+          "events": [
+            "claim",
+            "close"
+          ]
+        },
+        {
+          "label": "claim fsync failure blocks",
+          "calls": 0,
+          "outcome": "OSError",
+          "events": [
+            "claim",
+            "fsync",
+            "close"
+          ]
+        },
+        {
+          "label": "freeze error closes without syscall",
+          "calls": 0,
+          "outcome": "OSError",
+          "events": [
+            "claim",
+            "fsync",
+            "fsync",
+            "close",
+            "sync",
+            "freeze",
+            "close"
+          ]
+        },
+        {
+          "label": "returned syscall thaws and closes",
+          "calls": 1,
+          "outcome": "RuntimeError",
+          "events": [
+            "claim",
+            "fsync",
+            "fsync",
+            "close",
+            "sync",
+            "freeze",
+            "phase",
+            "print",
+            "syscall",
+            "thaw",
+            "close"
+          ]
+        },
+        {
+          "label": "raised syscall thaws and closes",
+          "calls": 1,
+          "outcome": "OSError",
+          "events": [
+            "claim",
+            "fsync",
+            "fsync",
+            "close",
+            "sync",
+            "freeze",
+            "phase",
+            "print",
+            "syscall",
+            "thaw",
+            "close"
+          ]
+        }
+      ],
+      "no_MMIO_or_EUD_control": true
+    },
+    {
+      "group": "actual migrated host prepare",
+      "one_pending_dispatch_and_durable_claim": true,
+      "second_or_old_tx_rejected": true,
+      "wrong_adoption_rejected": true
+    }
+  ],
+  "native_worker_or_syscall_or_transport_executed": false,
+  "old_suites_rerun": false,
+  "reused_old_worker_receipt_sha256": "04eaec58216f360766b77c6896805a7d4b577386cf165384ea1e6dc192c7ba17",
+  "reused_old_host_receipt_sha256": "67145393179269e0314554ccaf0561cd888ceaf546e3c525565e56e93aae1aea",
+  "files": {
+    "controller.py": "bff36b8596d80d737be195d471b37c169673e4e50b9692cc8921344b4e02bbf7",
+    "remote.py": "ba0a070fc88777e548a4ae93479f47b621cfb5392b4f9b9f088a840d23001a8a",
+    "input-pins.json": "d63da9cbb8bf42c5e2fca45ab642d04f145b37a72aa34d73f89482d4e9d47814",
+    "prepare-contract.json": "d43d8f3bac53525ab55ca7b2a88d508c7689c6b194aeaf4e5e98aec2416727f1",
+    "guard-fragment.py": "8837af79bdbbceecbf7a253f57c6e4cb1bab9b8764f4deb72b042d533b450432",
+    "eud-quiesce.py": "3830ffd16173b24b9ee859818e3c5a64f9144e4a0f36417af14fd7a5a2d733e9",
+    "eud-restart.py": "5b9f309417342d297684e0e66766b0ba59e30dd68dfabd74c411a84875df727d",
+    "test-delta.py": "5bb24c90c2ce55a9a0ec529910611b3eb403b1ee945598ecd5712cd27769e0b7"
+  }
+}

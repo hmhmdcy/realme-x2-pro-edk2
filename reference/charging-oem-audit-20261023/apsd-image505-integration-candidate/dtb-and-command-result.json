@@ -1,0 +1,266 @@
+{
+  "passed": true,
+  "base_DTB": {
+    "path": "/mnt/e/edk2-samurai-out/charging-management-20261023/usb-input-irq-board-private-01/samurai-usb-input-irq-native-private.dtb",
+    "sha256": "13d359c4a78ed423d52f1d5e09345c7dc7032811fabe786952ac11e868adee9f"
+  },
+  "candidate_DTB": {
+    "path": "/mnt/e/edk2-samurai-out/charging-management-20261023/apsd-image505-dtb-private-01/samurai-apsd505-native-private.dtb",
+    "sha256": "9af0d499ac661a0b17e011d6027c87edabd46f04937d3acd632f8df62c577f55",
+    "bytes": 116626
+  },
+  "actual_prior_IRQ_native_DTB_reused": true,
+  "controller": "/soc@0/usb@a6f8800/usb@a600000",
+  "disabled_EUD_hardware": "/soc@0/serial@88e0000",
+  "typec": "/soc@0/spmi@c440000/pmic@2/typec@1500",
+  "route": "/soc@0/eud-off-route",
+  "changed_properties": {
+    "/chosen": [
+      "bootargs"
+    ],
+    "/soc@0/usb@a6f8800/usb@a600000": [
+      "phandle",
+      "samurai,apsd-eud-route",
+      "samurai,apsd-owner",
+      "samurai,apsd-pd5v-bridge",
+      "samurai,apsd-typec"
+    ],
+    "/soc@0/spmi@c440000/pmic@2/typec@1500": [
+      "phandle",
+      "realme,pd5v-only",
+      "status",
+      "vdd-pdphy-supply"
+    ],
+    "/soc@0/serial@88e0000": [
+      "phandle"
+    ],
+    "/soc@0/eud-off-route": [
+      "compatible",
+      "phandle",
+      "realme,eud-hardware",
+      "realme,usb-controller",
+      "status"
+    ]
+  },
+  "exact_all_other_raw_properties_and_reserves_preserved": true,
+  "TypeC_supply_matches_actual_PHY_vdda33": true,
+  "current_cmdline_observed_from_actual_phone": "console=tty0 loglevel=7 ignore_loglevel panic=15 clk_ignore_unused pd_ignore_unused regulator_ignore_unused bq27xxx_battery.samurai_instant_current=1",
+  "candidate_cmdline": "console=tty0 loglevel=7 ignore_loglevel panic=15 clk_ignore_unused pd_ignore_unused regulator_ignore_unused bq27xxx_battery.samurai_instant_current=1 qcom_pmic_typec.samurai_5v_only=1",
+  "instant_current_opt_in_preserved": true,
+  "BDS_only_global_cmdline_changed_from_checked_handoff": true,
+  "BDS_source_sha256": "d986fac38bf52e3ec938337e63d252d56a5921c948550e4037a8924442c2a495",
+  "commands": [
+    {
+      "argv": [
+        "fdtput",
+        "-t",
+        "x",
+        "/mnt/e/edk2-samurai-out/charging-management-20261023/apsd-image505-dtb-private-01/samurai-apsd505-native-private.dtb",
+        "/soc@0/usb@a6f8800/usb@a600000",
+        "phandle",
+        "159"
+      ],
+      "returncode": 0,
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "fdtput",
+        "-t",
+        "x",
+        "/mnt/e/edk2-samurai-out/charging-management-20261023/apsd-image505-dtb-private-01/samurai-apsd505-native-private.dtb",
+        "/soc@0/serial@88e0000",
+        "phandle",
+        "15a"
+      ],
+      "returncode": 0,
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "fdtput",
+        "-t",
+        "x",
+        "/mnt/e/edk2-samurai-out/charging-management-20261023/apsd-image505-dtb-private-01/samurai-apsd505-native-private.dtb",
+        "/soc@0/spmi@c440000/pmic@2/typec@1500",
+        "phandle",
+        "15b"
+      ],
+      "returncode": 0,
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "fdtput",
+        "-c",
+        "/mnt/e/edk2-samurai-out/charging-management-20261023/apsd-image505-dtb-private-01/samurai-apsd505-native-private.dtb",
+        "/soc@0/eud-off-route"
+      ],
+      "returncode": 0,
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "fdtput",
+        "-t",
+        "s",
+        "/mnt/e/edk2-samurai-out/charging-management-20261023/apsd-image505-dtb-private-01/samurai-apsd505-native-private.dtb",
+        "/soc@0/eud-off-route",
+        "compatible",
+        "realme,rmx1931-eud-off-route"
+      ],
+      "returncode": 0,
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "fdtput",
+        "-t",
+        "s",
+        "/mnt/e/edk2-samurai-out/charging-management-20261023/apsd-image505-dtb-private-01/samurai-apsd505-native-private.dtb",
+        "/soc@0/eud-off-route",
+        "status",
+        "okay"
+      ],
+      "returncode": 0,
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "fdtput",
+        "-t",
+        "x",
+        "/mnt/e/edk2-samurai-out/charging-management-20261023/apsd-image505-dtb-private-01/samurai-apsd505-native-private.dtb",
+        "/soc@0/eud-off-route",
+        "phandle",
+        "15c"
+      ],
+      "returncode": 0,
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "fdtput",
+        "-t",
+        "x",
+        "/mnt/e/edk2-samurai-out/charging-management-20261023/apsd-image505-dtb-private-01/samurai-apsd505-native-private.dtb",
+        "/soc@0/eud-off-route",
+        "realme,eud-hardware",
+        "15a"
+      ],
+      "returncode": 0,
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "fdtput",
+        "-t",
+        "x",
+        "/mnt/e/edk2-samurai-out/charging-management-20261023/apsd-image505-dtb-private-01/samurai-apsd505-native-private.dtb",
+        "/soc@0/eud-off-route",
+        "realme,usb-controller",
+        "159"
+      ],
+      "returncode": 0,
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "fdtput",
+        "/mnt/e/edk2-samurai-out/charging-management-20261023/apsd-image505-dtb-private-01/samurai-apsd505-native-private.dtb",
+        "/soc@0/usb@a6f8800/usb@a600000",
+        "samurai,apsd-owner"
+      ],
+      "returncode": 0,
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "fdtput",
+        "/mnt/e/edk2-samurai-out/charging-management-20261023/apsd-image505-dtb-private-01/samurai-apsd505-native-private.dtb",
+        "/soc@0/usb@a6f8800/usb@a600000",
+        "samurai,apsd-pd5v-bridge"
+      ],
+      "returncode": 0,
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "fdtput",
+        "-t",
+        "x",
+        "/mnt/e/edk2-samurai-out/charging-management-20261023/apsd-image505-dtb-private-01/samurai-apsd505-native-private.dtb",
+        "/soc@0/usb@a6f8800/usb@a600000",
+        "samurai,apsd-typec",
+        "15b"
+      ],
+      "returncode": 0,
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "fdtput",
+        "-t",
+        "x",
+        "/mnt/e/edk2-samurai-out/charging-management-20261023/apsd-image505-dtb-private-01/samurai-apsd505-native-private.dtb",
+        "/soc@0/usb@a6f8800/usb@a600000",
+        "samurai,apsd-eud-route",
+        "15c"
+      ],
+      "returncode": 0,
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "fdtput",
+        "-t",
+        "s",
+        "/mnt/e/edk2-samurai-out/charging-management-20261023/apsd-image505-dtb-private-01/samurai-apsd505-native-private.dtb",
+        "/soc@0/spmi@c440000/pmic@2/typec@1500",
+        "status",
+        "okay"
+      ],
+      "returncode": 0,
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "fdtput",
+        "/mnt/e/edk2-samurai-out/charging-management-20261023/apsd-image505-dtb-private-01/samurai-apsd505-native-private.dtb",
+        "/soc@0/spmi@c440000/pmic@2/typec@1500",
+        "realme,pd5v-only"
+      ],
+      "returncode": 0,
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "fdtput",
+        "-t",
+        "x",
+        "/mnt/e/edk2-samurai-out/charging-management-20261023/apsd-image505-dtb-private-01/samurai-apsd505-native-private.dtb",
+        "/soc@0/spmi@c440000/pmic@2/typec@1500",
+        "vdd-pdphy-supply",
+        "c0"
+      ],
+      "returncode": 0,
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "fdtput",
+        "-t",
+        "s",
+        "/mnt/e/edk2-samurai-out/charging-management-20261023/apsd-image505-dtb-private-01/samurai-apsd505-native-private.dtb",
+        "/chosen",
+        "bootargs",
+        "console=tty0 loglevel=7 ignore_loglevel panic=15 clk_ignore_unused pd_ignore_unused regulator_ignore_unused bq27xxx_battery.samurai_instant_current=1 qcom_pmic_typec.samurai_5v_only=1"
+      ],
+      "returncode": 0,
+      "stderr": ""
+    }
+  ],
+  "compiled_kernel_or_firmware": false,
+  "phone_written": false,
+  "installed": false
+}

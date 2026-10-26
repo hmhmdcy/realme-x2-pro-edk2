@@ -1,0 +1,77 @@
+{
+  "passed": true,
+  "assertions": 97,
+  "cold_wave_samples": 12,
+  "warm_wave_samples": 10,
+  "normal_child_side_effect_demonstrated": true,
+  "cross_band_sw_count_carries": true,
+  "repository": "https://github.com/realme-kernel-opensource/realmeX2pro-X3-AndroidR-kernel-source",
+  "commit": "23172a1571bd91156032cc9fef16284a82b63d2c",
+  "functions": {
+    "battery_temp_anti_shake_handle": {
+      "first_line": 4177,
+      "last_line": 4267,
+      "sha256_lf": "6a7ad38de76b37b953ce2ce3dee88c3028eb5729df833fbf088c30eac433e0bb"
+    },
+    "oplus_chg_check_tbatt_is_good": {
+      "first_line": 4271,
+      "last_line": 4337,
+      "sha256_lf": "1327ad2c7e671857b5e585f9eec27c9e044b43e2cd77bf9336421c3c9d15756d"
+    },
+    "battery_temp_normal_anti_shake_handle": {
+      "first_line": 4371,
+      "last_line": 4430,
+      "sha256_lf": "6ced97765ce6bb859fda5b005a77b2bc1a5ae0b57a683f28e98aaeb3509532b0"
+    },
+    "oplus_chg_check_tbatt_normal_status": {
+      "first_line": 4432,
+      "last_line": 4471,
+      "sha256_lf": "2cf5cbd46bdb61c4224cf053713c75c611bd99c0e4cdf5151b560c7f997c3782"
+    },
+    "oplus_chg_get_float_voltage": {
+      "first_line": 3650,
+      "last_line": 3686,
+      "sha256_lf": "69deccb1083a472f4b63b998c7ffe2bc7ca25a1a02fe34694f021d294ea0f081"
+    },
+    "oplus_chg_check_sw_full": {
+      "first_line": 6438,
+      "last_line": 6496,
+      "sha256_lf": "6a3a2a8fd311a6f8e1cd6f13ad8d4b0f55c57ad1b3c96e1fdc657b4c7782f53a"
+    },
+    "oplus_chg_check_hw_full": {
+      "first_line": 6498,
+      "last_line": 6553,
+      "sha256_lf": "99310884c81fefa9c19508876473a4df05dc8308e54d8ac71265543436fd9de7"
+    },
+    "oplus_chg_check_rechg_status": {
+      "first_line": 5261,
+      "last_line": 5304,
+      "sha256_lf": "c7dcb11d3f871fca4926506606ac837e718c91a253fb473eac67f99dc422ccec"
+    }
+  },
+  "command": [
+    "wsl",
+    "-d",
+    "Ubuntu",
+    "-u",
+    "root",
+    "--",
+    "gcc",
+    "-std=c11",
+    "-g",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-fsanitize=address,undefined",
+    "-fno-omit-frame-pointer",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/thermal-bands-candidate/test-oracle.c",
+    "-o",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/thermal-bands-candidate/test-oracle"
+  ],
+  "source_sha256": "6cfb97b4367afe25094f3f342db4c9cce7982a22708371bc08ac6ed8bc9aa2d4",
+  "dts_sha256": "43d554879e68bb9b7795d7fb37530dfe6a5ce6cc6aae42514057e757079140c8",
+  "scope": "exact OEM temperature/Full bodies with harmless host stubs; before candidate implementation",
+  "phone_accessed": false,
+  "sdk_accessed": false,
+  "shared_source_modified": false
+}

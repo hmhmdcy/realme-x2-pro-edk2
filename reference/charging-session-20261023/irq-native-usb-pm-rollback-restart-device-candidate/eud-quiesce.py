@@ -1,0 +1,423 @@
+# UNRUN EUD BOOT ACTIVATION CANDIDATE. Same validated hardware quiesce.
+"""Explicit quiesce for one RESTART2 bootloader transition; not run by this audit."""
+from pathlib import Path
+import sys
+if sys.flags.optimize:raise RuntimeError("optimized interpreter is unsupported")
+if not sys.argv[1:] or sys.argv[1:]==['--check-local']:
+ print('{"source_only":true,"device_accessed":false,"request_generated":false}');raise SystemExit(0)
+import ctypes,dbus,json,os,signal,subprocess,time,traceback
+
+"""Rollback-aware read-only gates; same hardware tail and original service lock."""
+import base64,fcntl,hashlib,json,os,re,runpy,stat,struct,sys,time,uuid
+from pathlib import Path
+ROOT=Path("/root/charging-management-20261023")
+SERVICE_LOCK="/run/lock/samurai-charging.lock"
+_SERVICE_FD=None
+LIVE_PATH='/usr/lib/samurai-charging/live-session.py'
+LIVE_SHA='2199d7d413b2f4a5aeaa8270c20e967f5da711397c29e959e59463c1a5715f2b'
+RELEASE='7.3.0-rc6-rmx1931-samurai-k363+'
+VERSION='#502 SMP PREEMPT Tue Oct 20 03:03:47 UTC 2026'
+BOOT='eddadec33fcd1d114c45af76cb9fc6d6b5f1de2c81c0e9fada099c5b884f6e06'
+LOGDUMP='ace2e261bbfbd923fc3e631e857163f172d09bfb3489f7107782394fbf763ed1'
+OLD='18e8a1049a2c497fbc47ace50f8319aefccd63a9cd1ce5a7e9ef06916773b4e5'
+OLD_NOTES={'samurai-usb-input': 'a845cd08aa415ca01ad4791b8c66047a927577e76439e632c73b6b4e2cff8c6d', 'samurai-gauge-protection': 'fc0d253d556b6ba656db263aaa50c37e3af2c7fe115b67e6b02641ae8b5733ec', 'samurai-mp2650': 'fe15a2fcb618dee0b161952cd66c32f2d5ecc9c8d50b0975242da5353c472016'}
+OLD_FILES={'/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-usb-input.ko': '7cbf10c0f74609effb415c30145e58b0fbe554511ef55a96baeeaf367c94ff5f', '/usr/share/samurai-charging/manifest.json': '18e8a1049a2c497fbc47ace50f8319aefccd63a9cd1ce5a7e9ef06916773b4e5'}
+CAMERA481='1c4584915dade64a0978a0138c6775bf99e56af9f8036d7d2276c33f132f4705'
+SENSOR468_NOTE='a52ef87a2388757c542768e5438120d858e785bd334c080b55dec0f532c54d13'
+EXPECTED_MANIFEST={'release': '7.3.0-rc6-rmx1931-samurai-k363+', 'modules': {'samurai-mp2650': {'target': '/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-mp2650.ko', 'sha256': '97c16c3dc0b458fa4d2c686912ffdf805b899abfb846201767843a0348cbffdd'}, 'samurai-usb-input': {'target': '/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-usb-input.ko', 'sha256': '7cbf10c0f74609effb415c30145e58b0fbe554511ef55a96baeeaf367c94ff5f'}, 'samurai-gauge-protection': {'target': '/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-gauge-protection.ko', 'sha256': '7848cfab264dde1f7f02b24b8022b951d4f3a604eba120b313bac23d0f4a3044'}}, 'default_input_cap_ua': 900000, 'default_charge_cap_ua': 250000, 'source_budget_enforced': True, 'installed_files': {'/usr/sbin/samurai-charging': '61451ffea87cca466dbbb2f1a2c6e7c05d0eee517479e8b019d43b1869355aa4', '/etc/init.d/samurai-charging': 'bfed48ebbcaced5f017110564045eef500a88f12fefe7ebff6d1e74cabfe570a', '/usr/lib/samurai-charging/control-trial.py': 'c33cb2eec24031e72a5f1dda9b94c05607615e0b12a14ba3cecd6db56c820761', '/usr/lib/samurai-charging/live-session.py': '2199d7d413b2f4a5aeaa8270c20e967f5da711397c29e959e59463c1a5715f2b', '/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-mp2650.ko': '97c16c3dc0b458fa4d2c686912ffdf805b899abfb846201767843a0348cbffdd', '/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-usb-input.ko': '7cbf10c0f74609effb415c30145e58b0fbe554511ef55a96baeeaf367c94ff5f', '/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-gauge-protection.ko': '7848cfab264dde1f7f02b24b8022b951d4f3a604eba120b313bac23d0f4a3044'}, 'adapter_revision': 'usb-irq-protection-observer-01'}
+STARTUP_PATH="/usr/local/sbin/samurai-usb"
+STARTUP_SHA="2a364e12d72229ef7b0ddfd7620d5ff434b97eaf93eb60899fd24a03b5b9a54a"
+PROOF_SHA='99fb3292490f1b72e3404e67f7001282ea9928d780fdb9eef05b9faacb012ce9'
+
+_MAC_FD=None
+_CACHE_EXPECTED=None
+_ROLLBACK_MODULE=None
+_RESTORED_AFTER=None
+VERSION504='#504 SMP PREEMPT Tue Oct 20 03:03:47 UTC 2026'
+
+def secure_file(path):
+ p=Path(path);assert p.is_file() and not p.is_symlink(),str(p)
+ s=p.stat();assert s.st_uid==0 and not s.st_mode&0o022,str(p)
+ return p
+
+
+def file_sha(path):
+ return hashlib.sha256(secure_file(path).read_bytes()).hexdigest()
+
+
+def block_sha(path,expected_bytes):
+ # This is the existing read-only by-partlabel boundary, with an actual block
+ # size check. Never read a writable mapping or use blockdev's mutation paths.
+ fd=os.open(path,os.O_RDONLY|os.O_CLOEXEC)
+ try:
+  assert stat.S_ISBLK(os.fstat(fd).st_mode)
+  assert struct.unpack('=Q',fcntl.ioctl(fd,0x80081272,bytes(8)))[0]==expected_bytes
+  digest=hashlib.sha256();remaining=expected_bytes
+  while remaining:
+   data=os.read(fd,min(1048576,remaining));assert data,'short partition read'
+   digest.update(data);remaining-=len(data)
+  return digest.hexdigest()
+ finally:os.close(fd)
+
+
+def camera481_check(wrapper):
+ assert file_sha(wrapper)==CAMERA481
+ expected=json.loads(Path(wrapper).read_bytes());assert expected['validated']
+ expected=expected['expected'];assert expected['kernel_release']==os.uname().release
+ for name,digest in expected['installed_files'].items():assert file_sha(name)==digest,name
+ for name,info in expected['modules'].items():
+  assert file_sha(info['path'])==info['sha256']
+  assert hashlib.sha256(Path('/sys/module',name,'notes/.note.gnu.build-id').read_bytes()).hexdigest()==info['note']
+  assert Path('/sys/module',name,'initstate').read_text().strip()=='live'
+ assert hashlib.sha256(Path('/sys/module/s5k3m5/notes/.note.gnu.build-id').read_bytes()).hexdigest()==SENSOR468_NOTE
+ assert Path('/sys/module/s5k3m5/initstate').read_text().strip()=='live'
+ versions={}
+ for block in Path('/lib/apk/db/installed').read_text().split('\n\n'):
+  fields=dict(line.split(':',1) for line in block.splitlines() if ':' in line)
+  if fields.get('P') in expected['packages']:versions[fields['P']]=fields.get('V')
+ assert versions==expected['packages']
+
+
+def eud_off_check():
+ # Firmware keeps COM disabled. No MMIO or driver control is part of this gate.
+ node=Path('/sys/firmware/devicetree/base/soc@0/serial@88e0000')
+ assert (node/'compatible').read_bytes()==b'qcom,sm8150-eud-com\0'
+ assert (node/'status').read_bytes()==b'disabled\0'
+ assert not Path('/sys/bus/platform/devices/88e0000.serial/driver').exists()
+ driver=Path('/sys/bus/platform/drivers/qcom_eud_com')
+ assert not list(driver.glob('*.serial'))
+ assert not list(Path('/sys/class/tty').glob('ttyEUD*'))
+ assert not any('eud' in line.lower() for line in Path('/proc/consoles').read_text().splitlines())
+ assert not any(t.startswith(('earlycon=eud','console=eud')) for t in Path('/proc/cmdline').read_text().split())
+
+
+def charging_sample_phase(sample, stopped=False):
+ full=(sample['logical_full']==sample['hold_requested']==sample['full_holding']==1 and sample['full_cause'] in (1,2,3) and sample['desired_enable']==0 and sample['session_seconds']==0)
+ if stopped:
+  return sample['desired_enable']==sample['hold_requested']==sample['full_holding']==0 and (sample['logical_full']==0 and sample['full_cause']==0 or sample['logical_full']==1 and sample['full_cause'] in (1,2,3) and sample['session_seconds']==0)
+ return full if any(sample[k] for k in ['logical_full','hold_requested','full_holding','full_cause']) else sample['desired_enable']==1
+
+
+def safe_sample(data, now):
+    s = data['sample']
+    need(s.get('valid') == s.get('protection_ok') == s.get('online') == 1 and
+         s.get('shadow') == 0 and 0 <= s.get('age_ms', -1) <= 3000, 'fresh complete online protection sample')
+    need(all(s.get(k, -1) == 0 for k in ['error', 'stop_error', 'latched', 'fault', 'source_inhibit',
+                                       'cycle_timeout', 'thermal_inhibit', 'gauge_charge_stop']), 'no fault/timeout/gauge or thermal stop')
+    need('flags' in s and not s['flags'] & 0xc000 and 0 <= s.get('session_seconds', -1) < 36000, 'safe raw flags/session')
+    need(all(2000000 <= s.get(key, 0) <= 4600000 for key in ['cell1_uv', 'cell2_uv']) and
+         4000000 <= s.get('pack_uv', 0) <= 9200000 and
+         abs(s['cell1_uv'] + s['cell2_uv'] - s['pack_uv']) <= 200000, 'safe complete pack/cell values')
+    need(160 <= s.get('temp_decic', -999) < 440 and s.get('thermal_band') == 4, 'known safe NORMAL window')
+    need(0 <= data['read_end'] - data['read_start'] <= 3 and 0 <= now - data['read_end'] <= 1, 'fresh bounded observation')
+    p = data['protection']
+    need(data['protection_health'] == 'Good' and p.get('id') == 0x2719 and p.get('error') == p.get('safety') == p.get('pf') == 0,
+         'independent fresh protection state')
+    need(p.get('operation', 0) & 0x300 == 0x300 and not p['operation'] & ((1 << 20) | (1 << 16) | 0x7c00) and
+         p.get('manufacturing', 0) & 0x18 == 0x18 and not p['manufacturing'] & 0x8006, 'sealed autonomous factory protection')
+    need(data['notes'] == OLD_NOTES and data['openrc_started'] is True, 'old resident modules and service retained')
+
+
+def environment(data):
+    state = data['state']
+    need(state['taint'] == '0' and state['driver'] == 'samurai-mp2650' and
+         len(state['camera_pm']) == 4 and all(v == 'suspended' for v in state['camera_pm'].values()), 'idle camera and managed charger')
+    m2m = json.loads(state['m2m'])
+    need(all(m2m.get(k) == 0 for k in ['users', 'orphans', 'jobs', 'first_error']) and
+         all(m2m.get(k) is False for k in ['running', 'fatal', 'pinned']), 'idle camera m2m')
+    services = state['services']
+    need(len(services) == 4 and {s['comm'] for s in services} == {'phoc', 'phosh', 'pipewire', 'wireplumber'} and
+         all(s['uid'] == 10000 and s['pid'] > 0 for s in services), 'actual four session processes')
+
+
+def active(text):
+ assert isinstance(text,str),'unreadable active choice'
+ found=re.findall(r'\[([^]]+)\]',text)
+ return found[0] if len(found)==1 else text.strip() if not found and len(text.split())==1 else None
+
+
+def need(value,message):
+ if not value:raise ValueError(message)
+
+
+def sha(raw):return hashlib.sha256(raw).hexdigest()
+
+
+def owned_directory(path):
+ p=Path(path);s=p.lstat()
+ need(stat.S_ISDIR(s.st_mode) and not p.is_symlink() and s.st_uid==0 and stat.S_IMODE(s.st_mode)==0o700,'owned directory: '+str(p))
+ return p
+
+
+def raw_owned(path,limit=4_000_000):
+ p=secure_file(path);s=p.stat()
+ need(s.st_size<=limit and stat.S_IMODE(s.st_mode)==0o600,'bounded private raw: '+str(p))
+ return p.read_bytes()
+
+
+def process_observation(receipt):
+ pid=receipt['pid'];need(type(pid) is int and pid>0,'retained positive PID')
+ try:fields=Path('/proc',str(pid),'stat').read_text().rsplit(')',1)[1].split()
+ except FileNotFoundError:return {'state':'absent','pid':pid}
+ except (OSError,ValueError,IndexError):return {'state':'unknown','pid':pid}
+ try:ticks=int(fields[19])
+ except (ValueError,IndexError):return {'state':'unknown','pid':pid}
+ if ticks!=receipt['start_ticks']:return {'state':'pid_reused','pid':pid}
+ return {'state':'zombie' if fields[0]=='Z' else 'alive','pid':pid,'start_ticks':ticks}
+
+
+def observe_staged():
+    need(_ROLLBACK_MODULE is not None and _CACHE_EXPECTED is not None,'successful original restore source required')
+    need(file_sha(LIVE_PATH)==LIVE_SHA,'fixed read-only live library')
+    live=runpy.run_path(LIVE_PATH)
+    need(file_sha(LIVE_PATH)==LIVE_SHA and live['REGS']==[0,1,2,3,4,5,7,8,9,15,19],'same nondestructive registers')
+    start=time.clock_gettime(time.CLOCK_BOOTTIME);state=live['state']()
+    ps=Path('/sys/class/power_supply');supply=ps/'mp2650-input'
+    def observed(path):
+        try:return path.read_text().strip()
+        except OSError as error:return {'errno':error.errno}
+    protection=Path('/sys/devices/platform/samurai-gauge-protection/protection_state').read_text()
+    value=dict(read_start=start,state=state,
+        sample={k:int(v) for k,v in (part.split('=') for part in Path('/sys/bus/i2c/devices/0-005c/telemetry').read_text().split())},
+        source={k:observed(ps/'samurai-usb-input'/k) for k in ['online','usb_type','current_max','input_current_limit']},
+        notes={name:sha(Path('/sys/module',name.replace('-','_'),'notes/.note.gnu.build-id').read_bytes()) for name in OLD_NOTES},
+        openrc_started=Path('/run/openrc/started/samurai-charging').exists(),
+        protection={k:int(v,0) for k,v in (part.split('=') for part in protection.split())},
+        protection_health=(ps/'samurai-gauge-protection/health').read_text().strip(),charge_behaviour=(supply/'charge_behaviour').read_text().strip(),
+        limits={k:int((supply/name).read_text()) for k,name in [('input_ua','input_current_limit'),('charge_ua','constant_charge_current'),('cv_pack_uv','constant_charge_voltage')]},
+        current_cache=verify_current_cache(_CACHE_EXPECTED))
+    value['read_end']=time.clock_gettime(time.CLOCK_BOOTTIME);return value
+
+
+def staged_health(data,now):
+    need(_ROLLBACK_MODULE is not None and _RESTORED_AFTER is not None,'actual successful restore evidence loaded')
+    _ROLLBACK_MODULE.safe_stopped(data,now);_ROLLBACK_MODULE.idle(data);_ROLLBACK_MODULE.retained(_RESTORED_AFTER,data)
+    need(charging_sample_phase(data['sample'],True) and data['notes']==OLD_NOTES,
+         'stopped logical Full and exact resident modules')
+    return dict(stage_INHIBIT_reverified=True,source_budget_observation=data.get('source'),
+        hardware_input_ua=data['limits']['input_ua'],no_source_budget_increase=True,runtime_validation_accepted=False)
+
+
+def acquire_service_lock():
+ global _SERVICE_FD
+ need(_SERVICE_FD is None,'single lock acquisition')
+ fd=os.open(SERVICE_LOCK,os.O_RDWR|os.O_NOFOLLOW)
+ try:
+  info=os.fstat(fd);need(stat.S_ISREG(info.st_mode) and info.st_uid==0 and stat.S_IMODE(info.st_mode)==0o600,'original service lock')
+  fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
+ except BaseException:os.close(fd);raise
+ _SERVICE_FD=fd
+
+
+def rollback_material(meta):
+ global _ROLLBACK_MODULE,_RESTORED_AFTER,_CACHE_EXPECTED
+ proof_path=secure_file(ROOT/meta['transaction_id']/'proof.py')
+ need(file_sha(proof_path)==PROOF_SHA,'pinned rollback qualifier')
+ proof=runpy.run_path(str(proof_path)); rollback=meta['rollback']
+ need(set(rollback)=={'transaction_id','request_sha256','result_sha256','host_binding_sha256','worker_sha256','supervisor_sha256','evidence'},'rollback evidence fields')
+ paths=proof['remote_paths'](rollback['transaction_id'])
+ need(set(paths)==set(rollback['evidence']),'exact rollback evidence set')
+ raw={}
+ for key,path in paths.items():
+  item=rollback['evidence'][key]
+  need(item=={'path':path,'sha256':item['sha256']} and re.fullmatch('[0-9a-f]{64}',item['sha256']),'canonical rollback path/hash')
+  raw[key]=raw_owned(path,limit=8_000_000)
+  need(sha(raw[key])==item['sha256'],'rollback original changed: '+key)
+ need(sha(raw['request'])==rollback['request_sha256'] and sha(raw['result'])==rollback['result_sha256'],'rollback request/result')
+ need(sha(raw['worker_source'])==rollback['worker_sha256']==proof['WORKER'] and
+  sha(raw['supervisor_source'])==rollback['supervisor_sha256']==proof['SUPERVISOR'],'original rollback sources')
+ root=owned_directory(ROOT/rollback['transaction_id']);owned_directory(root/'device-rollback')
+ worker=runpy.run_path(str(root/'restore-worker.py'))
+ from types import SimpleNamespace
+ module=SimpleNamespace(**worker);request=json.loads(raw['request']);result=json.loads(raw['result'])
+ names={'result':'result.json','worker_process':'process-private.json','worker_launch':'worker-launch-receipt-private.json',
+  'worker_terminal':'worker-terminal-private.json','supervisor_launch':'launch-receipt-private.json',
+  'supervisor_process':'supervisor-process-private.json','supervisor_terminal':'supervisor-terminal-private.json',
+  'before':'before-private.json','stopped':'stopped-private.json','after':'after-private.json'}
+ process={}
+ for key,role in [('worker_process','process'),('supervisor_process','supervisor_process')]:
+  observed=process_observation(json.loads(raw[key]));process[role]=observed
+ response={'transaction_id':request['transaction_id'],'request_sha256':sha(raw['request']),
+  'worker_terminal_verified':True,'worker_terminal':json.loads(raw['worker_terminal']),'worker_result':result,
+  'files':{name:{'base64':base64.b64encode(raw[key]).decode(),'bytes':len(raw[key]),'sha256':sha(raw[key])} for key,name in names.items()},**process}
+ proof['validate_records'](request,raw['request'],response,module)
+ need(request['identity']=={'boot_id':meta['boot_id'],'version':meta['kernel_version'],
+  'serial_sha256':meta['soc_serial_sha256'],'compatible_sha256':meta['compatible_sha256'],
+  'rootfs_sha256':meta['rootfs_release_sha256']} and request['profile']==meta['profile'],'current rollback identity')
+ # The frozen source verifier is read-only except for one evidence-log call.
+ # Reuse its actual verifier with only that log sink suppressed; no Device.begin,
+ # stop, replace, close or publish method is called here.
+ reader=SimpleNamespace(log=lambda name,value:None)
+ module.Device.source_proof(reader,request)
+ expected=module.expected_profile(request)
+ need(meta['current_boot_sha256']==expected['boot'] and meta['current_logdump_sha256']==expected['logdump'] and
+  meta['resident_notes']==expected['notes'] and meta['current_cache']==request['current_cache'],'explicit current rollback profile')
+ _ROLLBACK_MODULE=module;_RESTORED_AFTER=json.loads(raw['after']);_CACHE_EXPECTED=request['current_cache']
+ return request,module
+
+
+def validate_meta_shape(meta,guard_path):
+ need(guard_path.is_absolute() and guard_path.name=='guard-private.json','private guard path')
+ need(set(meta)=={'schema','transaction_id','token','boot_id','kernel_release','kernel_version','soc_serial_sha256',
+  'compatible_sha256','rootfs_release_sha256','profile','current_boot_sha256','rollback_logdump_sha256',
+  'unchanged_boot_sha256','current_logdump_sha256','current_cache','boot_bytes','logdump_bytes','resident_notes','rollback','post_restore_probe',
+  'partitions','disk_state','runtime_validation_accepted'},'exact rollback restart fields')
+ need(meta['schema']=='samurai-irq-native-usb-pm-rollback-restart-v1' and
+  re.fullmatch(r'irq-native-usb-pm-rollback-activate-[a-z0-9-]{8,48}',meta['transaction_id']) and
+  re.fullmatch('[0-9a-f]{48}',meta['token']),'new rollback restart identity')
+ need(meta['transaction_id']!=meta['rollback']['transaction_id'] and guard_path.parent==ROOT/meta['transaction_id'],'independent restart directory')
+ need(meta['kernel_release']==RELEASE and meta['kernel_version'] in (VERSION,VERSION504) and meta['partitions']==['logdump'] and
+  meta['rollback_logdump_sha256']==LOGDUMP and meta['unchanged_boot_sha256']==BOOT and meta['current_boot_sha256']==BOOT and
+  meta['boot_bytes']==100663296 and meta['logdump_bytes']==67108864 and
+  meta['disk_state']=='all_original_fsynced' and meta['runtime_validation_accepted'] is False,'fixed rollback target and pending runtime')
+ need(set(meta['post_restore_probe'])=={'stdin_sha256','stdout_sha256','child_sha256','terminal_sha256'} and
+  all(re.fullmatch('[0-9a-f]{64}',v) for v in meta['post_restore_probe'].values()),'actual post-restore probe digests')
+
+
+def validate_activation_guard(guard_path,allow_inhibit=False):
+ global OLD_NOTES
+ need(os.geteuid()==0 and not sys.flags.optimize,'root nonoptimized worker')
+ guard_path=secure_file(guard_path);meta=json.loads(raw_owned(guard_path));validate_meta_shape(meta,guard_path)
+ owned_directory(guard_path.parent);acquire_service_lock()
+ need(str(uuid.UUID(meta['boot_id']))==meta['boot_id']==Path('/proc/sys/kernel/random/boot_id').read_text().strip(),'same actual rollback boot')
+ need(os.uname().machine=='aarch64' and os.uname().release==RELEASE and os.uname().version==meta['kernel_version'],'exact actual current profile kernel')
+ need(Path('/proc/sys/kernel/tainted').read_text().strip()=='0','taint')
+ need(file_sha('/etc/samurai-rootfs-release')==meta['rootfs_release_sha256'],'rootfs')
+ serial=Path('/sys/devices/soc0/serial_number').read_bytes();compatible=Path('/sys/firmware/devicetree/base/compatible').read_bytes()
+ need(serial.strip() and sha(serial)==meta['soc_serial_sha256'] and sha(compatible)==meta['compatible_sha256'] and
+  b'realme,samurai' in compatible.split(b'\0'),'board identity')
+ request,worker=rollback_material(meta)
+ need(block_sha('/dev/disk/by-partlabel/boot',100663296)==meta['current_boot_sha256'] and
+  block_sha('/dev/disk/by-partlabel/logdump',67108864)==meta['current_logdump_sha256'],'current complete carriers')
+ need(file_sha('/usr/share/samurai-charging/manifest.json')==OLD,'restored original R8 manifest')
+ manifest=json.loads(Path('/usr/share/samurai-charging/manifest.json').read_bytes())
+ need(manifest==EXPECTED_MANIFEST,'exact restored R8 structure')
+ for path,digest in manifest['installed_files'].items():need(file_sha(path)==digest,'original/retained installed file: '+path)
+ for path,digest in OLD_FILES.items():need(sha(raw_owned(path))==digest,'actual original restored file')
+ OLD_NOTES=dict(worker.expected_profile(request)['notes'])
+ verify_current_cache(meta['current_cache'])
+ need(meta['resident_notes']==OLD_NOTES,'explicit still-resident profile')
+ for name,digest in OLD_NOTES.items():
+  node=Path('/sys/module',name.replace('-','_'))
+  need(sha((node/'notes/.note.gnu.build-id').read_bytes())==digest and (node/'initstate').read_text().strip()=='live','actual resident profile')
+ need(Path('/sys/module/samurai_usb_input/parameters/native_retained').read_text().strip()=='Y' and
+  not Path('/sys/module/samurai_usbin_init').exists(),'retained native provider/no helper')
+ need(file_sha(STARTUP_PATH)==STARTUP_SHA and Path('/sys/kernel/config/usb_gadget/samurai/configs/c.1/MaxPower').read_text().strip()=='500','startup/descriptor500')
+ need(Path('/sys/module/bq27xxx_battery/parameters/samurai_instant_current').read_text().strip()=='Y' and
+  [v for v in Path('/proc/cmdline').read_text().split() if v.startswith('bq27xxx_battery.samurai_instant_current=')]==['bq27xxx_battery.samurai_instant_current=1'],'instant current opt-in')
+ eud_off_check();camera481_check(guard_path.parent/'camera481-expected-private.json')
+ data=observe_staged();staged_health(data,time.clock_gettime(time.CLOCK_BOOTTIME));verify_current_cache(meta['current_cache'])
+ if not allow_inhibit:environment(data)
+ phase=Path('/run')/(meta['transaction_id']+'-reboot-phase-private.json')
+ need(not phase.exists(),'restart already claimed; retain original evidence')
+ return meta,Path('/var/lib/samurai')/meta['transaction_id'],phase
+
+
+def verify_current_cache(expected):
+ global _MAC_FD
+ instance=Path('/sys/devices/platform/samurai-gauge-protection');attribute=instance/'mac_evidence'
+ need((instance/'driver').resolve().as_posix()=='/sys/bus/platform/drivers/samurai-gauge-protection','same bound protection driver')
+ if _MAC_FD is None:_MAC_FD=os.open(attribute,os.O_RDONLY|os.O_CLOEXEC|os.O_NOFOLLOW)
+ held,current=os.fstat(_MAC_FD),attribute.stat()
+ need((held.st_dev,held.st_ino)==(current.st_dev,current.st_ino)==(expected['attribute_dev'],expected['attribute_inode']) and
+  instance.stat().st_ino==expected['instance_inode'],'same already-consumed protection instance')
+ os.lseek(_MAC_FD,0,os.SEEK_SET);raw=os.read(_MAC_FD,16384)
+ need(0<len(raw)<16384 and raw.endswith(b'\n') and sha(raw)==expected['sha256'] and
+  base64.b64encode(raw).decode()==expected['raw_base64'],'same original consumed MAC report bytes')
+ first=dict(x.split('=',1) for x in raw.decode().splitlines()[0].split())
+ need(first.get('schema')=='1' and (first.get('attempted'),first.get('terminal')) in [('0','0'),('1','1')],'no in-progress or new MAC capture')
+ return dict(expected)
+
+
+assert len(sys.argv)==4 and sys.argv[1]=='--guard'
+meta,o,phase=validate_activation_guard(Path(sys.argv[2]),allow_inhibit=sys.argv[3] in ['--inspect','--commit-restart2-bootloader'])
+r=Path('/var/lib/samurai')
+
+assert sys.argv[3]=='--commit-quiesce'
+os.umask(0o077);assert not o.exists();o.mkdir(mode=0o700)
+state=dict(work='usb-irq-protection-activation',transaction_id=meta['transaction_id'],boot_id=meta['boot_id'],token=meta['token'],state='preflight',terminal=False,pid=os.getpid());error=None
+def save():
+ p=o/'state-next-private.json';p.write_text(json.dumps(state,indent=2)+'\n');p.replace(o/'state-private.json')
+def command(args,timeout=30):
+ x=subprocess.run(args,capture_output=True,timeout=timeout)
+ with (o/'commands-private.log').open('ab') as f:f.write(('ARGS '+repr(args)+'\n').encode()+x.stdout+x.stderr)
+ assert x.returncode==0,(args,x.returncode)
+def stop_service(name):
+ x=subprocess.run(['rc-service',name,'status'],capture_output=True,timeout=10)
+ if x.returncode==0:command(['rc-service',name,'stop'])
+save();before=subprocess.check_output(['dmesg']);(o/'dmesg-before-private.txt').write_bytes(before)
+try:
+ boot=Path('/proc/sys/kernel/random/boot_id').read_bytes();assert boot.decode().strip()==meta['boot_id']
+ assert Path('/proc/sys/kernel/tainted').read_text().strip()=='0' and not phase.exists()
+ assert (Path('/etc/samurai-rootfs-release')).is_file()
+ assert not json.loads((r/'gnss-assist/watch-state.json').read_text())['active']
+ if subprocess.run(['pgrep','-x','ModemManager'],capture_output=True).returncode==0:
+  bus=dbus.SystemBus(private=True)
+  objects=dbus.Interface(bus.get_object('org.freedesktop.ModemManager1','/org/freedesktop/ModemManager1'),'org.freedesktop.DBus.ObjectManager').GetManagedObjects()
+  assert all(int(v['org.freedesktop.ModemManager1.Modem.Location']['Enabled'])==0 for v in objects.values() if 'org.freedesktop.ModemManager1.Modem.Location' in v)
+  bus.close()
+ (o/'boot-id-private.txt').write_bytes(boot);state.update(state='stopping_services');save()
+ # Stage already stopped synchronously; guard reverified INHIBIT under the original service flock.
+ for name in ['samurai-gnss-assist','bluetooth','greetd','chronyd','networkmanager','iio-sensor-proxy','samurai-ssc']:stop_service(name)
+ pids=subprocess.run(['pgrep','-u','10000'],capture_output=True).stdout.split()
+ for value in pids:
+  try:os.kill(int(value),signal.SIGTERM)
+  except ProcessLookupError:pass
+ time.sleep(2)
+ for value in subprocess.run(['pgrep','-u','10000'],capture_output=True).stdout.split():
+  try:os.kill(int(value),signal.SIGKILL)
+  except ProcessLookupError:pass
+ assert subprocess.run(['pgrep','-u','10000'],capture_output=True).returncode==1
+ for p in Path('/proc').glob('[0-9]*/fd'):
+  try:
+   for f in p.iterdir():
+    try:target=os.readlink(f)
+    except OSError:continue
+    assert not target.startswith(('/dev/video','/dev/media','/dev/v4l-subdev'))
+  except (FileNotFoundError,PermissionError):pass
+ for p in Path('/sys/class/regulator').glob('regulator.*'):
+  if (p/'name').read_text().strip() in ['cam-front-vana','cam-front-vdig','cam-rear-vana','cam-rear-vdig','cam-tele-vana','cam-tele-vdig','cam-main-vana','cam-main-vdig','cam-main-vaf']:
+   assert (p/'state').read_text().strip()=='disabled' and (p/'num_users').read_text().strip()=='0'
+ for p in Path('/proc/asound').glob('card*/pcm*/sub*/status'):assert p.read_text().strip()=='closed'
+ for addr in ['1-0039','1-003a']:assert 'powered=0 muted=1' in Path('/sys/bus/i2c/devices',addr,'status').read_text()
+ stop_service('elogind');stop_service('modemmanager')
+ for name in ['wpa_supplicant','ModemManager']:
+  for value in subprocess.run(['pgrep','-x',name],capture_output=True).stdout.split():
+   pid=int(value);assert Path('/proc',str(pid),'comm').read_text().strip()==name;os.kill(pid,signal.SIGTERM)
+ time.sleep(1)
+ assert subprocess.run(['pgrep','-x','ModemManager'],capture_output=True).returncode==1
+ command(['/usr/sbin/samurai-bluetooth','stop'])
+ wifi=Path('/sys/bus/platform/devices/18800000.wifi')
+ if (wifi/'driver').exists():
+  assert (wifi/'driver').resolve().name=='ath10k_snoc';(wifi/'driver/unbind').write_text(wifi.name)
+ assert not (wifi/'driver').exists() and not Path('/sys/class/net/wlan0').exists()
+ state.update(state='wifi_detached_stopping_dsps');save()
+ for name in ['modem','adsp','slpi']:
+  p=next(p for p in Path('/sys/class/remoteproc').glob('*') if (p/'name').read_text().strip()==name)
+  if (p/'state').read_text().strip()=='running':(p/'state').write_text('stop')
+  assert (p/'state').read_text().strip()=='offline'
+ assert not Path('/proc/asound/card0').exists() and Path('/sys/devices/platform/sensor-power/state').read_text().strip()=='vdd=0 vddio=0'
+ clients=Path('/sys/kernel/debug/dri/1/clients').read_text();assert len(clients.splitlines())==1;(o/'drm-clients-private.txt').write_text(clients)
+ vt=Path('/sys/class/vtconsole/vtcon1');assert '(M) frame buffer device' in (vt/'name').read_text();(vt/'bind').write_text('0')
+ Path('/sys/module/drm_kms_helper/parameters/fbdev_emulation').write_text('N')
+ class Resources(ctypes.Structure):
+  _fields_=[('count_fbs',ctypes.c_int),('fbs',ctypes.POINTER(ctypes.c_uint32)),('count_crtcs',ctypes.c_int),('crtcs',ctypes.POINTER(ctypes.c_uint32)),('count_connectors',ctypes.c_int),('connectors',ctypes.POINTER(ctypes.c_uint32)),('count_encoders',ctypes.c_int),('encoders',ctypes.POINTER(ctypes.c_uint32)),('min_width',ctypes.c_uint32),('max_width',ctypes.c_uint32),('min_height',ctypes.c_uint32),('max_height',ctypes.c_uint32)]
+ lib=ctypes.CDLL('libdrm.so.2',use_errno=True);lib.drmModeGetResources.argtypes=[ctypes.c_int];lib.drmModeGetResources.restype=ctypes.POINTER(Resources);lib.drmModeFreeResources.argtypes=[ctypes.POINTER(Resources)];lib.drmSetMaster.argtypes=[ctypes.c_int];lib.drmModeSetCrtc.argtypes=[ctypes.c_int,ctypes.c_uint32,ctypes.c_uint32,ctypes.c_uint32,ctypes.c_uint32,ctypes.c_void_p,ctypes.c_int,ctypes.c_void_p]
+ assert Path('/dev/dri/by-path/platform-ae01000.display-controller-card').resolve()==Path('/dev/dri/card1')
+ fd=os.open('/dev/dri/card1',os.O_RDWR|os.O_CLOEXEC)
+ try:
+  assert lib.drmSetMaster(fd)==0;res=lib.drmModeGetResources(fd);assert res and 0<res.contents.count_crtcs<=16
+  try:
+   crtcs=[res.contents.crtcs[i] for i in range(res.contents.count_crtcs)]
+   for crtc in crtcs:assert lib.drmModeSetCrtc(fd,crtc,0,0,0,None,0,None)==0
+  finally:lib.drmModeFreeResources(res)
+ finally:os.close(fd)
+ for i in range(3):
+  time.sleep(1);text=Path('/sys/kernel/debug/dri/1/state').read_text();(o/('drm-idle-'+str(i)+'-private.txt')).write_text(text);assert 'active=1' not in text
+ command(['sha256sum','-c','/run/samurai-wifi/nv-source-hashes.txt'])
+ after=subprocess.check_output(['dmesg']);(o/'dmesg-after-private.txt').write_bytes(after);faults={k:after.count(v)-before.count(v) for k,v in dict(warning=b'WARNING:',oops=b'Oops:',gpu=b'gpu fault:',dsp_fatal=b'fatal error received').items()};assert not any(faults.values()) and Path('/proc/sys/kernel/tainted').read_text().strip()=='0'
+ report=dict(work='usb-irq-protection-activation',transaction_id=meta['transaction_id'],boot_id=meta['boot_id'],token=meta['token'],all_remoteprocs_offline=True,display_inactive=True,audio_closed_and_muted=True,sensor_power_off=True,camera_providers_retained=True,wlan_driver_detached=True,source_nv_hashes_preserved=True,taint=0,fault_delta=faults,restart2_bootloader_expected=True)
+ (o/'summary.json').write_text(json.dumps(report,indent=2)+'\n');os.sync();state.update(state='terminal',terminal=True,exit_code=0);save()
+except BaseException:
+ error=traceback.format_exc();(o/'failure-private.txt').write_text(error);state.update(state='failed',terminal=True,exit_code=1);save()
+if error:raise SystemExit(1)

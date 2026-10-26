@@ -1,0 +1,404 @@
+diff --git a/drivers/media/platform/qcom/camss/camss-csid-340.c b/drivers/media/platform/qcom/camss/camss-csid-340.c
+index eca3f07b8..e962ccf7e 100644
+--- a/drivers/media/platform/qcom/camss/camss-csid-340.c
++++ b/drivers/media/platform/qcom/camss/camss-csid-340.c
+@@ -128,7 +128,7 @@ static void __csid_configure_stream(struct csid_device *csid, u8 enable, u8 port
+ 	writel_relaxed(enable, csid->base + CSID_CTRL(iface));
+ }
+ 
+-static void csid_configure_streams(struct csid_device *csid, u8 enable)
++static int csid_configure_streams(struct csid_device *csid, u8 enable)
+ {
+ 	int i;
+ 
+@@ -138,6 +138,8 @@ static void csid_configure_streams(struct csid_device *csid, u8 enable)
+ 		if (csid->phy.en_vc & BIT(i))
+ 			__csid_configure_stream(csid, !!enable, i, 0);
+ 	}
++
++	return 0;
+ }
+ 
+ static int csid_reset(struct csid_device *csid)
+diff --git a/drivers/media/platform/qcom/camss/camss-csid-4-1.c b/drivers/media/platform/qcom/camss/camss-csid-4-1.c
+index 6998e1c52..c056dab7c 100644
+--- a/drivers/media/platform/qcom/camss/camss-csid-4-1.c
++++ b/drivers/media/platform/qcom/camss/camss-csid-4-1.c
+@@ -44,7 +44,7 @@
+ #define CAMSS_CSID_TG_DT_n_CGG_1(n)	(0x0b0 + 0xc * (n))
+ #define CAMSS_CSID_TG_DT_n_CGG_2(n)	(0x0b4 + 0xc * (n))
+ 
+-static void csid_configure_stream(struct csid_device *csid, u8 enable)
++static int csid_configure_stream(struct csid_device *csid, u8 enable)
+ {
+ 	struct csid_testgen_config *tg = &csid->testgen;
+ 	u32 val;
+@@ -128,6 +128,8 @@ static void csid_configure_stream(struct csid_device *csid, u8 enable)
+ 			writel_relaxed(val, csid->base + CAMSS_CSID_TG_CTRL);
+ 		}
+ 	}
++
++	return 0;
+ }
+ 
+ static int csid_configure_testgen_pattern(struct csid_device *csid, s32 val)
+diff --git a/drivers/media/platform/qcom/camss/camss-csid-4-7.c b/drivers/media/platform/qcom/camss/camss-csid-4-7.c
+index 66054d487..16c022983 100644
+--- a/drivers/media/platform/qcom/camss/camss-csid-4-7.c
++++ b/drivers/media/platform/qcom/camss/camss-csid-4-7.c
+@@ -43,7 +43,7 @@
+ #define CAMSS_CSID_TG_DT_n_CGG_1(n)	(0x0b8 + 0xc * (n))
+ #define CAMSS_CSID_TG_DT_n_CGG_2(n)	(0x0bc + 0xc * (n))
+ 
+-static void csid_configure_stream(struct csid_device *csid, u8 enable)
++static int csid_configure_stream(struct csid_device *csid, u8 enable)
+ {
+ 	struct csid_testgen_config *tg = &csid->testgen;
+ 	u32 sink_code = csid->fmt[MSM_CSID_PAD_SINK].code;
+@@ -140,6 +140,8 @@ static void csid_configure_stream(struct csid_device *csid, u8 enable)
+ 			writel_relaxed(val, csid->base + CAMSS_CSID_TG_CTRL);
+ 		}
+ 	}
++
++	return 0;
+ }
+ 
+ static int csid_configure_testgen_pattern(struct csid_device *csid, s32 val)
+diff --git a/drivers/media/platform/qcom/camss/camss-csid-680.c b/drivers/media/platform/qcom/camss/camss-csid-680.c
+index 8ed190db5..2d31147ab 100644
+--- a/drivers/media/platform/qcom/camss/camss-csid-680.c
++++ b/drivers/media/platform/qcom/camss/camss-csid-680.c
+@@ -296,7 +296,7 @@ static void __csid_configure_rdi_stream(struct csid_device *csid, u8 enable, u8
+ 	writel(val, csid->base + CSID_RDI_CFG0(port));
+ }
+ 
+-static void csid_configure_stream(struct csid_device *csid, u8 enable)
++static int csid_configure_stream(struct csid_device *csid, u8 enable)
+ {
+ 	int i;
+ 
+@@ -310,6 +310,8 @@ static void csid_configure_stream(struct csid_device *csid, u8 enable)
+ 			__csid_ctrl_rdi(csid, enable, i);
+ 		}
+ 	}
++
++	return 0;
+ }
+ 
+ /*
+diff --git a/drivers/media/platform/qcom/camss/camss-csid-gen2.c b/drivers/media/platform/qcom/camss/camss-csid-gen2.c
+index 0548435ab..cb645ee5f 100644
+--- a/drivers/media/platform/qcom/camss/camss-csid-gen2.c
++++ b/drivers/media/platform/qcom/camss/camss-csid-gen2.c
+@@ -9,6 +9,7 @@
+ #include <linux/completion.h>
+ #include <linux/interrupt.h>
+ #include <linux/io.h>
++#include <linux/iopoll.h>
+ #include <linux/kernel.h>
+ #include <linux/of.h>
+ 
+@@ -120,6 +121,33 @@
+ #define CSID_RDI_RPP_LINE_DROP_PERIOD(rdi)		((csid_is_lite(csid) ? 0x230 : 0x330)\
+ 							+ 0x100 * (rdi))
+ 
++/* CSID175 full IPP, verified against the SM8150 OEM descriptor. */
++#define CSID_IPP_IRQ_STATUS		0x30
++#define CSID_IPP_IRQ_MASK		0x34
++#define CSID_IPP_IRQ_CLEAR		0x38
++#define CSID_IPP_CFG0			0x200
++#define	IPP_CFG0_FORMAT_MEASURE_EN	BIT(0)
++#define	IPP_CFG0_TIMESTAMP_EN		BIT(1)
++#define	IPP_CFG0_PIXEL_STORE_EN		BIT(7)
++#define	IPP_CFG0_DECODE_FORMAT		12
++#define	IPP_CFG0_DATA_TYPE		16
++#define	IPP_CFG0_VIRTUAL_CHANNEL		22
++#define	IPP_CFG0_ENABLE			BIT(31)
++#define CSID_IPP_CFG1			0x204
++#define CSID_IPP_CTRL			0x208
++#define CSID_IPP_FRM_DROP_PATTERN		0x20c
++#define CSID_IPP_FRM_DROP_PERIOD		0x210
++#define CSID_IPP_IRQ_SUBSAMPLE_PATTERN	0x214
++#define CSID_IPP_IRQ_SUBSAMPLE_PERIOD	0x218
++#define CSID_IPP_PIX_DROP_PATTERN		0x224
++#define CSID_IPP_PIX_DROP_PERIOD		0x228
++#define CSID_IPP_LINE_DROP_PATTERN	0x22c
++#define CSID_IPP_LINE_DROP_PERIOD		0x230
++#define CSID_IPP_STATUS			0x254
++#define	IPP_STATUS_HALTED		BIT(0)
++#define	IPP_IRQ_FIFO_OVERFLOW		BIT(2)
++#define CSID_GEN2_IPP_PORT		3
++
+ #define CSID_TPG_CTRL		0x600
+ #define		TPG_CTRL_TEST_EN		0
+ #define		TPG_CTRL_FS_PKT_EN		1
+@@ -319,25 +347,143 @@ static void __csid_configure_rdi_stream(struct csid_device *csid, u8 enable, u8
+ 	writel_relaxed(val, csid->base + CSID_RDI_CTRL(port));
+ 
+ 	val = readl_relaxed(csid->base + CSID_RDI_CFG0(port));
+-	val |=  enable << RDI_CFG0_ENABLE;
++	val |= (u32)enable << RDI_CFG0_ENABLE;
+ 	writel_relaxed(val, csid->base + CSID_RDI_CFG0(port));
+ }
+ 
+-static void csid_configure_stream(struct csid_device *csid, u8 enable)
++static bool csid_gen2_port_is_ipp(struct csid_device *csid, u8 port)
+ {
+-	struct csid_testgen_config *tg = &csid->testgen;
+-	u8 i;
++	return csid->res->has_ipp && !csid_is_lite(csid) &&
++	       port == CSID_GEN2_IPP_PORT;
++}
+ 
+-	/* Loop through all enabled ports and configure a stream for each */
+-	for (i = 0; i < MSM_CSID_MAX_SRC_STREAMS; i++)
+-		if (csid->phy.en_vc & BIT(i)) {
+-			if (tg->enabled)
+-				__csid_configure_testgen(csid, enable, i, 0);
++static int csid_gen2_validate_ipp(struct csid_device *csid, u8 port, u8 vc)
++{
++	const struct v4l2_mbus_framefmt *input;
++	const struct csid_format_info *format;
++
++	if (!csid_gen2_port_is_ipp(csid, port) || vc > 31)
++		return -EINVAL;
++	input = &csid->fmt[MSM_CSID_PAD_FIRST_SRC + port];
++	format = csid_get_fmt_entry(csid->res->formats->formats,
++				    csid->res->formats->nformats, input->code);
++	/* RAW6..RAW16: unpack pixels, never feed payload-only bytes to PIX. */
++	if (format->code != input->code || format->data_type < 0x28 ||
++	    format->data_type > 0x2e ||
++	    format->decode_format == DECODE_FORMAT_PAYLOAD_ONLY)
++		return -EINVAL;
++
++	return 0;
++}
++
++static int csid_gen2_configure_ipp(struct csid_device *csid, u8 port, u8 vc)
++{
++	const struct v4l2_mbus_framefmt *input;
++	const struct csid_format_info *format;
++	u32 value;
++	int ret;
++
++	ret = csid_gen2_validate_ipp(csid, port, vc);
++	if (ret)
++		return ret;
++
++	input = &csid->fmt[MSM_CSID_PAD_FIRST_SRC + port];
++	format = csid_get_fmt_entry(csid->res->formats->formats,
++				    csid->res->formats->nformats, input->code);
++	writel(0, csid->base + CSID_IPP_CTRL);
++	writel(0, csid->base + CSID_IPP_IRQ_MASK);
++	writel(0x7fff, csid->base + CSID_IPP_IRQ_CLEAR);
++	writel(1, csid->base + CSID_IRQ_CMD);
++
++	value = IPP_CFG0_FORMAT_MEASURE_EN | IPP_CFG0_TIMESTAMP_EN |
++		IPP_CFG0_PIXEL_STORE_EN |
++		format->decode_format << IPP_CFG0_DECODE_FORMAT |
++		format->data_type << IPP_CFG0_DATA_TYPE |
++		vc << IPP_CFG0_VIRTUAL_CHANNEL;
++	/* The IPP has CID slot zero; port 3 does not mean DT_ID 3. */
++	writel(value, csid->base + CSID_IPP_CFG0);
++	writel(2, csid->base + CSID_IPP_CFG1);
++	writel(1, csid->base + CSID_IPP_FRM_DROP_PERIOD);
++	writel(0, csid->base + CSID_IPP_FRM_DROP_PATTERN);
++	writel(1, csid->base + CSID_IPP_IRQ_SUBSAMPLE_PERIOD);
++	writel(0, csid->base + CSID_IPP_IRQ_SUBSAMPLE_PATTERN);
++	writel(1, csid->base + CSID_IPP_PIX_DROP_PERIOD);
++	writel(0, csid->base + CSID_IPP_PIX_DROP_PATTERN);
++	writel(1, csid->base + CSID_IPP_LINE_DROP_PERIOD);
++	writel(0, csid->base + CSID_IPP_LINE_DROP_PATTERN);
++	writel(value | IPP_CFG0_ENABLE, csid->base + CSID_IPP_CFG0);
++	writel(IPP_IRQ_FIFO_OVERFLOW, csid->base + CSID_IPP_IRQ_MASK);
++
++	return 0;
++}
++
++static int csid_gen2_stop_ipp(struct csid_device *csid)
++{
++	u32 value;
++	int ret;
+ 
++	if (!(readl(csid->base + CSID_IPP_CFG0) & IPP_CFG0_ENABLE))
++		return 0;
++
++	writel(0, csid->base + CSID_IPP_IRQ_MASK);
++	/* Internal halt at a frame boundary, then wait for the real status. */
++	writel(0, csid->base + CSID_IPP_CTRL);
++	ret = readl_poll_timeout(csid->base + CSID_IPP_STATUS, value,
++				 value & IPP_STATUS_HALTED, 10,
++				 CSID_RESET_TIMEOUT_MS * 1000);
++	if (ret)
++		return ret;
++
++	value = readl(csid->base + CSID_IPP_CFG0);
++	writel(value & ~IPP_CFG0_ENABLE, csid->base + CSID_IPP_CFG0);
++
++	return 0;
++}
++
++static int csid_configure_stream(struct csid_device *csid, u8 enable)
++{
++	struct csid_testgen_config *tg = &csid->testgen;
++	int ret;
++	u8 i, first = MSM_CSID_MAX_SRC_STREAMS;
++
++	if (enable && csid_gen2_port_is_ipp(csid, CSID_GEN2_IPP_PORT) &&
++	    csid->phy.en_vc & BIT(CSID_GEN2_IPP_PORT)) {
++		ret = csid_gen2_validate_ipp(csid, CSID_GEN2_IPP_PORT, 0);
++		if (ret)
++			return ret;
++	}
++
++	for (i = 0; i < MSM_CSID_MAX_SRC_STREAMS; i++) {
++		if (!(csid->phy.en_vc & BIT(i)))
++			continue;
++
++		if (first == MSM_CSID_MAX_SRC_STREAMS)
++			first = i;
++
++		if (csid_gen2_port_is_ipp(csid, i)) {
++			if (!enable) {
++				ret = csid_gen2_stop_ipp(csid);
++				if (ret)
++					return ret;
++				continue;
++			}
++			ret = csid_gen2_configure_ipp(csid, i, 0);
++			if (ret)
++				return ret;
++			__csid_configure_rx(csid, &csid->phy, 0);
++			writel(1, csid->base + CSID_IPP_CTRL);
++		} else {
+ 			__csid_configure_rdi_stream(csid, enable, i, 0);
+ 			__csid_configure_rx(csid, &csid->phy, 0);
+ 			__csid_ctrl_rdi(csid, enable, i);
+ 		}
++	}
++
++	/* Start the source after paths are armed; stop it after paths halt. */
++	if (tg->enabled && first < MSM_CSID_MAX_SRC_STREAMS)
++		__csid_configure_testgen(csid, enable, first, 0);
++
++	return 0;
+ }
+ 
+ static int csid_configure_testgen_pattern(struct csid_device *csid, s32 val)
+@@ -372,8 +518,16 @@ static irqreturn_t csid_isr(int irq, void *dev)
+ 	/* Read and clear IRQ status for each enabled RDI channel */
+ 	for (i = 0; i < MSM_CSID_MAX_SRC_STREAMS; i++)
+ 		if (csid->phy.en_vc & BIT(i)) {
+-			val = readl_relaxed(csid->base + CSID_CSI2_RDIN_IRQ_STATUS(i));
+-			writel_relaxed(val, csid->base + CSID_CSI2_RDIN_IRQ_CLEAR(i));
++			if (csid_gen2_port_is_ipp(csid, i)) {
++				val = readl_relaxed(csid->base + CSID_IPP_IRQ_STATUS);
++				writel_relaxed(val, csid->base + CSID_IPP_IRQ_CLEAR);
++				if (val & IPP_IRQ_FIFO_OVERFLOW)
++					dev_err_ratelimited(csid->camss->dev,
++							    "CSID%u IPP FIFO overflow\n", csid->id);
++			} else {
++				val = readl_relaxed(csid->base + CSID_CSI2_RDIN_IRQ_STATUS(i));
++				writel_relaxed(val, csid->base + CSID_CSI2_RDIN_IRQ_CLEAR(i));
++			}
+ 		}
+ 
+ 	val = 1 << IRQ_CMD_CLEAR;
+diff --git a/drivers/media/platform/qcom/camss/camss-csid-gen3.c b/drivers/media/platform/qcom/camss/camss-csid-gen3.c
+index 83f19ed0b..e1dd03db2 100644
+--- a/drivers/media/platform/qcom/camss/camss-csid-gen3.c
++++ b/drivers/media/platform/qcom/camss/camss-csid-gen3.c
+@@ -274,7 +274,7 @@ static void __csid_configure_rdi_stream(struct csid_device *csid, u8 enable, u8
+ 
+ static int csid_reset(struct csid_device *csid);
+ 
+-static void csid_configure_stream(struct csid_device *csid, u8 enable)
++static int csid_configure_stream(struct csid_device *csid, u8 enable)
+ {
+ 	u8 i;
+ 
+@@ -294,6 +294,8 @@ static void csid_configure_stream(struct csid_device *csid, u8 enable)
+ 				__csid_ctrl_rdi(csid, enable, i);
+ 			}
+ 		}
++
++	return 0;
+ }
+ 
+ static int csid_configure_testgen_pattern(struct csid_device *csid, s32 val)
+diff --git a/drivers/media/platform/qcom/camss/camss-csid.c b/drivers/media/platform/qcom/camss/camss-csid.c
+index c7f3760fd..072bf2955 100644
+--- a/drivers/media/platform/qcom/camss/camss-csid.c
++++ b/drivers/media/platform/qcom/camss/camss-csid.c
+@@ -779,9 +779,7 @@ static int csid_set_stream(struct v4l2_subdev *sd, int enable)
+ 			return -ENOLINK;
+ 	}
+ 
+-	csid->res->hw_ops->configure_stream(csid, enable);
+-
+-	return 0;
++	return csid->res->hw_ops->configure_stream(csid, enable);
+ }
+ 
+ /*
+@@ -1302,6 +1300,19 @@ static int csid_link_setup(struct media_entity *entity,
+ 		struct csid_device *csid = v4l2_get_subdevdata(sd);
+ 		struct device *dev = csid->camss->dev;
+ 
++		/* Gen2 full CSIDs have three RDIs and a distinct pixel path. */
++		if (csid->res->has_ipp && (flags & MEDIA_LNK_FL_ENABLED)) {
++			struct vfe_line *line;
++			bool ipp = !csid_is_lite(csid) &&
++				   local->index == MSM_CSID_PAD_FIRST_SRC + 3;
++
++			if (!is_media_entity_v4l2_subdev(remote->entity))
++				return -EINVAL;
++			line = v4l2_get_subdevdata(media_entity_to_v4l2_subdev(remote->entity));
++			if (ipp != line->is_pix)
++				return -EINVAL;
++		}
++
+ 		if (flags & MEDIA_LNK_FL_ENABLED)
+ 			csid->phy.en_vc |= BIT(local->index - 1);
+ 		else
+diff --git a/drivers/media/platform/qcom/camss/camss-csid.h b/drivers/media/platform/qcom/camss/camss-csid.h
+index c7e97cb36..17e2d0b9b 100644
+--- a/drivers/media/platform/qcom/camss/camss-csid.h
++++ b/drivers/media/platform/qcom/camss/camss-csid.h
+@@ -86,7 +86,7 @@ struct csid_hw_ops {
+ 	 * configure_stream - Configures and starts CSID input stream
+ 	 * @csid: CSID device
+ 	 */
+-	void (*configure_stream)(struct csid_device *csid, u8 enable);
++	int (*configure_stream)(struct csid_device *csid, u8 enable);
+ 
+ 	/*
+ 	 * configure_testgen_pattern - Validates and configures output pattern mode
+@@ -148,6 +148,7 @@ struct csid_hw_ops {
+ 
+ struct csid_subdev_resources {
+ 	bool is_lite;
++	bool has_ipp; /* gen2 pixel input path, separate from RDI3 */
+ 	const struct csid_hw_ops *hw_ops;
+ 	const struct parent_dev_ops *parent_dev_ops;
+ 	const struct csid_formats *formats;
+diff --git a/drivers/media/platform/qcom/camss/camss.c b/drivers/media/platform/qcom/camss/camss.c
+index 589407366..c114b84a7 100644
+--- a/drivers/media/platform/qcom/camss/camss.c
++++ b/drivers/media/platform/qcom/camss/camss.c
+@@ -2065,6 +2065,7 @@ static const struct camss_subdev_resources csid_res_8150[] = {
+ 		.reg = { "csid0" },
+ 		.interrupt = { "csid0" },
+ 		.csid = {
++			.has_ipp = true,
+ 			.hw_ops = &csid_ops_gen2,
+ 			.parent_dev_ops = &vfe_parent_dev_ops,
+ 			.formats = &csid_formats_gen2
+@@ -2090,6 +2091,7 @@ static const struct camss_subdev_resources csid_res_8150[] = {
+ 		.reg = { "csid1" },
+ 		.interrupt = { "csid1" },
+ 		.csid = {
++			.has_ipp = true,
+ 			.hw_ops = &csid_ops_gen2,
+ 			.parent_dev_ops = &vfe_parent_dev_ops,
+ 			.formats = &csid_formats_gen2

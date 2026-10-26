@@ -1,0 +1,14 @@
+diff --git a/drivers/gpu/drm/panel/panel-samsung-sofef03f.c b/drivers/gpu/drm/panel/panel-samsung-sofef03f.c
+--- a/drivers/gpu/drm/panel/panel-samsung-sofef03f.c
++++ b/drivers/gpu/drm/panel/panel-samsung-sofef03f.c
+@@ -282,7 +282,9 @@
+ 	mipi_dsi_set_drvdata(dsi, ctx);
+ 	dsi->lanes = 4;
+ 	dsi->format = MIPI_DSI_FMT_RGB888;
+-	dsi->mode_flags = MIPI_DSI_MODE_LPM | MIPI_DSI_MODE_DSC_ALL_SLICES_IN_PKT;
++	/* Stock host config has append_tx_eot disabled. */
++	dsi->mode_flags = MIPI_DSI_MODE_LPM | MIPI_DSI_MODE_NO_EOT_PACKET |
++			  MIPI_DSI_MODE_DSC_ALL_SLICES_IN_PKT;
+ 	ctx->dsc.dsc_version_major = 1;
+ 	ctx->dsc.dsc_version_minor = 1;
+ 	ctx->dsc.slice_width = 540;

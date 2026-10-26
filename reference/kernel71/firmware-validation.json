@@ -1,0 +1,128 @@
+{
+  "boot_gzip_crc_pass": true,
+  "old_boot_matches_backed_up_fv": true,
+  "embedded_fd_matches": true,
+  "fd_bytes": 7340032,
+  "bootshim_bytes": 144,
+  "bootshim_sha256": "7f64231d4fc8b9611edadc1871338535675a761683d932d35c422b3092789a91",
+  "compact_lzma_matches_main_fv": true,
+  "firmware_dtb_raw_section_matches": true,
+  "ffs_header_checksums_pass": true,
+  "fv_header_checksums_pass": true,
+  "android_header_unchanged_except_size_and_digest": true,
+  "compat_append_unchanged": true,
+  "cmdline_preserved": "earlycon=eud,mmio,0x88e0000 console=tty0 console=eud loglevel=7 ignore_loglevel panic=15 clk_ignore_unused pd_ignore_unused regulator_ignore_unused",
+  "module_count": 101,
+  "semantic_dtb_changes": {
+    "semantic_dtb_changes": [
+      {
+        "path": "/soc@0/dma-controller@c00000",
+        "property": "status",
+        "before": "64697361626c656400",
+        "after": "6f6b617900"
+      },
+      {
+        "path": "/soc@0/geniqup@cc0000",
+        "property": "status",
+        "before": "64697361626c656400",
+        "after": "6f6b617900"
+      },
+      {
+        "path": "/soc@0/geniqup@cc0000/i2c@c80000",
+        "property": "status",
+        "before": "64697361626c656400",
+        "after": "6f6b617900"
+      },
+      {
+        "path": "/soc@0/rsc@18200000/regulators-0/ldo17",
+        "property": "regulator-max-microvolt",
+        "before": "002de600",
+        "after": "002dc6c0"
+      },
+      {
+        "path": "/soc@0/rsc@18200000/regulators-0/ldo17",
+        "property": "regulator-min-microvolt",
+        "before": "002b9440",
+        "after": "002dc6c0"
+      }
+    ],
+    "added_nodes": [
+      "/regulator-touch-1p8",
+      "/soc@0/geniqup@cc0000/i2c@c80000/touchscreen@20",
+      "/soc@0/geniqup@cc0000/i2c@c80000/touchscreen@20/rmi4-f12@12",
+      "/soc@0/pinctrl@3100000/touch-irq-default-state",
+      "/soc@0/pinctrl@3100000/touch-reset-default-state",
+      "/soc@0/spmi@c440000/pmic@4/gpio@c000/touch-vio-enable-default-state"
+    ],
+    "phandles_resolved_to_paths": true,
+    "all_other_properties_unchanged": true,
+    "removed_nodes": []
+  },
+  "firmware_version_before": "2d389cf",
+  "firmware_version_after": "0819bd5",
+  "other_executable_bytes_unchanged": true,
+  "changed_modules": [
+    {
+      "guid": "bad0554e-22e9-4d83-9afd-cc87727a1a45",
+      "name": "PlatformSmbiosDxe",
+      "before_size": 36992,
+      "after_size": 36992,
+      "classification": "firmware_version_string_only",
+      "before_sha256": "42a996985f3cff0939b1daefb65b270316f9123b69d87d848d8efe84df6314f1",
+      "after_sha256": "25d20b9c8d34d849a5c21eda959f7fcfdc357f907736dffa4f4a5ca2d532b0be",
+      "changed_sections": [
+        "0x10"
+      ]
+    },
+    {
+      "guid": "6d33944a-ec75-4855-a54d-809c75241f6c",
+      "name": "BdsDxe",
+      "before_size": 110714,
+      "after_size": 110714,
+      "classification": "firmware_version_string_only",
+      "before_sha256": "bfb56ee654cab5397d73a0bdd950a71dc52db381d42a41396f0a447188e56239",
+      "after_sha256": "00e9590138deb9e6430bb37f0ce25007fed021fe712b0bcb17beb7a08510c606",
+      "changed_sections": [
+        "0x10"
+      ]
+    },
+    {
+      "guid": "462caa21-7614-4503-836e-8ab6f4662331",
+      "name": "UiApp",
+      "before_size": 200800,
+      "after_size": 200800,
+      "classification": "firmware_version_string_only",
+      "before_sha256": "65887cedbd3efbd7d7b3e2f258906c7aa180aa9fbe24df9406b67080f14ec303",
+      "after_sha256": "d9919ba29952de91acb68cf7341d7705073080f54255fe274f6c79cbadfdd3ad",
+      "changed_sections": [
+        "0x10"
+      ]
+    },
+    {
+      "guid": "25462cda-221f-47df-ac1d-259cfaa4e326",
+      "name": "",
+      "before_size": 94831,
+      "after_size": 95961,
+      "classification": "native_touch_dtb",
+      "before_sha256": "3e2d2316d297c078a1fb06637fca41a828ace41a126b40ca85d392050ea3dbca",
+      "after_sha256": "daf2f7e745ead49bae6b42dabd6e1ee1bd4ab11d6af1d01211e7912049b005ac",
+      "changed_sections": [
+        "0x19"
+      ]
+    }
+  ],
+  "changed_compact_modules": [
+    {
+      "guid": "8af09f13-44c5-96ec-1437-dd899cb5ee5d",
+      "name": "",
+      "type": "0x3"
+    },
+    {
+      "guid": "9e21fd93-9c72-4c15-8c4b-e77f1db2d792",
+      "name": "",
+      "type": "0xb"
+    }
+  ],
+  "boot_after_bytes": 6680576,
+  "boot_after_sha256": "a4f4b75a52ec13a9b0b5cd4ebd678daa9a9dafd36548ce82ce4602a1fbcc15db"
+}

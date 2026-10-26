@@ -1,0 +1,38 @@
+{
+  "counterexample_reproduced": true,
+  "source_sha256": "1e17cd3f440d71dfd223a24889cbc18453777be3a7b38b1751e6ff114990a362",
+  "function_sha256": "e91dec04da519a001561383c81b391d77b844595db002df3623d1e688e8b575b",
+  "actual_input": " CPU0 CPU1\n47: 0 0 pmic_arb 135940 Edge usbin-plugin\n48: 0 0 pmic_arb 135942 Edge usbin-src-change\n49: 0 0 GICv3 123 Level usbin-plugin, unrelated-action\n",
+  "actual_accepted": {
+    "cpus": [
+      "CPU0",
+      "CPU1"
+    ],
+    "named": {
+      "usbin-plugin": {
+        "irq": 47,
+        "counts": {
+          "CPU0": 0,
+          "CPU1": 0
+        },
+        "controller_and_action": "pmic_arb 135940 Edge usbin-plugin",
+        "raw_line": "47: 0 0 pmic_arb 135940 Edge usbin-plugin"
+      },
+      "usbin-src-change": {
+        "irq": 48,
+        "counts": {
+          "CPU0": 0,
+          "CPU1": 0
+        },
+        "controller_and_action": "pmic_arb 135942 Edge usbin-src-change",
+        "raw_line": "48: 0 0 pmic_arb 135942 Edge usbin-src-change"
+      }
+    }
+  },
+  "expected": "reject: another IRQ action list contains exact usbin-plugin, with a shared partner",
+  "existing_last_position_control_rejected": true,
+  "author_entry_or_module_imported": false,
+  "old_27_or_other_suites_run": false,
+  "physical_delivery_claimed": false,
+  "device_access": false
+}

@@ -1,0 +1,36 @@
+{
+  "date": "2026-10-24",
+  "initial_host_groups": {
+    "passed": 4,
+    "actual_Linux_child_returncode": 0
+  },
+  "restart_window_immutable_source_group": {
+    "passed": 1,
+    "actual_Linux_child_returncode": 0
+  },
+  "restore_profile_first_test": {
+    "passed": false,
+    "actual_Linux_child_returncode": 1,
+    "reason": "Test patched binder.load, but configured closure uses the profile module load; real source reviewer correctly rejected fixture paths before any device access."
+  },
+  "restore_profile_retest": {
+    "passed": 1,
+    "actual_Linux_child_returncode": 0
+  },
+  "pm_identity_and_owned_terminal_groups": {
+    "passed": 2,
+    "actual_Linux_child_returncode": 0,
+    "PM_hardware_accessed": false
+  },
+  "first_PM_launch_generation": {
+    "passed": false,
+    "actual_Linux_child_returncode": 1,
+    "phase": "local ast.parse before output directory or transfer",
+    "reason": "Nonraw embedded launcher converted a quoted newline into source text; no PM or launch occurred."
+  },
+  "models_are_hardware_evidence": false,
+  "PM_generated_launcher_template_retest": {
+    "passed": 1,
+    "actual_Linux_child_returncode": 0
+  }
+}

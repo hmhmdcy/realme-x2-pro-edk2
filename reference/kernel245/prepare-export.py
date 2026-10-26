@@ -1,0 +1,6 @@
+from pathlib import Path
+R=Path(__file__).resolve().parent
+s=(R.parent/'kernel244/export-evidence.py').read_text();s=s.replace("P=Path('/mnt/e/edk2-samurai-out/kernel244')","P=Path('/mnt/e/edk2-samurai-out/kernel245')").replace("R/'host.py'","R.parent/'kernel244/host.py'")
+s=s.replace("state=json.loads((r/'k244-nextboot/capture/state-private.json').read_text());assert state['terminal'] and state['exit_code']==0","state=json.loads((r/'k245-memshare-observe/state-private.json').read_text());assert state['terminal'] and state['exit_code']==0")
+s=s.replace("names=['k244-power-diag','k244-online-version','k244-reconnect','k244-quiesce','k244-tools','k244-nextboot','k244-runtime']","names=['k245-engine-lock','k245-fixed-reconnect','k245-tools','k245-resume-rf','k245-resume-rf-r2','k245-resume-rf-r3','k245-resume-rf-r4','k245-memshare-observe','k245-pdc-read','k245-pdc-info']")
+s=s.replace('stage-244','stage-245').replace('k244-evidence-private','k245-evidence-private').replace('stage=244','stage=245').replace('both boots\' stage-244','current boot\'s stage-245');compile(s,'export-evidence.py','exec');(R/'export-evidence.py').write_text(s);print('Prepared stage245 private export; current boot guard remains244.')

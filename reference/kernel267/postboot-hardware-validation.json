@@ -1,0 +1,198 @@
+{
+  "stage": 267,
+  "modules": {
+    "qcom_pm8008": {
+      "loaded": true,
+      "sha256": "bcdbf711b1194a7eac46eaba626373bf9e82fdebd321e9a536e26d1c55076905",
+      "loaded_note_matches_disk": true,
+      "intree": "Y",
+      "parameters": {}
+    },
+    "qcom_pm8008_regulator": {
+      "loaded": true,
+      "sha256": "d4dbb9cd7679381c97003c3bce901979d16c945e937d752dedc1fb75da3186d3",
+      "loaded_note_matches_disk": true,
+      "intree": "Y",
+      "parameters": {}
+    },
+    "imx319": {
+      "loaded": true,
+      "sha256": "53917b9988e0796b4bc4724cd84932cf05882f4e9c81d4d3cbda9c11908a5cb5",
+      "loaded_note_matches_disk": true,
+      "intree": "Y",
+      "parameters": {}
+    },
+    "imx471": {
+      "loaded": true,
+      "sha256": "e49dab26b05a325df8da64bb5c4b57c29cd51d1dcf15f5d4ed4dcb53033e66f1",
+      "loaded_note_matches_disk": true,
+      "intree": "Y",
+      "parameters": {
+        "unprocessed_fullres": "N"
+      }
+    },
+    "qcom_camss": {
+      "loaded": true,
+      "sha256": "ff9fdfa346249d836c0f830c9ea2480b6b06b280089007a054a6d2a0514f5822",
+      "loaded_note_matches_disk": true,
+      "intree": "Y",
+      "parameters": {
+        "dma_trace": "N"
+      }
+    }
+  },
+  "pmics": {
+    "1-0004": {
+      "bound": true,
+      "driver": "pm8008",
+      "children": [
+        {
+          "name": "pm8008-regulator.3.auto",
+          "driver": "qcom-pm8008-regulator"
+        }
+      ],
+      "supplier_links": [
+        "supplier:platform:18200000.rsc:regulators-1",
+        "supplier:platform:c440000.spmi:pmic@4:gpio@c000"
+      ]
+    },
+    "1-0008": {
+      "bound": true,
+      "driver": "pm8008",
+      "children": [
+        {
+          "name": "pm8008-regulator.5.auto",
+          "driver": "qcom-pm8008-regulator"
+        }
+      ],
+      "supplier_links": [
+        "supplier:i2c:1-0004",
+        "supplier:platform:18200000.rsc:regulators-1",
+        "supplier:platform:c440000.spmi:pmic@4:gpio@c000"
+      ]
+    }
+  },
+  "sensors": {
+    "imx319": {
+      "entity": "imx319 7-0010",
+      "node": "/dev/v4l-subdev15",
+      "sysfs_device": "/sys/devices/platform/soc@0/ac4a000.cci/i2c-7/7-0010",
+      "compatible": "sony,imx319",
+      "runtime": "suspended",
+      "properties": {
+        "orientation": 1
+      },
+      "selection": {
+        "crop": {
+          "left": 0,
+          "top": 8,
+          "width": 3280,
+          "height": 2448
+        },
+        "default": {
+          "left": 0,
+          "top": 0,
+          "width": 3280,
+          "height": 2464
+        },
+        "bounds": {
+          "left": 0,
+          "top": 0,
+          "width": 3280,
+          "height": 2464
+        },
+        "native": {
+          "left": 0,
+          "top": 0,
+          "width": 3280,
+          "height": 2464
+        }
+      },
+      "controls": "\nUser Controls\n\n                       exposure 0x00980911 (int)    : min=1 max=3332 step=1 default=1270 value=1270 flags=has-min-max\n                horizontal_flip 0x00980914 (bool)   : default=0 value=0 flags=modify-layout, has-min-max\n                  vertical_flip 0x00980915 (bool)   : default=0 value=0 flags=modify-layout, has-min-max\n\nCamera Controls\n\n             camera_orientation 0x009a0922 (menu)   : min=0 max=2 default=1 value=1 (Back) flags=read-only, has-min-max\n\nImage Source Controls\n\n              vertical_blanking 0x009e0901 (int)    : min=2126 max=64311 step=1 default=2126 value=2126 flags=has-min-max\n            horizontal_blanking 0x009e0902 (int)    : min=448 max=448 step=1 default=448 value=448 flags=read-only, has-min-max\n                  analogue_gain 0x009e0903 (int)    : min=0 max=960 step=1 default=0 value=0 flags=has-min-max\n\nImage Processing Controls\n\n                 link_frequency 0x009f0901 (intmenu): min=0 max=0 default=0 value=0 (222000000 0xd3b7380) flags=read-only, has-min-max\n                     pixel_rate 0x009f0902 (int64)  : min=209066666 max=209066666 step=1 default=209066666 value=209066666 flags=read-only, has-min-max\n                   test_pattern 0x009f0903 (menu)   : min=0 max=4 default=0 value=0 (Disabled) flags=has-min-max\n                   digital_gain 0x009f0905 (int)    : min=256 max=4095 step=1 default=256 value=256 flags=has-min-max\n",
+      "supplier_links": [
+        "supplier:platform:ad00000.clock-controller",
+        "supplier:regulator:regulator.37",
+        "supplier:i2c:1-0008",
+        "supplier:platform:3100000.pinctrl",
+        "supplier:platform:18200000.rsc:regulators-1",
+        "supplier:regulator:regulator.38",
+        "supplier:regulator:regulator.7"
+      ]
+    },
+    "imx471": {
+      "entity": "imx471 9-0010",
+      "node": "/dev/v4l-subdev14",
+      "sysfs_device": "/sys/devices/platform/soc@0/ac4b000.cci/i2c-9/9-0010",
+      "compatible": "sony,imx471",
+      "runtime": "suspended",
+      "properties": {
+        "orientation": 0
+      },
+      "selection": {
+        "crop": {
+          "left": 0,
+          "top": 0,
+          "width": 4656,
+          "height": 3496
+        },
+        "default": {
+          "left": 8,
+          "top": 8,
+          "width": 4656,
+          "height": 3496
+        },
+        "bounds": {
+          "left": 0,
+          "top": 0,
+          "width": 4672,
+          "height": 3512
+        },
+        "native": {
+          "left": 0,
+          "top": 0,
+          "width": 4672,
+          "height": 3512
+        }
+      },
+      "controls": "\nUser Controls\n\n                       exposure 0x00980911 (int)    : min=1 max=4232 step=1 default=4232 value=1270 flags=has-min-max\n                horizontal_flip 0x00980914 (bool)   : default=0 value=0 flags=modify-layout, has-min-max\n                  vertical_flip 0x00980915 (bool)   : default=0 value=0 flags=modify-layout, has-min-max\n\nCamera Controls\n\n             camera_orientation 0x009a0922 (menu)   : min=0 max=2 default=0 value=0 (Front) flags=read-only, has-min-max\n\nImage Source Controls\n\n              vertical_blanking 0x009e0901 (int)    : min=396 max=63807 step=1 default=2522 value=2522 flags=has-min-max\n            horizontal_blanking 0x009e0902 (int)    : min=256 max=256 step=1 default=256 value=256 flags=read-only, has-min-max\n                  analogue_gain 0x009e0903 (int)    : min=0 max=960 step=1 default=0 value=0 flags=has-min-max\n\nImage Processing Controls\n\n                 link_frequency 0x009f0901 (intmenu): min=0 max=2 default=0 value=1 (400000000 0x17d78400) flags=read-only, has-min-max\n                     pixel_rate 0x009f0902 (int64)  : min=326400000 max=326400000 step=1 default=326400000 value=326400000 flags=read-only, has-min-max\n                   test_pattern 0x009f0903 (menu)   : min=0 max=4 default=0 value=0 (Disabled) flags=has-min-max\n                   digital_gain 0x009f0905 (int)    : min=256 max=4095 step=1 default=256 value=256 flags=has-min-max\n",
+      "supplier_links": [
+        "supplier:platform:ad00000.clock-controller",
+        "supplier:platform:3100000.pinctrl",
+        "supplier:regulator:regulator.35",
+        "supplier:i2c:1-0004",
+        "supplier:platform:18200000.rsc:regulators-1",
+        "supplier:regulator:regulator.36",
+        "supplier:regulator:regulator.7"
+      ]
+    }
+  },
+  "rails": {
+    "cam-front-vdig": {
+      "state": "disabled",
+      "num_users": "0",
+      "microvolts": "1056000"
+    },
+    "cam-rear-vana": {
+      "state": "disabled",
+      "num_users": "0",
+      "microvolts": "2800000"
+    },
+    "cam-front-vana": {
+      "state": "disabled",
+      "num_users": "0",
+      "microvolts": "2800000"
+    },
+    "cam-rear-vdig": {
+      "state": "disabled",
+      "num_users": "0",
+      "microvolts": "1104000"
+    }
+  },
+  "taint": 0,
+  "lab_modules_absent": true,
+  "old_lab_config_absent": true,
+  "old_reset_dt_node_absent": true,
+  "standard_cam_enumerated_both": true,
+  "common_r3_payloads_preserved": true,
+  "no_test_frames_requested": true
+}

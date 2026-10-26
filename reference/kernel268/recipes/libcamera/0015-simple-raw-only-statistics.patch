@@ -1,0 +1,185 @@
+Subject: [PATCH] simple: run CPU statistics for RAW-only requests
+
+Keep RAW buffers unmodified, but hold them while the existing CPU statistics
+reader gathers samples. Configure and run the software IPA so RAW-only
+requests receive exposure/gain metadata and automatic sensor updates.
+Allocate no converted output buffers. Gate this path on explicit CPU
+support and preserve the existing non-CPU direct RAW path. Complete input
+errors without waiting for metadata that could not be produced.
+
+---
+diff --git a/src/libcamera/software_isp/debayer.h b/src/libcamera/software_isp/debayer.h
+--- a/src/libcamera/software_isp/debayer.h
++++ b/src/libcamera/software_isp/debayer.h
+@@ -55,6 +55,7 @@
+ 	virtual SizeRange sizes(PixelFormat inputFormat, const Size &inputSize) = 0;
+ 
+ 	virtual const SharedFD &getStatsFD() = 0;
++	virtual bool supportsInputStatsOnly() const { return false; }
+ 
+ 	unsigned int frameSize() { return outputConfig_.frameSize; }
+ 
+diff --git a/src/libcamera/software_isp/debayer_cpu.h b/src/libcamera/software_isp/debayer_cpu.h
+--- a/src/libcamera/software_isp/debayer_cpu.h
++++ b/src/libcamera/software_isp/debayer_cpu.h
+@@ -48,6 +48,7 @@
+ 	void stop() override;
+ 	SizeRange sizes(PixelFormat inputFormat, const Size &inputSize) override;
+ 	const SharedFD &getStatsFD() override { return stats_->getStatsFD(); }
++	bool supportsInputStatsOnly() const override { return true; }
+ 
+ private:
+ 	friend class DebayerCpuThread;
+@@ -147,6 +148,7 @@
+ 	CcmLookupTable blueCcm_;
+ 	std::array<double, kGammaLookupSize> gammaTable_;
+ 	LookupTable gammaLut_;
++	bool statsOnly_ = false;
+ 	bool ccmEnabled_;
+ 	DebayerParams params_;
+ 
+diff --git a/src/libcamera/software_isp/debayer_cpu.cpp b/src/libcamera/software_isp/debayer_cpu.cpp
+--- a/src/libcamera/software_isp/debayer_cpu.cpp
++++ b/src/libcamera/software_isp/debayer_cpu.cpp
+@@ -676,6 +676,14 @@
+ 	}
+ 
+ 	inputConfig_.stride = inputCfg.stride;
++
++	statsOnly_ = outputCfgs.empty();
++	if (statsOnly_) {
++		window_ = Rectangle(inputCfg.size);
++		stats_->setWindow(window_);
++		LOG(Debayer, Info) << "RAW-only CPU statistics enabled";
++		return 0;
++	}
+ 
+ 	if (outputCfgs.size() != 1) {
+ 		LOG(Debayer, Error)
+@@ -1140,6 +1148,21 @@
+ 
+ 	dmaSyncBegin(dmaSyncers, input, output);
+ 
++	if (statsOnly_) {
++		ASSERT(!output);
++		MappedFrameBuffer in(input, MappedFrameBuffer::MapFlag::Read);
++		if (!in.isValid() || in.planes().empty() ||
++		    in.planes()[0].size() < size_t(inputConfig_.stride) * inputSize_.height) {
++			LOG(Debayer, Error) << "Invalid RAW statistics input buffer";
++			input->_d()->metadata().status = FrameMetadata::FrameError;
++		} else {
++			stats_->processFrame(frame, 0, in);
++		}
++		dmaSyncers.clear();
++		inputBufferReady.emit(input);
++		return;
++	}
++
+ 	updateLookupTables(params);
+ 
+ 	/* Copy metadata from the input buffer */
+diff --git a/include/libcamera/internal/software_isp/software_isp.h b/include/libcamera/internal/software_isp/software_isp.h
+--- a/include/libcamera/internal/software_isp/software_isp.h
++++ b/include/libcamera/internal/software_isp/software_isp.h
+@@ -54,6 +54,7 @@
+ 	int loadConfiguration([[maybe_unused]] const std::string &filename) { return 0; }
+ 
+ 	bool isValid() const;
++	bool supportsInputStatsOnly() const;
+ 
+ 	std::vector<PixelFormat> formats(PixelFormat input);
+ 
+@@ -99,6 +100,7 @@
+ 	SharedMemObject<DebayerParams> sharedParams_;
+ 	DebayerParams debayerParams_;
+ 	DmaBufAllocator dmaHeap_;
++	bool statsOnly_ = false;
+ 	bool ccmEnabled_;
+ 	bool imx471_ = false;
+ 	bool nativeQuadCpu_ = false;
+diff --git a/src/libcamera/software_isp/software_isp.cpp b/src/libcamera/software_isp/software_isp.cpp
+--- a/src/libcamera/software_isp/software_isp.cpp
++++ b/src/libcamera/software_isp/software_isp.cpp
+@@ -328,6 +328,11 @@
+  * handler
+  * \return 0 on success, a negative errno on failure
+  */
++bool SoftwareIsp::supportsInputStatsOnly() const
++{
++	return debayer_ && debayer_->supportsInputStatsOnly();
++}
++
+ int SoftwareIsp::configure(const StreamConfiguration &inputCfg,
+ 			   const std::vector<std::reference_wrapper<const StreamConfiguration>> &outputCfgs,
+ 			   const ipa::soft::IPAConfigInfo &configInfo)
+@@ -343,6 +348,7 @@
+ 	ret = debayer_->configure(inputCfg, outputCfgs, ccmEnabled_);
+ 	if (ret < 0)
+ 		return ret;
++	statsOnly_ = outputCfgs.empty();
+ 
+ 	LOG(SoftwareIsp, Info)
+ 		<< "Input " << inputCfg.size
+@@ -393,10 +399,16 @@
+ int SoftwareIsp::queueBuffers(uint32_t frame, FrameBuffer *input,
+ 			      const std::map<const Stream *, FrameBuffer *> &outputs)
+ {
+-	/*
+-	 * Validate the outputs as a sanity check: at least one output is
+-	 * required, all outputs must reference a valid stream.
+-	 */
++	/* RAW-only statistics hold the input until CPU reads have finished. */
++	if (statsOnly_) {
++		if (!outputs.empty())
++			return -EINVAL;
++		queuedInputBuffers_.push_back(input);
++		process(frame, input, nullptr);
++		return 0;
++	}
++
++	/* Converted output requires one valid stream and buffer. */
+ 	if (outputs.empty())
+ 		return -EINVAL;
+ 
+diff --git a/src/libcamera/pipeline/simple/simple.cpp b/src/libcamera/pipeline/simple/simple.cpp
+--- a/src/libcamera/pipeline/simple/simple.cpp
++++ b/src/libcamera/pipeline/simple/simple.cpp
+@@ -1014,8 +1014,13 @@
+ void SimpleCameraData::conversionInputDone(FrameBuffer *buffer)
+ {
+ 	if (rawStream_) {
+-		/* Complete the input buffer as with raw-only processing. */
++		/* Complete RAW only after statistics have released its input. */
+ 		Request *request = buffer->request();
++		if (buffer->metadata().status != FrameMetadata::FrameSuccess) {
++			SimpleFrameInfo *info = frameInfo_.find(request->sequence());
++			if (info)
++				info->metadataRequired = false;
++		}
+ 		if (pipe()->completeBuffer(request, buffer))
+ 			tryCompleteRequest(request);
+ 	} else {
+@@ -1605,8 +1610,12 @@
+ 			data->rawStream_ = &data->streams_[i];
+ 	}
+ 
+-	if (outputCfgs.empty())
+-		return 0;
++	if (outputCfgs.empty()) {
++		if (!data->rawStream_ || !data->swIsp_ ||
++		    !data->swIsp_->supportsInputStatsOnly())
++			return 0;
++		data->useConversion_ = true;
++	}
+ 
+ 	StreamConfiguration inputCfg;
+ 	inputCfg.pixelFormat = videoFormat.toPixelFormat();
+@@ -1757,7 +1766,7 @@
+ 	int ret;
+ 
+ 	std::map<const Stream *, FrameBuffer *> buffers;
+-	bool metadataRequired = false;
++	bool metadataRequired = data->useConversion_ && !!data->swIsp_;
+ 
+ 	for (auto &[stream, buffer] : request->buffers()) {
+ 		/*

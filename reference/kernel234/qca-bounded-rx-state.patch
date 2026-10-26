@@ -1,0 +1,99 @@
+--- a/drivers/bluetooth/hci_qca.c
++++ b/drivers/bluetooth/hci_qca.c
+@@ -24,6 +24,7 @@
+ #include <linux/device.h>
+ #include <linux/gpio/consumer.h>
+ #include <linux/module.h>
++#include <linux/timekeeping.h>
+ #include <linux/of.h>
+ #include <linux/acpi.h>
+ #include <linux/platform_device.h>
+@@ -84,6 +85,12 @@
+ };
+ 
+ /* Diagnostic tags are independent of the power-pulse receive window. */
++/* Private diagnostics: no parser repair or additional wire commands. */
++#define QCA_RX_DIAG_BUDGET 16
++static bool samurai_rx_diag;
++module_param(samurai_rx_diag, bool, 0600);
++MODULE_PARM_DESC(samurai_rx_diag, "Bounded private baud-change RX diagnostics");
++
+ enum qca_rx_phase {
+ 	QCA_RX_UNSPECIFIED,
+ 	QCA_RX_POWER_OFF_PULSE,
+@@ -155,6 +162,8 @@
+ 	struct sk_buff *rx_skb;
+ 	u32 rx_phase;
+ 	u32 requested_baudrate;
++	atomic_t diag_rx_seq;
++	atomic_t diag_budget;
+ 	atomic_t pulse_rx_nuls;
+ 	struct sk_buff_head txq;
+ 	struct sk_buff_head tx_wait_q;	/* HCI_IBS wait queue	*/
+@@ -633,6 +642,8 @@
+ 	qca->vote_last_jif = jiffies;
+ 
+ 	atomic_set(&qca->pulse_rx_nuls, 0);
++	atomic_set(&qca->diag_rx_seq, 0);
++	atomic_set(&qca->diag_budget, QCA_RX_DIAG_BUDGET);
+ 	hu->priv = qca;
+ 
+ 	if (hu->serdev) {
+@@ -1303,9 +1314,32 @@
+ 	const u8 *buffer = data;
+ 	int received = count;
+ 	int nuls = 0;
++	bool diag = false, had_skb = false;
++	u32 seq = 0, phase = 0, expect = 0, baud = 0;
++	bool drop = false;
++	u8 type = 0, padding = 0;
++	u64 timestamp = 0;
+ 
+ 	if (!test_bit(HCI_UART_REGISTERED, &hu->flags))
+ 		return -EUNATCH;
++
++	if (READ_ONCE(samurai_rx_diag)) {
++		seq = (u32)atomic_inc_return(&qca->diag_rx_seq);
++		phase = READ_ONCE(qca->rx_phase);
++		if (phase == QCA_RX_BAUDRATE_CHANGE &&
++		    atomic_dec_if_positive(&qca->diag_budget) >= 0) {
++			diag = true;
++			timestamp = ktime_get_mono_fast_ns();
++			baud = READ_ONCE(qca->requested_baudrate);
++			drop = test_bit(QCA_DROP_VENDOR_EVENT, &qca->flags);
++			had_skb = !!qca->rx_skb;
++			padding = hu->padding;
++			if (had_skb) {
++				type = hci_skb_pkt_type(qca->rx_skb);
++				expect = hci_skb_expect(qca->rx_skb);
++			}
++		}
++	}
+ 
+ 	/* Power-pulse traffic is not H4. Preserve zeros in partial frames. */
+ 	if (test_bit(QCA_POWER_PULSE, &qca->flags) &&
+@@ -1322,6 +1356,24 @@
+ 
+ 	qca->rx_skb = h4_recv_buf(hu, qca->rx_skb, buffer, count,
+ 				  qca_recv_pkts, ARRAY_SIZE(qca_recv_pkts));
++	if (diag) {
++		bool post_skb = !IS_ERR_OR_NULL(qca->rx_skb);
++		int err = IS_ERR(qca->rx_skb) ? PTR_ERR(qca->rx_skb) : 0;
++		unsigned int length = count > 0 ? min_t(int, count, 32) : 0;
++		u32 post_len = post_skb ? qca->rx_skb->len : 0;
++		u32 post_type = post_skb ? hci_skb_pkt_type(qca->rx_skb) : 0;
++		u32 post_expect = post_skb ? hci_skb_expect(qca->rx_skb) : 0;
++		u8 post_padding = hu->padding;
++
++		bt_dev_info(hu->hdev,
++			    "RXDIAG234 seq=%u ns=%llu phase=%u baud=%u drop=%u had_skb=%u len=%u type=%u expect=%u padding=%u count=%d skipped=%d err=%d",
++			    seq, timestamp, phase, baud, drop, had_skb,
++			    partial, type, expect, padding, count, nuls, err);
++		bt_dev_info(hu->hdev,
++			    "RXDIAG234 seq=%u post_skb=%u len=%u type=%u expect=%u padding=%u head=%*ph",
++			    seq, post_skb, post_len, post_type, post_expect,
++			    post_padding, length, buffer);
++	}
+ 	if (IS_ERR(qca->rx_skb)) {
+ 		int err = PTR_ERR(qca->rx_skb);
+ 		bt_dev_err(hu->hdev,

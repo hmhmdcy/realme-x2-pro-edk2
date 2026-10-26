@@ -1,0 +1,427 @@
+--- /dev/null
++++ b/drivers/media/platform/qcom/camss/camss-cpas.h
+@@ -0,0 +1,9 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++#ifndef QC_CAMSS_CPAS_H
++#define QC_CAMSS_CPAS_H
++struct camss;
++struct camss_cpas;
++int camss_cpas_init(struct camss *camss);
++int camss_cpas_resume(struct camss *camss);
++void camss_cpas_suspend(struct camss *camss);
++#endif
+--- /dev/null
++++ b/drivers/media/platform/qcom/camss/camss-cpas.c
+@@ -0,0 +1,164 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/* SM8150 CPAS: own active camera_8150 v175_100/101 IFE QoS contract.
++ * Native register tables Copyright (c) 2018 The Linux Foundation.
++ */
++#include <linux/clk.h>
++#include <linux/io.h>
++#include <linux/iommu.h>
++#include <linux/platform_device.h>
++#include "camss.h"
++#include "camss-cpas.h"
++
++#define SM8150_CPAS_CLOCKS 7
++
++struct camss_cpas {
++	void __iomem *top;
++	void __iomem *noc;
++	struct clk_bulk_data clocks[SM8150_CPAS_CLOCKS];
++	bool enabled;
++};
++
++struct camss_cpas_reg {
++	u32 offset;
++	u32 mask;
++	u32 value;
++};
++
++static const struct camss_cpas_reg sm8150_ife_qos[] = {
++	/* CAM_CAMNOC_IFE02 */
++	{ 0x0430, 0xffffffff, 0x66666543 },
++	{ 0x0434, 0xffffffff, 0x66666666 },
++	{ 0x0438, 0x00000070, 0x00000030 },
++	{ 0x0440, 0xffffffff, 0xffffff00 },
++	{ 0x0448, 0xffffffff, 0x00000001 },
++	/* CAM_CAMNOC_IFE13 */
++	{ 0x0830, 0xffffffff, 0x66666543 },
++	{ 0x0834, 0xffffffff, 0x66666666 },
++	{ 0x0838, 0x00000070, 0x00000030 },
++	{ 0x0840, 0xffffffff, 0xffffff00 },
++	{ 0x0848, 0xffffffff, 0x00000001 },
++};
++
++static int camss_sm8150_check_iova(struct device *dev)
++{
++	struct iommu_domain *domain = iommu_get_domain_for_dev(dev);
++	struct iommu_resv_region *region;
++	bool low = false, high = false;
++	LIST_HEAD(regions);
++
++	if (!domain || (domain->type != IOMMU_DOMAIN_DMA &&
++			domain->type != IOMMU_DOMAIN_DMA_FQ))
++		return -ENODEV;
++	iommu_get_resv_regions(dev, &regions);
++	list_for_each_entry(region, &regions, list) {
++		if (region->type != IOMMU_RESV_RESERVED)
++			continue;
++		if (region->start == 0 && region->length == 0x07400000)
++			low = true;
++		if (region->start == 0xe0000000 && region->length == 0x20000000)
++			high = true;
++	}
++	iommu_put_resv_regions(dev, &regions);
++	/* Do not replace the safe mask without both actual allocator reservations. */
++	return low && high ? 0 : -EINVAL;
++}
++
++int camss_cpas_init(struct camss *camss)
++{
++	static const char * const names[] = {
++		"gcc_camera_ahb", "gcc_camera_axi", "gcc_camera_sf_axi",
++		"slow_ahb_src", "cpas_ahb", "camnoc_axi_src", "camnoc_axi"
++	};
++	struct device *dev = camss->dev;
++	struct platform_device *pdev = to_platform_device(dev);
++	struct resource *res;
++	struct camss_cpas *cpas;
++	int i, ret;
++
++	if (camss->res->version != CAMSS_8150)
++		return 0;
++	ret = camss_sm8150_check_iova(dev);
++	if (ret)
++		return dev_err_probe(dev, ret, "native IFE IOVA reservations missing\n");
++	cpas = devm_kzalloc(dev, sizeof(*cpas), GFP_KERNEL);
++	if (!cpas)
++		return -ENOMEM;
++	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "cpas_top");
++	if (!res || resource_size(res) != 0x1000)
++		return -EINVAL;
++	cpas->top = devm_ioremap_resource(dev, res);
++	if (IS_ERR(cpas->top))
++		return PTR_ERR(cpas->top);
++	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "camnoc");
++	if (!res || resource_size(res) != 0x5000)
++		return -EINVAL;
++	cpas->noc = devm_ioremap_resource(dev, res);
++	if (IS_ERR(cpas->noc))
++		return PTR_ERR(cpas->noc);
++	for (i = 0; i < ARRAY_SIZE(names); i++)
++		cpas->clocks[i].id = names[i];
++	ret = devm_clk_bulk_get(dev, ARRAY_SIZE(cpas->clocks), cpas->clocks);
++	if (ret)
++		return ret;
++	camss->cpas = cpas;
++	return 0;
++}
++
++int camss_cpas_resume(struct camss *camss)
++{
++	struct camss_cpas *cpas = camss->cpas;
++	u32 camera, version, value;
++	int i, ret;
++
++	if (camss->res->version != CAMSS_8150)
++		return 0;
++	if (!cpas)
++		return -ENODEV;
++	ret = clk_set_rate(cpas->clocks[3].clk, 80000000);
++	if (ret)
++		return ret;
++	/* Native CPAS minimum bandwidth vote: 3GB/s, 32-byte bus, margin. */
++	ret = clk_set_rate(cpas->clocks[5].clk, 150000000);
++	if (ret)
++		return ret;
++	ret = clk_bulk_prepare_enable(ARRAY_SIZE(cpas->clocks), cpas->clocks);
++	if (ret)
++		return ret;
++	/* Top domain and interconnects are active before these ordered reads. */
++	camera = readl(cpas->top) & 0xffffff;
++	version = readl(cpas->top + 4);
++	if (camera != 0x010705 || (version != 0x10000000 && version != 0x10000001)) {
++		dev_err(camss->dev, "unsupported CPAS camera %#x revision %#x\n",
++			camera, version);
++		ret = -EOPNOTSUPP;
++		goto disable_clocks;
++	}
++	for (i = 0; i < ARRAY_SIZE(sm8150_ife_qos); i++) {
++		const struct camss_cpas_reg *reg = &sm8150_ife_qos[i];
++
++		value = reg->value;
++		if (reg->mask != U32_MAX)
++			value |= readl(cpas->noc + reg->offset) & ~reg->mask;
++		writel(value, cpas->noc + reg->offset);
++		if ((readl(cpas->noc + reg->offset) & reg->mask) != reg->value) {
++			ret = -EIO;
++			goto disable_clocks;
++		}
++	}
++	cpas->enabled = true;
++	return 0;
++
++disable_clocks:
++	clk_bulk_disable_unprepare(ARRAY_SIZE(cpas->clocks), cpas->clocks);
++	return ret;
++}
++
++void camss_cpas_suspend(struct camss *camss)
++{
++	struct camss_cpas *cpas = camss->cpas;
++
++	if (cpas && cpas->enabled) {
++		clk_bulk_disable_unprepare(ARRAY_SIZE(cpas->clocks), cpas->clocks);
++		cpas->enabled = false;
++	}
++}
+--- a/drivers/media/platform/qcom/camss/Makefile
++++ b/drivers/media/platform/qcom/camss/Makefile
+@@ -3,6 +3,7 @@
+ 
+ qcom-camss-objs += \
+ 		camss.o \
++		camss-cpas.o \
+ 		camss-csid.o \
+ 		camss-csid-4-1.o \
+ 		camss-csid-4-7.o \
+--- a/drivers/media/platform/qcom/camss/camss.h
++++ b/drivers/media/platform/qcom/camss/camss.h
+@@ -133,6 +133,7 @@
+ 	struct ispif_device *ispif;
+ 	struct vfe_device *vfe;
+ 	void __iomem *csid_wrapper_base;
++	struct camss_cpas *cpas;
+ 	atomic_t ref_count;
+ 	int genpd_num;
+ 	struct device *genpd;
+--- a/drivers/media/platform/qcom/camss/camss.c
++++ b/drivers/media/platform/qcom/camss/camss.c
+@@ -28,6 +28,7 @@
+ #include <media/v4l2-fwnode.h>
+ 
+ #include "camss.h"
++#include "camss-cpas.h"
+ 
+ #define CAMSS_CLOCK_MARGIN_NUMERATOR 105
+ #define CAMSS_CLOCK_MARGIN_DENOMINATOR 100
+@@ -5639,19 +5640,16 @@
+ 		return ret;
+ 	}
+ 
++	ret = camss_cpas_init(camss);
++	if (ret)
++		goto err_genpd_cleanup;
++
+ 	ret = camss_init_subdevices(camss);
+ 	if (ret < 0)
+ 		goto err_genpd_cleanup;
+ 
+-	/*
+-	 * The native SM8150 IFE IOVA region ends at 0xe0000000.
+-	 * Keep allocations below that upper bound during bring-up. This mask
+-	 * does not encode the native 0x07400000 lower reserved boundary.
+-	 */
+-	if (camss->res->version == CAMSS_8150)
+-		ret = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(31));
+-	else
+-		ret = dma_set_mask_and_coherent(dev, 0xffffffff);
++	/* Full native IFE window is enforced by checked IOMMU reservations. */
++	ret = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(32));
+ 	if (ret)
+ 		goto err_genpd_cleanup;
+ 
+@@ -5912,7 +5910,7 @@
+ 	{
+ 		.name = "cam_hf_0_camnoc",
+ 		.icc_bw_tbl.avg = 2097152,
+-		.icc_bw_tbl.peak = 2097152,
++		.icc_bw_tbl.peak = 3000000,
+ 	},
+ };
+ 
+@@ -6041,15 +6039,21 @@
+ static int __maybe_unused camss_runtime_suspend(struct device *dev)
+ {
+ 	struct camss *camss = dev_get_drvdata(dev);
+-	int i;
+-	int ret;
++	const struct resources_icc *icc_res = camss->res->icc_res;
++	int i, j, ret;
+ 
+ 	for (i = 0; i < camss->res->icc_path_num; i++) {
+ 		ret = icc_set_bw(camss->icc_path[i], 0, 0);
+-		if (ret)
++		if (ret) {
++			/* PM keeps the device active after a failed suspend. */
++			for (j = 0; j < camss->res->icc_path_num; j++)
++				if (icc_set_bw(camss->icc_path[j],
++					icc_res[j].icc_bw_tbl.avg, icc_res[j].icc_bw_tbl.peak))
++					dev_err(dev, "failed to restore CAMSS interconnect vote\n");
+ 			return ret;
+-	}
+-
++		}
++	}
++	camss_cpas_suspend(camss);
+ 	return 0;
+ }
+ 
+@@ -6057,18 +6061,25 @@
+ {
+ 	struct camss *camss = dev_get_drvdata(dev);
+ 	const struct resources_icc *icc_res = camss->res->icc_res;
+-	int i;
+-	int ret;
++	int i, ret;
+ 
+ 	for (i = 0; i < camss->res->icc_path_num; i++) {
+ 		ret = icc_set_bw(camss->icc_path[i],
+ 				 icc_res[i].icc_bw_tbl.avg,
+ 				 icc_res[i].icc_bw_tbl.peak);
+ 		if (ret)
+-			return ret;
+-	}
+-
+-	return 0;
++			goto clear_votes;
++	}
++	ret = camss_cpas_resume(camss);
++	if (!ret)
++		return 0;
++
++clear_votes:
++	/* Clear the successful prefix and the possibly partially failed vote. */
++	for (i = 0; i < camss->res->icc_path_num; i++)
++		if (icc_set_bw(camss->icc_path[i], 0, 0))
++			dev_err(dev, "failed to unwind CAMSS interconnect vote\n");
++	return ret;
+ }
+ 
+ static const struct dev_pm_ops camss_pm_ops = {
+--- a/arch/arm64/boot/dts/qcom/sm8150.dtsi
++++ b/arch/arm64/boot/dts/qcom/sm8150.dtsi
+@@ -687,6 +687,11 @@
+ 		#address-cells = <2>;
+ 		#size-cells = <2>;
+ 		ranges;
++		camss_iova_resv: reservation-camss-ife {
++			iommu-addresses = <&camss 0 0 0 0x07400000>,
++					  <&camss 0 0xe0000000 0 0x20000000>;
++		};
++
+ 
+ 		hyp_mem: memory@85700000 {
+ 			reg = <0x0 0x85700000 0x0 0x600000>;
+@@ -3991,7 +3996,9 @@
+ 			      <0 0x0ac67000 0 0x1000>,
+ 			      <0 0x0ac68000 0 0x1000>,
+ 			      <0 0x0acaf000 0 0x4000>,
+-			      <0 0x0acb6000 0 0x4000>;
++			      <0 0x0acb6000 0 0x4000>,
++			      <0 0x0ac40000 0 0x1000>,
++			      <0 0x0ac42000 0 0x5000>;
+ 			reg-names = "csid0",
+ 				    "csid1",
+ 				    "csiphy0",
+@@ -3999,7 +4006,7 @@
+ 				    "csiphy2",
+ 				    "csiphy3",
+ 				    "vfe0",
+-				    "vfe1";
++				    "vfe1", "cpas_top", "camnoc";
+ 
+ 			interrupts = <GIC_SPI 464 IRQ_TYPE_EDGE_RISING>,
+ 				     <GIC_SPI 466 IRQ_TYPE_EDGE_RISING>,
+@@ -4053,7 +4060,9 @@
+ 				 <&camcc CAM_CC_IFE_1_CLK>,
+ 				 <&camcc CAM_CC_IFE_1_AXI_CLK>,
+ 				 <&camcc CAM_CC_IFE_1_CPHY_RX_CLK>,
+-				 <&camcc CAM_CC_IFE_1_CLK_SRC>;
++				 <&camcc CAM_CC_IFE_1_CLK_SRC>,
++				 <&gcc GCC_CAMERA_SF_AXI_CLK>,
++				 <&camcc CAM_CC_CAMNOC_AXI_CLK_SRC>;
+ 			clock-names = "camnoc_axi",
+ 				      "cpas_ahb",
+ 				      "cphy_rx_src",
+@@ -4084,7 +4093,8 @@
+ 				      "vfe1",
+ 				      "vfe1_axi",
+ 				      "vfe1_cphy_rx",
+-				      "vfe1_src";
++				      "vfe1_src",
++				      "gcc_camera_sf_axi", "camnoc_axi_src";
+ 
+ 			interconnects = <&gem_noc MASTER_AMPSS_M0 0 &config_noc SLAVE_CAMERA_CFG 0>,
+ 					<&mmss_noc MASTER_CAMNOC_HF0 0 &mc_virt SLAVE_EBI_CH0 0>,
+@@ -4102,6 +4112,8 @@
+ 				 <&apps_smmu 0xe40 0x620>,
+ 				 <&apps_smmu 0xe60 0x620>;
+ 
++			memory-region = <&camss_iova_resv>;
++			memory-region-names = "ife-iova";
+ 			status = "disabled";
+ 
+ 			ports {
+--- a/Documentation/devicetree/bindings/media/qcom,sm8150-camss.yaml
++++ b/Documentation/devicetree/bindings/media/qcom,sm8150-camss.yaml
+@@ -20,8 +20,8 @@
+     const: qcom,sm8150-camss
+ 
+   clocks:
+-    minItems: 31
+-    maxItems: 31
++    minItems: 33
++    maxItems: 33
+ 
+   clock-names:
+     items:
+@@ -56,10 +56,12 @@
+       - const: vfe1_axi
+       - const: vfe1_cphy_rx
+       - const: vfe1_src
++      - const: gcc_camera_sf_axi
++      - const: camnoc_axi_src
+ 
+   reg:
+-    minItems: 8
+-    maxItems: 8
++    minItems: 10
++    maxItems: 10
+ 
+   reg-names:
+     items:
+@@ -71,6 +73,8 @@
+       - const: csiphy3
+       - const: vfe0
+       - const: vfe1
++      - const: cpas_top
++      - const: camnoc
+ 
+   interrupts:
+     minItems: 8
+@@ -111,6 +115,13 @@
+       - const: cam_hf_0_mnoc
+       - const: cam_sf_0_mnoc
+       - const: cam_hf_0_camnoc
++
++  memory-region:
++    maxItems: 1
++
++  memory-region-names:
++    items:
++      - const: ife-iova
+ 
+   vdda-phy-supply:
+     description: 1.2V CSIPHY analog supply shared by all four PHYs.
+@@ -281,6 +292,8 @@
+   - power-domain-names
+   - interconnects
+   - interconnect-names
++  - memory-region
++  - memory-region-names
+ 
+ allOf:
+   - if:

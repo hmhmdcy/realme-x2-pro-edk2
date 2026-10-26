@@ -1,0 +1,11 @@
+--- a/samurai-charging
++++ b/samurai-charging
+@@ -115,7 +115,7 @@
+     driver=(live.CLIENT/'driver').resolve().name
+     if action in ['start','resume']:
+         load_module(meta,'samurai-usb-input',['register_board=1'])
+-        load_module(meta,'samurai-gauge-protection',['register_board=1'])
++        load_module(meta,'samurai-gauge-protection',['register_board=1','observed_2719_diagnostic=1'])
+         if driver=='mp2650':
+             before=live.state()
+             p=STATE/'original-install-private.json'

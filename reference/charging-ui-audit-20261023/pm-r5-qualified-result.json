@@ -1,0 +1,248 @@
+{
+  "scope": "qualified offline r5 audit; original evidence unchanged",
+  "passed": false,
+  "planned_15_second_rtc_s2idle_passed": false,
+  "classification": "planned_rtc_wakeup_failed_despite_post_resume_restoration",
+  "raw_runtime_passed_preserved": true,
+  "worker_exited_in_fetch": true,
+  "measured_residency_seconds": 3396.1921957880004,
+  "measured_boottime_seconds": 3447.67857747,
+  "measured_monotonic_seconds": 51.486381681999774,
+  "rtc_irq_delta": 1,
+  "rtc_causal_attribution_proved": false,
+  "rtc_attribution_limitation": "No alarm-expiry IRQ timestamp or pm_wakeup_irq was captured. Counter +1 cannot prove the RTC caused this late resume.",
+  "duration_within_15_second_plan_and_5_second_tolerance": false,
+  "pre_device_callback_delay_seconds": 50.46776900000077,
+  "freeze_processes_seconds": 0.014467000000877306,
+  "kernel_sync_seconds": 0.0010629999997036066,
+  "charger_suspend_start_after_delay": true,
+  "charger_suspend_callback_seconds": 0.09769299999970826,
+  "root_cause_proved": false,
+  "source_region": "suspend_devices_and_enter before dpm_suspend_start: platform_suspend_begin/console_suspend_all; no function-level timing to isolate an inner cause",
+  "post_resume_restoration_checks": {
+    "target_callbacks_and_order": true,
+    "all_retained_callback_ends_error_zero": true,
+    "same_boot": true,
+    "same_driver_and_release": true,
+    "charger_configuration_restored": true,
+    "native_allowance_preserved": true,
+    "suspend_stats_success_no_failures": true,
+    "fresh_post_charge_sample": true,
+    "camera_and_four_services_preserved": true,
+    "taint_zero": true,
+    "new_log_interval_retained": true,
+    "no_recorded_new_target_faults": true
+  },
+  "post_resume_restoration_observed": true,
+  "retained_callback_ends": 2552,
+  "target_trace_audit": {
+    "passed": true,
+    "errors": [],
+    "callbacks": [
+      {
+        "driver": "bq27xxx-battery",
+        "device": "5-0055",
+        "ops": "",
+        "phase": "suspend",
+        "start": 12083.007407,
+        "end": 12083.007411,
+        "error": 0
+      },
+      {
+        "driver": "samurai-usb-input",
+        "device": "samurai-usb-input",
+        "ops": "",
+        "phase": "suspend",
+        "start": 12083.012009,
+        "end": 12083.012012,
+        "error": 0
+      },
+      {
+        "driver": "power_supply",
+        "device": "samurai-usb-input",
+        "ops": "",
+        "phase": "suspend",
+        "start": 12083.012016,
+        "end": 12083.012019,
+        "error": 0
+      },
+      {
+        "driver": "samurai-gauge-protection",
+        "device": "samurai-gauge-protection",
+        "ops": "",
+        "phase": "suspend",
+        "start": 12083.012124,
+        "end": 12083.012128,
+        "error": 0
+      },
+      {
+        "driver": "power_supply",
+        "device": "samurai-gauge-protection",
+        "ops": "",
+        "phase": "suspend",
+        "start": 12083.012132,
+        "end": 12083.012135,
+        "error": 0
+      },
+      {
+        "driver": "samurai-mp2650",
+        "device": "0-005c",
+        "ops": "",
+        "phase": "suspend",
+        "start": 12083.012456,
+        "end": 12083.01246,
+        "error": 0
+      },
+      {
+        "driver": "samurai-mp2650",
+        "device": "0-005c",
+        "ops": "driver",
+        "phase": "suspend",
+        "start": 12083.01438,
+        "end": 12083.112073,
+        "error": 0
+      },
+      {
+        "driver": "samurai-gauge-protection",
+        "device": "samurai-gauge-protection",
+        "ops": "bus",
+        "phase": "suspend",
+        "start": 12083.112255,
+        "end": 12083.112258,
+        "error": 0
+      },
+      {
+        "driver": "samurai-usb-input",
+        "device": "samurai-usb-input",
+        "ops": "bus",
+        "phase": "suspend",
+        "start": 12083.112316,
+        "end": 12083.112322,
+        "error": 0
+      },
+      {
+        "driver": "bq27xxx-battery",
+        "device": "5-0055",
+        "ops": "driver",
+        "phase": "suspend",
+        "start": 12083.321164,
+        "end": 12083.32117,
+        "error": 0
+      },
+      {
+        "driver": "bq27xxx-battery",
+        "device": "5-0055",
+        "ops": "driver",
+        "phase": "resume",
+        "start": 12083.377252,
+        "end": 12083.377272,
+        "error": 0
+      },
+      {
+        "driver": "samurai-usb-input",
+        "device": "samurai-usb-input",
+        "ops": "bus",
+        "phase": "resume",
+        "start": 12083.677618,
+        "end": 12083.677626,
+        "error": 0
+      },
+      {
+        "driver": "samurai-gauge-protection",
+        "device": "samurai-gauge-protection",
+        "ops": "bus",
+        "phase": "resume",
+        "start": 12083.677687,
+        "end": 12083.677689,
+        "error": 0
+      },
+      {
+        "driver": "samurai-mp2650",
+        "device": "0-005c",
+        "ops": "driver",
+        "phase": "resume",
+        "start": 12083.677804,
+        "end": 12083.677824,
+        "error": 0
+      },
+      {
+        "driver": "samurai-mp2650",
+        "device": "0-005c",
+        "ops": "",
+        "phase": "resume",
+        "start": 12083.677891,
+        "end": 12083.677894,
+        "error": 0
+      },
+      {
+        "driver": "power_supply",
+        "device": "samurai-gauge-protection",
+        "ops": "",
+        "phase": "resume",
+        "start": 12083.678196,
+        "end": 12083.678199,
+        "error": 0
+      },
+      {
+        "driver": "samurai-gauge-protection",
+        "device": "samurai-gauge-protection",
+        "ops": "",
+        "phase": "resume",
+        "start": 12083.678202,
+        "end": 12083.678204,
+        "error": 0
+      },
+      {
+        "driver": "power_supply",
+        "device": "samurai-usb-input",
+        "ops": "",
+        "phase": "resume",
+        "start": 12083.678285,
+        "end": 12083.678288,
+        "error": 0
+      },
+      {
+        "driver": "samurai-usb-input",
+        "device": "samurai-usb-input",
+        "ops": "",
+        "phase": "resume",
+        "start": 12083.67829,
+        "end": 12083.678293,
+        "error": 0
+      },
+      {
+        "driver": "bq27xxx-battery",
+        "device": "5-0055",
+        "ops": "",
+        "phase": "resume",
+        "start": 12083.682276,
+        "end": 12083.682277,
+        "error": 0
+      }
+    ]
+  },
+  "log_interval": {
+    "complete_since_baseline": true,
+    "overlap_lines": 13054,
+    "old_head_lines_dropped": 44
+  },
+  "new_log_lines": 48,
+  "pre_sample_age_ms": 2102,
+  "pre_sample_would_pass_new_freshness_gate": false,
+  "auditor_sha256": "df7ce3cc5b88e48df56840b1d7c493677db5ab6e2c8b77cd71449c7c4fa23e2a",
+  "trace_parser_worker_sha256": "c1fcbaf92c86f62191c7ecfaccdfbcb5877df50d6b46b64bcbfa901c5af29ae4",
+  "inputs_sha256": {
+    "runtime-result.json": "3305320ffe1e47cc59d17d24a56fa4a2bf4700501444d5853babdd71028e588b",
+    "before-private.json": "f0d758e4cb30e8fbf4c0c31e8a5de2fdfb458c47902caefe6ad025d4da7ce12a",
+    "after-private.json": "9df56d4db498c7937c72adfd1be997c33c90e9e205082ce169051b5c204d11b2",
+    "sample-before-private.json": "0e15d144a7cb37ab602a7393858bc409b3df820e2658fb30796df3b6ec47a5cf",
+    "sample-after-private.json": "fc868a1c5ea25b70f5003eaa36024be687ae2f5ee7013ebbb0a48552b5e9d3f3",
+    "pm-trace-private.txt": "28e36d268347df452764d31ae9a612b42264478bc2cbd4ae8c134339ad28c1bb",
+    "native-allowance-before-private.json": "733e39a12777bb064180d2573d574a8987bcb4f1b863bcf7ba4d3a1c296bcff2",
+    "native-allowance-after-private.json": "733e39a12777bb064180d2573d574a8987bcb4f1b863bcf7ba4d3a1c296bcff2",
+    "dmesg-before-private.txt": "62beafe4db6aa2c2a82acdf757a98e01b79d57b93ae8c14b3a0d4a6266629386",
+    "dmesg-after-private.txt": "3e9a2a16fae39d2306e2c99ffb2f2011f6481889a023c3694f6d5b7f1391fb1c",
+    "worker.py": "c7b8bccfaff252b3fb795f0b199b7418cf8f0c962a89d34f53ee7e200f748d26",
+    "fetch-stdout-private.json": "71fdf703b3fa4bb1d17a7a5fc07167685bef151fbd593c8949d34d63b6801036"
+  }
+}

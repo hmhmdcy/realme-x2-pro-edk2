@@ -1,0 +1,95 @@
+"""Exercise one real PipeWire camera with a bounded, optionally slow consumer."""
+import hashlib,json,os,sys,time
+from pathlib import Path
+import gi
+gi.require_version('Gst','1.0')
+from gi.repository import Gst,GLib
+Gst.init(None)
+provider=Gst.DeviceProviderFactory.find('pipewiredeviceprovider').get()
+assert provider.start()
+ctx=GLib.MainContext.default();deadline=time.monotonic()+4
+while time.monotonic()<deadline:
+ while ctx.pending():ctx.iteration(False)
+ time.sleep(.02)
+devices=[d for d in provider.get_devices() if d.get_display_name()=='Built-in Front Camera']
+assert len(devices)==1
+pipeline=Gst.Pipeline.new(None)
+source=devices[0].create_element('camera')
+if int(sys.argv[1])==6000000:
+ assert source.get_factory().get_plugin().get_filename()=='/var/lib/samurai/k262-candidate/libgstpipewire.so'
+ assert source.get_property('use-bufferpool') is True
+default_policy_verified=False
+if int(sys.argv[1])==4000000:
+ assert source.get_factory().get_plugin().get_filename()=='/usr/lib/gstreamer-1.0/libgstpipewire.so'
+ assert source.get_property('use-bufferpool') is False
+ previous=os.environ.pop('SAMURAI_CAMERA_COPY')
+ control=devices[0].create_element('default-policy-control')
+ assert control.get_property('use-bufferpool') is True
+ assert devices[0].reconfigure_element(source)
+ assert source.get_property('use-bufferpool') is False
+ os.environ['SAMURAI_CAMERA_COPY']=previous
+ default_policy_verified=True
+if int(sys.argv[1]) in [3000000,3000001,3000002]:
+ assert source.get_factory().get_plugin().get_filename()=='/var/lib/samurai/k262-candidate/libgstpipewire.so'
+ if int(sys.argv[1])==3000000:source.set_property('use-bufferpool',False)
+ assert source.get_property('use-bufferpool') is False
+caps=Gst.ElementFactory.make('capsfilter');caps.props.caps=Gst.Caps.from_string('video/x-raw,width=1920,height=1080,format=BGRx')
+delay=Gst.ElementFactory.make('identity');delay.set_property('sleep-time',int(sys.argv[1]) if int(sys.argv[1])<1000000 else 0)
+sink=Gst.ElementFactory.make('fakesink');sink.props.sync=False;sink.props.signal_handoffs=True;sink.props.enable_last_sample=False
+data=dict(buffers=0,pts=[],caps=None,errors=[],eos=False,shared_bufferpool=source.get_property('use-bufferpool'),upstream_default_and_reconfigure_verified=default_policy_verified)
+held=[]
+def handoff(sink,buffer,pad):
+ data['buffers']+=1
+ data['pts'].append(buffer.pts)
+ if data['caps'] is None:data['caps']=pad.get_current_caps().to_string()
+ if int(sys.argv[1]) in [1000000,3000000,3000001,4000000,6000000]:held.append((time.monotonic(),buffer.copy()))
+sink.connect('handoff',handoff)
+capture=int(sys.argv[1]) in [2000000,2000001,3000002]
+if capture:
+ wrapper=Gst.ElementFactory.make('wrappercamerabinsrc');wrapper.set_property('video-source',source)
+ pipeline=Gst.ElementFactory.make('camerabin')
+ pipeline.set_property('camera-source',wrapper)
+ pipeline.set_property('viewfinder-sink',sink)
+ pipeline.set_property('viewfinder-caps',caps.props.caps)
+ pipeline.set_property('image-capture-caps',caps.props.caps)
+ photo=Path('/var/lib/samurai/k262-stills')/({2000000:'front.jpg',2000001:'front-r2.jpg',3000002:'front-profile.jpg'}[int(sys.argv[1])])
+ assert not photo.exists()
+ pipeline.set_property('location',str(photo));pipeline.set_property('mode',1)
+else:
+ for e in [source,caps,delay,sink]:pipeline.add(e)
+ assert source.link(caps) and caps.link(delay) and delay.link(sink)
+bus=pipeline.get_bus();start=time.monotonic()
+triggered=False;photo_done=False
+try:
+ assert pipeline.set_state(Gst.State.PLAYING)!=Gst.StateChangeReturn.FAILURE
+ while time.monotonic()-start<(30 if int(sys.argv[1])==4000000 else 12):
+  while held and time.monotonic()-held[0][0]>.12:held.pop(0)
+  if capture and not triggered and data['buffers']>50:
+   pipeline.emit('start-capture');triggered=True
+  m=bus.timed_pop_filtered(100*Gst.MSECOND,Gst.MessageType.ERROR|Gst.MessageType.EOS|Gst.MessageType.ELEMENT)
+  if m:
+   if m.type==Gst.MessageType.ERROR:
+    e,debug=m.parse_error();data['errors'].append(dict(message=str(e),debug=debug));break
+   if m.type==Gst.MessageType.EOS:data['eos']=True;break
+   structure=m.get_structure()
+   if structure and structure.get_name()=='image-done':photo_done=True
+finally:
+ held.clear()
+ pipeline.set_state(Gst.State.NULL)
+ state=pipeline.get_state(5*Gst.SECOND)
+ data['stopped']=state.state==Gst.State.NULL
+ provider.stop()
+data['elapsed']=time.monotonic()-start
+pts=data.pop('pts');data['pts_count']=len(pts)
+data['pts_strictly_increasing']=len(pts)>1 and all(b>a for a,b in zip(pts,pts[1:]))
+data['pts_span_seconds']=(pts[-1]-pts[0])/Gst.SECOND if len(pts)>1 else 0
+data['scenario_code']=int(sys.argv[1])
+data['consumer_delay_us']=int(sys.argv[1]) if int(sys.argv[1])<1000000 else 0
+data['retain_frames_for_ms']=120 if int(sys.argv[1]) in [1000000,3000000,3000001,4000000,6000000] else 0
+if capture:
+ data['shutter_triggered']=triggered;data['image_done_message']=photo_done
+ data['saved_jpeg_bytes']=photo.stat().st_size if photo.exists() else 0
+ data['jpeg_sha256']=hashlib.sha256(photo.read_bytes()).hexdigest() if photo.exists() else None
+print(json.dumps(data),flush=True)
+assert data['buffers']>20 and not data['errors'] and data['stopped']
+if capture:assert photo_done and photo.exists() and photo.stat().st_size>1024

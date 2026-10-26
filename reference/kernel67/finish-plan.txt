@@ -1,0 +1,6 @@
+Only logdump flashed twice: DTB-only CPU7 OPP candidate, then a one-option USB HS PHY built-in change.
+CPU7 candidate runtime failure is not an OPP-content test: firmware's EFI configuration-table DTB remains active. Verified live-DT facts say OPP_ABSENT.
+Keep the candidate source but do not label it as a hardware fix or flash the same FAT DTB again.
+USB runtime verdict must come from independently SHA256/CRC-verified facts and full dmesg, not raw terminal text.
+No boot, userdata, GPT, Windows driver, EUD source, earlycon delay/mask/reset, initramfs, or terminal change.
+All manual helpers must close in finally and USBIP detach before final state capture.

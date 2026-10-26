@@ -1,0 +1,231 @@
+--- a/samurai-charging.py
++++ b/samurai-charging.py
+@@ -1,6 +1,7 @@
+ #!/usr/bin/python3
+ """Board-specific OpenRC entry point; the kernel owns the charging loop."""
+ from pathlib import Path
++import errno
+ import fcntl
+ import hashlib
+ import importlib.util
+@@ -45,11 +46,59 @@
+ def sample():
+     return {k:int(v) for k,v in (x.split('=') for x in (live.CLIENT/'telemetry').read_text().split())}
+ 
++def safe_stop_sample(d):
++    """Only a fresh complete, successfully stopped sample may retain AUTO."""
++    return (d.get('shadow') == 0 and d.get('valid') == 1
++            and d.get('online') == 1 and d.get('protection_ok') == 1
++            and d.get('source_inhibit') == 0 and d.get('desired_enable') == 0
++            and d.get('latched') == 0 and d.get('stop_error') == 0
++            and d.get('fault') == 0 and d.get('cycle_timeout') == 0
++            and 0 <= d.get('age_ms', -1) <= 3000 and 'flags' in d)
++
++
++def safe_gauge_charge_stop(d):
++    """A proven fresh kernel stop request; never a completion or fault reset."""
++    return (safe_stop_sample(d) and d.get('gauge_charge_stop') == 1
++            and d.get('error') == -errno.EAGAIN
++            and bool(d['flags'] & 0x4000) and not d['flags'] & 0x8000)
++
++
++def safe_thermal_stop(d):
++    return (safe_stop_sample(d) and not d['flags'] & 0xc000
++            and not d.get('gauge_charge_stop', 0)
++            and ((d.get('thermal_inhibit') == 1 and d.get('error') == -errno.ERANGE)
++                 or (d.get('thermal_inhibit') == 2 and d.get('error') == -errno.EOVERFLOW)))
++
++
++def valid_service_request(name, value):
++    if name == 'charge_behaviour':
++        return value == 'auto'
++    bounds = {'input_current_limit': (50000, 2000000),
++              'constant_charge_current': (200000, 1100000)}
++    if name not in bounds or not isinstance(value, str):
++        return False
++    try:
++        number = int(value)
++    except ValueError:
++        return False
++    return str(number) == value and bounds[name][0] <= number <= bounds[name][1]
++
++
+ def request(psy,name,value):
++    # Range rejection can leave an older thermal snapshot untouched. Validate
++    # the exact three kernel request domains before using any hold exception.
++    if not valid_service_request(name, value):
++        raise ValueError('invalid managed charging service request')
+     try:(psy/name).write_text(value)
+-    except OSError:
++    except OSError as error:
+         d=sample()
+-        if not (d['source_inhibit'] and not d['latched'] and not d['stop_error']):raise
++        source_hold = (error.errno in [errno.EAGAIN, errno.ENODATA]
++                       and d.get('source_inhibit') == 1 and not d.get('latched', 1)
++                       and not d.get('stop_error', 1) and not d.get('fault', 1)
++                       and not d.get('cycle_timeout', 1))
++        gauge_hold = error.errno == errno.EAGAIN and safe_gauge_charge_stop(d)
++        thermal_hold = safe_thermal_stop(d) and error.errno == -d['error']
++        if not (source_hold or gauge_hold or thermal_hold):raise
+ 
+ def inhibit(psy):
+     try:(psy/'charge_behaviour').write_text('inhibit-charge')
+@@ -83,13 +132,17 @@
+             request(psy,'input_current_limit','900000')
+             request(psy,'constant_charge_current','250000')
+             # AUTO may initially wait for a known native SDP allowance. Its
+-            # kernel request remains active; source transitions cannot clear
+-            # a previously latched electrical/IO fault.
++            # kernel request remains active for an explicit safe gauge stop,
++            # too. Neither kind of hold clears a previous hard fault/timeout.
+             request(psy,'charge_behaviour','auto')
+             time.sleep(.2)
+             data=sample()
+             assert data['shadow']==0 and not data['latched'] and not data['stop_error']
+-            return {'managed':True,'requested':'auto','waiting_for_source':bool(data['source_inhibit']),'sample':data}
++            return {'managed':True,'requested':'auto',
++                    'waiting_for_source':bool(data['source_inhibit']),
++                    'waiting_for_gauge':safe_gauge_charge_stop(data),
++                    'waiting_for_thermal':safe_thermal_stop(data),
++                    'full_holding':bool(data.get('full_holding',0)), 'sample':data}
+         except BaseException:
+             if (live.CLIENT/'driver').resolve().name=='samurai-mp2650':
+                 try:inhibit(psy)
+--- a/charging-health.py
++++ b/charging-health.py
+@@ -23,6 +23,29 @@
+ FAULTS = ['WARNING:', 'Oops:', 'refcount_t: underflow', 'gpu fault:', 'NGD resume failed']
+ 
+ 
++def safe_stop_sample(d):
++    return (d.get('shadow') == 0 and d.get('valid') == 1
++            and d.get('online') == 1 and d.get('protection_ok') == 1
++            and d.get('source_inhibit') == 0 and d.get('desired_enable') == 0
++            and d.get('latched') == 0 and d.get('stop_error') == 0
++            and d.get('fault') == 0 and d.get('cycle_timeout') == 0
++            and 0 <= d.get('age_ms', -1) <= 3000 and 'flags' in d)
++
++
++def safe_gauge_charge_stop(d):
++    """Describe an explicit fresh TCA stop, never normal Full or authorization."""
++    return (safe_stop_sample(d) and d.get('gauge_charge_stop') == 1
++            and d.get('error') == -errno.EAGAIN
++            and bool(d['flags'] & 0x4000) and not d['flags'] & 0x8000)
++
++
++def safe_thermal_stop(d):
++    return (safe_stop_sample(d) and not d['flags'] & 0xc000
++            and not d.get('gauge_charge_stop', 0)
++            and ((d.get('thermal_inhibit') == 1 and d.get('error') == -errno.ERANGE)
++                 or (d.get('thermal_inhibit') == 2 and d.get('error') == -errno.EOVERFLOW)))
++
++
+ def parse_telemetry(text):
+     values = {}
+     for item in text.split():
+@@ -41,10 +64,16 @@
+         return 'unavailable'
+     if sample['shadow']:
+         return 'shadow'
+-    if any(sample[k] for k in ['fault', 'stop_error', 'latched']):
++    if any(sample[k] for k in ['fault', 'stop_error', 'latched']) or sample.get('cycle_timeout'):
+         return 'fault'
+     if sample['source_inhibit']:
+         return 'waiting_source'
++    if safe_gauge_charge_stop(sample):
++        return 'waiting_gauge'
++    if safe_thermal_stop(sample):
++        return 'waiting_thermal'
++    if sample.get('flags', 0) & 0xc000:
++        return 'fault'
+     if sample['error']:
+         return 'fault'
+     if not sample['valid'] or not sample['protection_ok']:
+@@ -53,6 +82,25 @@
+         return 'detached'
+     if sample['age_ms'] < 0 or sample['age_ms'] > 3000:
+         return 'stale'
++    if not 0 <= sample['session_seconds'] < 36000:
++        return 'fault'
++    if any(sample.get(k, 0) for k in ['logical_full', 'full_holding', 'hold_requested', 'full_cause']):
++        # A logical state alone is insufficient: the actual hold transaction
++        # must have succeeded, CHG must be off and this cycle ended normally.
++        if (all(sample.get(k) == 1 for k in ['logical_full', 'full_holding', 'hold_requested'])
++                and sample.get('full_cause') in [1, 2, 3]
++                and sample['desired_enable'] == 0 and sample['session_seconds'] == 0
++                and sample.get('gauge_charge_stop') == 0 and sample.get('cycle_timeout') == 0
++                and 'flags' in sample and not sample['flags'] & 0xc000):
++            return 'full_holding'
++        # An explicit operator stop retains the Full fact while both converter
++        # hold and desired CHG are off. It is not a new completion boundary.
++        if (sample.get('logical_full') == 1 and sample.get('full_cause') in [1, 2, 3]
++                and all(sample.get(k) == 0 for k in ['full_holding', 'hold_requested',
++                                                    'desired_enable', 'gauge_charge_stop', 'cycle_timeout'])
++                and 'flags' in sample and not sample['flags'] & 0xc000):
++            return 'inhibited'
++        return 'unavailable'
+     return 'managed' if sample['desired_enable'] else 'inhibited'
+ 
+ 
+@@ -153,34 +201,49 @@
+ def audit(data):
+     """Keep expected idle/full/source states distinct; never infer net current."""
+     rows = data['samples']
+-    counts = {state: sum(row['state'] == state for row in rows) for state in
+-              ['managed', 'inhibited', 'detached', 'waiting_source', 'fault', 'stale', 'unavailable', 'shadow']}
++    # Re-evaluate the cached telemetry, rather than trusting a saved label that
++    # might have been made by an older classifier or a failed collector.
++    states = [classify(row['telemetry']) if isinstance(row.get('telemetry'), dict)
++              else 'unavailable' for row in rows]
++    counts = {state: states.count(state) for state in
++              ['managed', 'full_holding', 'inhibited', 'detached', 'waiting_source',
++               'waiting_gauge', 'waiting_thermal', 'fault', 'stale', 'unavailable', 'shadow']}
+     regressions = 0
++    full_boundaries = 0
+     previous = None
+-    for row in rows:
++    previous_full = False
++    for row, state in zip(rows, states):
+         sample = row.get('telemetry')
+-        if sample is None:
++        if not isinstance(sample, dict) or not REQUIRED <= sample.keys():
++            previous_full = False
++            continue
++        if state == 'detached':
+             previous = None
++            previous_full = False
+             continue
+-        if not sample['online'] and not sample['source_inhibit'] and sample['valid']:
+-            previous = None  # Only an observed, valid detach starts a new session.
+-            continue
++        full_boundary = (state == 'full_holding' or
++                         (state == 'managed' and row.get('charger_status') == 'Full' and sample['session_seconds'] == 0
++                          and 'flags' in sample and not sample['flags'] & 0xc000))
++        if full_boundary and not previous_full:
++            full_boundaries += 1
+         if sample['online'] and sample['valid']:
+-            if previous is not None and sample['session_seconds'] < previous:
++            if previous is not None and sample['session_seconds'] < previous and not full_boundary:
+                 regressions += 1
+             previous = sample['session_seconds']
+-    # This acceptance is specifically a continuously connected managed window.
+-    # Other observed states remain in the report and are not promoted to pass.
+-    passed = bool(rows and counts['managed'] == len(rows) and not regressions
++        previous_full = full_boundary
++    # Healthy Full is a completed cycle. Unknown/gauge-stop/thermal/error
++    # windows remain explicit and do not become successful charge acceptance.
++    passed = bool(rows and counts['managed'] + counts['full_holding'] == len(rows) and not regressions
+                   and data['same_boot'] and data['taint_before'] == data['taint_after'] == 0
+                   and data['limits_before'] == data['limits_after']
+                   and data['native_allowance_before'] == data['native_allowance_after']
+                   and isinstance(data['native_allowance_after'], int)
+                   and not any(data['fault_delta'].values())
+                   and data['camera_and_four_services_unchanged'])
+-    return {'passed': passed, 'scope': 'Continuously connected ordinary-charge observation only',
++    return {'passed': passed, 'scope': 'Continuously connected managed ordinary-charge/verified Full observation only',
+             'sample_count': len(rows), 'duration_seconds': data['duration_seconds'],
+             'state_counts': counts, 'session_counter_regressions': regressions,
++            'verified_full_boundaries': full_boundaries,
+             'manifest_sha256': data['manifest_sha256'], 'same_boot': data['same_boot'],
+             'taint': data['taint_after'], 'fault_delta': data['fault_delta'],
+             'limits_unchanged': data['limits_before'] == data['limits_after'],

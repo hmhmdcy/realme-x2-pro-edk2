@@ -1,0 +1,4 @@
+from pathlib import Path
+import host
+here=Path(__file__).resolve().parent;host.ssh('test -e /var/lib/samurai/k205-uart-reprobe/summary.json && test ! -e /var/lib/samurai/k205-uart-reprobe-r2');host.upload(here/'test-uart-reprobe.py','/var/lib/samurai/k205-tools/test-uart-reprobe.py')
+p=host.ssh('nohup python3 /var/lib/samurai/k205-tools/test-uart-reprobe.py > /var/lib/samurai/k205-uart-reprobe-r2-worker-private.log 2>&1 < /dev/null & echo $!');old=host.PRIVATE/'uart-reprobe-worker-pid-private.txt';old.rename(host.PRIVATE/'uart-reprobe-r1-worker-pid-private.txt');old.write_bytes(p.stdout);(here/'uart-reprobe-validation.json').rename(here/'uart-reprobe-r1-validation.json');print('Started corrected explicit D-Bus variant reprobe test; original UnknownMethod failure retained. Poll this worker.')

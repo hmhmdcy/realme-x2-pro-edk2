@@ -1,0 +1,23 @@
+from pathlib import Path
+import hashlib,json,re,tarfile,host
+ref=Path(__file__).resolve().parent;out=host.PRIVATE;host.download('/var/lib/samurai/k197-export/export-summary.json',out/'native-export-summary-private.json');receipt=json.loads((out/'native-export-summary-private.json').read_text());host.download('/var/lib/samurai/k197-export/evidence-private.tar.gz',out/'native-evidence-private.tar.gz');archive=out/'native-evidence-private.tar.gz';assert hashlib.sha256(archive.read_bytes()).hexdigest()==receipt['archive_sha256']
+with tarfile.open(archive) as tar:
+ manifest=json.load(tar.extractfile('manifest-private.json'));assert len(manifest)==receipt['files'] and all(not n.endswith('.raw') for n in manifest)
+ for n,h in manifest.items():assert hashlib.sha256(tar.extractfile(n).read()).hexdigest()==h
+ def get(n):return json.load(tar.extractfile(n))
+ attempts=[]
+ for number in range(2,6):
+  folder='k197-front-capture-r'+str(number);r=get(folder+'/summary.json');assert r['pins_restored_exact'] and r['pmic_after_restore']==r['before']['pmic'] and all(v==0 for v in r['fault_delta'].values()) and r['camss_original_graph_restored']
+  if number>2:assert r['camss_original_module_restored'] and r['capture_returncode']==1
+  attempts.append(dict(folder=folder,normal_driver_bound=bool(r.get('normal_driver_bound')),physical_media_graph_present=bool(r.get('physical_media_graph_present')),physical_capture_passed=bool(r.get('physical_image_capture')),camss_probe_rejected_clock_lane_7=number==2,csid_reset_timeout=number>2,pins_pmic_and_topology_restored=True,fault_delta=r['fault_delta']))
+ assert [r['physical_media_graph_present'] for r in attempts]==[False,True,True,True]
+ samples=get('k197-front-capture-r5/active-clock-sampler-private.json');assert len(samples['samples'])==3
+ for s in samples['samples']:
+  i=s['sample'];clock=tar.extractfile('k197-front-capture-r5/active-'+str(i)+'-clocks-private.txt').read().decode();pd=tar.extractfile('k197-front-capture-r5/active-'+str(i)+'-genpd-private.txt').read().decode();lines={w[0]:w[1:10] for l in clock.splitlines() if (w:=l.split()) and w[0] in ['cam_cc_core_ahb_clk','cam_cc_ife_0_csid_clk','cam_cc_ife_0_clk']};assert lines['cam_cc_core_ahb_clk'][0]=='4' and lines['cam_cc_core_ahb_clk'][7]=='N';assert lines['cam_cc_ife_0_csid_clk'][0]=='2' and lines['cam_cc_ife_0_csid_clk'][3]=='600000000' and lines['cam_cc_ife_0_csid_clk'][7]=='Y';assert re.search(r'ife_0_gdsc\s+on',pd) and re.search(r'titan_top_gdsc\s+on',pd)
+ controls=[]
+ for folder in ['k197-tpg-control','k197-tpg-candidate']:
+  r=get(folder+'/summary.json');assert r['capture_returncode']==1 and r['topology_restored'] and all(v==0 for v in r['fault_delta'].values());log=tar.extractfile(folder+'/dmesg-after-private.txt').read();before=tar.extractfile(folder+'/dmesg-before-private.txt').read();assert b'VFE reset timeout' in log[len(before):];controls.append(dict(folder=folder,capture_passed=False,failed_at='VFE reset',no_sensor_attached=True,topology_restored=True))
+ health=get('k197-final-health/summary.json');r=dict(stage=197,attempts=attempts,internal_tpg_controls=controls,physical_frame_count=0,normal_sensor_and_camss_async_link_proven=True,test_patterns_disabled_for_physical_attempts=True,requested_mode=dict(width=1928,height=1088,packed_raw_bits=10,stride=2416,sizeimage=2628608),csid_timeout_readbacks=dict(version=0,irq=0,mask=0,strobe=0),csid_irq_count_did_not_increase=True,active_diagnostic_samples=3,active_domain_observed=dict(titan=True,ife0=True),csid_clock_reported=dict(rate=600000000,enable_count=2,hardware_enabled=True),core_ahb_clock_inconsistency=dict(enable_count=4,prepare_count=4,rate=80000000,hardware_enabled=False),cause_of_reset_timeout_not_yet_proven=True,no_claim_about_sensor_wire_or_signal_quality=True,no_raw_frames_created=True,pins_and_pmic_samples_restored=True,original_camss_module_restored=True,all_diagnostic_resources_removed=True)
+ (ref/'front-native-validation.json').write_text(json.dumps(r,indent=2)+'\n');(ref/'native-health-validation.json').write_text(json.dumps(health,indent=2)+'\n')
+ before=tar.extractfile('k197-tpg-candidate/dmesg-before-private.txt').read();after=tar.extractfile('k197-tpg-candidate/dmesg-after-private.txt').read();assert after.count(b'WARNING:')==before.count(b'WARNING:')
+receipt.update(host_archive_sha256_verified=True,all_member_hashes_verified=True,all_four_full_camera_attempts_retained=True,both_internal_tpg_controls_retained=True,no_identity_keys_network_addresses_or_raw_images_published=True);(ref/'evidence-export-validation.json').write_text(json.dumps(receipt,indent=2)+'\n');print(json.dumps(receipt))

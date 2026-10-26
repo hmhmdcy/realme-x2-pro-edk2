@@ -1,0 +1,346 @@
+--- a/drivers/media/i2c/bu64253.c
++++ b/drivers/media/i2c/bu64253.c
+@@ -1,12 +1,14 @@
+ // SPDX-License-Identifier: GPL-2.0-only
+ /*
+- * ROHM BU64253 factory VCM protocol: in-tree k363 Werror and host C
+- * ASAN/UBSAN checked. DT/schema, kernel PM integration and hardware pending.
++ * ROHM BU64253 independent lifetime candidate. Requires V4L2 core fix 0064.
++ * Validation is recorded alongside this source; no hardware acceptance implied.
+  */
+ 
+ #include <linux/delay.h>
+ #include <linux/firmware.h>
+ #include <linux/i2c.h>
++#include <linux/kref.h>
++#include <linux/list.h>
+ #include <linux/module.h>
+ #include <linux/mutex.h>
+ #include <linux/pm_runtime.h>
+@@ -32,17 +34,88 @@
+ 	struct v4l2_subdev sd;
+ 	struct v4l2_ctrl_handler ctrls;
+ 	struct mutex lock;
++	/* Never acquire this from a runtime PM callback or control callback. */
++	struct mutex lifecycle_lock;
++	struct kref ref;
++	struct device *dev;
++	struct list_head instance_entry;
++	atomic_t framework_ref;
++	unsigned int open_count;
++	bool removing;
++	bool ctrls_initialized;
++	bool entity_initialized;
+ 	struct regulator *vdd;
+ 	struct bu64253_init init[BU64253_INIT_COUNT];
+ 	bool init_valid;
+ 	u16 target;
+ 	bool target_valid;
+ 	bool supply_enabled;
++	bool power_module_ref;
++	bool quarantined;
+ };
+ 
+ static inline struct bu64253 *to_bu64253(struct v4l2_subdev *sd)
+ {
+ 	return container_of(sd, struct bu64253, sd);
++}
++
++/* All generations remain listed until final destruction, so a late FD or a
++ * quarantined powered generation blocks same-device rebind. Failed VDD-off is
++ * retained until reboot: no retry worker, force-disable or automatic PM reset.
++ * The power module reference is acquired BEFORE regulator_enable, never remove.
++ */
++static LIST_HEAD(bu64253_instances);
++static DEFINE_MUTEX(bu64253_instances_lock);
++
++static void bu64253_destroy(struct kref *ref)
++{
++	struct bu64253 *lens = container_of(ref, struct bu64253, ref);
++
++	/* The detach failure path must retain its base kref. Never put an enabled
++	 * regulator even if a future caller breaks that reference invariant.
++	 */
++	if (WARN_ON(lens->supply_enabled || lens->power_module_ref))
++		return;
++	if (lens->entity_initialized)
++		media_entity_cleanup(&lens->sd.entity);
++	if (lens->ctrls_initialized)
++		v4l2_ctrl_handler_free(&lens->ctrls);
++	if (lens->vdd)
++		regulator_put(lens->vdd);
++	mutex_destroy(&lens->lifecycle_lock);
++	mutex_destroy(&lens->lock);
++	mutex_lock(&bu64253_instances_lock);
++	if (!list_empty(&lens->instance_entry))
++		list_del(&lens->instance_entry);
++	mutex_unlock(&bu64253_instances_lock);
++	put_device(lens->dev);
++	kfree(lens);
++}
++
++static int bu64253_registered(struct v4l2_subdev *sd)
++{
++	struct bu64253 *lens = to_bu64253(sd);
++	int ret = 0;
++
++	mutex_lock(&lens->lock);
++	/* Do not reuse this sd while a previous registration has open users. */
++	if (lens->removing || atomic_read(&lens->framework_ref)) {
++		ret = -EBUSY;
++	} else {
++		kref_get(&lens->ref);
++		atomic_set(&lens->framework_ref, 1);
++	}
++	mutex_unlock(&lens->lock);
++	return ret;
++}
++
++static void bu64253_release(struct v4l2_subdev *sd)
++{
++	struct bu64253 *lens = to_bu64253(sd);
++
++	/* Requires core fix 0064. No sd access is valid after the final put. */
++	if (atomic_xchg(&lens->framework_ref, 0))
++		kref_put(&lens->ref, bu64253_destroy);
+ }
+ 
+ static int bu64253_write(struct bu64253 *lens, const u8 *data, int len)
+@@ -118,6 +191,8 @@
+ 	struct device *dev = lens->sd.dev;
+ 	int active, ret = 0;
+ 
++	if (lens->removing)
++		return -ENODEV;
+ 	if (ctrl->id != V4L2_CID_FOCUS_ABSOLUTE)
+ 		return -EINVAL;
+ 
+@@ -153,6 +228,8 @@
+ 	lens->supply_enabled = false;
+ 	/* Retained OEM VAF-off sequence has a 1 ms delay, not an ID handshake. */
+ 	usleep_range(1000, 1100);
++	lens->power_module_ref = false;
++	module_put(THIS_MODULE);
+ 
+ 	return 0;
+ }
+@@ -164,6 +241,10 @@
+ 	int ret, cleanup;
+ 
+ 	mutex_lock(&lens->lock);
++	if (lens->removing) {
++		ret = -ENODEV;
++		goto unlock;
++	}
+ 	if (!lens->init_valid) {
+ 		ret = -ENODATA;
+ 		goto unlock;
+@@ -172,9 +253,17 @@
+ 	ret = bu64253_power_off(lens);
+ 	if (ret)
+ 		goto unlock;
++	if (!try_module_get(THIS_MODULE)) {
++		ret = -ENODEV;
++		goto unlock;
++	}
++	lens->power_module_ref = true;
+ 	ret = regulator_enable(lens->vdd);
+-	if (ret)
++	if (ret) {
++		lens->power_module_ref = false;
++		module_put(THIS_MODULE);
+ 		goto unlock;
++	}
+ 	lens->supply_enabled = true;
+ 	usleep_range(BU64253_START_US, BU64253_START_US + 1000);
+ 	for (i = 0; i < BU64253_INIT_COUNT; i++) {
+@@ -217,46 +306,127 @@
+ 
+ static int bu64253_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
+ {
+-	return pm_runtime_resume_and_get(sd->dev);
++	struct bu64253 *lens = to_bu64253(sd);
++	int ret;
++
++	mutex_lock(&lens->lifecycle_lock);
++	ret = lens->removing ? -ENODEV : pm_runtime_resume_and_get(sd->dev);
++	if (!ret)
++		lens->open_count++;
++	mutex_unlock(&lens->lifecycle_lock);
++	return ret;
+ }
+ 
+ static int bu64253_close(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
+ {
+-	pm_runtime_put(sd->dev);
++	struct bu64253 *lens = to_bu64253(sd);
++
++	mutex_lock(&lens->lifecycle_lock);
++	/* Removal already balanced every old-open PM reference. In particular,
++	 * a late close must not decrement a new binding's PM usage count.
++	 */
++	if (!lens->removing) {
++		if (WARN_ON(!lens->open_count))
++			goto unlock;
++		lens->open_count--;
++		pm_runtime_put(sd->dev);
++	}
++unlock:
++	mutex_unlock(&lens->lifecycle_lock);
+ 	return 0;
+ }
+ 
+ static const struct v4l2_subdev_internal_ops bu64253_internal_ops = {
++	.registered = bu64253_registered,
++	.release = bu64253_release,
+ 	.open = bu64253_open,
+ 	.close = bu64253_close,
+ };
+ 
++/* Caller still owns the probe/driver kref. No driver lock surrounds a PM
++ * barrier, because callbacks take lens->lock. lifecycle_lock is not used by PM.
++ */
++static void bu64253_detach(struct bu64253 *lens)
++{
++	int ret;
++
++	mutex_lock(&lens->lifecycle_lock);
++	mutex_lock(&lens->lock);
++	lens->removing = true;
++	mutex_unlock(&lens->lock);
++	v4l2_async_unregister_subdev(&lens->sd);
++	while (lens->open_count) {
++		pm_runtime_put_noidle(lens->dev);
++		lens->open_count--;
++	}
++	pm_runtime_disable(lens->dev);
++	mutex_lock(&lens->lock);
++	ret = bu64253_power_off(lens);
++	mutex_unlock(&lens->lock);
++	if (!ret)
++		pm_runtime_set_suspended(lens->dev);
++	mutex_unlock(&lens->lifecycle_lock);
++	if (ret) {
++		/* Void remove cannot refuse unbind. Keep the enabled regulator,
++		 * device, module and driver references; do not devm-put VDD.
++		 * Probe rejects this same device until reboot. The rail may be on.
++		 */
++		dev_err(lens->dev, "VDD disable failed: %d; quarantined until reboot\n", ret);
++		lens->quarantined = true;
++		return;
++	}
++	kref_put(&lens->ref, bu64253_destroy);
++}
++
+ static const struct v4l2_subdev_ops bu64253_ops = { };
+ 
+ static int bu64253_probe(struct i2c_client *client)
+ {
+ 	struct device *dev = &client->dev;
+-	struct bu64253 *lens;
++	struct bu64253 *lens, *existing;
+ 	struct v4l2_ctrl *focus;
+ 	int ret;
+ 
+ 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C))
+ 		return -EOPNOTSUPP;
+-	lens = devm_kzalloc(dev, sizeof(*lens), GFP_KERNEL);
++	lens = kzalloc(sizeof(*lens), GFP_KERNEL);
+ 	if (!lens)
+ 		return -ENOMEM;
++	kref_init(&lens->ref);
++	atomic_set(&lens->framework_ref, 0);
++	INIT_LIST_HEAD(&lens->instance_entry);
++	lens->dev = get_device(dev);
++	mutex_init(&lens->lock);
++	mutex_init(&lens->lifecycle_lock);
++	mutex_lock(&bu64253_instances_lock);
++	list_for_each_entry(existing, &bu64253_instances, instance_entry) {
++		if (existing->dev == dev) {
++			mutex_unlock(&bu64253_instances_lock);
++			ret = -EBUSY;
++			dev_err_probe(dev, ret, "previous lens generation still retained\n");
++			goto put_lens;
++		}
++	}
++	list_add_tail(&lens->instance_entry, &bu64253_instances);
++	mutex_unlock(&bu64253_instances_lock);
+ 	ret = bu64253_load_init(dev, lens);
+-	if (ret)
+-		return dev_err_probe(dev, ret, "invalid or missing factory init data\n");
+-	lens->vdd = devm_regulator_get(dev, "vdd");
+-	if (IS_ERR(lens->vdd))
+-		return dev_err_probe(dev, PTR_ERR(lens->vdd), "failed to get VDD\n");
+-	mutex_init(&lens->lock);
++	if (ret) {
++		dev_err_probe(dev, ret, "invalid or missing factory init data\n");
++		goto put_lens;
++	}
++	lens->vdd = regulator_get(dev, "vdd");
++	if (IS_ERR(lens->vdd)) {
++		ret = PTR_ERR(lens->vdd);
++		lens->vdd = NULL;
++		dev_err_probe(dev, ret, "failed to get VDD\n");
++		goto put_lens;
++	}
+ 	v4l2_i2c_subdev_init(&lens->sd, client, &bu64253_ops);
+ 	lens->sd.internal_ops = &bu64253_internal_ops;
+ 	lens->sd.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
+ 	lens->sd.entity.function = MEDIA_ENT_F_LENS;
+ 	v4l2_ctrl_handler_init(&lens->ctrls, 1);
++	lens->ctrls_initialized = true;
+ 	lens->ctrls.lock = &lens->lock;
+ 	focus = v4l2_ctrl_new_std(&lens->ctrls, &bu64253_ctrl_ops,
+ 				V4L2_CID_FOCUS_ABSOLUTE, 0,
+@@ -269,11 +439,12 @@
+ 		focus->flags |= V4L2_CTRL_FLAG_EXECUTE_ON_WRITE;
+ 	ret = lens->ctrls.error;
+ 	if (ret)
+-		goto free_ctrls;
++		goto put_lens;
+ 	lens->sd.ctrl_handler = &lens->ctrls;
+ 	ret = media_entity_pads_init(&lens->sd.entity, 0, NULL);
+ 	if (ret)
+-		goto free_ctrls;
++		goto put_lens;
++	lens->entity_initialized = true;
+ 	pm_runtime_enable(dev);
+ 	ret = v4l2_async_register_subdev(&lens->sd);
+ 	if (ret)
+@@ -281,31 +452,16 @@
+ 	return 0;
+ 
+ disable_pm:
+-	pm_runtime_disable(dev);
+-	media_entity_cleanup(&lens->sd.entity);
+-free_ctrls:
+-	v4l2_ctrl_handler_free(&lens->ctrls);
+-	mutex_destroy(&lens->lock);
++	bu64253_detach(lens);
++	return ret;
++put_lens:
++	kref_put(&lens->ref, bu64253_destroy);
+ 	return ret;
+ }
+ 
+ static void bu64253_remove(struct i2c_client *client)
+ {
+-	struct bu64253 *lens = to_bu64253(i2c_get_clientdata(client));
+-	int ret;
+-
+-	v4l2_async_unregister_subdev(&lens->sd);
+-	pm_runtime_disable(&client->dev);
+-	mutex_lock(&lens->lock);
+-	ret = bu64253_power_off(lens);
+-	mutex_unlock(&lens->lock);
+-	if (ret)
+-		dev_err(&client->dev, "failed to release VDD on removal: %d\n", ret);
+-	if (!ret)
+-		pm_runtime_set_suspended(&client->dev);
+-	media_entity_cleanup(&lens->sd.entity);
+-	v4l2_ctrl_handler_free(&lens->ctrls);
+-	mutex_destroy(&lens->lock);
++	bu64253_detach(to_bu64253(i2c_get_clientdata(client)));
+ }
+ 
+ static const struct of_device_id bu64253_of_match[] = {

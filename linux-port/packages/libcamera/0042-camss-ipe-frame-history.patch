@@ -1,0 +1,313 @@
+--- a/include/libcamera/ipa/camss.mojom
++++ b/include/libcamera/ipa/camss.mojom
+@@ -42,6 +42,10 @@
+ 	bool rgbPresent;
+ 	uint32 awbRegions;
+ 	array<double> rgbMeans;
++	uint64 ipeToken;
++	uint64 ipeHistogramTrace;
++	uint64 exposureNs;
++	float analogueGain;
+ 	bool luxValid;
+ 	float exposureIndex;
+ 	float luxLuma;
+@@ -64,6 +68,7 @@
+               uint64 capturedMonotonic, SensorContext sensorContext)
+               => (int32 ret, libcamera.ControlList metadata, LensMove move);
+  [async] lensPositionApplied(uint64 epoch, uint32 serial, int32 status, uint64 monotonic);
++	[async] frameProcessed(uint64 epoch, uint32 sof, uint64 token, bool success);
+ 	stop();
+ 	prepareParameters(uint64 epoch, uint32 bufferId, uint32 revision) => (int32 ret, uint32 bytesused);
+ 	[async] parametersApplied(uint64 epoch, uint32 firstSof, uint32 revision);
+--- a/src/ipa/camss-vfe/camss.cpp
++++ b/src/ipa/camss-vfe/camss.cpp
+@@ -33,6 +33,7 @@
+ #include "hardware_agc.h"
+ #include "hardware_awb.h"
+ #include "statistics.h"
++#include "ipe_frame_history.h"
+ 
+ namespace libcamera::ipa::camss {
+ 
+@@ -52,6 +53,7 @@
+  int processFocus(uint64_t epoch,uint32_t sof,const ControlList &controls,bool valid,int32_t score,
+                   uint64_t captured,const SensorContext &sensorContext,ControlList *metadata,LensMove *move) override;
+  void lensPositionApplied(uint64_t epoch,uint32_t serial,int32_t status,uint64_t monotonic) override;
++	void frameProcessed(uint64_t epoch, uint32_t sof, uint64_t token, bool success) override;
+ 	void stop() override;
+ 	int prepareParameters(uint64_t epoch, uint32_t id, uint32_t revision, uint32_t *bytesused) override;
+ 	void parametersApplied(uint64_t epoch, uint32_t firstSof, uint32_t revision) override;
+@@ -113,6 +115,7 @@
+ 	bool configured_ = false, running_ = false, applied_ = false, effective_ = false;
+ 	uint64_t epoch_ = 0;
+ 	uint32_t firstSof_ = 0;
++	IpeFrameHistory ipeHistory_;
+ 	std::optional<uint32_t> lastStats_;
+ 	double red_ = 1, blue_ = 1;
+ };
+@@ -655,6 +658,7 @@
+  if (agc_) {ret=agc_->resetControls();if(ret)return ret;ret=agc_->applyControls(controls);if(ret)return ret;}
+  if (lux_) lux_->reset();
+  ccmInputs_.reset();pendingColourCorrection_.reset();pendingLensShading_.reset();
++ if (!ipeHistory_.start(epoch)) return -EINVAL;
+  epoch_ = epoch;
+ 	red_ = red; blue_ = blue;
+ 	awbEnabled_ = awbEnabled; colourTemperature_ = temperature; manualMatrix_ = manualMatrix;
+@@ -671,6 +675,10 @@
+ void IPACamss::stop()
+ {
+ 	running_ = false;af_.cancel();initialAfTrigger_.reset();
++ ipeHistory_.stop();
++ const auto &count=ipeHistory_.counters();
++ LOG(IPACamss,Info)<<"IPE_HISTORY_STOP epoch="<<epoch_<<" prepared="<<count.prepared<<" committed="<<count.committed
++  <<" discarded="<<count.discarded<<" superseded="<<count.superseded<<" aborted="<<count.aborted<<" pending="<<ipeHistory_.pendingCount();
+  if (lux_) lux_->reset();
+  ccmInputs_.reset();pendingColourCorrection_.reset();pendingLensShading_.reset();
+  automatic_ = false; awaiting_.reset();
+@@ -884,15 +892,49 @@
+    awaiting_ = result.automaticUpdate;
+   }
+  }
++  if (result.parametersKnown && result.sensorControlsKnown) {
++  IpeFrameObservation observation;
++  observation.epoch=epoch;observation.sof=sof;observation.histogram=parsed.histogram;
++  observation.population=parsed.population;observation.exposureLines=sensorContext.exposureLines;
++  observation.gainCode=sensorContext.gainCode;observation.sensorSource=sensorContext.source;
++  observation.exposureNs=std::llround(sensorContext.exposureLines*lineUs_*1000);
++  observation.analogueGain=float(helper_->gain(sensorContext.gainCode));
++  observation.ispRevision=result.ispRevision;observation.ifeGammaOverride=context->second.gammaEnabled;
++  observation.luxValid=result.luxValid;observation.exposureIndex=result.exposureIndex;observation.luxIndex=result.luxIndex;
++  uint64_t token=0;
++  const int status=ipeHistory_.prepare(observation,&token);
++  if (!status) {
++   result.ipeToken=token;result.ipeHistogramTrace=histogramTrace(observation);
++   result.exposureNs=observation.exposureNs;result.analogueGain=observation.analogueGain;
++   LOG(IPACamss,Info)<<"IPE_OBSERVE epoch="<<epoch<<" sof="<<sof<<" token="<<token
++    <<" trace="<<result.ipeHistogramTrace<<" population="<<observation.population
++    <<" exposure-ns="<<observation.exposureNs<<" analogue-gain="<<observation.analogueGain
++    <<" lines="<<observation.exposureLines<<" code="<<observation.gainCode<<" source="<<observation.sensorSource
++    <<" revision="<<observation.ispRevision<<" lux-valid="<<observation.luxValid
++    <<" exposure-index="<<observation.exposureIndex<<" gamma-override="<<observation.ifeGammaOverride;
++  } else LOG(IPACamss,Error)<<"IPE observation rejected: "<<status;
++ }
+  complete();
+ }
++
++void IPACamss::frameProcessed(uint64_t epoch, uint32_t sof, uint64_t token, bool success)
++{
++	if (!running_ || epoch != epoch_) return;
++	const auto *frame = ipeHistory_.pending(token);
++	const uint64_t trace = frame ? histogramTrace(*frame) : 0;
++	const int result = ipeHistory_.resolve(epoch, sof, token, success);
++	LOG(IPACamss, Info) << "IPE_RECEIPT epoch=" << epoch << " sof=" << sof << " token=" << token
++		<< " success=" << success << " result=" << result << " trace=" << trace
++		<< " pending=" << ipeHistory_.pendingCount();
++}
++
+ 
+ } /* namespace libcamera::ipa::camss */
+ 
+ namespace libcamera {
+ extern "C" {
+ const IPAModuleInfo ipaModuleInfo = {
+-	IPA_MODULE_API_VERSION, 1, "camss-vfe", "camss-vfe",
++	IPA_MODULE_API_VERSION, 2, "camss-vfe", "camss-vfe",
+ };
+ IPAInterface *ipaCreate() { return new ipa::camss::IPACamss(); }
+ }
+--- /dev/null
++++ b/src/ipa/camss-vfe/ipe_frame_history.h
+@@ -0,0 +1,98 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++#include <array>
++#include <cerrno>
++#include <cmath>
++#include <cstddef>
++#include <cstdint>
++#include <limits>
++#include <map>
++#include <optional>
++
++namespace libcamera::ipa::camss {
++
++/* Owned pre-WB linear BHIST and its same-SOF sensor/IFE context. These are
++ * observations, not HDR exposure slots or proof of the IPE input transfer. */
++struct IpeFrameObservation {
++	uint64_t epoch = 0, exposureNs = 0, population = 0;
++	uint32_t sof = 0, exposureLines = 0, gainCode = 0, sensorSource = 0, ispRevision = 0;
++	float analogueGain = 0, exposureIndex = 0, luxIndex = 0;
++	bool luxValid = false, ifeGammaOverride = false;
++	std::array<uint32_t, 1024> histogram{};
++};
++
++inline uint64_t histogramTrace(const IpeFrameObservation &frame)
++{
++	uint64_t value = 14695981039346656037ULL;
++	for (uint32_t bin : frame.histogram)
++		for (unsigned int shift = 0; shift < 32; shift += 8) {
++			value ^= (bin >> shift) & 255;
++			value *= 1099511628211ULL;
++		}
++	return value;
++}
++
++/* Bounded per-camera transactions. A successful queue/request/DQBUF is not a
++ * commit: the pipeline must first finish image processing and RAW pairing.
++ * Later successes may supersede older in-flight frames, never reverse history.
++ * Numerical algorithm state can be carried with the owned observation later;
++ * this class currently commits observations only, not TMC/LTM curves. */
++class IpeFrameHistory {
++public:
++	struct Counters { uint64_t prepared = 0, committed = 0, discarded = 0, superseded = 0, aborted = 0; };
++	enum Resolution { Discarded = 0, Committed = 1, Superseded = 2 };
++	bool start(uint64_t epoch)
++	{
++		if (active_ || !epoch || epoch <= epoch_) return false;
++		epoch_ = epoch; active_ = true; lastPrepared_.reset(); committed_.reset(); counters_ = {};
++		return true;
++	}
++	void stop()
++	{
++		counters_.aborted += pending_.size(); pending_.clear(); active_ = false;
++	}
++	int prepare(const IpeFrameObservation &frame, uint64_t *token)
++	{
++		if (!token) return -EINVAL;
++		if (!active_ || frame.epoch != epoch_) return -ESTALE;
++		if (lastPrepared_ && frame.sof <= *lastPrepared_) return -EALREADY;
++		uint64_t count = 0;
++		for (uint32_t bin : frame.histogram) count += bin;
++		if (!frame.exposureNs || !frame.exposureLines || !frame.population || count != frame.population ||
++		    !std::isfinite(frame.analogueGain) || frame.analogueGain <= 0 ||
++		    (frame.luxValid && (!std::isfinite(frame.exposureIndex) || !std::isfinite(frame.luxIndex)))) return -EINVAL;
++		if (pending_.size() >= 64) return -ENOSPC;
++		if (serial_ == std::numeric_limits<uint64_t>::max()) return -EOVERFLOW;
++		const uint64_t next = serial_ + 1;
++		pending_.emplace(next, frame); serial_ = next; lastPrepared_ = frame.sof;
++		++counters_.prepared; *token = next;
++		return 0;
++	}
++	int resolve(uint64_t epoch, uint32_t sof, uint64_t token, bool success)
++	{
++		if (!active_ || epoch != epoch_) return -ESTALE;
++		auto it = pending_.find(token);
++		if (it == pending_.end()) return -ENOENT;
++		if (it->second.sof != sof) return -ESTALE;
++		int result;
++		if (!success) { ++counters_.discarded; result = Discarded; }
++		else if (committed_ && sof <= committed_->sof) { ++counters_.superseded; result = Superseded; }
++		else { committed_ = it->second; ++counters_.committed; result = Committed; }
++		pending_.erase(it); return result;
++	}
++	const IpeFrameObservation *pending(uint64_t token) const
++	{
++		auto it = pending_.find(token); return it == pending_.end() ? nullptr : &it->second;
++	}
++	const std::optional<IpeFrameObservation> &committed() const { return committed_; }
++	const Counters &counters() const { return counters_; }
++	size_t pendingCount() const { return pending_.size(); }
++private:
++	uint64_t epoch_ = 0, serial_ = 0;
++	bool active_ = false;
++	std::optional<uint32_t> lastPrepared_;
++	std::optional<IpeFrameObservation> committed_;
++	std::map<uint64_t, IpeFrameObservation> pending_;
++	Counters counters_;
++};
++} /* namespace libcamera::ipa::camss */
+--- a/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
++++ b/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
+@@ -79,6 +79,8 @@
+  struct PendingFrame {
+   FrameBuffer *image = nullptr, *raw = nullptr, *ifeImage = nullptr;
+   bool imageFinished = false, rawReady = false, failed = false;
++   uint64_t ipeToken = 0;
++   uint32_t ipeSof = 0;
+  };
+  std::map<Request *, PendingFrame> requests_;
+  std::map<FrameBuffer *, Request *> internalRequests_;
+@@ -146,6 +148,8 @@
+ 	struct Histogram {
+ 		uint64_t population;
+ 		uint64_t weightedSum;
++		uint64_t ipeToken, ipeTrace, exposureNs;
++		float analogueGain;
+ 		ControlList metadata;
+ 	};
+ 	std::map<uint32_t, Histogram> histograms_;
+@@ -204,7 +208,7 @@
+  IPACameraSensorInfo info;
+  int ret = d->sensor_->sensorInfo(&info);
+  if (ret) return ret;
+- d->ipa_ = createIPA<ipa::camss::IPAProxyCamss>(1, 1);
++ d->ipa_ = createIPA<ipa::camss::IPAProxyCamss>(2, 2);
+  if (!d->ipa_) return -ENOENT;
+  const std::string profile=d->ipa_->configurationFile(d->sensor_->model()+".yaml");
+  CameraLens *lens=d->sensor_->focusLens();
+@@ -881,8 +885,11 @@
+  if(timeout || !running_)frame.failed=true;
+  FrameBuffer *image=frame.image,*raw=frame.raw,*ife=frame.ifeImage;
+  if(frame.failed){image->_d()->metadata().status=FrameMetadata::FrameError;if(raw)raw->_d()->metadata().status=FrameMetadata::FrameError;}
+- requests_.erase(it);
+- /* Release the internal association before any application completion. */
++ const uint64_t ipeToken=frame.ipeToken;const uint32_t ipeSof=frame.ipeSof;
++  const bool ipeSuccess=!frame.failed && processedEnabled_ && bool(ipe_);
++  requests_.erase(it);
++  if(ipeToken)ipa_->frameProcessed(epoch_,ipeSof,ipeToken,ipeSuccess);
++  /* Release the internal association before any application completion. */
+  if(internalRequests_.erase(ife))freeImages_.push(ife);
+  if(processedEnabled_)handler()->completeBuffer(request,image);
+  if(raw)handler()->completeBuffer(request,raw);
+@@ -920,7 +927,9 @@
+ 	FrameBuffer *buffer = paramsBuffers_[0].get();
+ 	parameterBusy_ = true;
+ 	uint32_t used = 0;
+-	int ret = ipa_->prepareParameters(epoch_, buffer->cookie(), update.revision, &used);
++	const uint64_t epoch=epoch_;
++	int ret = ipa_->prepareParameters(epoch, buffer->cookie(), update.revision, &used);
++	if (!running_ || epoch != epoch_) return;
+ 	if (!ret) {
+ 		auto &metadata = buffer->_d()->metadata();
+ 		metadata.status = FrameMetadata::FrameSuccess;
+@@ -1138,21 +1147,26 @@
+   }
+  }
+  pendingStats_.erase(it);
+- if (!statistics.status && statistics.parametersKnown) queueIspUpdate(statistics.ispUpdate);
++ /* Publish the same-SOF histogram before any synchronous IPA dispatch. */
+  LOG(CamssVfe, Info) << "WB context epoch=" << epoch << " sof=" << sof << " revision=" << statistics.ispRevision
+   << " known=" << statistics.parametersKnown;
+  if (!statistics.status && statistics.population == uint64_t(input_.width / 2) * (input_.height / 2)) {
+   if (std::find(histogramOrder_.begin(), histogramOrder_.end(), sof) == histogramOrder_.end()) {
+    histogramOrder_.push_back(sof);
+-   histograms_.emplace(sof, Histogram{ statistics.population, statistics.weightedSum, metadata });
++   histograms_.emplace(sof, Histogram{ statistics.population, statistics.weightedSum, statistics.ipeToken, statistics.ipeHistogramTrace, statistics.exposureNs, statistics.analogueGain, metadata });
+    if (images_.count(sof)) finish(sof, true);
+   }
+  } else {
+   LOG(CamssVfe, Warning) << "IPA rejected statistics epoch=" << epoch << " sof=" << sof << " status=" << statistics.status;
+  }
+  while (histogramOrder_.size() > 32) {
+-  histograms_.erase(histogramOrder_.front()); histogramOrder_.pop_front();
+- }
++  auto old=histograms_.find(histogramOrder_.front());
++   if(old!=histograms_.end() && old->second.ipeToken)ipa_->frameProcessed(epoch_,old->first,old->second.ipeToken,false);
++   histograms_.erase(histogramOrder_.front()); histogramOrder_.pop_front();
++ }
++ if (!running_ || epoch != epoch_) return;
++ if (!statistics.status && statistics.parametersKnown) queueIspUpdate(statistics.ispUpdate);
++ if (!running_ || epoch != epoch_) return;
+  int ret = stats_->queueBuffer(buffer);
+  if (ret) LOG(CamssVfe, Error) << "Requeue IPA statistics failed: " << ret;
+  submitStatistics();
+@@ -1170,6 +1184,9 @@
+ 	if (paired) {
+ 		const Histogram &h = histograms_.at(sequence);
+ 		request->_d()->metadata().merge(h.metadata);
++  requests_.at(request).ipeToken=h.ipeToken;requests_.at(request).ipeSof=sequence;
++  if(h.ipeToken)LOG(CamssVfe,Info)<<"IPE_PAIR epoch="<<epoch_<<" sof="<<sequence<<" token="<<h.ipeToken
++   <<" trace="<<h.ipeTrace<<" exposure-ns="<<h.exposureNs<<" analogue-gain="<<h.analogueGain;
+ 		LOG(CamssVfe, Info) << "Pair epoch=" << epoch_ << " sof=" << sequence
+ 			<< " request=" << request->sequence() << " population=" << h.population
+ 			<< " mean=" << double(h.weightedSum) / h.population

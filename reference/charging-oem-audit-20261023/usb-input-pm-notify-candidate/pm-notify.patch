@@ -1,0 +1,95 @@
+--- current-d046/samurai-usb-input.c
++++ notify-r2/samurai-usb-input.c
+@@ -37,6 +37,8 @@
+ 	bool last_valid;
+ 	bool udc_valid;
+ 	bool paused;
++	bool pm_prepared;
++	bool notify_pending;
+ 	int udc_current_ua;
+ };
+ 
+@@ -140,6 +142,20 @@
+ 	}
+ }
+ 
++/* Software allowance revocation during system PM is not a physical wake
++ * event. Serialize publication with prepare/complete; the IRQ path below
++ * still reports real connector events independently of this deferred notice.
++ */
++static void samurai_usb_changed(struct samurai_usb_input *input)
++{
++	mutex_lock(&input->lock);
++	if (input->pm_prepared)
++		input->notify_pending = true;
++	else
++		power_supply_changed(input->psy);
++	mutex_unlock(&input->lock);
++}
++
+ static int samurai_usb_set_property(struct power_supply *psy,
+ 				    enum power_supply_property property,
+ 				    const union power_supply_propval *value)
+@@ -157,7 +173,7 @@
+ 		input->udc_valid = true;
+ 	}
+ 	mutex_unlock(&input->lock);
+-	power_supply_changed(psy);
++	samurai_usb_changed(input);
+ 	return ret;
+ }
+ 
+@@ -191,7 +207,7 @@
+ 	input->last_error = ret;
+ 	input->last_valid = true;
+ 	if (changed)
+-		power_supply_changed(input->psy);
++		samurai_usb_changed(input);
+ 	mutex_lock(&input->lock);
+ 	if (!input->paused)
+ 		schedule_delayed_work(&input->work, msecs_to_jiffies(1000));
+@@ -225,7 +241,34 @@
+ 	mod_delayed_work(system_wq, &input->work, 0);
+ 	return 0;
+ }
+-static DEFINE_SIMPLE_DEV_PM_OPS(samurai_usb_pm_ops, samurai_usb_suspend, samurai_usb_resume);
++static int samurai_usb_prepare(struct device *dev)
++{
++	struct samurai_usb_input *input = dev_get_drvdata(dev);
++
++	mutex_lock(&input->lock);
++	input->pm_prepared = true;
++	mutex_unlock(&input->lock);
++	return 0;
++}
++
++static void samurai_usb_complete(struct device *dev)
++{
++	struct samurai_usb_input *input = dev_get_drvdata(dev);
++
++	mutex_lock(&input->lock);
++	input->pm_prepared = false;
++	if (input->notify_pending) {
++		input->notify_pending = false;
++		power_supply_changed(input->psy);
++	}
++	mutex_unlock(&input->lock);
++}
++
++static const struct dev_pm_ops samurai_usb_pm_ops = {
++	.prepare = pm_sleep_ptr(samurai_usb_prepare),
++	.complete = pm_sleep_ptr(samurai_usb_complete),
++	SYSTEM_SLEEP_PM_OPS(samurai_usb_suspend, samurai_usb_resume)
++};
+ 
+ static void samurai_usb_retain_for_native_consumer(struct device *dev)
+ {
+@@ -256,6 +299,8 @@
+ 	struct samurai_usb_input *input = data;
+ 
+ 	mutex_lock(&input->lock);
++	if (input->pm_prepared && input->psy)
++		power_supply_changed(input->psy);
+ 	if (!input->paused)
+ 		mod_delayed_work(system_wq, &input->work, 0);
+ 	mutex_unlock(&input->lock);

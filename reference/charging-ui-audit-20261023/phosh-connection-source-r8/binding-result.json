@@ -1,0 +1,110 @@
+{
+  "schema": 1,
+  "scope": "exact installed package input provenance and proposed LINE_POWER marker; no candidate code or build",
+  "private_metadata_sha256": "1d249ee62c7191d544ce1f54e3352d29a3342c7d2538031f5b99673dffd64dee",
+  "packages": {
+    "phosh": {
+      "version": "0.57.0-r3",
+      "aports_commit": "97dba23dc382440e73c3813c9072a25099fb0d67",
+      "architecture": "aarch64",
+      "running_sha256": "99b2a367e455fa6028dc97cdf29e6a53824d6316dbee2b2e011eabf31f05cf0c"
+    },
+    "upower": {
+      "version": "1.91.0-r2",
+      "aports_commit": "ab329cc95719eba4b967c403f5e2e034184a37d1",
+      "architecture": "aarch64",
+      "running_sha256": "69a01f39eadb0f14015517331c246f125c93f9a15f5416aa4c7b18c3f66e9241"
+    }
+  },
+  "unchanged_audited_source": {
+    "phosh/src/battery-manager.c": {
+      "sha256": "6a03bf691b9591dda12bb9058f92fb71bbbc102b7b9418b399f7ce18f5122df4",
+      "old_cache_byte_equal": true
+    },
+    "phosh/src/battery-info.c": {
+      "sha256": "c0eda134d0a8fdfab3b067dd8ea4a95720999ef7cef417cb4522cb747870c1f3",
+      "old_cache_byte_equal": true
+    },
+    "upower/src/up-daemon.c": {
+      "sha256": "2ffca4e90376d0d743960b295e6de95cd39797b1dfa13a4d60d480c9402a63e2",
+      "old_cache_byte_equal": true
+    },
+    "upower/src/up-device.c": {
+      "sha256": "47fc65311850484b462e6f62ed1d500441e944feaefc3b27d9c1e53d637a15c6",
+      "old_cache_byte_equal": true
+    },
+    "upower/src/up-device-battery.c": {
+      "sha256": "580afc2244217a58279f493936e93c7be0e9aba166b2037067716835792c1cfd",
+      "old_cache_byte_equal": true
+    },
+    "upower/src/linux/up-enumerator-udev.c": {
+      "sha256": "7b1f5501e94da4b041768ca86f39786bdc1dad893c8430522046c8223f5d7465",
+      "old_cache_byte_equal": true
+    },
+    "upower/src/linux/up-device-supply.c": {
+      "sha256": "20b01293635d0ab7abc9836815ea794efc1551e0996142daf5e7f483257fdbe6",
+      "old_cache_byte_equal": true
+    },
+    "upower/src/linux/up-device-supply-battery.c": {
+      "sha256": "93422b2eea6de088b64d91bb6c4e053c339f1a2506b0b8b6e3fc6527e28f143a",
+      "old_cache_byte_equal": true
+    }
+  },
+  "patch_paths": {
+    "splash-timeout-flatpak-dbus.patch": [
+      "src/app-tracker.c"
+    ],
+    "0001-fix-self-test-sleep-duration.patch": [
+      "src/up-self-test.c"
+    ]
+  },
+  "files": {
+    "README.md": {
+      "sha256": "535a87e250decec7de311d51a71bdc469da21fe05b49710d8e65cc6a7a64c6b4",
+      "bytes": 9125
+    },
+    "recipe-fetch-result.json": {
+      "sha256": "4025c0d05dd3370a6b1ea395edd36fc77749b601f85ced5fede9428431fad680",
+      "bytes": 1551
+    },
+    "release-input-result.json": {
+      "sha256": "bfe34d93b53558bba02523db60da89ea043b76cdb0279b532b62a5449f4b93cb",
+      "bytes": 7654
+    },
+    "source-addendum.json": {
+      "sha256": "4adfee44830eb448f743487a14b3b39ca8358684b78a4fb4e5468c8c7cf3973c",
+      "bytes": 3429
+    },
+    "phosh-APKBUILD": {
+      "sha256": "fe029f77cabb223b729017c1938dfa46c2e9233e8f312e58656d7ac1b12152d9",
+      "bytes": 2961
+    },
+    "upower-APKBUILD": {
+      "sha256": "f811fdbf7617e4a8cb60c8b9567e28c8349ce659f439b6e4db1cbc02144fa294",
+      "bytes": 1472
+    },
+    "fetch-fixed-recipes.py": {
+      "sha256": "97be45d13f67bd49fdbe1cafb370bdee93fa39bcbc48c908794d5a2d26903d0a",
+      "bytes": 2338
+    },
+    "cache-release-inputs.py": {
+      "sha256": "c00bb375b0304f728888eaa706bfc05efc77d1b08e76b5e0f7b3b54c6041afa7",
+      "bytes": 4374
+    }
+  },
+  "source_inputs_verified": true,
+  "binary_rebuild_matched": false,
+  "ui_patch_implemented": false,
+  "tests_run": false,
+  "build_run": false,
+  "phone_accessed": false,
+  "frozen_current_source_modified": false,
+  "upower_timeout_constants_seconds": {
+    "fast_interval": 1,
+    "fast_window": 5,
+    "estimate": 5,
+    "normal_short": 30,
+    "normal_long": 120,
+    "rate_distrust_only": 10
+  }
+}

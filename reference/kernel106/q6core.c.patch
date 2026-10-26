@@ -1,0 +1,65 @@
+--- a/sound/soc/qcom/qdsp6/q6core.c
++++ b/sound/soc/qcom/qdsp6/q6core.c
+@@ -14,6 +14,7 @@
+ #include <linux/jiffies.h>
+ #include <linux/soc/qcom/apr.h>
+ #include "q6core.h"
++#include <trace/events/samurai_diag.h>
+ #include "q6dsp-errno.h"
+ 
+ #define ADSP_STATE_READY_TIMEOUT_MS    3000
+@@ -83,21 +84,11 @@
+ 	u32 command;
+ 	int ret = 0;
+ 
+-	if (of_machine_is_compatible("realme,samurai"))
+-		dev_info_ratelimited(&adev->dev,
+-			"samurai core reply opcode=%#x bytes=%d token=%#x domain=%u/%u service=%u/%u ports=%u/%u\n",
+-			hdr->opcode, data->payload_size, hdr->token,
+-			hdr->src_domain, hdr->dest_domain, hdr->src_svc,
+-			hdr->dest_svc, hdr->src_port, hdr->dest_port);
+ 	switch (hdr->opcode) {
+ 	case APR_BASIC_RSP_RESULT:
+ 		if (data->payload_size < sizeof(*result))
+ 			return -EINVAL;
+ 		command = result->opcode;
+-		if (of_machine_is_compatible("realme,samurai"))
+-			dev_info_ratelimited(&adev->dev,
+-				"samurai core basic command=%#x status=%u\n",
+-				command, result->status);
+ 		break;
+ 	case AVCS_CMDRSP_GET_FWK_VERSION:
+ 		command = AVCS_CMD_GET_FWK_VERSION;
+@@ -181,6 +172,11 @@
+ 	core->pending_command = 0;
+ 	complete(&core->response);
+ 	spin_unlock_irqrestore(&core->response_lock, flags);
++	if (of_machine_is_compatible("realme,samurai"))
++		trace_samurai_core_transaction(1, command, hdr->token,
++			hdr->opcode, data->payload_size,
++			hdr->opcode == APR_BASIC_RSP_RESULT ? result->status : 0,
++			ret);
+ 	return ret;
+ }
+ 
+@@ -205,10 +201,6 @@
+ 	pkt.hdr.pkt_size = APR_HDR_SIZE;
+ 	pkt.hdr.opcode = command;
+ 	ret = apr_send_pkt(adev, &pkt);
+-	if (of_machine_is_compatible("realme,samurai"))
+-		dev_info_ratelimited(&adev->dev,
+-			"samurai core send opcode=%#x rc=%d token=%#x\n",
+-			command, ret, pkt.hdr.token);
+ 	if (ret >= 0) {
+ 		if (wait_for_completion_timeout(&core->response,
+ 				msecs_to_jiffies(Q6_READY_TIMEOUT_MS)))
+@@ -219,6 +211,9 @@
+ 	spin_lock_irqsave(&core->response_lock, flags);
+ 	core->pending_command = 0;
+ 	spin_unlock_irqrestore(&core->response_lock, flags);
++	if (of_machine_is_compatible("realme,samurai"))
++		trace_samurai_core_transaction(2, command, pkt.hdr.token,
++			0, 0, 0, ret);
+ 	return ret;
+ }
+ 

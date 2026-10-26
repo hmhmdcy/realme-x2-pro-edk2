@@ -1,0 +1,269 @@
+--- /dev/null
++++ b/src/ipa/libipa/awb_colour_temperature.cpp
+@@ -0,0 +1,118 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#include "awb_colour_temperature.h"
++#include <algorithm>
++#include <cmath>
++
++namespace libcamera::ipa {
++namespace {
++constexpr std::array<unsigned int, 8> first{ 0, 1, 2, 3, 3, 5, 7, 8 };
++constexpr std::array<unsigned int, 8> second{ 1, 2, 3, 5, 5, 7, 8, 9 };
++constexpr std::array<unsigned int, 8> boundaryPoint{ 0, 1, 2, 3, 5, 7, 8, 9 };
++constexpr std::array<unsigned int, 8> boundarySegment{ 0, 1, 2, 2, 3, 5, 6, 7 };
++constexpr std::array<unsigned int, 10> kelvin{ 12000, 7500, 6500, 5000, 4100, 4000, 3800, 2850, 2300, 1500 };
++
++float distanceSquared(const AwbRatio &a, const AwbRatio &b)
++{
++	float x = a[0] - b[0], y = a[1] - b[1];
++	return x * x + y * y;
++}
++} /* namespace */
++
++bool awbCalibratedReferenceRatios(const AwbIlluminantRatios &points,
++				const AwbIlluminantRatios &factors,
++				AwbIlluminantRatios *result)
++{
++	if (!result) return false;
++	AwbIlluminantRatios calibrated;
++	for (unsigned int i = 0; i < points.size(); ++i) {
++		for (unsigned int c = 0; c < 2; ++c) {
++			if (!std::isfinite(points[i][c]) || points[i][c] <= 0 ||
++			    !std::isfinite(factors[i][c]) || factors[i][c] <= 0)
++				return false;
++			calibrated[i][c] = points[i][c] * factors[i][c];
++			if (!std::isfinite(calibrated[i][c]) || calibrated[i][c] <= 0)
++				return false;
++		}
++	}
++	*result = calibrated;
++	return true;
++}
++
++bool AwbColourTemperatureModel::configure(const AwbIlluminantRatios &points)
++{
++	configured_ = false;
++	for (const auto &point : points)
++		for (float value : point)
++			if (!std::isfinite(value) || value <= 0)
++				return false;
++	points_ = points;
++	for (unsigned int i = 0; i < first.size(); ++i) {
++		const auto &a = points[first[i]], &b = points[second[i]];
++		float dx = b[0] - a[0], dy = b[1] - a[1];
++		/* The OEM slope representation requires nonzero horizontal/vertical
++		 * deltas. Reject a degenerate configuration rather than creating NaNs. */
++		if (dx == 0 || dy == 0)
++			return false;
++		float slope = dy / dx;
++		locus_[i] = { slope, -1, b[1] - b[0] * slope };
++		lengthsSquared_[i] = distanceSquared(a, b);
++		if (!std::isfinite(slope) || !std::isfinite(locus_[i][2]) ||
++		    !std::isfinite(lengthsSquared_[i]) || lengthsSquared_[i] <= 0)
++			return false;
++	}
++	for (unsigned int i = 0; i < boundaries_.size(); ++i) {
++		float slope = -1.0f / locus_[boundarySegment[i]][0];
++		const auto &point = points[boundaryPoint[i]];
++		boundaries_[i] = { slope, -1, point[1] - point[0] * slope };
++		if (!std::isfinite(slope) || !std::isfinite(boundaries_[i][2]))
++			return false;
++	}
++	configured_ = true;
++	return true;
++}
++
++bool AwbColourTemperatureModel::estimate(const AwbRatio &ratio,
++				       AwbColourTemperatureEstimate *result) const
++{
++	if (!configured_ || !result || !std::isfinite(ratio[0]) || !std::isfinite(ratio[1]) ||
++	    ratio[0] <= 0 || ratio[1] <= 0)
++		return false;
++	int index = 4, direction = 0;
++	while (index >= 0 && index < 8) {
++		const auto &line = boundaries_[index];
++		float value = line[2] + (ratio[0] * line[0] + ratio[1] * line[1]);
++		if (value < 0) {
++			if (direction == 2) break;
++			direction = 1; --index;
++		} else if (value > 0) {
++			if (direction == 1) break;
++			direction = 2; ++index;
++		} else break;
++	}
++	if (index == -1 || index == 8) {
++		unsigned int point = index == -1 ? 0 : 9;
++		*result = { float(kelvin[point]), std::sqrt(distanceSquared(ratio, points_[point])),
++			    index == -1 ? 1u : 8u };
++		return std::isfinite(result->signedDistance);
++	}
++	unsigned int segment = index == 4 ? 3 : index;
++	const auto &line = locus_[segment];
++	float side = line[0] * (line[2] + (line[0] * ratio[0] + line[1] * ratio[1]));
++	float da = distanceSquared(ratio, points_[first[segment]]);
++	float db = distanceSquared(ratio, points_[second[segment]]);
++	float length = lengthsSquared_[segment];
++	float t = side != 0 ? ((da - db + length) * .5f) / length : da / length;
++	float correction = length * ((t * (t + t) - (t + t)) + 1.0f);
++	float distance = std::sqrt((da + db - correction) * .5f);
++	if (t < 0) { distance = std::sqrt(da); t = 0; }
++	if (!std::isfinite(distance)) distance = 0;
++	distance *= side > 0 ? 1.0f : -1.0f;
++	float weight = std::max(0.0f, std::min(t, 1.0f));
++	unsigned int a = first[segment], b = second[segment];
++	result->kelvin = weight * float(kelvin[b]) + (1.0f - weight) * float(kelvin[a]);
++	result->signedDistance = distance;
++	result->illuminant = t > .5f ? b : a;
++	return std::isfinite(result->kelvin);
++}
++
++} /* namespace libcamera::ipa */
+--- /dev/null
++++ b/src/ipa/libipa/awb_colour_temperature.h
+@@ -0,0 +1,32 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++#include <array>
++#include "awb_calibration.h"
++
++namespace libcamera::ipa {
++
++bool awbCalibratedReferenceRatios(const AwbIlluminantRatios &points,
++				const AwbIlluminantRatios &factors,
++				AwbIlluminantRatios *result);
++
++/* This reference-point locus is distinct from the forward MWB gain table. */
++struct AwbColourTemperatureEstimate {
++	float kelvin;
++	float signedDistance;
++	unsigned int illuminant;
++};
++
++class AwbColourTemperatureModel {
++public:
++	bool configure(const AwbIlluminantRatios &points);
++	bool estimate(const AwbRatio &ratio, AwbColourTemperatureEstimate *result) const;
++
++private:
++	using Line = std::array<float, 3>;
++	AwbIlluminantRatios points_{};
++	std::array<Line, 8> locus_{}, boundaries_{};
++	std::array<float, 8> lengthsSquared_{};
++	bool configured_ = false;
++};
++
++} /* namespace libcamera::ipa */
+--- a/src/ipa/libipa/meson.build
++++ b/src/ipa/libipa/meson.build
+@@ -28,6 +28,7 @@
+     'awb_grey.cpp',
+     'awb.cpp',
+     'awb_calibration.cpp',
++    'awb_colour_temperature.cpp',
+     'lens_shading.cpp',
+     'lsc_resample.cpp',
+     'camera_sensor_helper.cpp',
+--- a/src/ipa/camss-vfe/white_balance_reference.cpp
++++ b/src/ipa/camss-vfe/white_balance_reference.cpp
+@@ -30,6 +30,16 @@
+ 	*red = 1.0 / ratio[0];
+ 	*blue = 1.0 / ratio[1];
+ 	return 0;
++}
++
++std::optional<int32_t> WhiteBalanceReference::temperature(double red, double blue) const
++{
++	if (!inverse_ || !std::isfinite(red) || !std::isfinite(blue) || red <= 0 || blue <= 0)
++		return std::nullopt;
++	AwbColourTemperatureEstimate estimate;
++	if (!inverse_->estimate({ float(1.0 / red), float(1.0 / blue) }, &estimate))
++		return std::nullopt;
++	return int32_t(std::lround(estimate.kelvin));
+ }
+ 
+ int WhiteBalanceReference::configure(const ValueNode &tuning,
+@@ -87,6 +97,19 @@
+ 	for (const auto &ratio : result.ratios_)
+ 		if (1.0 / ratio[0] > 8 || 1.0 / ratio[1] > 8)
+ 			return -ERANGE;
++	const auto &referencePoints = tuning["reference_points"];
++	if (!referencePoints.isEmpty()) {
++		AwbIlluminantRatios points, calibrated;
++		if (!referencePoints.isList() || referencePoints.size() != points.size())
++			return -EINVAL;
++		for (unsigned int i = 0; i < points.size(); ++i)
++			if (readRow(referencePoints[i], &points[i]))
++				return -EINVAL;
++		AwbColourTemperatureModel inverse;
++		if (!awbCalibratedReferenceRatios(points, factors, &calibrated) || !inverse.configure(calibrated))
++			return -EINVAL;
++		result.inverse_ = inverse;
++	}
+ 	*reference = result;
+ 	return 0;
+ }
+--- a/src/ipa/camss-vfe/white_balance_reference.h
++++ b/src/ipa/camss-vfe/white_balance_reference.h
+@@ -3,16 +3,19 @@
+ #include <optional>
+ #include "libcamera/internal/yaml_parser.h"
+ #include "../libipa/awb_calibration.h"
++#include "../libipa/awb_colour_temperature.h"
+ 
+ namespace libcamera::ipa::camss {
+ 
+ class WhiteBalanceReference {
+ public:
+ 	int gains(int32_t kelvin, double *red, double *blue) const;
++	std::optional<int32_t> temperature(double red, double blue) const;
+ 	static int configure(const ValueNode &tuning,
+ 			     std::optional<WhiteBalanceReference> *reference);
+ private:
+ 	AwbIlluminantRatios ratios_;
++	std::optional<AwbColourTemperatureModel> inverse_;
+ };
+ 
+ } /* namespace libcamera::ipa::camss */
+--- a/src/ipa/camss-vfe/camss.cpp
++++ b/src/ipa/camss-vfe/camss.cpp
+@@ -67,7 +67,7 @@
+ 	bool awbEnabled_ = false;
+ 	uint32_t ispRevision_ = 0;
+ 	std::optional<AutoIspUpdate> pendingWhiteBalance_;
+-	struct ParameterContext { uint32_t revision; double red, blue; bool awbEnabled; double sourceRed, sourceBlue; std::optional<int32_t> colourTemperature; };
++	struct ParameterContext { uint32_t revision; double red, blue; bool awbEnabled; double sourceRed, sourceBlue; std::optional<int32_t> colourTemperature, estimatedColourTemperature; };
+ 	std::map<uint32_t, ParameterContext> preparedParameters_, parameterHistory_;
+  bool automatic_ = false;
+  uint32_t revision_ = 0;
+@@ -397,7 +397,8 @@
+  const std::array<float,2> gains{float(context->second.red),float(context->second.blue)};
+  metadata->set(controls::ColourGains,Span<const float,2>(gains));
+  metadata->set(controls::AwbEnable,context->second.awbEnabled);
+- if (context->second.colourTemperature) metadata->set(controls::ColourTemperature,*context->second.colourTemperature);
++ if (auto temperature = context->second.colourTemperature ? context->second.colourTemperature : context->second.estimatedColourTemperature)
++  metadata->set(controls::ColourTemperature,*temperature);
+  metadata->set(controls::AwbLocked,false);
+  metadata->set(controls::ExposureTimeMode,int32_t(automatic_?controls::ExposureTimeModeAuto:controls::ExposureTimeModeManual));
+  metadata->set(controls::AnalogueGainMode,int32_t(automatic_?controls::AnalogueGainModeAuto:controls::AnalogueGainModeManual));
+@@ -557,7 +558,7 @@
+ 	size_t used;
+ 	ret = encodeParameters(it->second.memory->planes()[0], profile_, red, blue, input_, Rectangle(input_), &used, revision==0 && lensShading_ ? &*lensShading_ : nullptr);
+ 	if (!ret) {
+-		preparedParameters_[revision] = { revision, effectiveRed, effectiveBlue, awbEnabled_, red, blue, colourTemperature_ };
++		preparedParameters_[revision] = { revision, effectiveRed, effectiveBlue, awbEnabled_, red, blue, colourTemperature_, whiteBalance_ ? whiteBalance_->temperature(effectiveRed,effectiveBlue) : std::nullopt };
+ 		*bytesused = used;
+ 	}
+ 	return ret;
+@@ -614,7 +615,10 @@
+ 	}
+ 	effective_ = result.parametersKnown;
+ 	metadata.set(controls::AwbEnable, result.parametersKnown && context->second.awbEnabled);
+- if (result.parametersKnown && context->second.colourTemperature) metadata.set(controls::ColourTemperature,*context->second.colourTemperature);
++ if (result.parametersKnown) {
++  if (auto temperature = context->second.colourTemperature ? context->second.colourTemperature : context->second.estimatedColourTemperature)
++   metadata.set(controls::ColourTemperature,*temperature);
++ }
+ 	metadata.set(controls::AwbLocked, false);
+ 	if (af_.state()!=ipa::ContrastAf::State::Scanning && awbEnabled_ && effective_ && context->second.awbEnabled && result.rgbPresent && context == std::prev(parameterHistory_.end()) &&
+ 	    !pendingWhiteBalance_ && preparedParameters_.empty()) {

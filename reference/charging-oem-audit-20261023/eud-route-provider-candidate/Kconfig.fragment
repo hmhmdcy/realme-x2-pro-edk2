@@ -1,0 +1,10 @@
+config QCOM_SAMURAI_EUD_ROUTE
+	bool "RMX1931 boot-disabled EUD route ownership"
+	depends on QCOM_SAMURAI_EUD_HANDOFF && ARM64 && ARCH_QCOM && OF
+	default n
+	help
+	  Bind real route/USB devices to the paired firmware evidence and
+	  arbitrate every paired EUD producer before MMIO/SCM. The provider
+	  owns client references and revokes/joins before releasing exclusion.
+	  Boot evidence currently expires at system PM prepare; no resume-time
+	  permission is inferred before hardware retention is proved.

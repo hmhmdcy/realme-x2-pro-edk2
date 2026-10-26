@@ -1,0 +1,169 @@
+{
+  "stage": 344,
+  "transaction": {
+    "stage": 344,
+    "configuration_installed": true,
+    "rollback": false,
+    "failure": false,
+    "consumers_restored": true,
+    "captures": {
+      "sunny_s5kgw1-mode2": {
+        "frames": 47,
+        "settled_phases": 4,
+        "probe_passed": true,
+        "cleanup_restored": true,
+        "default_private_path_loaded": true
+      },
+      "sunny_s5kgw1-mode4": {
+        "frames": 47,
+        "settled_phases": 4,
+        "probe_passed": true,
+        "cleanup_restored": true,
+        "default_private_path_loaded": true
+      },
+      "sunny_imx471-mode1": {
+        "frames": 43,
+        "settled_phases": 4,
+        "probe_passed": true,
+        "cleanup_restored": true,
+        "default_private_path_loaded": true
+      },
+      "sunny_imx319-mode2": {
+        "frames": 42,
+        "settled_phases": 4,
+        "probe_passed": true,
+        "cleanup_restored": true,
+        "default_private_path_loaded": true
+      },
+      "qtech_s5k3m5sx-mode3": {
+        "frames": 50,
+        "settled_phases": 4,
+        "probe_passed": true,
+        "cleanup_restored": true,
+        "default_private_path_loaded": true
+      }
+    },
+    "services": {
+      "pipewire": [
+        28486
+      ],
+      "wireplumber": [
+        28492
+      ]
+    },
+    "fault_delta": {
+      "WARNING:": 0,
+      "Oops:": 0,
+      "CCI error": 0,
+      "Stream stop failed:": 0,
+      "Failed to disable stream on remote pad:": 0,
+      "Missing SOF tag": 0,
+      "Received wm done for unmapped index": 0,
+      "Unhandled context fault": 0
+    },
+    "taint": 0,
+    "health": {
+      "platforms": {
+        "acb3000.camss": "suspended",
+        "ac4a000.cci": "suspended",
+        "ac4b000.cci": "suspended"
+      },
+      "rails": {
+        "cam-main-vdig": {
+          "state": "disabled",
+          "users": 0
+        },
+        "cam-tele-vana": {
+          "state": "disabled",
+          "users": 0
+        },
+        "cam-tele-vdig": {
+          "state": "disabled",
+          "users": 0
+        },
+        "cam-front-vana": {
+          "state": "disabled",
+          "users": 0
+        },
+        "cam-front-vdig": {
+          "state": "disabled",
+          "users": 0
+        },
+        "cam-rear-vana": {
+          "state": "disabled",
+          "users": 0
+        },
+        "cam-rear-vdig": {
+          "state": "disabled",
+          "users": 0
+        },
+        "cam-main-vana": {
+          "state": "disabled",
+          "users": 0
+        },
+        "cam-main-vaf": {
+          "state": "disabled",
+          "users": 0
+        }
+      }
+    },
+    "installed_core_and_ipa": true,
+    "default_ipa_lookup_used": true,
+    "explicit_profile_override_used": false,
+    "package_files_unchanged": true,
+    "kernel_unchanged": true,
+    "passed": true
+  },
+  "default_iq_passed": true,
+  "hardware_cameras": 4,
+  "pipewire_camera_nodes": 4,
+  "gstreamer": {
+    "frames": 12,
+    "width": 640,
+    "height": 480,
+    "errors": 0,
+    "result": 0
+  },
+  "pipewire": {
+    "frames": 12,
+    "format_accepted": true,
+    "errors": 0,
+    "result": 0
+  },
+  "final_services": {
+    "pipewire": [
+      {
+        "pid": 28486,
+        "live": true,
+        "uid": 10000,
+        "camera_library_paths": [],
+        "library_path_override": null
+      }
+    ],
+    "wireplumber": [
+      {
+        "pid": 28492,
+        "live": true,
+        "uid": 10000,
+        "camera_library_paths": [
+          "/usr/lib/libcamera-base.so.0.7.2",
+          "/usr/lib/libcamera.so.0.7.2",
+          "/usr/lib/libcamera/ipa/ipa_camss_vfe.so",
+          "/usr/lib/spa-0.2/libcamera/libspa-libcamera.so"
+        ],
+        "library_path_override": null
+      }
+    ]
+  },
+  "private_profiles_present": {
+    "s5kgw1": true,
+    "imx471": true,
+    "imx319": true,
+    "s5k3m5": true
+  },
+  "packaged_core_mapped_by_pipewire": false,
+  "pipewire_private_profile_path_log_available": false,
+  "normal_light_optical_calibration": false,
+  "passed": false,
+  "reason": "Initial collector assumed the camera SPA lived in pipewire; actual maps identify wireplumber as its host"
+}

@@ -1,0 +1,105 @@
+{
+  "schema": "samurai-precharge506-running-v1",
+  "outcome": "cancelled_closed_not_passed",
+  "physical_precharge_verified": false,
+  "source_read": {
+    "register07": 20,
+    "register30": 8,
+    "repeated_identical_reads": 2,
+    "cell_count": 2,
+    "threshold_option": 2,
+    "threshold_code": 1,
+    "nominal_threshold_selection_pack_uv": 6800000,
+    "rising_or_falling_electrical_trip_measured": false,
+    "MPS_url": "https://www.monolithicpower.com/en/documentview/productdocument/index/version/2/document_type/Datasheet/lang/en/sku/MP2650GV/",
+    "MPS_printed_pages": [
+      34,
+      56
+    ],
+    "OEM_commit": "23172a1571bd91156032cc9fef16284a82b63d2c",
+    "OEM_C_sha256": "b6313a6592732597eee41c7171ca210a45f0ce05685447c3cb354a8df79d123e",
+    "OEM_header_sha256": "4477bcc0d8a032cfd999173a76e39351811d240418742420b17284bd3ab3d478",
+    "OEM_nominal_threshold_selection_pack_uv": 6600000,
+    "configured_threshold_changed": false
+  },
+  "offline_control_tests": {
+    "passed": true,
+    "cases": 12,
+    "returncode": 0,
+    "command": "python3 -B reference/charging-management-20261023/test-precharge-observation.py",
+    "observer_sha256": "03416c2a17aa2923c7280aa539369e2f53d68be2299859aa5fd5de401b26928a",
+    "test_sha256": "99d9affca18dccff1f9a5a383d333fa94cf4997a73b49ad566de547a1d2a2fe7",
+    "scope": "mock IO: success, ACK loss, invalid state, fault, imbalance, cancellation, deadlines, missing phases, AUTO cleanup"
+  },
+  "idle_trial": {
+    "discharge_seconds": 132.62516558100015,
+    "reason": "cancelled_idle_discharge_too_slow",
+    "observed_discharge_ua": 55000,
+    "precharge_verified": false,
+    "auto_restored": true,
+    "workers_terminal0_and_absent": true
+  },
+  "active_trial": {
+    "supervisor_pid": 11217,
+    "supervisor_startticks": 275499,
+    "worker_pid": 11218,
+    "worker_startticks": 275509,
+    "load_pids": [
+      11223,
+      11224,
+      11225
+    ],
+    "load_cpus": [
+      4,
+      5,
+      6
+    ],
+    "maximum_duty_per_cpu": 0.6,
+    "target_discharge_ua": 300000,
+    "phase": "cancelled",
+    "initial_observed_discharge_ua": 216000,
+    "initial_temp_decic": 258,
+    "initial_cells_uv": [
+      4221000,
+      4215000
+    ],
+    "initial_healthy": true,
+    "discharge_limit_seconds": 28800,
+    "recharge_observation_limit_seconds": 3500,
+    "supervisor_limit_seconds": 32460,
+    "discharge_target_uv": 3300000,
+    "minimum_cell_cutoff_uv": 3250000,
+    "abort_cell_floor_uv": 3200000,
+    "observation_temperature_decic": [
+      180,
+      400
+    ],
+    "maximum_cell_imbalance_uv": 30000,
+    "load_duty_reduced_at_decic": 360,
+    "load_duty_zero_at_decic": 380,
+    "heartbeat_limit_seconds": 90,
+    "backup_AUTO_after_join": true,
+    "load_parent_death_signal": "SIGTERM",
+    "load_exits_unless_inhibit": true,
+    "terminal": {
+      "passed": false,
+      "reason": "cancelled",
+      "error": null,
+      "cleanup_error": null,
+      "auto_restored": true,
+      "six_original_processes_absent": true,
+      "discharge_seconds": 12407.107703899
+    }
+  },
+  "installed_kernel_modules_manifest_desktop_unchanged": true,
+  "charging_parameters_unchanged": true,
+  "no_new_MAC_diagnostic_query": true,
+  "no_physical_unplug_or_reboot": true,
+  "acceptance": "Requires actual hardware precharge status and positive net current, followed by two constant-current samples. Current running state is not acceptance.",
+  "private_evidence": [
+    "precharge-option-read506-private-01.json",
+    "precharge506-private-01/closure-status-private.json",
+    "precharge506-private-02/initial-status-private.json"
+  ],
+  "superseded_by": "precharge-live506-r3-result.json"
+}

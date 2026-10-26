@@ -1,0 +1,128 @@
+--- a/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_port.c
++++ b/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_port.c
+@@ -10,6 +10,8 @@
+ #include <linux/module.h>
+ #include <linux/of.h>
+ #include <linux/platform_device.h>
++#include <linux/power_supply.h>
++#include <linux/property.h>
+ #include <linux/regmap.h>
+ #include <linux/regulator/consumer.h>
+ #include <linux/slab.h>
+@@ -172,6 +174,7 @@
+ 	unsigned int			nr_irqs;
+ 	struct pmic_typec_port_irq_data	*irq_data;
+ 
++	struct power_supply		*usb_psy;
+ 	struct regulator		*vdd_vbus;
+ 	bool				vbus_enabled;
+ 	bool				sink_only;
+@@ -781,6 +784,46 @@
+ 	return ret;
+ }
+ 
++/* Default Rp carries no BC1.2/USB enumeration allowance. Read the real
++ * supplier; an unavailable, offline or invalid budget grants no current.
++ * The fixed-5V trial ceiling is a cap, never a substitute for permission.
++ */
++static int qcom_pmic_typec_port_get_current_limit(struct tcpc_dev *tcpc)
++{
++	struct pmic_typec *tcpm = tcpc_to_tcpm(tcpc);
++	struct power_supply *psy = tcpm->pmic_typec_port->usb_psy;
++	union power_supply_propval value;
++	int ret, limit;
++
++	ret = power_supply_get_property(psy, POWER_SUPPLY_PROP_ONLINE, &value);
++	if (ret || value.intval != 1)
++		return 0;
++	ret = power_supply_get_property(psy, POWER_SUPPLY_PROP_CURRENT_MAX, &value);
++	if (ret || value.intval <= 0)
++		return 0;
++	limit = value.intval / 1000;
++	if (tcpm->samurai_fixed_5v)
++		limit = min(limit, 500);
++	return limit;
++}
++
++static int qcom_pmic_typec_port_get_usb_supply(struct device *dev,
++					    struct pmic_typec *tcpm)
++{
++	struct power_supply *psy;
++
++	if (!device_property_present(dev, "power-supplies"))
++		return 0;
++	psy = devm_power_supply_get_by_reference(dev, "power-supplies");
++	if (IS_ERR(psy))
++		return PTR_ERR(psy);
++	if (!psy)
++		return -EPROBE_DEFER;
++	tcpm->pmic_typec_port->usb_psy = psy;
++	tcpm->tcpc.get_current_limit = qcom_pmic_typec_port_get_current_limit;
++	return 0;
++}
++
+ int qcom_pmic_typec_port_probe(struct platform_device *pdev,
+ 			       struct pmic_typec *tcpm,
+ 			       const struct pmic_typec_port_resources *res,
+@@ -841,6 +884,9 @@
+ 	}
+ 
+ 	tcpm->pmic_typec_port = pmic_typec_port;
++	ret = qcom_pmic_typec_port_get_usb_supply(dev, tcpm);
++	if (ret)
++		return ret;
+ 
+ 	tcpm->tcpc.get_vbus = qcom_pmic_typec_port_get_vbus;
+ 	tcpm->tcpc.set_vbus = qcom_pmic_typec_port_set_vbus;
+--- a/drivers/usb/typec/tcpm/tcpm.c
++++ b/drivers/usb/typec/tcpm/tcpm.c
+@@ -8772,6 +8772,30 @@
+ 	}
+ }
+ 
++/* The supplier can change its USB allowance without a CC transition
++ * (enumeration, suspend or resume). Only refresh default-Rp, non-PD ready
++ * sinks. Contract negotiation and other states retain TCPM's own limits.
++ */
++static void tcpm_psy_external_power_changed(struct power_supply *psy)
++{
++	struct tcpm_port *port = power_supply_get_drvdata(psy);
++	enum typec_cc_status cc;
++	u32 limit;
++
++	mutex_lock(&port->lock);
++	cc = port->polarity ? port->cc2 : port->cc1;
++	if (port->registered && port->tcpc->get_current_limit &&
++	    port->state == SNK_READY && port->pwr_role == TYPEC_SINK &&
++	    port->attached && port->vbus_present &&
++	    !port->pd_capable && !port->explicit_contract &&
++	    cc == TYPEC_CC_RP_DEF) {
++		limit = tcpm_get_current_limit(port);
++		if (limit != port->current_limit)
++			tcpm_set_current_limit(port, limit, 5000);
++	}
++	mutex_unlock(&port->lock);
++}
++
+ static const char *tcpm_psy_name_prefix = "tcpm-source-psy-";
+ 
+ static int devm_tcpm_psy_register(struct tcpm_port *port)
+@@ -8800,6 +8824,7 @@
+ 	port->psy_desc.properties = tcpm_psy_props;
+ 	port->psy_desc.num_properties = ARRAY_SIZE(tcpm_psy_props);
+ 	port->psy_desc.get_property = tcpm_psy_get_prop;
++	port->psy_desc.external_power_changed = tcpm_psy_external_power_changed;
+ 	port->psy_desc.set_property = tcpm_psy_set_prop;
+ 	port->psy_desc.property_is_writeable = tcpm_psy_prop_writeable;
+ 
+@@ -8976,7 +9001,10 @@
+ {
+ 	int i;
+ 
++	/* Join any supplier callback before destroying the TCPM worker. */
++	mutex_lock(&port->lock);
+ 	port->registered = false;
++	mutex_unlock(&port->lock);
+ 	kthread_destroy_worker(port->wq);
+ 	port->wq = NULL;
+ 

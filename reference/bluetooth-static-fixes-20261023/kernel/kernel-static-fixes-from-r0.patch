@@ -1,0 +1,239 @@
+--- a/drivers/bluetooth/hci_serdev.c
++++ b/drivers/bluetooth/hci_serdev.c
+@@ -97,6 +97,11 @@
+ 
+ 	BT_DBG("hdev %p serdev %p", hdev, hu->serdev);
+ 
++	/* write_work owns tx_skb while running. Keep new wakeups pending
++	 * until the flush has finished, as in the line-discipline path.
++	 */
++	disable_work_sync(&hu->write_work);
++
+ 	if (hu->tx_skb) {
+ 		kfree_skb(hu->tx_skb); hu->tx_skb = NULL;
+ 	}
+@@ -104,8 +109,15 @@
+ 	/* Flush any pending characters in the driver and discipline. */
+ 	serdev_device_write_flush(hu->serdev);
+ 
++	percpu_down_read(&hu->proto_lock);
+ 	if (test_bit(HCI_UART_PROTO_READY, &hu->flags))
+ 		hu->proto->flush(hu);
++	percpu_up_read(&hu->proto_lock);
++
++	enable_work(&hu->write_work);
++	clear_bit(HCI_UART_SENDING, &hu->tx_state);
++	if (test_bit(HCI_UART_TX_WAKEUP, &hu->tx_state))
++		hci_uart_tx_wakeup(hu);
+ 
+ 	return 0;
+ }
+@@ -168,7 +180,13 @@
+ 	BT_DBG("%s: type %d len %d", hdev->name, hci_skb_pkt_type(skb),
+ 	       skb->len);
+ 
++	percpu_down_read(&hu->proto_lock);
++	if (!test_bit(HCI_UART_PROTO_READY, &hu->flags)) {
++		percpu_up_read(&hu->proto_lock);
++		return -EUNATCH;
++	}
+ 	hu->proto->enqueue(hu, skb);
++	percpu_up_read(&hu->proto_lock);
+ 
+ 	hci_uart_tx_wakeup(hu);
+ 
+@@ -281,16 +299,18 @@
+ 		return 0;
+ 	}
+ 
+-	if (!test_bit(HCI_UART_PROTO_READY, &hu->flags))
++	/* The tty mutex serializes RX, while proto_lock also excludes close. */
++	percpu_down_read(&hu->proto_lock);
++	if (!test_bit(HCI_UART_PROTO_READY, &hu->flags)) {
++		percpu_up_read(&hu->proto_lock);
+ 		return 0;
+-
+-	/* It does not need a lock here as it is already protected by a mutex in
+-	 * tty caller
+-	 */
++	}
++
+ 	hu->proto->recv(hu, data, count);
+ 
+ 	if (hu->hdev)
+ 		hu->hdev->stat.byte_rx += count;
++	percpu_up_read(&hu->proto_lock);
+ 
+ 	return count;
+ }
+@@ -394,21 +414,32 @@
+ 
+ void hci_uart_unregister_device(struct hci_uart *hu)
+ {
+-	struct hci_dev *hdev = hu->hdev;
+-
++	struct hci_dev *hdev;
++	bool close_port;
++
++	/* Deferred registration failure can already have closed the protocol. */
+ 	cancel_work_sync(&hu->init_ready);
+-	if (test_bit(HCI_UART_REGISTERED, &hu->flags))
++	hdev = hu->hdev;
++	if (hdev && test_bit(HCI_UART_REGISTERED, &hu->flags))
+ 		hci_unregister_dev(hdev);
+-	hci_free_dev(hdev);
+-
+-	cancel_work_sync(&hu->write_work);
+-
+-	hu->proto->close(hu);
+-
+-	if (test_bit(HCI_UART_PROTO_READY, &hu->flags)) {
+-		clear_bit(HCI_UART_PROTO_READY, &hu->flags);
++
++	/* Wait for RX/send callbacks and exclude all later TX wakeups before
++	 * draining the worker. hdev and protocol data remain alive throughout.
++	 */
++	percpu_down_write(&hu->proto_lock);
++	close_port = test_and_clear_bit(HCI_UART_PROTO_READY, &hu->flags);
++	clear_bit(HCI_UART_PROTO_INIT, &hu->flags);
++	percpu_up_write(&hu->proto_lock);
++	disable_work_sync(&hu->write_work);
++
++	if (hdev)
++		hu->proto->close(hu);
++	if (close_port || !hdev)
+ 		serdev_device_close(hu->serdev);
+-	}
++
++	hu->hdev = NULL;
++	if (hdev)
++		hci_free_dev(hdev);
+ 	percpu_free_rwsem(&hu->proto_lock);
+ }
+ EXPORT_SYMBOL_GPL(hci_uart_unregister_device);
+--- a/drivers/bluetooth/hci_qca.c
++++ b/drivers/bluetooth/hci_qca.c
+@@ -503,6 +503,8 @@
+ 		/* TX_IDLE, go to SLEEP */
+ 		if (send_hci_ibs_cmd(HCI_IBS_SLEEP_IND, hu) < 0) {
+ 			BT_ERR("Failed to send SLEEP to device");
++			mod_timer(&qca->tx_idle_timer, jiffies +
++				  msecs_to_jiffies(qca->tx_idle_delay));
+ 			break;
+ 		}
+ 		qca->tx_ibs_state = HCI_IBS_TX_ASLEEP;
+@@ -543,13 +545,14 @@
+ 	case HCI_IBS_TX_WAKING:
+ 		/* No WAKE_ACK, retransmit WAKE */
+ 		retransmit = true;
++		/* Allocation pressure must not strand TX_WAKING without a timer. */
++		retrans_delay = msecs_to_jiffies(qca->wake_retrans);
++		mod_timer(&qca->wake_retrans_timer, jiffies + retrans_delay);
+ 		if (send_hci_ibs_cmd(HCI_IBS_WAKE_IND, hu) < 0) {
+ 			BT_ERR("Failed to acknowledge device wake up");
+ 			break;
+ 		}
+ 		qca->ibs_sent_wakes++;
+-		retrans_delay = msecs_to_jiffies(qca->wake_retrans);
+-		mod_timer(&qca->wake_retrans_timer, jiffies + retrans_delay);
+ 		break;
+ 
+ 	case HCI_IBS_TX_ASLEEP:
+@@ -745,9 +748,6 @@
+ 
+ 	serial_clock_vote(HCI_IBS_VOTE_STATS_UPDATE, hu);
+ 
+-	skb_queue_purge(&qca->tx_wait_q);
+-	skb_queue_purge(&qca->txq);
+-	skb_queue_purge(&qca->rx_memdump_q);
+ 	/*
+ 	 * Shut the timers down so they can't be rearmed when
+ 	 * destroy_workqueue() drains pending work which in turn might try
+@@ -757,6 +757,10 @@
+ 	timer_shutdown_sync(&qca->tx_idle_timer);
+ 	timer_shutdown_sync(&qca->wake_retrans_timer);
+ 	destroy_workqueue(qca->workqueue);
++	/* Drained wake work may have queued a final IBS packet. */
++	skb_queue_purge(&qca->tx_wait_q);
++	skb_queue_purge(&qca->txq);
++	skb_queue_purge(&qca->rx_memdump_q);
+ 	qca->hu = NULL;
+ 
+ 	kfree_skb(qca->rx_skb);
+@@ -2718,6 +2722,7 @@
+ 	struct qca_data *qca = hu->priv;
+ 	unsigned long flags;
+ 	bool tx_pending = false;
++	bool ibs_quiesced = false;
+ 	int ret = 0;
+ 	u8 cmd;
+ 	unsigned long wait_timeout = 0;
+@@ -2760,6 +2765,7 @@
+ 
+ 	cancel_work_sync(&qca->ws_awake_device);
+ 	cancel_work_sync(&qca->ws_awake_rx);
++	ibs_quiesced = true;
+ 
+ 	spin_lock_irqsave_nested(&qca->hci_ibs_lock,
+ 				 flags, SINGLE_DEPTH_NESTING);
+@@ -2775,8 +2781,10 @@
+ 		cmd = HCI_IBS_SLEEP_IND;
+ 		ret = serdev_device_write_buf(hu->serdev, &cmd, sizeof(cmd));
+ 
+-		if (ret < 0) {
++		if (ret != sizeof(cmd)) {
+ 			BT_ERR("Failed to send SLEEP to device");
++			if (ret >= 0)
++				ret = -EIO;
+ 			break;
+ 		}
+ 
+@@ -2811,15 +2819,46 @@
+ 	ret = wait_event_interruptible_timeout(qca->suspend_wait_q,
+ 			qca->rx_ibs_state == HCI_IBS_RX_ASLEEP,
+ 			IBS_BTSOC_TX_IDLE_TIMEOUT);
+-	if (ret == 0) {
+-		ret = -ETIMEDOUT;
++	if (ret <= 0) {
++		if (!ret)
++			ret = -ETIMEDOUT;
+ 		goto error;
+ 	}
+ 
+ 	return 0;
+ 
+ error:
++	spin_lock_irqsave_nested(&qca->hci_ibs_lock,
++				 flags, SINGLE_DEPTH_NESTING);
+ 	clear_bit(QCA_SUSPENDING, &qca->flags);
++
++	/* A failed suspend will not get a matching resume callback. Restore
++	 * only IBS activity stopped above, using the current protocol state.
++	 */
++	if (ibs_quiesced &&
++	    !test_bit(QCA_IBS_DISABLED, &qca->flags) &&
++	    !test_bit(QCA_SSR_TRIGGERED, &qca->flags) &&
++	    !test_bit(QCA_BT_OFF, &qca->flags)) {
++		switch (qca->tx_ibs_state) {
++		case HCI_IBS_TX_ASLEEP:
++			if (skb_queue_empty(&qca->tx_wait_q))
++				break;
++			qca->tx_ibs_state = HCI_IBS_TX_WAKING;
++			fallthrough;
++		case HCI_IBS_TX_WAKING:
++			serial_clock_vote(HCI_IBS_TX_VOTE_CLOCK_ON, hu);
++			mod_timer(&qca->wake_retrans_timer, jiffies +
++				  msecs_to_jiffies(qca->wake_retrans));
++			break;
++		case HCI_IBS_TX_AWAKE:
++			mod_timer(&qca->tx_idle_timer, jiffies +
++				  msecs_to_jiffies(qca->tx_idle_delay));
++			break;
++		default:
++			break;
++		}
++	}
++	spin_unlock_irqrestore(&qca->hci_ibs_lock, flags);
+ 
+ 	return ret;
+ }

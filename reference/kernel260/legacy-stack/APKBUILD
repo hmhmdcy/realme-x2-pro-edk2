@@ -1,0 +1,14 @@
+# Compatibility pin for the existing 203/248 phone image; not the 249 rootfs.
+maintainer="hmhmdcy <hmhmdcy@users.noreply.github.com>"
+pkgname=samurai-gnss-stack
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Pinned GNSS packages for the existing Realme X2 Pro system"
+url="https://github.com/hmhmdcy/pmaports"
+arch="noarch"
+license="MIT"
+options="!check !tracedeps"
+depends="modemmanager=1.25.95_git20261005-r1 modemmanager-openrc=1.25.95_git20261005-r1 modemmanager-udev=1.25.95_git20261005-r1 samurai-gnss-assist=2-r1"
+package() {
+	mkdir -p "$pkgdir"
+}

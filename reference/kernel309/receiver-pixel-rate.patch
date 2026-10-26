@@ -1,0 +1,100 @@
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe.c b/drivers/media/platform/qcom/camss/camss-vfe.c
+index 5039c9fb7..046d4358d 100644
+--- a/drivers/media/platform/qcom/camss/camss-vfe.c
++++ b/drivers/media/platform/qcom/camss/camss-vfe.c
+@@ -1541,8 +1541,12 @@ static int vfe_set_clock_rates(struct vfe_device *vfe)
+ 	int ret;
+ 
+ 	for (i = VFE_LINE_RDI0; i < vfe->res->line_num; i++) {
+-		ret = camss_get_pixel_clock(&vfe->line[i].subdev.entity,
+-					    &pixel_clock[i]);
++		struct vfe_line *line = &vfe->line[i];
++		u8 bpp = camss_format_get_bpp(line->formats, line->nformats,
++					     line->fmt[MSM_VFE_PAD_SINK].code);
++
++		ret = camss_get_link_pixel_rate(&line->subdev.entity, bpp,
++					       &pixel_clock[i]);
+ 		if (ret)
+ 			pixel_clock[i] = 0;
+ 	}
+@@ -1622,8 +1626,12 @@ static int vfe_check_clock_rates(struct vfe_device *vfe)
+ 	int ret;
+ 
+ 	for (i = VFE_LINE_RDI0; i < vfe->res->line_num; i++) {
+-		ret = camss_get_pixel_clock(&vfe->line[i].subdev.entity,
+-					    &pixel_clock[i]);
++		struct vfe_line *line = &vfe->line[i];
++		u8 bpp = camss_format_get_bpp(line->formats, line->nformats,
++					     line->fmt[MSM_VFE_PAD_SINK].code);
++
++		ret = camss_get_link_pixel_rate(&line->subdev.entity, bpp,
++					       &pixel_clock[i]);
+ 		if (ret)
+ 			pixel_clock[i] = 0;
+ 	}
+diff --git a/drivers/media/platform/qcom/camss/camss.c b/drivers/media/platform/qcom/camss/camss.c
+index b69d93820..c9b89b079 100644
+--- a/drivers/media/platform/qcom/camss/camss.c
++++ b/drivers/media/platform/qcom/camss/camss.c
+@@ -8,6 +8,7 @@
+  * Copyright (C) 2015-2018 Linaro Ltd.
+  */
+ #include <linux/clk.h>
++#include <linux/math64.h>
+ #include <linux/interconnect.h>
+ #include <linux/media-bus-format.h>
+ #include <linux/media.h>
+@@ -4894,6 +4895,40 @@ int camss_get_pixel_clock(struct media_entity *entity, u64 *pixel_clock)
+ 	return 0;
+ }
+ 
++/*
++ * camss_get_link_pixel_rate - Pixel throughput received over CSI-2
++ *
++ * V4L2_CID_PIXEL_RATE describes the sensor array, including its timing
++ * blanking. The receiver consumes the CSI-2 link, which may have a different
++ * pixel rate. Keep the array rate available to exposure/frame calculations.
++ */
++int camss_get_link_pixel_rate(struct media_entity *entity, unsigned int bpp,
++			      u64 *pixel_rate)
++{
++	struct media_pad *pad = camss_find_sensor_pad(entity);
++	struct csiphy_lanes_cfg *lanes;
++	struct csiphy_device *csiphy;
++	struct v4l2_subdev *sensor;
++	s64 frequency;
++	u32 mul, div;
++
++	if (!pad || !pixel_rate)
++		return -ENODEV;
++	sensor = media_entity_to_v4l2_subdev(pad->entity);
++	csiphy = sensor->host_priv;
++	if (!csiphy || !csiphy->cfg.csi2)
++		return -ENODEV;
++	lanes = &csiphy->cfg.csi2->lane_cfg;
++	frequency = camss_get_link_freq(entity, bpp, lanes->num_data, lanes->is_cphy);
++	if (frequency <= 0)
++		return frequency ? frequency : -EINVAL;
++	/* CSI-2: two edges; C-PHY carries sixteen bits per seven symbols. */
++	mul = 2 * lanes->num_data * (lanes->is_cphy ? 16 : 1);
++	div = bpp * (lanes->is_cphy ? 7 : 1);
++	*pixel_rate = mul_u64_u32_div(frequency, mul, div);
++	return 0;
++}
++
+ int camss_pm_domain_on(struct camss *camss, int id)
+ {
+ 	int ret = 0;
+diff --git a/drivers/media/platform/qcom/camss/camss.h b/drivers/media/platform/qcom/camss/camss.h
+index f3eebe58e..d71a8c0ca 100644
+--- a/drivers/media/platform/qcom/camss/camss.h
++++ b/drivers/media/platform/qcom/camss/camss.h
+@@ -179,6 +179,8 @@ struct media_pad *camss_find_sensor_pad(struct media_entity *entity);
+ s64 camss_get_link_freq(struct media_entity *entity, unsigned int bpp,
+ 			unsigned int lanes, bool is_cphy);
+ int camss_get_pixel_clock(struct media_entity *entity, u64 *pixel_clock);
++int camss_get_link_pixel_rate(struct media_entity *entity, unsigned int bpp,
++			      u64 *pixel_rate);
+ int camss_pm_domain_on(struct camss *camss, int id);
+ void camss_pm_domain_off(struct camss *camss, int id);
+ int camss_vfe_get(struct camss *camss, int id);

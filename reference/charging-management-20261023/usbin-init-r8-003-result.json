@@ -1,0 +1,127 @@
+{
+  "transaction": "usbin-init-r8-003",
+  "scope": "Single off-only initialization-bit clear verified; USB budget and charging-icon acceptance not passed",
+  "helper_arm_ms": 300000,
+  "observer_bound_seconds": 480,
+  "capture_duration_seconds": 425.5781813805006,
+  "sample_count": 362,
+  "terminal_reason": "cycle_complete",
+  "exception": null,
+  "capture_errors": [],
+  "cycle": {
+    "ready_at": 2.118923936995998,
+    "offline_confirmed": true,
+    "offline_begin": 354.8334756319964,
+    "online_begin": 364.3150518609982,
+    "offline_samples": 3,
+    "online_samples": 51,
+    "offline_span": 2.065568425001402,
+    "online_span": 61.13622844799829,
+    "settling_complete": true
+  },
+  "initialization_verified": true,
+  "configuration_changed": true,
+  "physical_cycle_passed": true,
+  "write": {
+    "register": "0x1358",
+    "mask": "0x80",
+    "before": "0xc0",
+    "after": "0x40",
+    "write_attempted": true,
+    "write_return": 0,
+    "readback_error": 0,
+    "post_error": 0,
+    "unknown_write": false,
+    "offline_samples": 3,
+    "physical_off_guard_ms": 500,
+    "prewrite_to_readback_ms": 1
+  },
+  "environment_unchanged": true,
+  "cv_cap_preserved": true,
+  "post_online_telemetry_healthy": true,
+  "source_before": {
+    "usb": {
+      "online": 1,
+      "usb_type": "Unknown [SDP] DCP CDP C",
+      "current_max": 100000,
+      "input_current_limit": 100000
+    },
+    "charger": {
+      "input_current_limit": 100000,
+      "constant_charge_current": 250000,
+      "constant_charge_voltage": 8725000,
+      "charge_behaviour": "[auto] inhibit-charge",
+      "health": "Good",
+      "status": "Charging"
+    }
+  },
+  "source_after": {
+    "usb": {
+      "online": 1,
+      "usb_type": "Unknown [SDP] DCP CDP C",
+      "current_max": 100000,
+      "input_current_limit": 100000
+    },
+    "charger": {
+      "input_current_limit": 100000,
+      "constant_charge_current": 250000,
+      "constant_charge_voltage": 8725000,
+      "charge_behaviour": "[auto] inhibit-charge",
+      "health": "Good",
+      "status": "Charging"
+    }
+  },
+  "post_online": {
+    "sample_count": 51,
+    "source_budget_ua_counts": {
+      "{'error': 'OSError', 'errno': 61}": 1,
+      "100000": 50
+    },
+    "input_limit_ua_counts": {
+      "100000": 51
+    },
+    "battery_status_counts": {
+      "Discharging": 51
+    },
+    "battery_current_now_min_ua": -45000,
+    "battery_current_now_max_ua": -20000
+  },
+  "screen_latency_verified": false,
+  "user_report": "Unplugged PC USB: charging icon disappeared after about 6 seconds. Reconnected same PC port: no charging icon after more than one minute. User timing estimate, not pixel capture.",
+  "budget_upgrade_observed": false,
+  "net_charging_proven": false,
+  "charging_icon_acceptance_passed": false,
+  "monitor": {
+    "started": true,
+    "errors": [],
+    "dbus_returncode": -15
+  },
+  "identity_unchanged": true,
+  "fetch_errors": [],
+  "committed_zero_additional_hardware_io": true,
+  "commit_released_self_reference": true,
+  "helper_absent": true,
+  "owner_released": true,
+  "all_owned_processes_absent": true,
+  "no_restore_or_rearm": true,
+  "handoff": {
+    "passed": true,
+    "source_budget_ua": 100000,
+    "temperature_decic": 279,
+    "age_ms": 272,
+    "protection_ok": 1,
+    "error": 0,
+    "taint": "0",
+    "helper_and_owner_absence_verified": true,
+    "all_three_transactions_original_processes_absent": true,
+    "camera_idle_and_four_services_unchanged": true,
+    "device_window_formally_handed_to_camera": true
+  },
+  "raw_evidence_private": true,
+  "capture_sha256": "c45f08a246b37915f605703cdfdf61e8198bcdf3fa82d2a440aee3e2988589dd",
+  "result_sha256": "f76aec0e6223ab8785f7ca2792754fbab853a66ed242c9ae02ce552b2d45a468",
+  "commit_sha256": "1d257b16223b1b4769b357a2c37d7f1e99a65e9c491d753c461f465e815e5389",
+  "final_fetch_receipt_sha256": "3dc78e6674b5546e74cb1b3cace0e492c8a6be170e6173301472825a6cc2d6a6",
+  "handoff_sha256": "3aeabf2d1c38d2355d34baa9cf55ee2f5e481a6bafeb998384fd8b4a1ac96837",
+  "next": "Offline audit of legal USB budget and supply-vs-battery UI semantics. No identical unplug retry or same-condition 500mA trial."
+}

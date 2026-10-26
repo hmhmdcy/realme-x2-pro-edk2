@@ -1,0 +1,120 @@
+{
+  "stock_commit": "9668fcdc6ec15be7a10d66f7b93c347829e0fdb6",
+  "stock_charging_file_sha256": {
+    "drivers/power/oppo/gauge_ic/oppo_bq27541.c": {
+      "bytes": 49893,
+      "sha256": "c0c502065fcd46cc52173ab075074f3f3f66efe596f71845de0f8092291d5d84"
+    },
+    "drivers/power/oppo/gauge_ic/oppo_bq27541.h": {
+      "bytes": 10793,
+      "sha256": "bc0989f83178f33d2b2154ea2a99c9191a169fc392b764684486b8227ca9fbf3"
+    }
+  },
+  "stock_state_read_source_functions": {
+    "0054": "bq8z610_sealed() lines1174-1193, byte3 bits1:0 sealed==3",
+    "0057": "bq8z610_check_gauge_enable() lines1395-1414, byte2 bit3"
+  },
+  "stock_temperature_source": "get_battery_temperature() reads cmd_addr.reg_temp; BQ27541_REG_TEMP=0x06, BQ27541_REG_INTTEMP=0x28",
+  "TI_manual_url": "https://www.ti.com/lit/pdf/sluua65",
+  "TI_manual_sha256": "f62ec12bb5aa23631759e59a378f36d254f9b0e2b5b6b8523a0dd081a13e4139",
+  "TI_sections": [
+    "12.1.4",
+    "12.1.21",
+    "12.2.30",
+    "12.2.33"
+  ],
+  "exact_2719_model_version_mapping_established": false,
+  "stock_wifi_sources": {
+    "repo": "realme-kernel-opensource/realmeX2Pro-kernel-source",
+    "commit": "9668fcdc6ec15be7a10d66f7b93c347829e0fdb6",
+    "files": [
+      {
+        "path": "drivers/soc/qcom/icnss.c",
+        "url": "https://github.com/realme-kernel-opensource/realmeX2Pro-kernel-source/blob/9668fcdc6ec15be7a10d66f7b93c347829e0fdb6/drivers/soc/qcom/icnss.c",
+        "bytes": 85638,
+        "sha256": "2d5586d3d61ab57decee04f05ba0f9a8a89212e30691f7d44b68e21a6481d702"
+      },
+      {
+        "path": "drivers/net/wireless/cnss2/main.c",
+        "url": "https://github.com/realme-kernel-opensource/realmeX2Pro-kernel-source/blob/9668fcdc6ec15be7a10d66f7b93c347829e0fdb6/drivers/net/wireless/cnss2/main.c",
+        "bytes": 43799,
+        "sha256": "6a93c6d33b9639f964112d15e39c64b252f5758d29f287c1389f00dfe293f931"
+      }
+    ]
+  },
+  "tqftpserv_sources": {
+    "repository": "linux-msm/tqftpserv",
+    "commit": "128cd6e0a39734fefd0f0bf0aad5e997c29e2445",
+    "files": [
+      {
+        "path": "README.md",
+        "url": "https://github.com/linux-msm/tqftpserv/blob/128cd6e0a39734fefd0f0bf0aad5e997c29e2445/README.md",
+        "bytes": 2977,
+        "sha256": "12254f235875819129897dcf5c42b5c99160a49c3fdf80d6ceb6b020529cdcd9"
+      },
+      {
+        "path": "tqftpserv.c",
+        "url": "https://github.com/linux-msm/tqftpserv/blob/128cd6e0a39734fefd0f0bf0aad5e997c29e2445/tqftpserv.c",
+        "bytes": 25213,
+        "sha256": "bb15a562d036fc49055145a248a9a126d305ed0bbbbf79768d47ea957d92982d"
+      }
+    ],
+    "built": false,
+    "installed": false,
+    "run": false
+  },
+  "wifi_rails_from_same_handset_stock_DT": {
+    "vdd-cx-mx-supply": {
+      "stock_target": "soc/rpmh-regulator-ldoa1/regulator-pm8150-l1",
+      "stock_microvolt_min": 752000,
+      "stock_microvolt_max": 752000
+    },
+    "vdd-1.8-xo-supply": {
+      "stock_target": "soc/rpmh-regulator-ldoa7/regulator-pm8150-l7",
+      "stock_microvolt_min": 1800000,
+      "stock_microvolt_max": 1800000
+    },
+    "vdd-1.3-rfa-supply": {
+      "stock_target": "soc/rpmh-regulator-ldoc2/regulator-pm8150l-l2",
+      "stock_microvolt_min": 1304000,
+      "stock_microvolt_max": 1304000
+    },
+    "vdd-3.3-ch0-supply": {
+      "stock_target": "soc/rpmh-regulator-ldoc11/regulator-pm8150l-l11",
+      "stock_microvolt_min": 3000000,
+      "stock_microvolt_max": 3312000
+    }
+  },
+  "current_DT_inherits_matching_four_wifi_supplies_from_MTP": true,
+  "current_wlan_reserved_base": "0x9b000000",
+  "current_wlan_reserved_bytes": 1572864,
+  "stock_wlan_reserved_base": "0x9b000000",
+  "stock_wlan_reserved_bytes": 1572864,
+  "stock_icnss_requested_MSA_memory_bytes": 1048576,
+  "current_ath10k_config_enabled": false,
+  "current_QCOM_PD_MAPPER_config": "m",
+  "mpss_PAS_auto_boot": false,
+  "mpss_and_wifi_DT_disabled": true,
+  "current_no_wifi_firmware_child_TZ_path": true,
+  "mdsp_direct_host_kernel_firmware_request_found_in_audited_snoc_qmi_sources": false,
+  "kernel_PD_domain": "msm/modem/wlan_pd",
+  "kernel_PD_services": [
+    "kernel/elf_loader",
+    "wlan/fw"
+  ],
+  "remote_service_loading_sequence_on_this_handset_verified": false,
+  "TFTP_not_built_or_run": true,
+  "actual_kernel_source_HEAD": "e42788eafb0bb9d8dfce319c71ca54c5207b2295",
+  "actual_source_file_sha256": {
+    "arch/arm64/boot/dts/qcom/sm8150-samurai.dts": "72495220de1c2fae0b389e2884d1b235a37735af11cabee3cfa04d627ab6bb23",
+    "arch/arm64/boot/dts/qcom/sm8150-mtp.dts": "fa62dd7deb5f2777046384732a8a292a683d9d590ab26afbe6d14f217937276a",
+    "arch/arm64/boot/dts/qcom/sm8150.dtsi": "82887c779c9425ca23e49a81fe3ff8d8c7eec4d073edb305e6a9270371f3b7bc",
+    "drivers/net/wireless/ath/ath10k/snoc.c": "532a12420f6b8086c280331085e66808fc73dd14782ffeb2944ff5b7b43a60dc",
+    "drivers/net/wireless/ath/ath10k/qmi.c": "e887b26f2b2023dbc3bd1685673f4dfcb622e3161fb316800ccbb535beb3d051",
+    "drivers/remoteproc/qcom_q6v5_pas.c": "36ec577c3976118f0c8150348903cf47d761d221fd595223bab861e7201e8eec",
+    "drivers/soc/qcom/qcom_pd_mapper.c": "3bff0265c5caadad5c7d35d7b844e53e0bec9945d3323878eda71dd15b39ff82",
+    "drivers/gpu/drm/msm/disp/dpu1/dpu_encoder.c": "61694c7539ae4f043590281a839052aff7c2daf18bc59d0faeb0bfde7aaf1d6b"
+  },
+  "no_unseal_key_material_copied": true,
+  "display_timeout_irq_vs_firmware_vs_clock_cause_established": false
+}

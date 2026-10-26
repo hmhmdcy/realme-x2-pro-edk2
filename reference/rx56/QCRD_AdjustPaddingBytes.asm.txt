@@ -1,0 +1,74 @@
+00022e84 40 53                    push     rbx
+00022e86 48 83 ec 40              sub      rsp, 0x40
+00022e8a 48 8b 41 10              mov      rax, qword ptr [rcx + 0x10]
+00022e8e 33 db                    xor      ebx, ebx
+00022e90 4c 8b 48 40              mov      r9, qword ptr [rax + 0x40]
+00022e94 41 38 99 b5 11 00 00     cmp      byte ptr [r9 + 0x11b5], bl
+00022e9b 0f 84 0b 01 00 00        je       0x22fac
+00022ea1 44 8b 51 48              mov      r10d, dword ptr [rcx + 0x48]
+00022ea5 41 83 fa 05              cmp      r10d, 5
+00022ea9 0f 82 fd 00 00 00        jb       0x22fac
+00022eaf 41 8b c2                 mov      eax, r10d
+00022eb2 83 e0 3f                 and      eax, 0x3f
+00022eb5 83 e8 05                 sub      eax, 5
+00022eb8 83 f8 01                 cmp      eax, 1
+00022ebb 0f 87 eb 00 00 00        ja       0x22fac
+00022ec1 48 8b 51 20              mov      rdx, qword ptr [rcx + 0x20]
+00022ec5 46 8a 5c 12 fc           mov      r11b, byte ptr [rdx + r10 - 4]
+00022eca 41 80 fb de              cmp      r11b, 0xde
+00022ece 75 6e                    jne      0x22f3e
+00022ed0 42 80 7c 12 fd ad        cmp      byte ptr [rdx + r10 - 3], 0xad
+00022ed6 75 66                    jne      0x22f3e
+00022ed8 42 80 7c 12 fe be        cmp      byte ptr [rdx + r10 - 2], 0xbe
+00022ede 75 5e                    jne      0x22f3e
+00022ee0 42 80 7c 12 ff ef        cmp      byte ptr [rdx + r10 - 1], 0xef
+00022ee6 75 56                    jne      0x22f3e
+00022ee8 41 83 c2 fc              add      r10d, -4
+00022eec 44 89 51 48              mov      dword ptr [rcx + 0x48], r10d
+00022ef0 41 39 99 dc 11 00 00     cmp      dword ptr [r9 + 0x11dc], ebx
+00022ef7 74 41                    je       0x22f3a
+00022ef9 48 8b 0d 00 71 01 00     mov      rcx, qword ptr [rip + 0x17100]
+00022f00 8b 41 2c                 mov      eax, dword ptr [rcx + 0x2c]
+00022f03 a8 02                    test     al, 2
+00022f05 74 33                    je       0x22f3a
+00022f07 80 79 29 05              cmp      byte ptr [rcx + 0x29], 5
+00022f0b 72 2d                    jb       0x22f3a
+00022f0d 4c 8d 05 ec 70 01 00     lea      r8, [rip + 0x170ec]
+00022f14 49 3b c8                 cmp      rcx, r8
+00022f17 74 21                    je       0x22f3a
+00022f19 48 8b 49 18              mov      rcx, qword ptr [rcx + 0x18]
+00022f1d 4c 8d 05 8c 56 01 00     lea      r8, [rip + 0x1568c]
+00022f24 49 81 c1 dc 03 00 00     add      r9, 0x3dc
+00022f2b 44 89 54 24 20           mov      dword ptr [rsp + 0x20], r10d
+00022f30 ba a3 00 00 00           mov      edx, 0xa3
+00022f35 e8 da 9f 00 00           call     0x2cf14 ; WPP_SF_sl
+00022f3a b0 01                    mov      al, 1
+00022f3c eb 70                    jmp      0x22fae
+00022f3e 41 39 99 dc 11 00 00     cmp      dword ptr [r9 + 0x11dc], ebx
+00022f45 74 65                    je       0x22fac
+00022f47 48 8b 1d b2 70 01 00     mov      rbx, qword ptr [rip + 0x170b2]
+00022f4e 8b 43 2c                 mov      eax, dword ptr [rbx + 0x2c]
+00022f51 a8 02                    test     al, 2
+00022f53 74 57                    je       0x22fac
+00022f55 80 7b 29 05              cmp      byte ptr [rbx + 0x29], 5
+00022f59 72 51                    jb       0x22fac
+00022f5b 4c 8d 05 9e 70 01 00     lea      r8, [rip + 0x1709e]
+00022f62 49 3b d8                 cmp      rbx, r8
+00022f65 74 45                    je       0x22fac
+00022f67 46 0f b6 44 12 fe        movzx    r8d, byte ptr [rdx + r10 - 2]
+00022f6d 49 81 c1 dc 03 00 00     add      r9, 0x3dc
+00022f74 42 0f b6 44 12 ff        movzx    eax, byte ptr [rdx + r10 - 1]
+00022f7a 46 0f b6 54 12 fd        movzx    r10d, byte ptr [rdx + r10 - 3]
+00022f80 ba a4 00 00 00           mov      edx, 0xa4
+00022f85 48 8b 4b 18              mov      rcx, qword ptr [rbx + 0x18]
+00022f89 89 44 24 38              mov      dword ptr [rsp + 0x38], eax
+00022f8d 44 89 44 24 30           mov      dword ptr [rsp + 0x30], r8d
+00022f92 4c 8d 05 17 56 01 00     lea      r8, [rip + 0x15617]
+00022f99 45 0f b6 db              movzx    r11d, r11b
+00022f9d 44 89 54 24 28           mov      dword ptr [rsp + 0x28], r10d
+00022fa2 44 89 5c 24 20           mov      dword ptr [rsp + 0x20], r11d
+00022fa7 e8 d4 9f 00 00           call     0x2cf80 ; WPP_SF_sllll
+00022fac 32 c0                    xor      al, al
+00022fae 48 83 c4 40              add      rsp, 0x40
+00022fb2 5b                       pop      rbx
+00022fb3 c3                       ret

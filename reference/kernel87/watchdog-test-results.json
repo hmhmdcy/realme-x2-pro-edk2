@@ -1,0 +1,18 @@
+{
+  "audit": "PASS",
+  "scope": "actual function bodies, deterministic timer/IRQ API interleavings; not SMP or hardware",
+  "results": {
+    "baseline": {
+      "exit": 1,
+      "output": "FAIL post-completion arm must remain inactive\n",
+      "extracted_functions_sha256": "bdd4d7ff5dc57d488018f0ed06b50b3fa10280dd7a780ae7a92803879b54b44b",
+      "compile_log_sha256": "ebc174c9fff6ee524b8facfc0ce92af8c3a4d51cee24e4b00f4af230d17f2e72"
+    },
+    "patched": {
+      "exit": 0,
+      "output": "PASS completion preceding post-kickoff timer arm\nPASS completed frame and already dispatched old callback\nPASS rearm overlap, genuine stall and late completion\nPASS multi-encoder completion\nPASS unsigned jiffies wraparound\nPASS absent CRTC\n",
+      "extracted_functions_sha256": "9c2c2a98092fc5f475b5ba1220fd8b6635180eccfa82875e76a5cebbce2dd73c",
+      "compile_log_sha256": "7bb36cb52cfc4d279d888bc18cd844f1c8b1ad21d561edbeccbeebc0bbdee834"
+    }
+  }
+}

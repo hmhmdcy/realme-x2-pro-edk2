@@ -1,0 +1,34 @@
+{
+  "stage": 178,
+  "kernel_build": 176,
+  "counts": {
+    "irq_read_not_connected": 26510,
+    "irq_config_not_connected": 72,
+    "irq_mask_sync_failed": 6,
+    "asoc_error": 6,
+    "pdr_listener_timeout": 1
+  },
+  "timeline": [
+    "[ 4749.055411] remoteproc remoteproc2: stopped remote processor adsp",
+    "[ 4749.126127] remoteproc remoteproc2: powering up adsp",
+    "[ 4749.264694] remoteproc remoteproc2: remote processor adsp is now up",
+    "[ 4749.378873] wcd934x-codec wcd934x-codec.0.auto: WCD934X Minor:0x1 Version:0x411",
+    "[ 4749.389336] wcd934x-codec wcd934x-codec.0.auto: samurai MBHC started: micbias=2700 mV",
+    "[ 4749.442430] qcom,slim-ngd-ctrl 171c0000.slim-ngd: SLIM controller Registered",
+    "[ 4752.379852] wcd934x-codec wcd934x-codec.0.auto: samurai slim trigger dai=1 command=1 channels=1 rate=48000 ret=0",
+    "[ 4752.447103] wcd934x-codec wcd934x-codec.0.auto: samurai slim trigger dai=1 command=0 channels=1 rate=48000 ret=0",
+    "[ 4752.487851] wcd934x-codec wcd934x-codec.0.auto: samurai slim trigger dai=1 command=1 channels=1 rate=48000 ret=0",
+    "[ 4753.526673] wcd934x-codec wcd934x-codec.0.auto: samurai slim trigger dai=1 command=0 channels=1 rate=48000 ret=0",
+    "[ 4753.660078] wcd934x-codec wcd934x-codec.0.auto: samurai slim trigger dai=1 command=1 channels=1 rate=48000 ret=0",
+    "[ 4754.350677] PDR: msm/adsp/audio_pd register listener txn wait failed: -110",
+    "[ 4754.484234] wcd934x-codec wcd934x-codec.0.auto: samurai slim trigger dai=1 command=0 channels=1 rate=48000 ret=-107",
+    "[ 4754.484266] wcd934x-codec wcd934x-codec.0.auto: ASoC error (-107): at soc_dai_trigger() on wcd934x_tx1",
+    "[ 4754.484284]  MultiMedia2: ASoC error (-107): at dpcm_be_dai_trigger() on MultiMedia2",
+    "[ 4754.484299]  MultiMedia2: ASoC error (-107): trigger FE cmd: 0 failed",
+    "[ 4754.484637] wcd934x-codec wcd934x-codec.0.auto: ASoC error (-107): at snd_soc_component_update_bits() on wcd934x-codec.0.auto for register: [0x00000218]",
+    "[ 4754.484681] wcd934x-codec wcd934x-codec.0.auto: ASoC error (-107): at snd_soc_component_update_bits() on wcd934x-codec.0.auto for register: [0x00000a81]",
+    "[ 4754.484711] wcd934x-codec wcd934x-codec.0.auto: ASoC error (-107): at snd_soc_component_update_bits() on wcd934x-codec.0.auto for register: [0x00000622]"
+  ],
+  "timeline_total": 19,
+  "original_test_did_not_pass": true
+}

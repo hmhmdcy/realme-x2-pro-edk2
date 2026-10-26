@@ -1,0 +1,26 @@
+--- a/rootfs/usr/sbin/samurai-bluetooth
++++ b/rootfs/usr/sbin/samurai-bluetooth
+@@ -17,7 +17,9 @@
+     fi
+     for module in btbcm btqca hci_uart; do
+         if ! loaded "$module"; then
+-            /bin/insmod "/lib/modules/samurai/$module.ko"
++            path="/lib/modules/$(uname -r)/kernel/drivers/bluetooth/$module.ko"
++            [ -f "$path" ] || path="/lib/modules/samurai/$module.ko"
++            /bin/insmod "$path"
+         fi
+     done
+     for attempt in $(seq 1 30); do
+--- a/initramfs/usr/sbin/samurai-bluetooth
++++ b/initramfs/usr/sbin/samurai-bluetooth
+@@ -17,7 +17,9 @@
+     fi
+     for module in btbcm btqca hci_uart; do
+         if ! loaded "$module"; then
+-            /bin/insmod "/lib/modules/samurai/$module.ko"
++            path="/lib/modules/$(uname -r)/kernel/drivers/bluetooth/$module.ko"
++            [ -f "$path" ] || path="/lib/modules/samurai/$module.ko"
++            /bin/insmod "$path"
+         fi
+     done
+     for attempt in $(seq 1 30); do

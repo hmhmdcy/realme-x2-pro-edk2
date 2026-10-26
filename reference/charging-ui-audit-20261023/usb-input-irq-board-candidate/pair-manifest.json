@@ -1,0 +1,45 @@
+{
+  "schema": "samurai-usb-input-IRQ-offline-board-pair-v1",
+  "candidate_id": "usb-input-irq-board-01",
+  "status": "offline_DT_and_module_passed_not_installed",
+  "required_together": true,
+  "new_DTB_must_not_be_used_with_old_R7_module": true,
+  "runtime_deployment_guard_or_cohort": false,
+  "native_DTB": {
+    "private_path": "E:\\edk2-samurai-out\\charging-management-20261023\\usb-input-irq-board-private-01\\samurai-usb-input-irq-native-private.dtb",
+    "sha256": "13d359c4a78ed423d52f1d5e09345c7dc7032811fabe786952ac11e868adee9f",
+    "bytes": 116124,
+    "source_native_sha256": "9271d9cc33b3701ad0675c6345d43e9a5c404aa6c192126edc3eb715b0914358"
+  },
+  "USB_module": {
+    "private_path": "E:\\edk2-samurai-out\\charging-management-20261023\\usb-input-irq-board-private-01\\samurai-usb-input-irq-private.ko",
+    "sha256": "7cbf10c0f74609effb415c30145e58b0fbe554511ef55a96baeeaf367c94ff5f",
+    "bytes": 87832,
+    "intree": "Y",
+    "release": "7.3.0-rc6-rmx1931-samurai-k363+",
+    "source_sha256": "0fdafb8b3924e431efd67a888cbb88b8f5fe6de22dc400b009bf64cba34b7be5",
+    "decoder_sha256": "a17caa2cbeb2352da249474e0265fa96745f544d96a29d0ebe8f14c656d548fd",
+    "imports_against_Image502": true
+  },
+  "Image502_reference": {
+    "sha256": "085d03066983a82d1d1c74b74f69c85560698d6fc49f62d6db511a8799b25955",
+    "build_receipt_sha256": "feb6fd2e8ef8ca380f48a6f8f88b131646a874fa1d8660c3bde83a38ec8940e6",
+    "not_rebuilt_for_this_pair": true
+  },
+  "receipts": {
+    "dt-result.json": "a055ee096cc1bcb0f6082570be93518a1fd6cdf610315d93b7fa1d5e7e29b0e8",
+    "ko-result.json": "c710bd53c9ed8188fa144d64985d948c3c66e73eae63c9c062260e88bfeadd31",
+    "binding-result.json": "fda72ff51396f445956b7deb3acca8edecb94e7cd055ffba10f81a9ac11d6e4a",
+    "build-tools-result.json": "b30e12c96f096517e5ea5849b61f1c7eecde18ab2e8b5c6d71e79ee773d71128"
+  },
+  "physical_IRQ_acceptance_required": [
+    "Same new native DT and provider instance actually probed",
+    "Both named usbin-plugin and usbin-src-change IRQs actually registered",
+    "Physical detach/attach changes corresponding IRQ counts and event times",
+    "Protection, source budget, native allowance and hardware limits remain correct",
+    "Both optional IRQ lookups absent can fall back to legacy polling: loading alone is insufficient"
+  ],
+  "physical_IRQ_or_latency_accepted": false,
+  "APSD_PD_role_route_permission_granted": false,
+  "boot_firmware_FAT_BDS_Image_or_rootfs_changed": false
+}

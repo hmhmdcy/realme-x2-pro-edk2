@@ -1,0 +1,44 @@
+--- a/samurai-usb-input-decode.h
++++ b/samurai-usb-input-decode.h
+@@ -9,7 +9,7 @@
+ 
+ enum samurai_usb_kind {
+ 	SAMURAI_USB_UNKNOWN, SAMURAI_USB_SDP, SAMURAI_USB_CDP,
+-	SAMURAI_USB_DCP, SAMURAI_USB_TYPE_C,
++	SAMURAI_USB_DCP, SAMURAI_USB_TYPE_C, SAMURAI_USB_FLOAT,
+ };
+ 
+ struct samurai_usb_budget {
+@@ -50,6 +50,16 @@
+ 	/* A completed QC detection is outside this observer's contract. */
+ 	if ((s->apsd & 2) || (result & 0x60))
+ 		return 0;
++	/* OEM SMB5 accepts USB-stack SDP current after a FLOAT detection.
++	 * Keep FLOAT unclassified until a valid native USB2 allowance exists;
++	 * never inherit a DCP/Rp high-current budget from this ambiguity.
++	 */
++	if (result == 0x10) {
++		if (!(s->apsd & 1) || s->result != 0x10 || (s->apsd & 0x8c))
++			return 0;
++		b->kind = SAMURAI_USB_FLOAT;
++		return 0;
++	}
+ 	if (!(s->legacy & 2) && (cc == 4 || cc == 2)) {
+ 		b->kind = SAMURAI_USB_TYPE_C;
+ 		b->current_ua = cc == 4 ? 1500000 : 3000000;
+@@ -88,11 +98,14 @@
+ static inline int samurai_usb_apply_udc(struct samurai_usb_budget *b,
+ 				       int valid, int current_ua)
+ {
+-	if (b->kind != SAMURAI_USB_SDP || !b->online) return 0;
++	if ((b->kind != SAMURAI_USB_SDP && b->kind != SAMURAI_USB_FLOAT) ||
++	    !b->online) return 0;
+ 	if (!valid || current_ua < 0 || current_ua > 500000) {
+ 		b->current_ua = -ENODATA;
+ 		return 0;
+ 	}
++	if (b->kind == SAMURAI_USB_FLOAT)
++		b->kind = SAMURAI_USB_SDP;
+ 	b->current_ua = current_ua;
+ 	return 0;
+ }

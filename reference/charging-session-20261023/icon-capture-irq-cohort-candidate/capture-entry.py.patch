@@ -1,0 +1,31 @@
+--- icon-capture-image502-candidate/capture-entry.py
++++ icon-capture-irq-cohort-candidate/capture-entry.py
+@@ -6,7 +6,12 @@
+ import worker as collector
+ 
+ REQUEST = Path(__file__).with_name('request-private.json')
+-GUARD = '/var/lib/samurai/image502-notify-live-001-adopted/boot-id-private.txt'
++def adopted_guard(request):
++    import re
++    guard = request['guard_path']
++    if not re.fullmatch(r'/var/lib/samurai/usb-irq-protection-activate-[a-z0-9-]{8,48}-adopted/boot-id-private\.txt', guard):
++        raise ValueError('actual IRQ adopted guard required')
++    return guard
+ 
+ 
+ class CaptureCycle(collector.Cycle):
+@@ -24,11 +29,12 @@
+         super().check_identity(config)
+         request = json.loads(REQUEST.read_bytes())
+         expected = request['identity_expected']
++        guard = adopted_guard(request)
+         if not (request['transaction'] == config['transaction']
+                 and request['expected_boot'] == config['boot_id']
+                 and request['manifest_sha256'] == config['manifest_sha256']
+-                and request['guard_path'] == GUARD
+-                and Path(GUARD).read_text().strip() == config['boot_id']
++                and request['guard_path'] == guard
++                and Path(guard).read_text().strip() == config['boot_id']
+                 and os.uname().release == expected['release']
+                 and os.uname().version == expected['version']
+                 and hashlib.sha256(Path('/etc/samurai-rootfs-release').read_bytes()).hexdigest() == expected['rootfs']):

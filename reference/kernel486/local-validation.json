@@ -1,0 +1,74 @@
+{
+  "stage": 486,
+  "passed": true,
+  "scope": "finite local environment and exec contract only",
+  "account_lookup": "synthetic local pwd entry and initgroups adapter; no host NSS/account changes",
+  "credentials_and_exec": "real local Linux setgroups/setgid/setuid10000, CapEff0, chdir and execve",
+  "local_exec_cases": [
+    {
+      "case": "root-inherited",
+      "passed": true,
+      "actual_linux_uid": 10000,
+      "capeff": 0,
+      "argv_preserved": true,
+      "personal_home_sentinel_read": true,
+      "stdout_sha256": "6cd63e751ee408c755d1d61b6160a679919586af050136c5e3d797be41bbc88e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "case": "valid-user-settings",
+      "passed": true,
+      "actual_linux_uid": 10000,
+      "capeff": 0,
+      "argv_preserved": true,
+      "personal_home_sentinel_read": true,
+      "stdout_sha256": "cd03c7e8cdb8d377d3d1081980ae3f69943e385242692a67ebcc754048a6c1a1",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "case": "owned-external-and-relative",
+      "passed": true,
+      "actual_linux_uid": 10000,
+      "capeff": 0,
+      "argv_preserved": true,
+      "personal_home_sentinel_read": true,
+      "stdout_sha256": "f3ce94be1b4bd46d5994a47d39dd88dfc6ed24e485b439ca083f41c7cdaf87c5",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "rejected_program_cases": [
+    "traversal",
+    "absolute",
+    "symlink",
+    "root-owned",
+    "setid"
+  ],
+  "home_user_logname_from_pwd": true,
+  "valid_personal_and_owned_external_xdg_preserved": true,
+  "inherited_root_relative_or_empty_xdg_replaced": true,
+  "unrelated_environment_preserved": true,
+  "libcamera_overrides_added": false,
+  "personal_home_configuration_sentinel_read": true,
+  "actual_libcamera_or_target_configuration_lookup_verified": false,
+  "target_actual_pwd_account_verified": false,
+  "target_warning_disappearance_verified": false,
+  "production_libraries_modified": false,
+  "no_ssh": true,
+  "no_usb": true,
+  "no_pm": true,
+  "no_sdk": true,
+  "selected_frozen_files_sha256": {
+    "kernel449/user-launcher.py": "1d1fb6567439ff600c0116d8561ba9c60914306ebb89ccb9b5e08242f9c52ee6",
+    "kernel481/worker-body.py": "ee8f17a36e7e69534d872dd44f6ed43edc46e82e65547621783157dc2cce1a83",
+    "kernel481/prepare-runtime.py": "f4de333dd431093055e8b511e79339f3a758c09af0a03fa8eb521d43dc3c75cf",
+    "kernel482/default-probe.py": "cdcb16a5479e86c8fe11979f8294edea331d35404083d9b5dd7453ef1e83a1ec",
+    "kernel484/inspect-installed.py": "bc897a3be3f9f292b6de486e121db3a50126360653c0fb7823badf018ca5411b",
+    "kernel484/hardware-validation.json": "5a995f5e956a64007d89fb0223ff4ef9cb843152600473693744d04d5d377e4d"
+  },
+  "temporary_local_test_tree_removed": true,
+  "source_sha256": {
+    "user-launcher.py": "6c28bc2a9193c4adec64a9c0bde40d44589b360b83640ebe3f8dc1a4297b6446",
+    "validate-local.py": "bf73138941db76fcc40eb5e329ec05a6a772b872186d4ddb184b31dded29f463"
+  },
+  "private_attempt": "local-check-1792766635607451378"
+}

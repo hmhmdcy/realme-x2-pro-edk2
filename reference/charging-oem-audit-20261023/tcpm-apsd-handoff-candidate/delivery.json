@@ -1,0 +1,72 @@
+{
+  "passed": true,
+  "subcomponent": "single-direction APSD/QC revocation before full TCPM startup",
+  "complete_coexistence": false,
+  "phone_accessed": false,
+  "installed": false,
+  "new_Image": false,
+  "sources": {
+    "drivers/usb/dwc3/samurai-apsd-owner.c": {
+      "file": "samurai-apsd-owner.c",
+      "baseline_file": "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/eud-route-pm-candidate/samurai-apsd-owner.c",
+      "baseline_sha256": "77c9e3fbca3a9578b3772fa5ec70d5282460729181cc33e9e62224e46e743551",
+      "baseline_normalized_sha256": "77c9e3fbca3a9578b3772fa5ec70d5282460729181cc33e9e62224e46e743551",
+      "sha256": "f2f5d44edd1e7abff234604c7badde4e9d62773502576e15d493c009beacd2d6"
+    },
+    "drivers/usb/typec/tcpm/qcom/qcom_pmic_typec.c": {
+      "file": "qcom_pmic_typec.c",
+      "baseline_file": "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/tcpm-sink-shutdown-candidate/qcom_pmic_typec.c",
+      "baseline_sha256": "f8822a59467c5472b3caceab112ac8d6c9c4c8d7efe5287bbfb2e98489cf08d4",
+      "baseline_normalized_sha256": "f8822a59467c5472b3caceab112ac8d6c9c4c8d7efe5287bbfb2e98489cf08d4",
+      "sha256": "229b0c5922ee00e7a598fedf73c222cd80ce1c7290f5fafda59c1df23a3d584b"
+    },
+    "drivers/usb/typec/tcpm/qcom/qcom_pmic_typec.h": {
+      "file": "qcom_pmic_typec.h",
+      "baseline_file": "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/tcpm-sink-shutdown-candidate/qcom_pmic_typec.h",
+      "baseline_sha256": "b6a2172959be14e5bd4074bea496bb460d05ff2fd18253f6a2d2d8e9e3e3c988",
+      "baseline_normalized_sha256": "b6a2172959be14e5bd4074bea496bb460d05ff2fd18253f6a2d2d8e9e3e3c988",
+      "sha256": "e428414f206953383a5347a2f95a8a664b114a0b43f53cfc0a9d3dbe9c6e4542"
+    },
+    "drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_pdphy.c": {
+      "file": "qcom_pmic_typec_pdphy.c",
+      "baseline_file": "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/tcpm-sink-shutdown-candidate/qcom_pmic_typec_pdphy.c",
+      "baseline_sha256": "12b9dd9189e3aa77baf7d5c84042e88f2343deb9adac4ed00e079ba7ffec25a9",
+      "baseline_normalized_sha256": "12b9dd9189e3aa77baf7d5c84042e88f2343deb9adac4ed00e079ba7ffec25a9",
+      "sha256": "dc7bd93006354183e3c97653a6394ce6738913fbde49b02910ca463bb6bebad3"
+    },
+    "drivers/usb/typec/tcpm/qcom/Makefile": {
+      "file": "Makefile",
+      "baseline_file": "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/pd5v-owner-context-r2/Makefile",
+      "baseline_sha256": "0e71eeda4d8e7f688285e2ce3811ee94476f6899bd526e4262649494e905d54c",
+      "baseline_normalized_sha256": "0e71eeda4d8e7f688285e2ce3811ee94476f6899bd526e4262649494e905d54c",
+      "sha256": "a5f4096cc778834efe6db3f3e4fa7ad4b894dc33723582d7703c1c9b42adb4e5"
+    },
+    "include/linux/usb/samurai-tcpm-apsd.h": {
+      "file": "samurai-tcpm-apsd.h",
+      "baseline_sha256": null,
+      "sha256": "e29553f5aeec1053db0107a9a928cde5fede9fc56afacd54773dfd175c7a66d6"
+    },
+    "drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_apsd.h": {
+      "file": "qcom_pmic_typec_apsd.h",
+      "baseline_sha256": null,
+      "sha256": "ef09efddb3810898fca0cbf8d9547761c1cb7b8e1c1baf2a3c7217c31c11b08e"
+    },
+    "drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_apsd.c": {
+      "file": "qcom_pmic_typec_apsd.c",
+      "baseline_sha256": null,
+      "sha256": "3a007ccc35426c32d87a30b9ea316bc8324f389c68b12d22efa9f782f820a459"
+    }
+  },
+  "evidence": {
+    "handoff.patch": "c6651f4a8639d7479d3d037b8d94c423d628599205a3be00827b7c32cbdfff73",
+    "test-result.json": "dbcb1a75be00043ed2f7a62c5ad724edade02d477c92b3978029457b56a842b4",
+    "build-result.json": "d5df3b66dd8a94b88207f1582fc85060734e875d83514978a537b421cc2ecc76",
+    "README.md": "2eb0681c4215a253fbd1ae71c2620662eb2b7780177368e3cd9e1603aaf7fecb"
+  },
+  "remaining": [
+    "actual ADC 5V plus real protocol controls/role evidence for already-connected startup",
+    "physical-detach new-epoch APSD rearm with real managed borrower lifecycle",
+    "merge independent full-PD 9V-to-5V shutdown",
+    "board wiring and Request/Accept/PS_RDY hardware verification"
+  ]
+}

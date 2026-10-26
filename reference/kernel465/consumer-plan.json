@@ -1,0 +1,151 @@
+{
+  "stage": 465,
+  "executable_or_deployment_script": false,
+  "ready_mode3_consumer_inputs": [
+    {
+      "private_relative_path": "kernel461/libcamera.so.0.7.2",
+      "bytes": 51259240,
+      "sha256": "9b352a12a8825935155106d17b81bb33ac60c4d14d7d2007efaad9e3f06af3af",
+      "purpose": "core"
+    },
+    {
+      "private_relative_path": "kernel449/gst-sustained",
+      "bytes": 74976,
+      "sha256": "7f4d6a1f8527280d8bbe11e6af638348200bd9bc8465be8357cdc0ca732b852a",
+      "purpose": "normal-consumer"
+    },
+    {
+      "private_relative_path": "kernel449/pipeline-fixture-long",
+      "bytes": 951608,
+      "sha256": "bad0dc79d95d070f089c158b159a21f72a44a459f4c1606f9c27493457863a43",
+      "purpose": "restoring-fixture"
+    },
+    {
+      "private_relative_path": "kernel442/capture",
+      "bytes": 90216,
+      "sha256": "052cdeb9aa7d1b6c4140067ccd45604fdddc9dc4f02adf2a5d8b608e9625ffb6",
+      "purpose": "optional-trace-capture"
+    },
+    {
+      "private_relative_path": "kernel441/pd10-ipe",
+      "bytes": 74504,
+      "sha256": "5be7faeb481c68996e57f476889f5e51d1af550922d0c0ba809b6b5c5daac5f2",
+      "purpose": "optional-causal-replay"
+    },
+    {
+      "private_relative_path": "kernel440/factory-s5k3m5-private.yaml",
+      "bytes": 713292,
+      "sha256": "41cba861b491d583c685e07fdc0e97d635f8922f7132abefa15d0632d4fab0a4",
+      "purpose": "existing-mode3-profile"
+    }
+  ],
+  "retained_ipa_stage": 444,
+  "retained_ipa_protocol": 6,
+  "retained_proxy": "old444",
+  "retained_kernel_geometry_stage": 441,
+  "model": "s5k3m5",
+  "required_active_sensor": [
+    2104,
+    1560
+  ],
+  "sensor_mode": 3,
+  "user": 10000,
+  "effective_capabilities": 0,
+  "isolation": true,
+  "minimum_target_frames": 32,
+  "normal_consumer_program": "gst-sustained",
+  "normal_consumer_arguments": [
+    "${fresh_camera_id}",
+    "${width}",
+    "${height}"
+  ],
+  "environment": {
+    "GST_TARGET_FRAMES": "32",
+    "GST_SENSOR_NODE": "${fresh_sensor_node}",
+    "LIBCAMERA_IPA_FORCE_ISOLATION": "1",
+    "LIBCAMERA_CAMSS_VFE_PROFILE": "${userroot}/factory-s5k3m5-private.yaml"
+  },
+  "existing_user_launcher": "reference/kernel449/user-launcher.py",
+  "launcher_requires_userroot_prefix": "/run/user/10000/k449-user-",
+  "output_cases": [
+    {
+      "width": 1280,
+      "height": 720,
+      "full_bytes": 1382400,
+      "pd10": [
+        320,
+        180
+      ],
+      "pd10_stride": 1344,
+      "pd10_slice_height": 92,
+      "pd10_bytes": 123648,
+      "scratch_bytes": 121008
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "full_bytes": 3110400,
+      "pd10": [
+        480,
+        270
+      ],
+      "pd10_stride": 1920,
+      "pd10_slice_height": 136,
+      "pd10_bytes": 261120,
+      "scratch_bytes": 261168
+    }
+  ],
+  "require_actual_full_fd_selection": "reference/kernel463/full-role.py with fresh graph, FD identity and event emission",
+  "audit_source": "reference/kernel449/check-long.py raw frame/receipt audit and 450 strict wrapper; adapt model, sizes, frame target and witnesses in a new checker only",
+  "optional_tele_causal": {
+    "capture_program": "capture",
+    "capture_arguments": [
+      "s5k3m5",
+      "${fresh_sensor_node}",
+      "2104x1560",
+      "0",
+      "1280x720"
+    ],
+    "application_queue": {
+      "CAPTURE_QUEUED": "1",
+      "CAPTURE_DELAY_MS": "0"
+    },
+    "trace_environment": "LIBCAMERA_CAMSS_VFE_TRACE_DIR=${new_private_case}",
+    "source_files": [
+      "tone-${sof}-full.nv12",
+      "tone-${sof}-coarse.pd10",
+      "tone-${sof}-params.bin"
+    ],
+    "params_bytes": 6008,
+    "replay_program": "pd10-ipe",
+    "replay_arguments": [
+      "${fresh_ipe_video}",
+      "${fresh_ipe_media}",
+      "${private_replay_case}",
+      "1280",
+      "720",
+      "121008"
+    ],
+    "replay_input_names": [
+      "full-private.bin",
+      "pd10-private.bin",
+      "parameters-private.bin"
+    ],
+    "ordered_pd10_inputs": [
+      "real",
+      "neutral-black",
+      "neutral-white",
+      "same-real"
+    ],
+    "expected_real_repeat_equal": true,
+    "expected_three_distinct_outputs": true,
+    "adapt_from": "reference/kernel442/auto-capture-body.py; never restart its terminal worker",
+    "mandatory_if_claiming_tele_specific_causal_consumption": true
+  },
+  "new_mode2_not_ready": true,
+  "normal_16_9_geometry_completed": false,
+  "phone_accessed": false,
+  "staged": false,
+  "executed": false,
+  "passed": true
+}

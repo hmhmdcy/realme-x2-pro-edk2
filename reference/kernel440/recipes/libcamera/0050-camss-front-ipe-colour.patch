@@ -1,0 +1,566 @@
+--- a/src/ipa/libipa/colour_correction.h
++++ b/src/ipa/libipa/colour_correction.h
+@@ -8,6 +8,19 @@
+ struct ColourCorrectionData {
+ 	std::array<float, 9> matrix; /* RGB, row-major, before gamma. */
+ 	std::array<int32_t, 3> offsets;
++};
++
++/* CC13 keeps offsets floating point throughout its interpolation tree. */
++struct FloatingColourCorrectionData {
++	std::array<float, 9> matrix;
++	std::array<float, 3> offsets;
++};
++
++/* Signed RGB, row-major. Register ordering belongs to the block encoder. */
++struct QuantizedColourCorrection {
++	std::array<int16_t, 9> matrix;
++	std::array<int16_t, 3> offsets;
++	uint32_t qfactor;
+ };
+ 
+ /* Common CAMSS block fields, output/input order G,B,R. Coefficients are
+@@ -23,5 +36,13 @@
+ bool encodeColourCorrection(const ColourCorrectionData &data, unsigned int qfactor,
+ 			    ColourCorrectionParameters *result,
+ 			    std::array<float, 9> *effectiveMatrix = nullptr);
++bool interpolateFloatingColourCorrection(const FloatingColourCorrectionData &first,
++					 const FloatingColourCorrectionData &second, float weight,
++					 FloatingColourCorrectionData *result);
++/* IFE offsets are signed 11-bit; IPE offsets are signed 13-bit. */
++bool quantizeColourCorrection(const FloatingColourCorrectionData &data,
++			     unsigned int qfactor, unsigned int offsetBits,
++			     QuantizedColourCorrection *result,
++			     std::array<float, 9> *effectiveMatrix = nullptr);
+ 
+ } /* namespace libcamera::ipa */
+--- a/src/ipa/libipa/colour_correction.cpp
++++ b/src/ipa/libipa/colour_correction.cpp
+@@ -11,6 +11,17 @@
+ 		if (!std::isfinite(value) || value < -16 || value > 16) return false;
+ 	for (int32_t value : data.offsets)
+ 		if (value < -4096 || value > 4095) return false;
++	return true;
++}
++
++bool valid(const FloatingColourCorrectionData &data)
++{
++	for (float value : data.matrix)
++		if (!std::isfinite(value) || value < -16 || value > 16) return false;
++	/* Bound integer conversion in the shared original interpolation arithmetic.
++	 * Quantization checks the target's narrower hardware range separately. */
++	for (float value : data.offsets)
++		if (!std::isfinite(value) || value < -65536 || value > 65536) return false;
+ 	return true;
+ }
+ 
+@@ -38,24 +49,66 @@
+ 			    std::array<float, 9> *effectiveMatrix)
+ {
+ 	if (!result || !valid(data) || qfactor > 3) return false;
++	FloatingColourCorrectionData floating{ data.matrix, {} };
++	for (unsigned int i = 0; i < data.offsets.size(); ++i)
++		floating.offsets[i] = float(data.offsets[i]);
++	QuantizedColourCorrection quantized;
++	std::array<float, 9> effective;
++	if (!quantizeColourCorrection(floating, qfactor, 11, &quantized, &effective))
++		return false;
++	ColourCorrectionParameters output;
++	constexpr std::array<unsigned int, 3> order{ 1, 2, 0 };
++	for (unsigned int i = 0; i < order.size(); ++i) {
++		unsigned int row = order[i];
++		output.a[i] = uint16_t(quantized.matrix[row * 3 + 1]) & 0xfff;
++		output.b[i] = uint16_t(quantized.matrix[row * 3 + 2]) & 0xfff;
++		output.c[i] = uint16_t(quantized.matrix[row * 3]) & 0xfff;
++		output.k[i] = uint16_t(quantized.offsets[row]) & 0x7ff;
++	}
++	output.qfactor = qfactor;
++	*result = output;
++	if (effectiveMatrix) *effectiveMatrix = effective;
++	return true;
++}
++
++bool interpolateFloatingColourCorrection(const FloatingColourCorrectionData &first,
++					 const FloatingColourCorrectionData &second, float weight,
++					 FloatingColourCorrectionData *result)
++{
++	if (!result || !valid(first) || !valid(second) || !std::isfinite(weight) || weight < 0 || weight > 1)
++		return false;
++	if (weight == 0) { *result = first; return true; }
++	if (weight == 1) { *result = second; return true; }
++	FloatingColourCorrectionData output;
++	for (unsigned int i = 0; i < output.matrix.size(); ++i)
++		output.matrix[i] = interpolateTuningFloat(first.matrix[i], second.matrix[i], weight);
++	for (unsigned int i = 0; i < output.offsets.size(); ++i)
++		output.offsets[i] = interpolateTuningFloat(first.offsets[i], second.offsets[i], weight);
++	*result = output;
++	return true;
++}
++
++bool quantizeColourCorrection(const FloatingColourCorrectionData &data,
++			     unsigned int qfactor, unsigned int offsetBits,
++			     QuantizedColourCorrection *result,
++			     std::array<float, 9> *effectiveMatrix)
++{
++	if (!result || !valid(data) || qfactor > 3 || (offsetBits != 11 && offsetBits != 13))
++		return false;
+ 	const float scale = float(1u << (7 + qfactor));
+-	std::array<uint16_t, 9> encoded;
++	const long limit = 1l << (offsetBits - 1);
++	QuantizedColourCorrection output;
+ 	std::array<float, 9> effective;
+ 	for (unsigned int i = 0; i < data.matrix.size(); ++i) {
+ 		long value = std::lround(data.matrix[i] * scale);
+ 		if (value < -2048 || value > 2047) return false;
+-		encoded[i] = uint16_t(value) & 0xfff;
++		output.matrix[i] = int16_t(value);
+ 		effective[i] = float(value) / scale;
+ 	}
+-	ColourCorrectionParameters output;
+-	constexpr std::array<unsigned int, 3> order{ 1, 2, 0 };
+-	for (unsigned int i = 0; i < order.size(); ++i) {
+-		unsigned int row = order[i];
+-		output.a[i] = encoded[row * 3 + 1];
+-		output.b[i] = encoded[row * 3 + 2];
+-		output.c[i] = encoded[row * 3];
+-		if (data.offsets[row] < -1024 || data.offsets[row] > 1023) return false;
+-		output.k[i] = uint16_t(data.offsets[row]) & 0x7ff;
++	for (unsigned int i = 0; i < data.offsets.size(); ++i) {
++		long value = std::lround(data.offsets[i]);
++		if (value < -limit || value >= limit) return false;
++		output.offsets[i] = int16_t(value);
+ 	}
+ 	output.qfactor = qfactor;
+ 	*result = output;
+--- a/src/ipa/camss-vfe/colour_correction_profile.h
++++ b/src/ipa/camss-vfe/colour_correction_profile.h
+@@ -10,13 +10,17 @@
+ namespace libcamera::ipa::camss {
+ 
+ using ColourMatrix = std::array<float, 9>;
++enum class ColourCorrectionTarget { Ife, Ipe };
+ struct ColourCorrectionInputs {
+  std::optional<float> luxIndex, analogueGain;
+  uint32_t statisticsSof;
+ };
+ struct ColourCorrectionState {
++	/* data/parameters retain the legacy IFE representation. */
+ 	ColourCorrectionData data;
+ 	ColourCorrectionParameters parameters;
++	FloatingColourCorrectionData floating;
++	QuantizedColourCorrection quantized;
+ 	ColourMatrix effective;
+  std::optional<float> aecValue;
+  std::optional<int32_t> temperature;
+@@ -26,7 +30,8 @@
+ class ColourCorrectionProfile {
+ public:
+ 	static int configure(const ValueNode &tuning,
+-			     std::optional<ColourCorrectionProfile> *profile);
++			     std::optional<ColourCorrectionProfile> *profile,
++			     ColourCorrectionTarget target = ColourCorrectionTarget::Ife);
+ 	int manual(Span<const float> matrix, ColourCorrectionState *state) const;
+ 	int select(std::optional<int32_t> kelvin, const std::optional<ColourMatrix> &manual,
+ 		   const ColourCorrectionState *fallback, ColourCorrectionState *state,
+@@ -39,12 +44,13 @@
+ 	struct Node {
+ 		std::array<float, 6> trigger{};
+ 		std::vector<Node> children;
+-		ColourCorrectionData data{};
++		FloatingColourCorrectionData data{};
+ 	};
+ 	int readNodes(const ValueNode &value, unsigned int level, std::vector<Node> *nodes);
+ 	int evaluate(const std::vector<Node> &nodes, unsigned int level, float kelvin, float aecValue,
+-		     ColourCorrectionData *data) const;
+-	int encode(const ColourCorrectionData &data, ColourCorrectionState *state) const;
++		     FloatingColourCorrectionData *data) const;
++	int encode(const FloatingColourCorrectionData &data, ColourCorrectionState *state) const;
++	ColourCorrectionTarget target_ = ColourCorrectionTarget::Ife;
+ 	unsigned int qfactor_ = 0, hdrPosition_ = 2, aecPosition_ = 0, ledIndex_ = 0;
+  bool runtimeAec_ = false;
+ 	float drcGain_ = 1, hdrRatio_ = 1, aecValue_ = 0;
+--- a/src/ipa/camss-vfe/colour_correction_profile.cpp
++++ b/src/ipa/camss-vfe/colour_correction_profile.cpp
+@@ -8,17 +8,37 @@
+ namespace libcamera::ipa::camss {
+ namespace {
+ constexpr std::array<unsigned int, 5> triggerSize{ 2, 6, 1, 4, 2 };
+-const ColourCorrectionData unity{ { 1, 0, 0, 0, 1, 0, 0, 0, 1 }, { 0, 0, 0 } };
++const FloatingColourCorrectionData unity{ { 1, 0, 0, 0, 1, 0, 0, 0, 1 }, { 0, 0, 0 } };
++ColourCorrectionData legacy(const FloatingColourCorrectionData &data)
++{
++	ColourCorrectionData output{ data.matrix, {} };
++	for (unsigned int i = 0; i < output.offsets.size(); ++i)
++		output.offsets[i] = int32_t(data.offsets[i]);
++	return output;
++}
++FloatingColourCorrectionData floating(const ColourCorrectionData &data)
++{
++	FloatingColourCorrectionData output{ data.matrix, {} };
++	for (unsigned int i = 0; i < output.offsets.size(); ++i)
++		output.offsets[i] = float(data.offsets[i]);
++	return output;
++}
+ } /* namespace */
+ 
+-int ColourCorrectionProfile::encode(const ColourCorrectionData &data,
++int ColourCorrectionProfile::encode(const FloatingColourCorrectionData &data,
+ 				    ColourCorrectionState *state) const
+ {
+ 	if (!state) return -EINVAL;
+-	ColourCorrectionState result;
+-	result.data = data;
+-	if (!encodeColourCorrection(data, qfactor_, &result.parameters, &result.effective))
++	ColourCorrectionState result{};
++	if (!quantizeColourCorrection(data, qfactor_, target_ == ColourCorrectionTarget::Ipe ? 13 : 11,
++				      &result.quantized, &result.effective))
+ 		return -ERANGE;
++	result.floating = data;
++	if (target_ == ColourCorrectionTarget::Ife) {
++		result.data = legacy(data);
++		if (!encodeColourCorrection(result.data, qfactor_, &result.parameters, &result.effective))
++			return -ERANGE;
++	}
+ 	*state = result;
+ 	return 0;
+ }
+@@ -27,7 +47,7 @@
+ 				    ColourCorrectionState *state) const
+ {
+ 	if (matrix.size() != 9) return -EINVAL;
+-	ColourCorrectionData data{};
++	FloatingColourCorrectionData data{};
+ 	std::copy(matrix.begin(), matrix.end(), data.matrix.begin());
+ 	return encode(data, state);
+ }
+@@ -47,7 +67,7 @@
+ 		 * Keep the last matrix, or begin with unity, without inventing a CCT. */
+ 		return encode(unity, state);
+ 	}
+-	ColourCorrectionData data;
++	FloatingColourCorrectionData data;
+  int ret = evaluate(core_, 0, float(*kelvin), *aec, &data);
+  if (ret) return ret;
+  ret = encode(data, state);
+@@ -93,9 +113,16 @@
+ 				node.data.matrix[i] = *v;
+ 			}
+ 			for (unsigned int i = 0; i < 3; ++i) {
+-				auto v = offsets[i].get<int32_t>();
+-				if (!v) return -EINVAL;
+-				node.data.offsets[i] = *v;
++				if (target_ == ColourCorrectionTarget::Ife) {
++					auto v = offsets[i].get<int32_t>();
++					if (!v) return -EINVAL;
++					if (*v < -4096 || *v > 4095) return -ERANGE;
++					node.data.offsets[i] = float(*v);
++				} else {
++					auto v = offsets[i].get<float>();
++					if (!v) return -EINVAL;
++					node.data.offsets[i] = *v;
++				}
+ 			}
+ 			ColourCorrectionState check;
+ 			if (encode(node.data, &check)) return -ERANGE;
+@@ -110,10 +137,10 @@
+ 
+ int ColourCorrectionProfile::evaluate(const std::vector<Node> &nodes,
+ 				      unsigned int level, float kelvin, float aecValue,
+-				      ColourCorrectionData *data) const
++				      FloatingColourCorrectionData *data) const
+ {
+ 	if (nodes.empty() || level >= triggerSize.size()) return -EINVAL;
+-	auto child = [&](const Node &node, ColourCorrectionData *output) {
++	auto child = [&](const Node &node, FloatingColourCorrectionData *output) {
+ 		if (level == 4) { *output = node.data; return 0; }
+ 		return evaluate(node.children, level + 1, kelvin, aecValue, output);
+ 	};
+@@ -129,21 +156,27 @@
+ 		if (value <= first.trigger[position + 1] || i + 1 == nodes.size()) return child(first, data);
+ 		const Node &second = nodes[i + 1];
+ 		if (value < second.trigger[position]) {
+-			ColourCorrectionData a, b;
++			FloatingColourCorrectionData a, b;
+ 			int ret = child(first, &a);
+ 			if (ret) return ret;
+ 			ret = child(second, &b);
+ 			if (ret) return ret;
+ 			float weight = float((double(value) - first.trigger[position + 1]) /
+ 					     (double(second.trigger[position]) - first.trigger[position + 1]));
+-			return interpolateColourCorrection(a, b, weight, data) ? 0 : -ERANGE;
++			if (target_ == ColourCorrectionTarget::Ipe)
++				return interpolateFloatingColourCorrection(a, b, weight, data) ? 0 : -ERANGE;
++			ColourCorrectionData result;
++			if (!interpolateColourCorrection(legacy(a), legacy(b), weight, &result)) return -ERANGE;
++			*data = floating(result);
++			return 0;
+ 		}
+ 	}
+ 	return -EINVAL;
+ }
+ 
+ int ColourCorrectionProfile::configure(const ValueNode &tuning,
+-				       std::optional<ColourCorrectionProfile> *profile)
++				       std::optional<ColourCorrectionProfile> *profile,
++				       ColourCorrectionTarget target)
+ {
+ 	if (!profile) return -EINVAL;
+ 	profile->reset();
+@@ -155,6 +188,7 @@
+ 		if (!*enabled) return 0;
+ 	}
+ 	ColourCorrectionProfile result;
++	result.target_ = target;
+ 	auto q = tuning["qfactor"].get<unsigned int>();
+ 	if (!q || *q > 3) return -EINVAL;
+ 	result.qfactor_ = *q;
+@@ -182,7 +216,7 @@
+ 	result.drcGain_ = *drc; result.hdrRatio_ = *ratio; result.aecValue_ = *aecValue; result.ledIndex_ = *led;
+ 	int ret = result.readNodes(tuning["core"], 0, &result.core_);
+ 	if (ret) return ret;
+-	ColourCorrectionData probe;
++	FloatingColourCorrectionData probe;
+ 	ret = result.evaluate(result.core_, 0, 6500, result.aecValue_, &probe);
+ 	if (ret) return ret;
+ 	*profile = std::move(result);
+--- a/src/ipa/camss-vfe/ipe_frame_history.h
++++ b/src/ipa/camss-vfe/ipe_frame_history.h
+@@ -18,6 +18,9 @@
+ 	uint32_t sof = 0, exposureLines = 0, gainCode = 0, sensorSource = 0, ispRevision = 0;
+ 	float analogueGain = 0, exposureIndex = 0, luxIndex = 0;
+ 	bool luxValid = false, ifeGammaOverride = false;
++	/* Frozen with the effective IFE/WB revision, never read from newer controls. */
++	std::optional<int32_t> colourTemperature;
++	std::optional<std::array<float, 9>> manualColourMatrix;
+ 	std::array<uint32_t, 1024> histogram{};
+ };
+ 
+--- a/src/ipa/camss-vfe/ipe_tone_profile.h
++++ b/src/ipa/camss-vfe/ipe_tone_profile.h
+@@ -9,6 +9,7 @@
+ #include "../libipa/ltm13_frame.h"
+ #include "../libipa/tmc_runtime.h"
+ #include "ipe_frame_history.h"
++#include "colour_correction_profile.h"
+ 
+ namespace libcamera {
+ class ValueNode;
+@@ -24,6 +25,7 @@
+ 	Tmc11PolicyResult policy{};
+ 	TargetAdrcMetadata adrc{}, cache{};
+ 	Ltm13FaceSmoothingState smoothing{};
++	std::optional<ColourCorrectionState> colourCorrection;
+ };
+ /* Calibration belongs in device-private configuration. This adapter initially
+  * accepts explicitly single-exposure, linear-AE paths with no ADRC exposure
+@@ -39,10 +41,15 @@
+                const IpeToneState *appliedTmc = nullptr) const;
+  int prepareGtm(const IpeFrameObservation &frame, const IpeToneState &history,
+                 camss_params_ife_gtm *parameters, IpeToneState *next) const;
+- void bootstrap(qcom_ipe_a5_frame_params *packet) const { *packet={};packet->version=1;packet->size=sizeof(*packet);packet->colour=colour_; }
++ int bootstrap(qcom_ipe_a5_frame_params *packet, const IpeFrameObservation *frame = nullptr,
++               const IpeToneState *history = nullptr) const;
++ const ColourCorrectionProfile *colourCorrection() const { return ccm_ ? &*ccm_ : nullptr; }
+  bool tracksGtm() const { return gtmConfigured_; }
+ 	bool factoryMode() const { return mode_ == 0; }
+ private:
++	int prepareColour(const IpeFrameObservation &frame, const IpeToneState &history,
++			  qcom_ipe_a5_frame_params *packet, IpeToneState *next) const;
++	std::optional<ColourCorrectionProfile> ccm_;
+ 	bool gtmConfigured_ = false, gtmEnabled_ = false;
+  std::array<float,65> gtmAxis_{};
+  std::array<uint32_t,65> gtmDomain_{};
+--- a/src/ipa/camss-vfe/ipe_tone_profile.cpp
++++ b/src/ipa/camss-vfe/ipe_tone_profile.cpp
+@@ -113,6 +113,9 @@
+ 	if (!array(node["colour"], &bytes)) return -EINVAL;
+ 	std::memcpy(&p.colour_, bytes.data(), bytes.size());
+ 	if (p.colour_.modules != (QCOM_IPE_A5_COLOUR_CST | QCOM_IPE_A5_COLOUR_CV) || p.colour_.padding) return -EINVAL;
++	int colourStatus = ColourCorrectionProfile::configure(node["colour_correction"], &p.ccm_, ColourCorrectionTarget::Ipe);
++	if (colourStatus) return colourStatus;
++	if (p.ccm_ && p.mode_ != 0) return -ENOTSUP;
+ 	p.tmcUid_ = node["tmc_uid"].get<uint32_t>(0);
+ 	p.tmcEnabled_ = node["tmc_enabled"].get<uint32_t>(2); p.tmcUseLtm_ = node["tmc_use_ltm"].get<uint32_t>(2);
+ 	p.tmcUseGtm_ = node["tmc_use_gtm"].get<uint32_t>(2);
+@@ -202,6 +205,40 @@
+  }
+  *parameters=packet;*next=state;return 0;
+ }
++int IpeToneProfile::prepareColour(const IpeFrameObservation &frame, const IpeToneState &history,
++				 qcom_ipe_a5_frame_params *packet, IpeToneState *next) const
++{
++	if (!ccm_) return 0;
++	ColourCorrectionInputs inputs{ frame.luxValid ? std::optional<float>(frame.luxIndex) : std::nullopt,
++		frame.analogueGain, frame.sof };
++	ColourCorrectionState selected;
++	int ret = ccm_->select(frame.colourTemperature, frame.manualColourMatrix,
++		history.colourCorrection ? &*history.colourCorrection : nullptr, &selected, &inputs);
++	if (ret) return ret;
++	const auto &q = selected.quantized;
++	std::copy(q.matrix.begin(), q.matrix.end(), packet->colour.cc.matrix);
++	std::copy(q.offsets.begin(), q.offsets.end(), packet->colour.cc.offset);
++	packet->colour.cc.shift = q.qfactor;
++	packet->colour.modules |= QCOM_IPE_A5_COLOUR_CC;
++	next->colourCorrection = selected;
++	return 0;
++}
++
++int IpeToneProfile::bootstrap(qcom_ipe_a5_frame_params *packet,
++			    const IpeFrameObservation *frame, const IpeToneState *history) const
++{
++	if (!packet || (ccm_ && !frame)) return -ENODATA;
++	qcom_ipe_a5_frame_params result{};
++	result.version = 1; result.size = sizeof(result); result.colour = colour_;
++	if (ccm_) {
++		IpeToneState initial, next;
++		int ret = prepareColour(*frame, history ? *history : initial, &result, &next);
++		if (ret) return ret;
++	}
++	*packet = result;
++	return 0;
++}
++
+ int IpeToneProfile::calculate(const IpeFrameObservation &frame, const IpeToneState &history,
+ 			    qcom_ipe_a5_frame_params *parameters, IpeToneState *next, const IpeToneState *appliedTmc) const
+ {
+@@ -262,6 +299,8 @@
+ 		uint32_t d = (encoded[i] >> 10) & 1023; packet.gamma.delta[ch][i] = d >= 512 ? int(d) - 1024 : int(d);
+ 	}
+ 	state.initialized = true; state.ltmLuxValid = true; state.ltmLuxIndex = frame.luxIndex;
++	int colourStatus = prepareColour(frame, history, &packet, &state);
++	if (colourStatus) return colourStatus;
+ 	*parameters = packet; *next = state; return 0;
+ }
+ } /* namespace libcamera::ipa::camss */
+--- a/src/ipa/camss-vfe/camss.cpp
++++ b/src/ipa/camss-vfe/camss.cpp
+@@ -72,6 +72,9 @@
+  std::optional<GtmHistory::Version> proposedGtm_;
+  std::map<uint64_t,GtmHistory::Pointer> frameGtms_;
+  bool tracksGtm() const { return ipeTone_ && ipeTone_->tracksGtm(); }
++ const ColourCorrectionProfile *controlColourProfile() const {
++  return colourCorrection_ ? &*colourCorrection_ : ipeTone_ ? ipeTone_->colourCorrection() : nullptr;
++ }
+  void commitParameters(uint64_t epoch,uint32_t firstSof,uint32_t revision);
+  int describeSensor(const IPACameraSensorInfo &info, const ControlInfoMap &controls, ControlInfoMap *ipaControls);
+  int translate(const ControlList &controls, bool startup, ControlList *sensorControls);
+@@ -89,7 +92,7 @@
+ 	bool awbEnabled_ = false;
+ 	uint32_t ispRevision_ = 0;
+ 	std::optional<AutoIspUpdate> pendingWhiteBalance_;
+-	struct ParameterContext { uint32_t revision; double red, blue; bool awbEnabled; double sourceRed, sourceBlue; std::optional<int32_t> colourTemperature, estimatedColourTemperature; std::optional<ColourCorrectionState> colourCorrection; std::optional<DynamicLscState> lensShading; bool gammaEnabled; };
++	struct ParameterContext { uint32_t revision; double red, blue; bool awbEnabled; double sourceRed, sourceBlue; std::optional<int32_t> colourTemperature, estimatedColourTemperature; std::optional<ColourCorrectionState> colourCorrection; std::optional<DynamicLscState> lensShading; bool gammaEnabled; std::optional<ColourMatrix> manualIpeColourMatrix; };
+ 	std::map<uint32_t, ParameterContext> preparedParameters_, parameterHistory_;
+  bool automatic_ = false;
+  uint32_t revision_ = 0;
+@@ -300,11 +303,14 @@
+   if(ret || (ipeTone_ && !lux_)) return ret ? ret : -EINVAL;
+   ret=ColourCorrectionProfile::configure(tuning["colour_correction"],&colourCorrection_);
+   if (ret) return ret;
+-  if (colourCorrection_) {
++  /* The two stages straddle nonlinear tone processing; exposing a single
++   * effective matrix for simultaneous IFE/IPE profiles would be ambiguous. */
++  if (colourCorrection_ && ipeTone_ && ipeTone_->colourCorrection()) return -ENOTSUP;
++  if (const auto *colourProfile = controlColourProfile()) {
+    ControlInfoMap::Map map;
+    for (const auto &[id,value]:*ipaControls) map.emplace(id,value);
+-   const std::array<float,9> minimum{colourCorrection_->minimum(),colourCorrection_->minimum(),colourCorrection_->minimum(),colourCorrection_->minimum(),colourCorrection_->minimum(),colourCorrection_->minimum(),colourCorrection_->minimum(),colourCorrection_->minimum(),colourCorrection_->minimum()};
+-   const std::array<float,9> maximum{colourCorrection_->maximum(),colourCorrection_->maximum(),colourCorrection_->maximum(),colourCorrection_->maximum(),colourCorrection_->maximum(),colourCorrection_->maximum(),colourCorrection_->maximum(),colourCorrection_->maximum(),colourCorrection_->maximum()};
++   std::array<float,9> minimum,maximum;
++   minimum.fill(colourProfile->minimum());maximum.fill(colourProfile->maximum());
+    const std::array<float,9> identity{1,0,0,0,1,0,0,0,1};
+    map[&controls::ColourCorrectionMatrix]=ControlInfo(ControlValue(Span<const float,9>(minimum)),ControlValue(Span<const float,9>(maximum)),ControlValue(Span<const float,9>(identity)));
+    *ipaControls=ControlInfoMap(std::move(map),controls::controls);
+@@ -388,10 +394,11 @@
+    continue;
+   }
+   if (id == controls::ColourCorrectionMatrix.id()) {
+-   if (!colourCorrection_) return -ENOTSUP;
++   const auto *colourProfile = controlColourProfile();
++   if (!colourProfile) return -ENOTSUP;
+    if (value.type()!=ControlTypeFloat || !value.isArray() || value.numElements()!=9) return -EINVAL;
+    ColourCorrectionState check;
+-   int status=colourCorrection_->manual(value.get<Span<const float>>(),&check);
++   int status=colourProfile->manual(value.get<Span<const float>>(),&check);
+    if (status) return status;
+    continue;
+   }
+@@ -788,7 +795,7 @@
+ 	size_t used;
+ 	ret = encodeParameters(it->second.memory->planes()[0], profile_, red, blue, input_, Rectangle(input_), &used, uploadLsc, selected ? &ccm : nullptr, revision==0&&gamma_?&*gamma_:nullptr,ds4_?&*ds4_:nullptr,gtmUpload?&gtmUpload->parameters:nullptr);
+ 	if (!ret) {
+-		preparedParameters_[revision] = { revision, effectiveRed, effectiveBlue, awbEnabled_, red, blue, colourTemperature_, whiteBalance_ ? whiteBalance_->temperature(effectiveRed,effectiveBlue) : std::nullopt, selected, selectedLsc, bool(gamma_) };
++		preparedParameters_[revision] = { revision, effectiveRed, effectiveBlue, awbEnabled_, red, blue, colourTemperature_, whiteBalance_ ? whiteBalance_->temperature(effectiveRed,effectiveBlue) : std::nullopt, selected, selectedLsc, bool(gamma_), manualMatrix_ };
+ 		*bytesused = used;
+   if(gtmUpload) {
+    proposedGtm_.reset();
+@@ -998,6 +1005,8 @@
+   observation.exposureNs=std::llround(sensorContext.exposureLines*lineUs_*1000);
+   observation.analogueGain=float(helper_->gain(sensorContext.gainCode));
+   observation.ispRevision=result.ispRevision;observation.ifeGammaOverride=context->second.gammaEnabled;
++  observation.colourTemperature=context->second.colourTemperature ? context->second.colourTemperature : context->second.estimatedColourTemperature;
++  observation.manualColourMatrix=context->second.manualIpeColourMatrix;
+   observation.luxValid=result.luxValid;observation.exposureIndex=result.exposureIndex;observation.luxIndex=result.luxIndex;
+   uint64_t token=0;
+   const int status=ipeHistory_.prepare(observation,&token);
+@@ -1051,10 +1060,12 @@
+   if(!frame || found==frameGtms_.end() || found->second->parameters.cookie!=frame->gtmCookie)return -ENODATA;
+   applied=found->second;
+   if(!applied->ready) {
+-   qcom_ipe_a5_frame_params packet;ipeTone_->bootstrap(&packet);
++   qcom_ipe_a5_frame_params packet;int ret=ipeTone_->bootstrap(&packet,frame,&numericHistory_.state());
++   if(ret)return ret;
+    const auto *p=reinterpret_cast<const uint8_t*>(&packet);parameters->assign(p,p+sizeof packet);
+    *revision=numericHistory_.revision();
+-   LOG(IPACamss,Info)<<"IPE_TONE_BOOTSTRAP sof="<<sof<<" cookie="<<frame->gtmCookie<<" generation="<<frame->gtmGeneration;
++   LOG(IPACamss,Info)<<"IPE_TONE_BOOTSTRAP sof="<<sof<<" cookie="<<frame->gtmCookie<<" generation="<<frame->gtmGeneration
++    <<" ccm="<<bool(packet.colour.modules&QCOM_IPE_A5_COLOUR_CC)<<" cct="<<frame->colourTemperature.value_or(0);
+    return 0;
+   }
+  }
+@@ -1090,6 +1101,10 @@
+ 		<< " exposure-index=" << frame->exposureIndex << " previous-ltm-lux=" << numericHistory_.state().ltmLuxIndex << " factory=" << ipeTone_->factoryMode()
+   <<" gtm-cookie="<<next.gtmCookie<<" gtm-generation="<<next.gtmGeneration
+   <<" gtm-source-sof="<<(applied?applied->sourceSof:0)<<" gtm-source-histogram="<<(applied?applied->sourceHistogram:0);
++ if(next.colourCorrection)LOG(IPACamss,Info)<<"IPE_CCM_PREPARE sof="<<sof<<" token="<<token
++  <<" isp-revision="<<frame->ispRevision<<" source-sof="<<next.colourCorrection->statisticsSof.value_or(0)
++  <<" cct="<<next.colourCorrection->temperature.value_or(0)<<" manual="<<bool(frame->manualColourMatrix)
++  <<" qfactor="<<next.colourCorrection->quantized.qfactor;
+ 	return 0;
+ }
+ 
+--- a/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
++++ b/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
+@@ -89,6 +89,7 @@
+   bool imageFinished = false, rawReady = false, failed = false;
+    uint64_t ipeToken = 0;
+    uint32_t ipeSof = 0;
++   std::optional<std::array<float, 9>> ipeColourMatrix{};
+  };
+  std::map<Request *, PendingFrame> requests_;
+  Request *ipeActive_ = nullptr;
+@@ -1355,6 +1356,15 @@
+     <<" revision="<<toneRevision<<" full-sequence="<<buffer->_d()->kernelSequence()
+     <<" pd10-sequence="<<requests_.at(request).coarse->_d()->kernelSequence()<<" result="<<ret;
+   }
++  if(!ret && !tone.empty() && (packet.colour.modules&QCOM_IPE_A5_COLOUR_CC)) {
++   if(packet.colour.cc.shift>3)ret=-ERANGE;
++   else {
++    std::array<float,9> matrix;
++    const float scale=float(1u<<(7+packet.colour.cc.shift));
++    for(unsigned int i=0;i<matrix.size();++i)matrix[i]=float(packet.colour.cc.matrix[i])/scale;
++    requests_.at(request).ipeColourMatrix=matrix;
++   }
++  }
+   if(!ret)ret=ipe_->queue(buffer,output,tone.empty()?nullptr:&packet,requests_.at(request).coarse);
+   LOG(CamssVfe,Info)<<"IPE_TONE_QUEUE epoch="<<toneEpoch<<" sof="<<sequence<<" token="<<toneToken
+    <<" revision="<<toneRevision<<" fresh="<<toneFresh<<" bytes="<<tone.size()<<" pd10="<<coarseEnabled_<<" result="<<ret;
+@@ -1377,6 +1387,8 @@
+   FrameBuffer *coarse=it->second.coarse;it->second.coarse=nullptr;
+   if(running_ && coarse_->queueBuffer(coarse))success=false;
+  }
++ if(success && it->second.ipeColourMatrix)
++  request->_d()->metadata().set(controls::ColourCorrectionMatrix,Span<const float,9>(*it->second.ipeColourMatrix));
+  it->second.imageFinished=true;
+  it->second.failed |= !success;
+  tryComplete(request);

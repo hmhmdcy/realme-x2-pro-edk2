@@ -1,0 +1,56 @@
+{
+  "stage": 394,
+  "retained_oem_sources_verified": true,
+  "sources": [
+    {
+      "commit": "9668fcdc6ec15be7a10d66f7b93c347829e0fdb6",
+      "path": "drivers/media/platform/msm/camera/cam_icp/hfi.c",
+      "sha256": "e9b369c7b6c1ef4e75a996d13ce195a91365e910dbec67b4fb9be38525335619",
+      "functions": [
+        {
+          "name": "cam_hfi_disable_cpu",
+          "line": 517,
+          "lines": 33,
+          "calls_global_linux_reset_control": false,
+          "uses_raw_global_camcc_bcr": false
+        }
+      ]
+    },
+    {
+      "commit": "9668fcdc6ec15be7a10d66f7b93c347829e0fdb6",
+      "path": "drivers/media/platform/msm/camera/cam_icp/icp_hw/icp_hw_mgr/cam_icp_hw_mgr.c",
+      "sha256": "f946484530f66d2b7c0c042e8783bc6896b6db4db00063e07d7064b62f991015",
+      "functions": [
+        {
+          "name": "cam_icp_mgr_trigger_recovery",
+          "line": 1965,
+          "lines": 22,
+          "calls_global_linux_reset_control": false,
+          "uses_raw_global_camcc_bcr": false
+        },
+        {
+          "name": "cam_icp_ipebps_reset",
+          "line": 1924,
+          "lines": 40,
+          "calls_global_linux_reset_control": false,
+          "uses_raw_global_camcc_bcr": false
+        },
+        {
+          "name": "cam_icp_mgr_icp_power_collapse",
+          "line": 2581,
+          "lines": 30,
+          "calls_global_linux_reset_control": false,
+          "uses_raw_global_camcc_bcr": false
+        }
+      ]
+    }
+  ],
+  "prior375_cooperative_stop_evidence": "../kernel375/README.md",
+  "current393_error_path_global_icp_bcr_before_alias_retirement": true,
+  "selected_oem_recovery_resets_ipe_bps_and_cpu_disable_functions_have_no_direct_global_bcr": true,
+  "indirect_resource_reset_call_graph_not_yet_fully_audited": true,
+  "global_reset_boundary_is_next_candidate_not_proven_mechanism": true,
+  "no_production_fix_or_relaxed_dma_ownership_applied": true,
+  "do_not_repeat_same_fault_until_recovery_sequence_revised_and_reviewed": true,
+  "passed": true
+}

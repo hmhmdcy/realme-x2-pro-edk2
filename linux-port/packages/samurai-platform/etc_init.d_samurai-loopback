@@ -1,0 +1,11 @@
+#!/sbin/openrc-run
+description="Initialize loopback for the native persistent rootfs"
+depend() {
+    need sysfs
+    before sshd dbus samurai-usb samurai-radio
+}
+start() {
+    ebegin "Initializing loopback"
+    ip link set dev lo up && ip address replace 127.0.0.1/8 dev lo
+    eend $?
+}

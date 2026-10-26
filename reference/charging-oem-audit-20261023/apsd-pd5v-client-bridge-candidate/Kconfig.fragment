@@ -1,0 +1,23 @@
+
+config USB_DWC3_SAMURAI_APSD_OWNER
+	bool "Samurai APSD DWC lifecycle candidate (no attempt gate yet)"
+	depends on USB_DWC3=y && USB_DWC3_GADGET
+	depends on SERIAL_EUD_CONSOLE=y && PHY_QCOM_USB_SNPS_FEMTO_V2=y
+	depends on POWER_SUPPLY=y
+	default n
+	help
+	  Internal optional coordinator, additionally requiring the explicit
+	  samurai,apsd-owner property. Missing PD/route and EUD/PHY lifetime
+	  coverage refuses every hardware attempt. Not a deployable rerun path.
+
+config USB_DWC3_SAMURAI_APSD_PD5V_CLIENT
+ bool "Samurai pre-attach PD-disabled client bridge (no APSD command)"
+ depends on USB_DWC3_SAMURAI_APSD_OWNER && OF
+ depends on TYPEC_TCPM=y && TYPEC_QCOM_PMIC=y
+ default n
+ help
+   Same-Image internal client only; also requires the explicit DWC
+   samurai,apsd-pd5v-bridge and samurai,apsd-typec properties plus the
+   PD5V driver's double opt-in. Current TYPEC_QCOM_PMIC=m is refused.
+   Establishes real disabled-PD control only after physical detach.
+   Missing route/PHY/transfer gates still deny every APSD command.

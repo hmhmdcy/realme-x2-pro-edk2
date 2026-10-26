@@ -1,0 +1,84 @@
+{
+  "rows": [
+    {
+      "session": "RX51",
+      "preceding": {
+        "file": "rx51/console-overlap-01.raw",
+        "sha256": "a602f3af7673c01d55baf3fd18a7f26c41ccbb4b5bbdbb2859bcc603266685e4",
+        "wire_bytes": 4085,
+        "short_frames": 689,
+        "odd": true
+      },
+      "next_first_frame_gap_crc_proven": true,
+      "missing_journal_seq": 11733
+    },
+    {
+      "session": "RX53",
+      "preceding": {
+        "file": "rx53/candidate-final-boot.raw",
+        "sha256": "74778271893ecfaa7d0d6115b3e64753f797e2f2865de8a6b68be89ae24b53b5",
+        "wire_bytes": 63018,
+        "short_frames": 10623,
+        "odd": true
+      },
+      "next_first_frame_gap_crc_proven": true,
+      "missing_journal_seq": 7287
+    },
+    {
+      "session": "RX55",
+      "preceding": {
+        "file": "rx54/restored-native.raw",
+        "sha256": "a3afd554afb1460506134dfcb894872bc73f29f1413d505dded2445550f582ee",
+        "wire_bytes": 526,
+        "short_frames": 89,
+        "odd": true
+      },
+      "next_first_frame_gap_crc_proven": true,
+      "missing_journal_seq": 7376
+    },
+    {
+      "session": "RX46",
+      "preceding": {
+        "file": "rx46/etw-r46g-capture.native.raw",
+        "sha256": "cbfdb6733a084748f58ad7682ece72f9e56dfc333c93950bf521daaf12a1fadd",
+        "wire_bytes": 180,
+        "short_frames": 31,
+        "odd": true
+      },
+      "next_first_frame_gap_crc_proven": false,
+      "missing_journal_seq": null
+    },
+    {
+      "session": "RX58",
+      "preceding": {
+        "file": "rx58/first-status-owner-1.raw",
+        "sha256": "0599df0ed66ebc265b4b4796900fcba803374042a7a0d3723e96774261c642e6",
+        "wire_bytes": 324,
+        "short_frames": 54,
+        "odd": false
+      },
+      "next_owner": 2,
+      "next_first_frame_gap_crc_proven": false,
+      "next_first_status_prefix_present": true
+    },
+    {
+      "session": "RX58",
+      "preceding": {
+        "file": "rx58/first-status-owner-2.raw",
+        "sha256": "0e40dbbe7223c7d1aff901dd1d9d3879a9df59ed11c3b4ab10dfa45e81c402d2",
+        "wire_bytes": 324,
+        "short_frames": 54,
+        "odd": false
+      },
+      "next_owner": 3,
+      "next_first_frame_gap_crc_proven": false,
+      "next_first_status_prefix_present": true
+    }
+  ],
+  "limits": [
+    "Three CRC-proven faults and one inferred old prefix fragment are an association, not a failure probability or cause.",
+    "RX58 owner 1 passes after a full target PnP reload despite RX57 ending with an odd IN frame count; this is not the same ordinary serial-reopen transition.",
+    "Completed short packets are a parity proxy. OUT full packets and subsequent zero-length transfers require separate accounting.",
+    "The odd-IN/even-OUT experiment was defined before execution."
+  ]
+}

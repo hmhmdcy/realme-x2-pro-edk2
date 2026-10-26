@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Reviewed R7 disk-stage request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["transaction", "guard", "identity", "window_token", "old_manifest_sha256", "new_manifest_sha256", "payload_sha256", "payload_base64"],
+  "properties": {
+    "transaction": {"type": "string", "pattern": "^source-stage-r7-[a-z0-9][a-z0-9-]{0,32}$"},
+    "guard": {"const": "/var/lib/samurai/k449-adopted/boot-id-private.txt"},
+    "identity": {
+      "type": "object", "additionalProperties": false,
+      "required": ["boot_id", "serial_sha256", "compatible_sha256"],
+      "properties": {
+        "boot_id": {"type": "string", "format": "uuid"},
+        "serial_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "compatible_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+      }
+    },
+    "window_token": {"type": "string", "pattern": "^[a-f0-9]{48}$"},
+    "old_manifest_sha256": {"const": "944f2d91f66c5642bbcb130c3ef59e022ca6652e599401908f8528a29d34202d"},
+    "new_manifest_sha256": {"const": "5638db4c183ec502ed1df4facfe91111d1956754bb2338a5ddaf8838e9552c68"},
+    "payload_sha256": {"const": "4222242fe16c37beccf2000495c745feec06c4ecaa901c65e1fd6bf5f3685978"},
+    "payload_base64": {"type": "string", "minLength": 31492, "maxLength": 31492, "pattern": "^[A-Za-z0-9+/]+={0,2}$"}
+  }
+}

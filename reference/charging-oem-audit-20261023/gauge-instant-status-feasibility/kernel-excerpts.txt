@@ -1,0 +1,314 @@
+drivers/power/supply/bq27xxx_battery.c
+483: 	bq27z561_regs[BQ27XXX_REG_MAX] = {
+484: 		[BQ27XXX_REG_CTRL] = 0x00,
+485: 		[BQ27XXX_REG_TEMP] = 0x06,
+486: 		[BQ27XXX_REG_INT_TEMP] = INVALID_REG_ADDR,
+487: 		[BQ27XXX_REG_VOLT] = 0x08,
+488: 		[BQ27XXX_REG_AI] = 0x14,
+489: 		[BQ27XXX_REG_FLAGS] = 0x0a,
+490: 		[BQ27XXX_REG_TTE] = 0x16,
+491: 		[BQ27XXX_REG_TTF] = 0x18,
+492: 		[BQ27XXX_REG_TTES] = INVALID_REG_ADDR,
+493: 		[BQ27XXX_REG_TTECP] = INVALID_REG_ADDR,
+494: 		[BQ27XXX_REG_NAC] = INVALID_REG_ADDR,
+495: 		[BQ27XXX_REG_RC] = 0x10,
+496: 		[BQ27XXX_REG_FCC] = 0x12,
+497: 		[BQ27XXX_REG_CYCT] = 0x2a,
+498: 		[BQ27XXX_REG_AE] = INVALID_REG_ADDR,
+499: 		[BQ27XXX_REG_SOC] = 0x2c,
+500: 		[BQ27XXX_REG_DCAP] = 0x3c,
+501: 		[BQ27XXX_REG_AP] = 0x22,
+502: 		BQ27XXX_DM_REG_ROWS,
+503: 	},
+504: 	bq28z610_regs[BQ27XXX_REG_MAX] = {
+505: 		[BQ27XXX_REG_CTRL] = 0x00,
+506: 		[BQ27XXX_REG_TEMP] = 0x06,
+507: 		[BQ27XXX_REG_INT_TEMP] = INVALID_REG_ADDR,
+508: 		[BQ27XXX_REG_VOLT] = 0x08,
+509: 		[BQ27XXX_REG_AI] = 0x14,
+510: 		[BQ27XXX_REG_FLAGS] = 0x0a,
+511: 		[BQ27XXX_REG_TTE] = 0x16,
+512: 		[BQ27XXX_REG_TTF] = 0x18,
+513: 		[BQ27XXX_REG_TTES] = INVALID_REG_ADDR,
+514: 		[BQ27XXX_REG_TTECP] = INVALID_REG_ADDR,
+515: 		[BQ27XXX_REG_NAC] = INVALID_REG_ADDR,
+516: 		[BQ27XXX_REG_RC] = 0x10,
+517: 		[BQ27XXX_REG_FCC] = 0x12,
+518: 		[BQ27XXX_REG_CYCT] = 0x2a,
+519: 		[BQ27XXX_REG_AE] = INVALID_REG_ADDR,
+520: 		[BQ27XXX_REG_SOC] = 0x2c,
+521: 		[BQ27XXX_REG_DCAP] = 0x3c,
+522: 		[BQ27XXX_REG_AP] = 0x22,
+523: 		BQ27XXX_DM_REG_ROWS,
+1049: 	[BQ27421]   = BQ27XXX_DATA(bq27421,   0x80008000, BQ27XXX_O_UTOT | BQ27XXX_O_CFGUP | BQ27XXX_O_RAM),
+1050: 	[BQ27425]   = BQ27XXX_DATA(bq27425,   0x04143672, BQ27XXX_O_UTOT | BQ27XXX_O_CFGUP),
+1051: 	[BQ27426]   = BQ27XXX_DATA(bq27426,   0x80008000, BQ27XXX_O_UTOT | BQ27XXX_O_CFGUP | BQ27XXX_O_RAM),
+1052: 	[BQ27441]   = BQ27XXX_DATA(bq27441,   0x80008000, BQ27XXX_O_UTOT | BQ27XXX_O_CFGUP | BQ27XXX_O_RAM),
+1053: 	[BQ27621]   = BQ27XXX_DATA(bq27621,   0x80008000, BQ27XXX_O_UTOT | BQ27XXX_O_CFGUP | BQ27XXX_O_RAM),
+1054: 	[BQ27Z561]  = BQ27XXX_DATA(bq27z561,  0         , BQ27Z561_O_BITS),
+1055: 	[BQ28Z610]  = BQ27XXX_DATA(bq28z610,  0         , BQ27Z561_O_BITS),
+1056: 	[BQ34Z100]  = BQ27XXX_DATA(bq34z100,  0         , BQ27XXX_O_OTDC | BQ27XXX_O_SOC_SI | \
+1057: 							  BQ27XXX_O_HAS_CI | BQ27XXX_O_MUL_CHEM),
+1058: 	[BQ78Z100]  = BQ27XXX_DATA(bq78z100,  0         , BQ27Z561_O_BITS),
+1845: static bool bq27xxx_battery_is_full(struct bq27xxx_device_info *di, int flags)
+1846: {
+1847: 	if (di->opts & BQ27XXX_O_ZERO)
+1848: 		return (flags & BQ27000_FLAG_FC);
+1849: 	else if (di->opts & BQ27Z561_O_BITS)
+1850: 		return (flags & BQ27Z561_FLAG_FC);
+1851: 	else
+1852: 		return (flags & BQ27XXX_FLAG_FC);
+1853: }
+1854: 
+1855: /*
+1856:  * Return the battery average current in µA and the status
+1857:  * Note that current can be negative signed as well
+1858:  * Or 0 if something fails.
+1859:  */
+1860: static int bq27xxx_battery_current_and_status(
+1861: 	struct bq27xxx_device_info *di,
+1862: 	union power_supply_propval *val_curr,
+1863: 	union power_supply_propval *val_status,
+1864: 	struct bq27xxx_reg_cache *cache)
+1865: {
+1866: 	bool single_flags = (di->opts & BQ27XXX_O_ZERO);
+1867: 	int curr;
+1868: 	int flags;
+1869: 
+1870: 	curr = bq27xxx_read(di, BQ27XXX_REG_AI, false);
+1871: 	if (curr < 0) {
+1872: 		dev_err(di->dev, "error reading current\n");
+1873: 		return curr;
+1874: 	}
+1875: 
+1876: 	if (cache) {
+1877: 		flags = cache->flags;
+1878: 	} else {
+1879: 		flags = bq27xxx_read(di, BQ27XXX_REG_FLAGS, single_flags);
+1880: 		if (flags < 0) {
+1881: 			dev_err(di->dev, "error reading flags\n");
+1882: 			return flags;
+1883: 		}
+1884: 	}
+1885: 
+1886: 	if (di->opts & BQ27XXX_O_ZERO) {
+1887: 		if (!(flags & BQ27000_FLAG_CHGS)) {
+1888: 			dev_dbg(di->dev, "negative current!\n");
+1889: 			curr = -curr;
+1890: 		}
+1891: 
+1892: 		curr = curr * BQ27XXX_CURRENT_CONSTANT / BQ27XXX_RS;
+1893: 	} else {
+1894: 		/* Other gauges return signed value */
+1895: 		curr = (int)((s16)curr) * 1000;
+1896: 	}
+1897: 
+1898: 	if (val_curr)
+1899: 		val_curr->intval = curr;
+1900: 
+1901: 	if (val_status) {
+1902: 		if (bq27xxx_battery_is_full(di, flags))
+1903: 			val_status->intval = POWER_SUPPLY_STATUS_FULL;
+1904: 		else if (curr > 0)
+1905: 			val_status->intval = POWER_SUPPLY_STATUS_CHARGING;
+1906: 		else if (curr < 0)
+1907: 			val_status->intval = POWER_SUPPLY_STATUS_DISCHARGING;
+1908: 		else
+1909: 			val_status->intval = POWER_SUPPLY_STATUS_NOT_CHARGING;
+1910: 	}
+1911: 
+1912: 	return 0;
+1913: }
+1914: 
+1915: static void bq27xxx_battery_update_unlocked(struct bq27xxx_device_info *di)
+1916: {
+1917: 	union power_supply_propval status = di->last_status;
+1918: 	struct bq27xxx_reg_cache cache = {0, };
+1919: 	bool has_singe_flag = di->opts & BQ27XXX_O_ZERO;
+1920: 
+1921: 	cache.flags = bq27xxx_read(di, BQ27XXX_REG_FLAGS, has_singe_flag);
+1922: 	if (di->chip == BQ27000 && (cache.flags & 0xff) == 0xff)
+1923: 		cache.flags = -ENODEV; /* bq27000 hdq read error */
+1924: 	if (cache.flags >= 0) {
+1925: 		cache.capacity = bq27xxx_battery_read_soc(di);
+1926: 
+1927: 		/*
+1928: 		 * On gauges with signed current reporting the current must be
+1929: 		 * checked to detect charging <-> discharging status changes.
+1930: 		 */
+1931: 		if (!(di->opts & BQ27XXX_O_ZERO))
+1932: 			bq27xxx_battery_current_and_status(di, NULL, &status, &cache);
+1933: 	}
+1934: 
+1935: 	if ((di->cache.capacity != cache.capacity) ||
+1936: 	    (di->cache.flags != cache.flags) ||
+1937: 	    (di->last_status.intval != status.intval)) {
+1938: 		di->last_status.intval = status.intval;
+1939: 		power_supply_changed(di->bat);
+1940: 	}
+1941: 
+1942: 	if (memcmp(&di->cache, &cache, sizeof(cache)) != 0)
+1943: 		di->cache = cache;
+1944: 
+1945: 	di->last_update = jiffies;
+1946: 
+1947: 	if (!di->removed && poll_interval > 0)
+1948: 		mod_delayed_work(system_percpu_wq, &di->work, poll_interval * HZ);
+1949: }
+1950: 
+1951: void bq27xxx_battery_update(struct bq27xxx_device_info *di)
+1952: {
+1953: 	mutex_lock(&di->lock);
+1954: 	bq27xxx_battery_update_unlocked(di);
+1955: 	mutex_unlock(&di->lock);
+1956: }
+1957: EXPORT_SYMBOL_GPL(bq27xxx_battery_update);
+1958: 
+2121: static int bq27xxx_battery_get_property(struct power_supply *psy,
+2122: 					enum power_supply_property psp,
+2123: 					union power_supply_propval *val)
+2124: {
+2125: 	int ret = 0;
+2126: 	struct bq27xxx_device_info *di = power_supply_get_drvdata(psy);
+2127: 
+2128: 	mutex_lock(&di->lock);
+2129: 	if (time_is_before_jiffies(di->last_update + 5 * HZ))
+2130: 		bq27xxx_battery_update_unlocked(di);
+2131: 	mutex_unlock(&di->lock);
+2132: 
+2133: 	if (psp != POWER_SUPPLY_PROP_PRESENT && di->cache.flags < 0)
+2134: 		return di->cache.flags;
+2135: 
+2136: 	switch (psp) {
+2137: 	case POWER_SUPPLY_PROP_STATUS:
+2138: 		ret = bq27xxx_battery_current_and_status(di, NULL, val, NULL);
+2139: 		break;
+2140: 	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
+2141: 		ret = bq27xxx_battery_voltage(di, val);
+2142: 		break;
+2143: 	case POWER_SUPPLY_PROP_PRESENT:
+2144: 		val->intval = di->cache.flags < 0 ? 0 : 1;
+2145: 		break;
+2146: 	case POWER_SUPPLY_PROP_CURRENT_NOW:
+2147: 		ret = bq27xxx_battery_current_and_status(di, val, NULL, NULL);
+2148: 		break;
+2149: 	case POWER_SUPPLY_PROP_CAPACITY:
+2150: 		ret = bq27xxx_simple_value(di->cache.capacity, val);
+2219: static void bq27xxx_external_power_changed(struct power_supply *psy)
+2220: {
+2221: 	struct bq27xxx_device_info *di = power_supply_get_drvdata(psy);
+2222: 
+2223: 	/* After charger plug in/out wait 0.5s for things to stabilize */
+2224: 	mod_delayed_work(system_percpu_wq, &di->work, HZ / 2);
+2225: }
+2226: 
+2227: int bq27xxx_battery_setup(struct bq27xxx_device_info *di)
+drivers/power/supply/bq27xxx_battery_i2c.c
+28: static int bq27xxx_battery_i2c_read(struct bq27xxx_device_info *di, u8 reg,
+29: 				    bool single)
+30: {
+31: 	struct i2c_client *client = to_i2c_client(di->dev);
+32: 	struct i2c_msg msg[2];
+33: 	u8 data[2];
+34: 	int ret;
+35: 	int retry = 0;
+36: 
+37: 	if (!client->adapter)
+38: 		return -ENODEV;
+39: 
+40: 	msg[0].addr = client->addr;
+41: 	msg[0].flags = 0;
+42: 	msg[0].buf = &reg;
+43: 	msg[0].len = sizeof(reg);
+44: 	msg[1].addr = client->addr;
+45: 	msg[1].flags = I2C_M_RD;
+46: 	msg[1].buf = data;
+47: 	if (single)
+48: 		msg[1].len = 1;
+49: 	else
+50: 		msg[1].len = 2;
+51: 
+52: 	do {
+53: 		ret = i2c_transfer(client->adapter, msg, ARRAY_SIZE(msg));
+54: 		if (ret == -EBUSY && ++retry < 3) {
+55: 			/* sleep 10 milliseconds when busy */
+56: 			usleep_range(10000, 11000);
+57: 			continue;
+58: 		}
+59: 		break;
+60: 	} while (1);
+61: 
+62: 	if (ret < 0)
+178: 	di = devm_kzalloc(&client->dev, sizeof(*di), GFP_KERNEL);
+179: 	if (!di)
+180: 		return -ENOMEM;
+181: 
+182: 	di->dev = &client->dev;
+183: 	di->chip = id->driver_data;
+184: 	di->name = name;
+185: 
+186: 	di->bus.read = bq27xxx_battery_i2c_read;
+187: 	di->bus.write = bq27xxx_battery_i2c_write;
+188: 	di->bus.read_bulk = bq27xxx_battery_i2c_bulk_read;
+189: 	di->bus.write_bulk = bq27xxx_battery_i2c_bulk_write;
+190: 
+250: 	{ .name = "bq27421", .driver_data = BQ27421 },
+251: 	{ .name = "bq27425", .driver_data = BQ27425 },
+252: 	{ .name = "bq27426", .driver_data = BQ27426 },
+253: 	{ .name = "bq27441", .driver_data = BQ27441 },
+254: 	{ .name = "bq27621", .driver_data = BQ27621 },
+255: 	{ .name = "bq27z561", .driver_data = BQ27Z561 },
+256: 	{ .name = "bq28z610", .driver_data = BQ28Z610 },
+257: 	{ .name = "bq34z100", .driver_data = BQ34Z100 },
+258: 	{ .name = "bq78z100", .driver_data = BQ78Z100 },
+289: 	{ .compatible = "ti,bq27426" },
+290: 	{ .compatible = "ti,bq27441" },
+291: 	{ .compatible = "ti,bq27621" },
+292: 	{ .compatible = "ti,bq27z561" },
+293: 	{ .compatible = "ti,bq28z610" },
+294: 	{ .compatible = "ti,bq34z100" },
+295: 	{ .compatible = "ti,bq78z100" },
+296: 	{},
+297: };
+Documentation/ABI/testing/sysfs-class-power
+41: What:		/sys/class/power_supply/<supply_name>/current_avg
+42: Date:		May 2007
+43: Contact:	linux-pm@vger.kernel.org
+44: Description:
+45: 		Battery:
+46: 
+47: 		  Reports an average IBAT current reading for the battery, over
+48: 		  a fixed period. Normally devices will provide a fixed interval
+49: 		  in which they average readings to smooth out the reported
+50: 		  value.
+51: 
+52: 		USB:
+53: 
+54: 		  Reports an average IBUS current reading over a fixed period.
+55: 		  Normally devices will provide a fixed interval in which they
+56: 		  average readings to smooth out the reported value.
+57: 
+58: 		Access: Read
+59: 
+60: 		Valid values: Represented in microamps. Negative values are
+61: 		used for discharging batteries, positive values for charging
+62: 		batteries and for USB IBUS current.
+63: 
+79: What: 		/sys/class/power_supply/<supply_name>/current_now
+80: Date:		May 2007
+81: Contact:	linux-pm@vger.kernel.org
+82: Description:
+83: 
+84: 		Battery:
+85: 
+86: 		  Reports an instant, single IBAT current reading for the
+87: 		  battery. This value is not averaged/smoothed.
+88: 
+89: 		  Access: Read
+90: 
+91: 		USB:
+92: 
+93: 		  Reports the IBUS current supplied now. This value is generally
+94: 		  read-only reporting, unless the 'online' state of the supply
+95: 		  is set to be programmable, in which case this value can be set
+96: 		  within the reported min/max range.

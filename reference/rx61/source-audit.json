@@ -1,0 +1,70 @@
+{
+  "commit": "14b6fe1ee69cdd9182502629da9192156b9d206a",
+  "source_zip_sha256": "ed5b4309139a286f3ef22ad846495bd7dbcb879dce4b4fa66e1d54d3663641a9",
+  "all_nine_module_provenance_checked": true,
+  "module_hashes": {
+    "QCDSP.c": {
+      "upstream_sha256": "367c01bfe1bf99e57fd6f636d8f78a0dbda27d1ba152a39bae6c3a59aa146d42",
+      "candidate_sha256": "367c01bfe1bf99e57fd6f636d8f78a0dbda27d1ba152a39bae6c3a59aa146d42",
+      "changed": false
+    },
+    "QCINT.c": {
+      "upstream_sha256": "2775c75573e384533248bcf05a4399dcecbcefa0772828d589cbd055178a3676",
+      "candidate_sha256": "2775c75573e384533248bcf05a4399dcecbcefa0772828d589cbd055178a3676",
+      "changed": false
+    },
+    "QCMAIN.c": {
+      "upstream_sha256": "7af40464ce1405d60a7fe998b1534ea32fd6fa698103d909af17e219daa3acda",
+      "candidate_sha256": "7af40464ce1405d60a7fe998b1534ea32fd6fa698103d909af17e219daa3acda",
+      "changed": false
+    },
+    "QCPNP.c": {
+      "upstream_sha256": "fc90dd37159ffac9e6ce21202f9edd436aa73014eedc2c8d1551fca9d51f4f64",
+      "candidate_sha256": "7cf3f3db7878d4a1a037da075e4dfda6985851b7805a42434cf3ae2202c014fd",
+      "changed": true
+    },
+    "QCRD.c": {
+      "upstream_sha256": "6201caf6a8031360bcc942a891a139490c160396dc2b8aeb3bf2cb852440980d",
+      "candidate_sha256": "6201caf6a8031360bcc942a891a139490c160396dc2b8aeb3bf2cb852440980d",
+      "changed": false
+    },
+    "QCSER.c": {
+      "upstream_sha256": "34463fdaef15a86fd5e641ba6331297e886d8a46c840f4cd2ddc1e779392df57",
+      "candidate_sha256": "34463fdaef15a86fd5e641ba6331297e886d8a46c840f4cd2ddc1e779392df57",
+      "changed": false
+    },
+    "QCUSB.c": {
+      "upstream_sha256": "65bae290de9983010b5f6bd44d996cef24b71665bb482040b510ae2aa0dbf909",
+      "candidate_sha256": "65bae290de9983010b5f6bd44d996cef24b71665bb482040b510ae2aa0dbf909",
+      "changed": false
+    },
+    "QCUTILS.c": {
+      "upstream_sha256": "c4c7be6d7503740d7d0fb8fa953f5cff48ece3ed4eb31c97418441ea32ec8238",
+      "candidate_sha256": "c4c7be6d7503740d7d0fb8fa953f5cff48ece3ed4eb31c97418441ea32ec8238",
+      "changed": false
+    },
+    "QCWT.c": {
+      "upstream_sha256": "06d9235e67fd670ef23c9180b2069b43928bc94db9f946874099f8b1367e1d9a",
+      "candidate_sha256": "06d9235e67fd670ef23c9180b2069b43928bc94db9f946874099f8b1367e1d9a",
+      "changed": false
+    }
+  },
+  "all_functions_after_filecreate_unchanged": true,
+  "upstream_inf_has_eud_match": false,
+  "review": [
+    "QCPNP_ConfigUsbDevice: bulk IN and OUT without interrupt -> DEVICETYPE_SERIAL; maximum packet size checks disabled.",
+    "QCSER_SetModemConfig/GetModemConfig/SerialClrDtr/SerialClrRts: serial branch updates local state; CDC transfers confined to CDC branch.",
+    "QCSER_GetStats supports SERIALPERF_STATS; terminal read-only counters remain available in principle.",
+    "QCPNP_EvtDeviceD0Entry restarts worker events; it contains no ResetUsbPipe call.",
+    "QCRD file close cancels sent I/O through WdfIoTargetStop; preparation resets and recovery behavior remain upstream.",
+    "QCWT still adds a ZLP to writes that are a multiple of maximum packet size; no ZLP behavior change in this candidate.",
+    "EvtDeviceFileCreate is documented PASSIVE_LEVEL, compatible with its new registry lookup."
+  ],
+  "sources": [
+    "https://github.com/qualcomm/qcom-usb-kernel-drivers/tree/14b6fe1ee69cdd9182502629da9192156b9d206a",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdfdevice/nc-wdfdevice-evt_wdf_device_file_create",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/wdf/specifying-wdf-directives-in-inf-files",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/develop/run-from-driver-store"
+  ],
+  "limits": "Read-only source and package review, not driver loading or hardware validation."
+}

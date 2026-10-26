@@ -1,0 +1,183 @@
+Subject: [PATCH] samurai: hold panel reset before Linux leaves boot services
+
+The Linux GPIO controller may probe after SMMU initialization, leaving a
+visible firmware-to-native display transition. Arm a one-shot notification
+only around the validated mainline Linux boot option. Use the Qualcomm
+TLMM protocol to assert this board's GPIO6 reset in the BeforeExitBootServices
+group, while firmware interfaces are still available. Keep the panel held
+until the native Linux panel driver runs its normal initialization.
+If image loading returns without exiting boot services, close the event
+without touching the GPIO. Protocol or event errors preserve normal boot.
+
+---
+
+diff --git a/Platform/RenegadePkg/Library/PlatformBootManagerLib/PlatformBm.c b/Platform/RenegadePkg/Library/PlatformBootManagerLib/PlatformBm.c
+--- a/Platform/RenegadePkg/Library/PlatformBootManagerLib/PlatformBm.c
++++ b/Platform/RenegadePkg/Library/PlatformBootManagerLib/PlatformBm.c
+@@ -14,6 +14,7 @@
+ #include <Guid/SerialPortLibVendor.h>
+ #include <Guid/TtyTerm.h>
+ #include <IndustryStandard/Pci22.h>
++#include <Library/BaseMemoryLib.h>
+ #include <Library/BootLogoLib.h>
+ #include <Library/CapsuleLib.h>
+ #include <Library/DevicePathLib.h>
+@@ -36,12 +37,113 @@
+ #include <Protocol/PciRootBridgeIo.h>
+ #include <Protocol/PlatformBootManager.h>
+ #include <Protocol/SimpleFileSystem.h>
++#include <Protocol/EFITlmm.h>
+ 
+ #include <Library/MemoryAllocationLib.h>
+ 
+ #include "PlatformBm.h"
+ 
+ #ifdef SAMURAI_LINUX_KERNEL
++
++#define SAMURAI_PANEL_RESET_CONFIG \
++  EFI_GPIO_CFG (6, 0, GPIO_OUTPUT, GPIO_NO_PULL, GPIO_8MA)
++
++typedef struct {
++  EFI_QCOM_TLMM_PROTOCOL  *Tlmm;
++  EFI_EVENT              Event;
++  BOOLEAN                Attempted;
++  EFI_STATUS             Status;
++} SAMURAI_PANEL_HANDOFF;
++
++STATIC
++VOID
++EFIAPI
++SamuraiPanelBeforeExitBootServices (
++  IN EFI_EVENT  Event,
++  IN VOID       *Context
++  )
++{
++  SAMURAI_PANEL_HANDOFF  *Handoff;
++
++  (VOID)Event;
++  Handoff = Context;
++  if ((Handoff == NULL) || Handoff->Attempted) {
++    return;
++  }
++
++  Handoff->Attempted = TRUE;
++  if ((Handoff->Tlmm == NULL) || (Handoff->Tlmm->ConfigGpio == NULL) ||
++      (Handoff->Tlmm->GpioOut == NULL)) {
++    Handoff->Status = EFI_UNSUPPORTED;
++    return;
++  }
++
++  // This group runs while firmware interfaces and timers are still available.
++  Handoff->Status = Handoff->Tlmm->ConfigGpio (
++                                    SAMURAI_PANEL_RESET_CONFIG,
++                                    TLMM_GPIO_ENABLE
++                                    );
++  if (!EFI_ERROR (Handoff->Status)) {
++    Handoff->Status = Handoff->Tlmm->GpioOut (
++                                      SAMURAI_PANEL_RESET_CONFIG,
++                                      GPIO_LOW_VALUE
++                                      );
++  }
++  DEBUG ((DEBUG_INFO, "[SAMURAI] panel reset before Linux ExitBootServices: %r\n",
++          Handoff->Status));
++}
++
++STATIC
++EFI_STATUS
++SamuraiArmPanelHandoff (
++  OUT SAMURAI_PANEL_HANDOFF  *Handoff
++  )
++{
++  EFI_STATUS  Status;
++
++  ZeroMem (Handoff, sizeof (*Handoff));
++  Handoff->Status = EFI_NOT_READY;
++  Status = gBS->LocateProtocol (
++                  &gQcomTlmmProtocolGuid,
++                  NULL,
++                  (VOID **)&Handoff->Tlmm
++                  );
++  if (EFI_ERROR (Status)) {
++    return Status;
++  }
++  if ((Handoff->Tlmm->Revision < QCOM_TLMM_PROTOCOL_REVISION) ||
++      (Handoff->Tlmm->ConfigGpio == NULL) || (Handoff->Tlmm->GpioOut == NULL)) {
++    return EFI_UNSUPPORTED;
++  }
++
++  Status = gBS->CreateEventEx (
++                  EVT_NOTIFY_SIGNAL,
++                  TPL_CALLBACK,
++                  SamuraiPanelBeforeExitBootServices,
++                  Handoff,
++                  &gEfiEventBeforeExitBootServicesGuid,
++                  &Handoff->Event
++                  );
++  if (EFI_ERROR (Status)) {
++    Handoff->Event = NULL;
++  }
++  return Status;
++}
++
++STATIC
++VOID
++SamuraiDisarmPanelHandoff (
++  IN OUT SAMURAI_PANEL_HANDOFF  *Handoff
++  )
++{
++  if (Handoff->Event != NULL) {
++    if (gBS != NULL) {
++      gBS->CloseEvent (Handoff->Event);
++    }
++    Handoff->Event = NULL;
++  }
++}
++
+ //
+ // SAMURAI: where the mainline Linux kernel lives on a file system.  It used to be
+ // an FFS file in this firmware volume; see SamuraiRegisterKernelBootOption() for why
+@@ -94,6 +196,7 @@
+   EFI_FILE_PROTOCOL                *File;
+   EFI_DEVICE_PATH_PROTOCOL         *DevicePath;
+   EFI_BOOT_MANAGER_LOAD_OPTION     NewOption;
++  SAMURAI_PANEL_HANDOFF            PanelHandoff;
+   EFI_BOOT_MANAGER_LOAD_OPTION     *BootOptions;
+   UINTN                            BootOptionCount;
+   INTN                             OptionIndex;
+@@ -191,7 +294,12 @@
+     // lines out to get the boot menu back.
+     //
+     Print (L"[SAMURAI] starting \\Image now\n");
++    Status = SamuraiArmPanelHandoff (&PanelHandoff);
++    if (EFI_ERROR (Status)) {
++      DEBUG ((DEBUG_WARN, "[SAMURAI] panel handoff unavailable: %r\n", Status));
++    }
+     EfiBootManagerBoot (&NewOption);
++    SamuraiDisarmPanelHandoff (&PanelHandoff);
+     Print (L"[SAMURAI] EfiBootManagerBoot returned - the kernel did not take over\n");
+ 
+     EfiBootManagerFreeLoadOption (&NewOption);
+diff --git a/Platform/RenegadePkg/Library/PlatformBootManagerLib/PlatformBootManagerLib.inf b/Platform/RenegadePkg/Library/PlatformBootManagerLib/PlatformBootManagerLib.inf
+--- a/Platform/RenegadePkg/Library/PlatformBootManagerLib/PlatformBootManagerLib.inf
++++ b/Platform/RenegadePkg/Library/PlatformBootManagerLib/PlatformBootManagerLib.inf
+@@ -35,6 +35,7 @@
+   ShellPkg/ShellPkg.dec
+   Platform/RenegadePkg/RenegadePkg.dec
+   SimpleInit.dec
++  Silicon/Qualcomm/QcomPkg/QcomPkg.dec
+ 
+ [LibraryClasses]
+   BaseLib
+@@ -77,6 +78,7 @@
+   gEfiFileSystemInfoGuid
+   gEfiFileSystemVolumeLabelInfoIdGuid
+   gEfiEndOfDxeEventGroupGuid
++  gEfiEventBeforeExitBootServicesGuid
+   gEfiTtyTermGuid
+   gUefiShellFileGuid
+   gLinuxSimpleMassStorageGuid
+@@ -92,3 +94,4 @@
+   gEfiSimpleFileSystemProtocolGuid
+   gEsrtManagementProtocolGuid
+   gPlatformBootManagerProtocolGuid
++  gQcomTlmmProtocolGuid

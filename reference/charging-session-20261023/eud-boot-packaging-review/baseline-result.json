@@ -1,0 +1,86 @@
+{
+  "passed": false,
+  "scope": "old a30 packaging baseline; no R2 or boot.img generated",
+  "host_exec_session_id": 90615,
+  "host_linux_pid": 579,
+  "host_exec_exit_code": 1,
+  "executed_runner_sha256": "255e73c69eee98da87dea022e2347ccddff743d471a2b9fce2dc30c301a4e708",
+  "input_manifest_sha256": "2caa68c513fd7503e0357aa4eb392594c906c82133c6e8d5d1fd3c3e703a3b87",
+  "rollback_boot_sha256": "a30fb4440726e1c3ab80ad65277db4e57fec9a0924380cc07830a5c6e69ec280",
+  "private_directory": "/mnt/e/edk2-samurai-out/charging-management-20261023/eud-boot-pack-baseline-private-01",
+  "private_result_sha256": "b6bdaa042815759447c2d36d2fdd204644d7db73efdfb3830e9481b260e23637",
+  "old_Android_ID_verified_before_tools": true,
+  "stage_results": [
+    {
+      "stage": "mainFV",
+      "returncode": 0,
+      "byte_equal_reference": true
+    },
+    {
+      "stage": "FV_IMAGE",
+      "returncode": 0,
+      "byte_equal_reference": true
+    },
+    {
+      "stage": "align8",
+      "returncode": 0,
+      "byte_equal_reference": true
+    },
+    {
+      "stage": "LZMA",
+      "returncode": 0,
+      "byte_equal_reference": true
+    },
+    {
+      "stage": "GUIDED",
+      "returncode": 0,
+      "byte_equal_reference": true
+    },
+    {
+      "stage": "containerFFS",
+      "returncode": 0,
+      "byte_equal_reference": true
+    },
+    {
+      "stage": "compactFD",
+      "returncode": 0,
+      "byte_equal_reference": false
+    }
+  ],
+  "failure": "AssertionError('baseline byte difference at compact.fd')",
+  "compact_difference": {
+    "old_bytes": 7340032,
+    "new_bytes": 7340032,
+    "old_sha256": "a71478b42db56f46aeda543031b95743f851d175e5771a3f133991beecdfbb02",
+    "new_sha256": "9b1b7f4479df03f7ce874e501a4f3d47cb57429fe60fd2c8a37aa452a1b6920a",
+    "different_byte_count": 5,
+    "ranges": [
+      {
+        "start": 0,
+        "end": 2,
+        "old_hex": "ce27",
+        "new_hex": "0000"
+      },
+      {
+        "start": 3,
+        "end": 4,
+        "old_hex": "14",
+        "new_hex": "00"
+      },
+      {
+        "start": 50,
+        "end": 52,
+        "old_hex": "a0f4",
+        "new_hex": "6e30"
+      }
+    ]
+  },
+  "parent_inputs_unchanged": true,
+  "parent_input_count": 133,
+  "gzip_executed": false,
+  "raw_or_kernel_payload_generated": false,
+  "retry_executed": false,
+  "candidate_or_device_accessed": false,
+  "source_basis": "GenFvInternalLib.c ForceRebase==0 return3651 precedes mArm detection; TE machine sets mArm at4002; GenerateFvImage3071 gates ARM vector/checksum; UpdateArmResetVector2290-2298 computes B opcode",
+  "minimum_next_step": "new separately approved compact-only baseline using original normal SEC rebase/mArm path and required private SEC/PE sidecars; require final SEC/header/full FD equal a30; never hand-fill vector/checksum"
+}

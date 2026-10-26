@@ -1,0 +1,46 @@
+--- a/drivers/media/platform/qcom/camss/camss-icp-a5-m2m.c
++++ b/drivers/media/platform/qcom/camss/camss-icp-a5-m2m.c
+@@ -20,6 +20,31 @@
+ #include "camss-icp-a5-m2m.h"
+ 
+ #define IPE_IMAGE_MAX (64U * 1024U * 1024U)
++
++#ifdef CAMSS_A5_TEST_COLOUR
++/* Temporary offline test adapter only; absent from the normal build. */
++static unsigned int test_cc_mode;
++module_param(test_cc_mode, uint, 0600);
++MODULE_PARM_DESC(test_cc_mode, "Temporary fixed matrix: 0 bypass, 1 identity, 2 zero, 3 half");
++
++static int test_colour_run(struct camss_a5 *a5, struct camss_a5_session *session,
++			   const struct camss_a5_ipe_job *job,
++			   enum camss_a5_ipe_result *result)
++{
++	struct camss_a5_ipe_cc cc = {};
++	u32 mode = READ_ONCE(test_cc_mode);
++
++	if (!mode)
++		return camss_a5_ipe_run_status(a5, session, job, result);
++	if (mode > 3)
++		return -EINVAL;
++	if (mode != 2)
++		cc.matrix[0] = cc.matrix[4] = cc.matrix[8] = mode == 1 ? 128 : 64;
++	dev_info(a5->dev, "COLOUR_TEST mode=%u request=%u\n", mode, job->request_id);
++	return camss_a5_ipe_run_colour_status(a5, session, job, &cc, result);
++}
++#endif
++
+ 
+ struct ipe_context {
+ 	struct v4l2_fh fh;
+@@ -243,7 +268,11 @@
+ 	if (ret)
+ 		goto hw_fail;
+ 	job.request_id = ctx->sequence + 1;
++	#ifdef CAMSS_A5_TEST_COLOUR
++	ret = test_colour_run(dev->a5, &ctx->session, &job, &result);
++#else
+ 	ret = camss_a5_ipe_run_status(dev->a5, &ctx->session, &job, &result);
++#endif
+ 	/* A proven local rejection errors this queue, not the shared engine. */
+ 	if (!ret || result == CAMSS_A5_IPE_REJECTED)
+ 		goto finish;

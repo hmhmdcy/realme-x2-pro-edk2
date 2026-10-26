@@ -1,0 +1,43 @@
+Subject: [PATCH] software_isp: publish initial IPA parameters before streaming
+
+The synchronous IPA start prepares the first parameters. Copy that snapshot
+before starting the worker, including the initial CCM. Keep asynchronous
+per-frame updates unchanged. Log frame identity next to CPU parameter dumps.
+
+---
+diff --git a/src/libcamera/software_isp/software_isp.cpp b/src/libcamera/software_isp/software_isp.cpp
+--- a/src/libcamera/software_isp/software_isp.cpp
++++ b/src/libcamera/software_isp/software_isp.cpp
+@@ -441,6 +441,8 @@
+ 	if (ret)
+ 		return ret;
+ 
++	/* start() is synchronous: publish its initial parameters before frames. */
++	saveIspParams();
+ 	ispWorkerThread_.start();
+ 
+ 	return debayer_->invokeMethod(&Debayer::start,
+diff --git a/src/ipa/simple/soft_simple.cpp b/src/ipa/simple/soft_simple.cpp
+--- a/src/ipa/simple/soft_simple.cpp
++++ b/src/ipa/simple/soft_simple.cpp
+@@ -331,6 +331,7 @@
+ 		algo->queueRequest(context_, 0, initial, controls);
+ 	for (const auto &algo : algorithms())
+ 		algo->prepare(context_, 0, initial, params_);
++	params_->combinedMatrix = context_.activeState.combinedMatrix;
+ 	initial.sensor.exposure = initial.agc.exposure;
+ 	initial.sensor.gain = initial.agc.gain;
+ 	*sensorControls = this->sensorControls(initial);
+diff --git a/src/libcamera/software_isp/debayer_cpu.cpp b/src/libcamera/software_isp/debayer_cpu.cpp
+--- a/src/libcamera/software_isp/debayer_cpu.cpp
++++ b/src/libcamera/software_isp/debayer_cpu.cpp
+@@ -1163,6 +1163,9 @@
+ 		return;
+ 	}
+ 
++	LOG(Debayer, Debug) << "Processing frame " << frame
++			    << ", sequence " << input->metadata().sequence
++			    << ", timestamp " << input->metadata().timestamp;
+ 	updateLookupTables(params);
+ 
+ 	/* Copy metadata from the input buffer */

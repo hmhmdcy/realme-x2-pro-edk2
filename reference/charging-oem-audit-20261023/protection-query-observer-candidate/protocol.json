@@ -1,0 +1,23 @@
+{
+  "schema": "samurai-protection-mac-evidence-interface-v1",
+  "device": "/sys/devices/platform/samurai-gauge-protection",
+  "capture": {"attribute": "mac_evidence_capture", "mode_octal": "0200", "accepted_text": "capture", "optional_trailing_newline": true, "attempts_per_bound_instance": 1, "repeat_errno": "EALREADY", "valid_request_claimed_before_IO": true},
+  "show": {"attribute": "mac_evidence", "mode_octal": "0400", "IO": false, "cached_only": true, "schema_field": 1, "clock": "CLOCK_BOOTTIME nanoseconds", "output_limit": "one sysfs PAGE_SIZE"},
+  "normal_API_commands_unchanged": ["0001", "0051", "0053", "0054", "0057", "0071"],
+  "diagnostic_only_additions": {"0050": {"standard_name": "SafetyAlert", "payload_bytes": 4, "length_byte": 8}, "0052": {"standard_name": "PFAlert", "payload_bytes": 4, "length_byte": 8}, "0056": {"standard_name": "GaugingStatus", "payload_bytes": 4, "length_byte": 8}},
+  "fixed_sequence": ["0001", "BatteryStatus 0A before", "0051", "0053", "0054", "0057", "0050", "0052", "0056", "BatteryStatus 0A after"],
+  "frame_bytes": 36,
+  "identity_gate": "complete validated 0001 with two-byte payload / length6 and value2719 before any remaining query",
+  "locking": "provider p.lock then I2C_LOCK_SEGMENT for whole sequence; only unlocked __i2c_smbus_xfer and __i2c_transfer while held",
+  "stage_enum": {"0": "not_attempted", "1": "identity_frame", "2": "identity_value", "3": "battery_before", "4": "status_frame", "5": "battery_after", "6": "complete_protocol_sequence"},
+  "per_frame": ["cmd", "attempted", "expected_size", "select_attempted", "select_rc", "read_attempted", "read_rc", "full_read", "validate_attempted", "validate_rc", "started_ns", "select_end_ns", "read_end_ns", "ended_ns", "raw"],
+  "raw_rules": "full_read only after exact two-message completion; complete but invalid echo/length/checksum keeps all36 bytes; incomplete/failed transport emits raw=unavailable",
+  "first_failure": "stop remaining batch, retain terminal result and all prior/full failed frames; no retry/rearm",
+  "complete_is_not_coherence_or_safety": true,
+  "compatibility_verified_always": false,
+  "new_2719_bit_semantics_or_classification": false,
+  "normal_health_TCA_Full_policy_and_existing_fault_unchanged": true,
+  "NVM_FET_unseal_PFenable_REG14_access": false,
+  "default_probe_poll_query_new_commands": false,
+  "implemented_only_offline_not_loaded": true
+}

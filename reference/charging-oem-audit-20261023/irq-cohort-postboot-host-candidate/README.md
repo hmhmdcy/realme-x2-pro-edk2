@@ -1,0 +1,36 @@
+# IRQ cohort postboot host binding
+
+This is an offline-ready saved-evidence reviewer and read-only payload builder. No actual stage, activation, endpoint or postboot request was generated. No SSH, USB, SDK, kernel build or device access was performed. The current prepared Image502 transaction is untouched.
+
+The pure stage component is separately frozen in `stage-proof-frozen.json`; its stable API and original 13 new cases are in `STAGE-PROOF.md`. The host layer pins the final boot-only operator/completion delivery `ff805108…362a41` and the unchanged device R2/archive3 delivery `b2c1d2de…1689b`. It does not change those leaves or any prepared transaction. Source check is the only command-line action:
+
+```powershell
+python -B reference/charging-oem-audit-20261023/irq-cohort-postboot-host-candidate/host.py
+```
+
+Actual use is through the following functions, called by root after the real source stage and independent boot-only activation have finished. No new approval, cooldown, dispatcher or recovery policy is added.
+
+1. `probe_payload(context_path, endpoint)` calls the frozen `review_completed_activation` and `review_stage`. It requires original source adoption, the exact stage worker/supervisor success chain, and actual saved boot `edd…f6e06` flash/reboot child terminal0 proofs, with retained logdump `ace2…63ed1`. It emits a small read-only identity payload in memory. Missing materials fail without creating a directory or request.
+2. Root transfers that payload once using `transport_argv(endpoint)`, the original strict-key options, IPv6 observed peer `fe80::62:bcff:fe28:a101%29`, original HostKeyAlias `169.254.42.1`, command `python3 -`. There is no IP fallback. Root retains the one real Popen and waits its actual exit; no timeout kill/relaunch. Save the exact input as `executed-device-source.py`, stdout as `stdout-private.json`, stderr as `stderr-private.txt`, and original process/terminal receipts described below. This tool neither launches nor supervises a transport.
+3. `make_request(context_path, camera_path, probe_directory)` reaudits all source/activation materials plus those raw probe bytes, exact executed source, strict-key argv and original child terminal0. Both probe identities must be the same new UUID and differ from the source boot; board, rootfs, release, exact #502 and taint must match. `bind(out, context_path, camera_path, probe_directory)` checks all of this before creating its unique private output. It saves the request and exact unchanged device payload; it does not contact the device.
+4. Root sends the resulting `make_payload(request)` bytes using `transport_argv(endpoint, collection=True)`. It preserves the original key/options and uses the frozen collector's required command `python3 -B - --execute --window-confirmed --new-endpoint fe80::62:bcff:fe28:a101%29`. The probe's shorter command would only run the collector's default local check, so these argv are deliberately distinct. Save the same five evidence files for this second, distinct read-only child. After its real wait, `evaluate_response(context_path, camera_path, probe_directory, capture_directory)` recomputes all ten checks using the frozen device's actual `audit`, compares the device result with that recomputation, and requires the actual probed boot UUID. It does not trust a `passed` label. A collection exception or failed audit remains failed with raw files retained. Malformed/binding-inconsistent originals raise an error and are left intact.
+
+Transport receipt contract (actual values, never values reconstructed from PID absence):
+
+```text
+child-private.json: {pid: positive int, start_ticks: positive int, argv: exact transport_argv,
+  stdin_sha256: SHA256 of the exact payload bytes sent to this child}
+terminal-private.json: {pid, start_ticks, argv, stdin_sha256, terminal: true, returncode: actual int,
+  stdout_sha256, stderr_sha256, primary_error: null or actual error,
+  cleanup_errors: [] or actual errors}
+```
+
+Root must save original `/proc` birth ticks/argv while that child exists and preserve unknown results. Absence alone is not a terminal receipt. The terminal result and original stdout/stderr hashes are retained for the same child. A probe with an error or unknown receipt cannot bind a collection request. The small probe uses the unchanged actual identity functions extracted from the frozen collector, not a second model of identity. It reads proc/sysfs/rootfs metadata only, with no CSR MMIO or policy writes. Its default entry reads no device fields.
+
+R2 adds one input-evidence gate: both original process and terminal receipts must record `stdin_sha256 == SHA256(expected exact payload)`. The future root-owned Popen sender records that hash before sending these exact bytes and carries it unchanged into the same child's terminal receipt. A retained source file alone cannot prove that child's stdin. Missing or different input hashes are refused; no actual transmission has occurred in this offline revision. R1's original delivery, host source and README bytes remain under `history/revision-1/` (the original README is an inert `.md.inc` archive). Pure stage-proof and its frozen/source pins are unchanged. Only the new input-binding cases are run for R2; R1's 18 host and 13 stage results are historical reuse, not rerun or claimed against the changed host source.
+
+The device schema historically uses a stage transaction as its collection identity. `collection_guard` therefore projects the authenticated activation guard into a **collection-only** dictionary with stage transaction, source board/boot and exact carrier fields. The request separately preserves the actual activation transaction and full raw activation guard; `guard_sha256` is the original activation raw hash, not a hash claimed for this projection. No guard is created or adopted, and no original guard is edited. The host and frozen completion API authenticate their relation before sending.
+
+The collector retains real SDP/CDP budget, exact Full/FC and protective semantics. A fully charged battery need not be `Charging`. Registration or increasing IRQ counters do not prove physical delivery, icon latency, APSD routing, complete PD support or an effective hardware fix. Those acceptance flags remain false. Boot carrier and current installed/live module evidence are audited by the unchanged device component; boot-only activation alone does not prove them.
+
+Validation is narrow: 13 pure stage cases plus 18 new host cases. The host cases use explicit synthetic saved originals and fake the already-tested stage/completed-activation and Linux-import boundaries, then execute the new host functions and frozen actual device audit. One additional actual device-main case fakes only its collection IO and proves the collection-specific argv reaches its execute branch. The cases cover original-key/endpoint/child/source binding, old or changing boot, separate activation/collection identity, recomputation against forged passed output, partial collection failure, probe-only argv rejection and missing material before mkdir. No old 20/26/27/31/149 suite was rerun. The actual default source-only child and a missing-real-material refusal are separately recorded after final source pinning.

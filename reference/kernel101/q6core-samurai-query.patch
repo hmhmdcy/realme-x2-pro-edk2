@@ -1,0 +1,105 @@
+--- a/sound/soc/qcom/qdsp6/q6core.c
++++ b/sound/soc/qcom/qdsp6/q6core.c
+@@ -76,6 +76,8 @@
+ 	result = data->payload;
+ 	switch (hdr->opcode) {
+ 	case APR_BASIC_RSP_RESULT:{
++		if (data->payload_size < sizeof(*result))
++			return -EINVAL;
+ 		result = data->payload;
+ 		switch (result->opcode) {
+ 		case AVCS_GET_VERSIONS:
+@@ -100,6 +102,10 @@
+ 		struct avcs_cmdrsp_get_fwk_version *fwk;
+ 
+ 		fwk = data->payload;
++		if (data->payload_size < sizeof(*fwk) ||
++		    fwk->num_services > (data->payload_size - sizeof(*fwk)) /
++					sizeof(fwk->svc_api_info[0]))
++			return -EINVAL;
+ 
+ 		core->fwk_version = kmemdup(data->payload,
+ 					    struct_size(fwk, svc_api_info,
+@@ -117,6 +123,10 @@
+ 		struct avcs_cmdrsp_get_version *v;
+ 
+ 		v = data->payload;
++		if (data->payload_size < sizeof(*v) ||
++		    v->num_services > (data->payload_size - sizeof(*v)) /
++				      sizeof(v->svc_api_info[0]))
++			return -EINVAL;
+ 
+ 		core->svc_version = kmemdup(data->payload,
+ 					    struct_size(v, svc_api_info,
+@@ -131,6 +141,8 @@
+ 		break;
+ 	}
+ 	case AVCS_CMDRSP_ADSP_EVENT_GET_STATE:
++		if (data->payload_size < sizeof(u32))
++			return -EINVAL;
+ 		core->get_state_supported = true;
+ 		core->avcs_state = result->opcode;
+ 
+@@ -325,8 +337,38 @@
+ }
+ EXPORT_SYMBOL_GPL(q6core_is_adsp_ready);
+ 
++/* A reply-backed diagnostic for this handset, without opening a PCM route. */
++static ssize_t samurai_api_show(struct device *dev,
++			       struct device_attribute *attr, char *buf)
++{
++	struct q6core_svc_api_info afe = { .api_version = U32_MAX,
++					 .api_branch_version = U32_MAX };
++	struct q6core_svc_api_info asm_info = { .api_version = U32_MAX,
++					      .api_branch_version = U32_MAX };
++	int ret;
++
++	ret = q6core_get_svc_api_info(4, &afe);
++	if (ret)
++		return ret;
++	if (afe.api_version == U32_MAX || afe.api_branch_version == U32_MAX)
++		return -ETIMEDOUT;
++	ret = q6core_get_svc_api_info(7, &asm_info);
++	if (ret)
++		return ret;
++	if (asm_info.api_version == U32_MAX ||
++	    asm_info.api_branch_version == U32_MAX)
++		return -ETIMEDOUT;
++
++	return sysfs_emit(buf, "native_version_reply service4_api=%u service4_branch=%u service7_api=%u service7_branch=%u\n",
++			  afe.api_version, afe.api_branch_version,
++			  asm_info.api_version, asm_info.api_branch_version);
++}
++static DEVICE_ATTR_RO(samurai_api);
++
+ static int q6core_probe(struct apr_device *adev)
+ {
++	int ret;
++
+ 	g_core = kzalloc_obj(*g_core);
+ 	if (!g_core)
+ 		return -ENOMEM;
+@@ -336,12 +378,23 @@
+ 	mutex_init(&g_core->lock);
+ 	g_core->adev = adev;
+ 	init_waitqueue_head(&g_core->wait);
++	if (of_machine_is_compatible("realme,samurai")) {
++		ret = device_create_file(&adev->dev, &dev_attr_samurai_api);
++		if (ret) {
++			kfree(g_core);
++			g_core = NULL;
++			return ret;
++		}
++	}
+ 	return 0;
+ }
+ 
+ static void q6core_exit(struct apr_device *adev)
+ {
+ 	struct q6core *core = dev_get_drvdata(&adev->dev);
++
++	if (of_machine_is_compatible("realme,samurai"))
++		device_remove_file(&adev->dev, &dev_attr_samurai_api);
+ 
+ 	if (core->fwk_version_supported)
+ 		kfree(core->fwk_version);

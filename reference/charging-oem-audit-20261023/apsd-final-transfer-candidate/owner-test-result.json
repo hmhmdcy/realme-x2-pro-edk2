@@ -1,0 +1,61 @@
+{
+  "passed": true,
+  "groups": [
+    "1 actual missing PHY publication defers before PD I/O; later instance binds",
+    "2 real PHY client and PD lease do not bypass the remaining attempt gate",
+    "3 system PM keeps client registration and physical attempt history",
+    "4 provider withdrawal cancels/releases; ordinary resume cannot clear its quarantine",
+    "5 real PD and PHY cancellation in either order preserve independent fences",
+    "6 worker observing revoked metadata fences retirement before cleanup",
+    "7 provider callback context pin survives DWC unbind before callback dispatch",
+    "8 forced supplier removal restores PHY then cancels DWC; later retirement consumes remaining tokens",
+    "9 failed exact restore remains quarantined; revoked handle is dropped without another MMIO attempt",
+    "10 busy unregister retains the owner; normal PM restores through the same client",
+    "11 no naked PHY fallback; shutdown and remove share the actual provider callback",
+    "12 UDC rebind registers a new client without resetting attempted physical history",
+    "13 real PD/PHY and embedded identity still fail the absent route at the final callback",
+    "14 copied address, stale actual lease generation and cancellation cannot borrow the worker attempt",
+    "15 actual PD provider generation publication invalidates the final validation before join",
+    "16 actual PHY revocation metadata rejects the final attempt without new analog entry",
+    "17 modeled post-write clear is fed through the actual owner and once core before next new DONE",
+    "18 modeled post-write old DONE still cannot complete; every real production gate remains closed"
+  ],
+  "group_count": 18,
+  "flags": [
+    "-std=gnu11",
+    "-g",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-Wno-unused-parameter",
+    "-Wno-sign-compare",
+    "-fsanitize=address,undefined",
+    "-fno-omit-frame-pointer",
+    "-no-pie"
+  ],
+  "fixture_sha256": "4f87e5517a13c16a5d6e2d2c614dd4ba18f9c0645a356f3faa91fc59ce34ea5b",
+  "actual_whole_owner_PD5V_and_PHY_provider": true,
+  "actual_four_bound_PHY_functions": [
+    "qcom_snps_hsphy_window_busy",
+    "qcom_snps_hsphy_window_write",
+    "qcom_snps_hsphy_window_bound_begin",
+    "qcom_snps_hsphy_window_bound_end"
+  ],
+  "prior_PHY_pthread_suite_reused": true,
+  "post_write_wire_samples_modeled": true,
+  "route_gate_always_closed": true,
+  "fake_kernel_work_PM_MMIO_edges": true,
+  "revocation_metadata_scheduling_cut_modeled": true,
+  "faulted_orphan_fixture_disposal_not_implementation": true,
+  "files": {
+    "samurai-apsd-owner.c": "b09a0f9c72a36adf2b0346eae1f348170994db2919db6d477308a81796868f00",
+    "samurai-apsd-owner.h": "a7ae4d69c427f15292c3fbc1bbfae46b351e8c4ff1e805771c5f02bdcf829b05",
+    "samurai-apsd-backend.h": "0fca3bcde2a421871c4c8e9f74b41bd465b98b48c06b8462de1a2464bd391b89",
+    "owner-attempt-functions.inc": "fcc3e357dc7a56bbc66234b9c3a8b89ef74201d9fd853080fddc2d5d832dc67e",
+    "test-owner.inc": "9ea156ce8e5210f8bee9969816e5fb448a06918149f14c80e29ae89ebeccf183",
+    "run-owner-tests.py": "f19813f50b8a10fc862f38abbb195f4a08002c59f51b4af051f9c7c97eb94350"
+  },
+  "prior_full_bridge_14_groups_rerun": false,
+  "phone_accessed": false,
+  "attempt_gate_enabled": false
+}

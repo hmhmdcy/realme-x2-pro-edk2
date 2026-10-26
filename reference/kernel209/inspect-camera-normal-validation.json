@@ -1,0 +1,111 @@
+{
+  "stage": 209,
+  "same_current_boot": true,
+  "read_only_sysfs_and_media_inspection": true,
+  "dt_nodes": [
+    {
+      "path": "/soc@0/camss@acb3000",
+      "compatible": [
+        "qcom,sm8150-camss"
+      ],
+      "status": [
+        "okay"
+      ],
+      "phandle": 38
+    },
+    {
+      "path": "/soc@0/cci@ac4b000",
+      "compatible": [
+        "qcom,sm8150-cci",
+        "qcom,msm8996-cci"
+      ],
+      "status": [
+        "disabled"
+      ],
+      "phandle": null
+    },
+    {
+      "path": "/soc@0/cci@ac4a000",
+      "compatible": [
+        "qcom,sm8150-cci",
+        "qcom,msm8996-cci"
+      ],
+      "status": [
+        "disabled"
+      ],
+      "phandle": null
+    }
+  ],
+  "regulator_nodes": [
+    {
+      "path": "/soc@0/rsc@18200000/regulators-0/ldo1",
+      "parent_compatible": [
+        "qcom,pm8150-rpmh-regulators"
+      ],
+      "phandle": 96,
+      "minimum": 752000,
+      "maximum": 752000,
+      "runtime": [
+        {
+          "name": "ldo1",
+          "state": "enabled",
+          "num_users": "1",
+          "microvolts": "752000"
+        }
+      ]
+    },
+    {
+      "path": "/soc@0/rsc@18200000/regulators-1/smps8",
+      "parent_compatible": [
+        "qcom,pm8150l-rpmh-regulators"
+      ],
+      "phandle": 251,
+      "minimum": 1352000,
+      "maximum": 1352000,
+      "runtime": [
+        {
+          "name": "smps8",
+          "state": "enabled",
+          "num_users": "3",
+          "microvolts": "1352000"
+        }
+      ]
+    },
+    {
+      "path": "/soc@0/rsc@18200000/regulators-1/ldo1",
+      "parent_compatible": [
+        "qcom,pm8150l-rpmh-regulators"
+      ],
+      "phandle": null,
+      "minimum": 1800000,
+      "maximum": 1800000,
+      "runtime": [
+        {
+          "name": "ldo1",
+          "state": "unknown",
+          "num_users": "0",
+          "microvolts": "1800000"
+        }
+      ]
+    }
+  ],
+  "modules": {
+    "qcom_camss": true,
+    "i2c_qcom_cci": false,
+    "qcom_pm8008": false,
+    "qcom_pm8008_regulator": false,
+    "imx471": false,
+    "v4l2_cci": false,
+    "samurai_cci_bringup": false,
+    "samurai_front_overlay": false
+  },
+  "media": {
+    "media0": {
+      "exit": 0,
+      "imx471_entity_present": false,
+      "entities": 22
+    }
+  },
+  "legacy_overlay_firmware_present": false,
+  "uptime_seconds": 3300.85
+}

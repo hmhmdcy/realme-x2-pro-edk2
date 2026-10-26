@@ -1,0 +1,4 @@
+# Match the video-device access policy only for general camera allocators.
+SUBSYSTEM=="dma_heap", KERNEL=="system|reserved|default_cma_region|linux,cma|default-pool", GROUP="video", MODE="0660", TAG+="uaccess"
+# The DSP's dedicated shared pool is not a camera allocator.
+SUBSYSTEM=="dma_heap", KERNEL=="fastrpc-shared-pool", GROUP="root", MODE="0600", TAG-="uaccess"

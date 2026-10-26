@@ -1,0 +1,109 @@
+--- a/drivers/tty/serial/eud.c
++++ b/drivers/tty/serial/eud.c
+@@ -41,6 +41,7 @@
+ #include <linux/kernel.h>
+ #include <linux/minmax.h>
+ #include <linux/module.h>
++#include <linux/usb/samurai-eud-route.h>
+ #include <linux/mutex.h>
+ #include <linux/printk.h>
+ #include <linux/of.h>
+@@ -1554,6 +1555,7 @@
+         struct eud_port *up;
+         struct uart_port *port;
+         struct resource *res;
++        struct samurai_eud_producer *producer;
+         int ret;
+ 
+         if (eud || eud_window_orphan)
+@@ -1562,6 +1564,15 @@
+         up = devm_kzalloc(&pdev->dev, sizeof(*up), GFP_KERNEL);
+         if (!up)
+                 return -ENOMEM;
++
++        ret = samurai_eud_producer_claim(pdev, &producer);
++        if (ret)
++                return ret;
++        if (producer) {
++                ret = devm_add_action_or_reset(&pdev->dev, samurai_eud_producer_release, producer);
++                if (ret)
++                        return ret;
++        }
+ 
+         port = &up->port;
+         port->membase = devm_platform_get_and_ioremap_resource(pdev, 0, &res);
+--- a/drivers/usb/misc/qcom_eud.c
++++ b/drivers/usb/misc/qcom_eud.c
+@@ -10,6 +10,7 @@
+ #include <linux/iopoll.h>
+ #include <linux/kernel.h>
+ #include <linux/module.h>
++#include <linux/usb/samurai-eud-route.h>
+ #include <linux/of.h>
+ #include <linux/platform_device.h>
+ #include <linux/slab.h>
+@@ -192,11 +193,21 @@
+ {
+ 	struct eud_chip *chip;
+ 	struct resource *res;
++	struct samurai_eud_producer *producer;
+ 	int ret;
+ 
+ 	chip = devm_kzalloc(&pdev->dev, sizeof(*chip), GFP_KERNEL);
+ 	if (!chip)
+ 		return -ENOMEM;
++
++	ret = samurai_eud_producer_claim(pdev, &producer);
++	if (ret)
++		return ret;
++	if (producer) {
++		ret = devm_add_action_or_reset(&pdev->dev, samurai_eud_producer_release, producer);
++		if (ret)
++			return ret;
++	}
+ 
+ 	chip->dev = &pdev->dev;
+ 
+--- a/drivers/tty/serial/eud_earlycon.c
++++ b/drivers/tty/serial/eud_earlycon.c
+@@ -23,6 +23,7 @@
+ #include <linux/delay.h>
+ #include <linux/io.h>
+ #include <linux/kernel.h>
++#include <linux/usb/samurai-eud-route.h>
+ #include <linux/minmax.h>
+ #include <linux/serial_core.h>
+ 
+@@ -72,17 +73,6 @@
+         writel_relaxed(v, base + off);
+ }
+ 
+-static void eud_wait_tx(void __iomem *base)
+-{
+-	unsigned int i;
+-
+-	for (i = 0; i < EUD_TX_POLL_LIMIT; i++) {
+-		if (readl_relaxed(base + EUD_REG_INT_STATUS_1) & EUD_INT_TX)
+-			return;
+-		barrier();
+-	}
+-}
+-
+ static void eud_write(struct console *con, const char *s, unsigned int n)
+ {
+ 	struct earlycon_device *dev = con->data;
+@@ -106,9 +96,14 @@
+ static int __init eud_setup(struct earlycon_device *device, const char *opt)
+ {
+ 	void __iomem *csr;
++	int ret;
+ 
+ 	if (!device->port.membase)
+ 		return -ENODEV;
++
++	ret = samurai_eud_earlycon_claim(device->port.mapbase);
++	if (ret)
++		return ret;
+ 
+ 	/*
+ 	 * Enable the EUD block if an earlier boot stage did not.  The EDK2 port

@@ -1,0 +1,166 @@
+{
+  "boot_gzip_crc_pass": true,
+  "old_boot_matches_backed_up_fv": true,
+  "embedded_fd_matches": true,
+  "fd_bytes": 7340032,
+  "bootshim_bytes": 144,
+  "bootshim_sha256": "7f64231d4fc8b9611edadc1871338535675a761683d932d35c422b3092789a91",
+  "compact_lzma_matches_main_fv": true,
+  "firmware_dtb_raw_section_matches": true,
+  "ffs_header_checksums_pass": true,
+  "fv_header_checksums_pass": true,
+  "android_header_unchanged_except_size_and_digest": true,
+  "compat_append_unchanged": true,
+  "cmdline_preserved": "earlycon=eud,mmio,0x88e0000 console=tty0 console=eud loglevel=7 ignore_loglevel panic=15 clk_ignore_unused pd_ignore_unused regulator_ignore_unused",
+  "module_count": 101,
+  "semantic_dtb_changes": {
+    "only_native_display_changes": true,
+    "added_nodes": [
+      "/soc@0/display-subsystem@ae00000/dsi@ae94000/panel@0",
+      "/soc@0/display-subsystem@ae00000/dsi@ae94000/panel@0/port",
+      "/soc@0/display-subsystem@ae00000/dsi@ae94000/panel@0/port/endpoint",
+      "/soc@0/pinctrl@3100000/display-power-default-state",
+      "/soc@0/pinctrl@3100000/display-reset-default-state",
+      "/soc@0/pinctrl@3100000/display-te-default-state"
+    ],
+    "changed_properties": [
+      [
+        "/soc@0/display-subsystem@ae00000",
+        "status",
+        "64697361626c656400",
+        "6f6b617900"
+      ],
+      [
+        "/soc@0/display-subsystem@ae00000/dsi@ae94000",
+        "pinctrl-0",
+        null,
+        [
+          "/soc@0/pinctrl@3100000/display-te-default-state"
+        ]
+      ],
+      [
+        "/soc@0/display-subsystem@ae00000/dsi@ae94000",
+        "pinctrl-names",
+        null,
+        "64656661756c7400"
+      ],
+      [
+        "/soc@0/display-subsystem@ae00000/dsi@ae94000",
+        "vdda-supply",
+        null,
+        [
+          "/soc@0/rsc@18200000/regulators-1/ldo3"
+        ]
+      ],
+      [
+        "/soc@0/display-subsystem@ae00000/dsi@ae94000",
+        "status",
+        "64697361626c656400",
+        "6f6b617900"
+      ],
+      [
+        "/soc@0/display-subsystem@ae00000/dsi@ae94000/ports/port@1/endpoint",
+        "remote-endpoint",
+        null,
+        [
+          "/soc@0/display-subsystem@ae00000/dsi@ae94000/panel@0/port/endpoint"
+        ]
+      ],
+      [
+        "/soc@0/display-subsystem@ae00000/dsi@ae94000/ports/port@1/endpoint",
+        "data-lanes",
+        null,
+        "00000000000000010000000200000003"
+      ],
+      [
+        "/soc@0/display-subsystem@ae00000/phy@ae94400",
+        "status",
+        "64697361626c656400",
+        "6f6b617900"
+      ],
+      [
+        "/soc@0/display-subsystem@ae00000/phy@ae94400",
+        "vdds-supply",
+        null,
+        [
+          "/soc@0/rsc@18200000/regulators-0/ldo5"
+        ]
+      ],
+      [
+        "/soc@0/rsc@18200000/regulators-0/ldo14",
+        "regulator-max-microvolt",
+        "001cafc0",
+        "001b7740"
+      ]
+    ],
+    "gpio_wiring_checked": true,
+    "core_nodes_preserved": true
+  },
+  "firmware_version_before": "0819bd5",
+  "firmware_version_after": "bd23aaa",
+  "other_executable_bytes_unchanged": true,
+  "changed_modules": [
+    {
+      "guid": "bad0554e-22e9-4d83-9afd-cc87727a1a45",
+      "name": "PlatformSmbiosDxe",
+      "before_size": 36992,
+      "after_size": 36992,
+      "classification": "firmware_version_string_only",
+      "before_sha256": "25d20b9c8d34d849a5c21eda959f7fcfdc357f907736dffa4f4a5ca2d532b0be",
+      "after_sha256": "3565e699e6fb4526cb2fd1baae3fb8a815a369e94b8141af2e2f2db09d9f05a1",
+      "changed_sections": [
+        "0x10"
+      ]
+    },
+    {
+      "guid": "6d33944a-ec75-4855-a54d-809c75241f6c",
+      "name": "BdsDxe",
+      "before_size": 110714,
+      "after_size": 110714,
+      "classification": "firmware_version_string_only",
+      "before_sha256": "00e9590138deb9e6430bb37f0ce25007fed021fe712b0bcb17beb7a08510c606",
+      "after_sha256": "70171c254e9f1e7262dcbe0d60588548971b964e59e50aa2b503d0200debc0e6",
+      "changed_sections": [
+        "0x10"
+      ]
+    },
+    {
+      "guid": "462caa21-7614-4503-836e-8ab6f4662331",
+      "name": "UiApp",
+      "before_size": 200800,
+      "after_size": 200800,
+      "classification": "firmware_version_string_only",
+      "before_sha256": "d9919ba29952de91acb68cf7341d7705073080f54255fe274f6c79cbadfdd3ad",
+      "after_sha256": "d0f53d5c281eaf034c2e71a6a68d21d9cc0cae5922ac1919488fd058ae8946f5",
+      "changed_sections": [
+        "0x10"
+      ]
+    },
+    {
+      "guid": "25462cda-221f-47df-ac1d-259cfaa4e326",
+      "name": "",
+      "before_size": 95961,
+      "after_size": 96824,
+      "classification": "native_display_dtb",
+      "before_sha256": "daf2f7e745ead49bae6b42dabd6e1ee1bd4ab11d6af1d01211e7912049b005ac",
+      "after_sha256": "7ea02165a42ede51362d955fa2759dee24d16cafbab23b4be43dd8a4a3c8e0b5",
+      "changed_sections": [
+        "0x19"
+      ]
+    }
+  ],
+  "changed_compact_modules": [
+    {
+      "guid": "8af09f13-44c5-96ec-1437-dd899cb5ee5d",
+      "name": "",
+      "type": "0x3"
+    },
+    {
+      "guid": "9e21fd93-9c72-4c15-8c4b-e77f1db2d792",
+      "name": "",
+      "type": "0xb"
+    }
+  ],
+  "boot_after_bytes": 6680576,
+  "boot_after_sha256": "57508887131ae55cf9465fa1a44280fa45b507a3439345ffe635dc7544eaa999"
+}

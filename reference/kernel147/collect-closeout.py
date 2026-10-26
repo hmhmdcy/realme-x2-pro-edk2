@@ -1,0 +1,37 @@
+from pathlib import Path
+import os,subprocess,json,hashlib
+os.umask(0o077)
+out=Path('/var/lib/samurai/k147-closeout'); out.mkdir(mode=0o700)
+assert os.uname().version.startswith('#147 ')
+boot=Path('/proc/sys/kernel/random/boot_id').read_bytes()
+assert boot==Path('/var/lib/samurai/k147-aligned147/boot-id-private.txt').read_bytes()
+assert Path('/proc/sys/kernel/tainted').read_text().strip()=='0'
+for label in ['aligned147','control147','novbo147','nearest147','linear147','stressbuild147','stresstexture147','stressphong147']:
+    r=json.loads(Path('/var/lib/samurai/k147-'+label+'/result.json').read_text())
+    assert r['after']['gpu_faults']==0 and r['error'] is None
+    assert boot==Path('/var/lib/samurai/k147-'+label+'/boot-id-private.txt').read_bytes()
+def capture(cmd,name):
+    (out / name).write_bytes(subprocess.check_output(cmd,timeout=40))
+capture(['uname','-a'],'kernel.txt')
+(out / 'boot-id-private.txt').write_bytes(boot)
+capture(['dmesg'],'dmesg-final-private.txt')
+capture(['sha256sum','/dev/sde11','/dev/sde32','/dev/sda2'],'partitions-private.sha256')
+capture(['sha256sum','-c','/run/samurai-wifi/nv-source-hashes.txt'],'nv-check.txt')
+capture(['sha256sum','-c','/var/lib/samurai/k111-sensor-sources-readonly/sources-before.sha256'],'source-check.txt')
+capture(['sha256sum','-c','/var/lib/samurai/k115-vendor-camera-source/vendor-before.sha256'],'vendor-check.txt')
+capture(['sh','-c','cd /usr/lib/modules/7.3.0-rc6-rmx1931-samurai-k132+ && sha256sum -c /var/lib/samurai/k147-preflash/old132-module-tree.sha256'],'modules-check.txt')
+capture(['cat','/sys/kernel/debug/dri/1/state'],'drm-private.txt')
+capture(['pgrep','-x','phoc'],'phoc-private.txt')
+capture(['pgrep','-x','phosh'],'phosh-private.txt')
+capture(['cat','/sys/class/power_supply/bq28z610-0/temp','/sys/class/power_supply/bq28z610-0/capacity'],'battery-state.txt')
+capture(['cat','/proc/uptime'],'uptime.txt')
+text=(out / 'dmesg-final-private.txt').read_text()
+assert all(text.count(x)==0 for x in ['gpu fault:','WARNING:','frame done timeout','dsi_err_worker','unable to prepare channel'])
+assert not list(Path('/sys/kernel/tracing/instances').glob('k147*'))
+assert not list(Path('/sys/class/devcoredump').glob('devcd*'))
+report=dict(stage=147,same_boot=True,taint=0,gpu_faults=0,warnings=0,dpu_timeouts=0,dsi_errors=0,dma_prepare=0,source_integrity_pass=True,modules_integrity_pass=True,no_gpu_probe_trace_instances=True,no_diagnostic_core_pending=True,desktop_present=True)
+(out / 'closeout-validation.json').write_text(json.dumps(report,indent=2)+'\n')
+(out / 'SHA256SUMS').write_text(''.join(hashlib.sha256(x.read_bytes()).hexdigest()+'  ./'+x.name+'\n' for x in sorted(out.iterdir()) if x.is_file() and x.name!='SHA256SUMS'))
+subprocess.run(['tar','-C',str(out),'-czf','/tmp/k147-closeout-private.tar.gz','.'],check=True)
+print('K147_CLOSEOUT_INTEGRITY_AND_RUNTIME_CLEAN')
+print('ARCHIVE_SHA256 '+hashlib.sha256(Path('/tmp/k147-closeout-private.tar.gz').read_bytes()).hexdigest(),flush=True)

@@ -1,0 +1,27 @@
+Subject: [PATCH] ipa: libipa: add Sony IMX319 analogue gain helper
+
+Use the Linux driver gain-code model without importing calibration or
+static optical properties from another sensor.
+
+---
+diff --git a/src/ipa/libipa/camera_sensor_helper.cpp b/src/ipa/libipa/camera_sensor_helper.cpp
+--- a/src/ipa/libipa/camera_sensor_helper.cpp
++++ b/src/ipa/libipa/camera_sensor_helper.cpp
+@@ -644,6 +644,17 @@
+ };
+ REGISTER_CAMERA_SENSOR_HELPER("imx462", CameraSensorHelperImx462)
+ 
++class CameraSensorHelperImx319 : public CameraSensorHelper
++{
++public:
++	CameraSensorHelperImx319()
++	{
++		/* Linux imx319: gain = 1024 / (1024 - code), code 0..960. */
++		gain_ = AnalogueGainLinear{ 0, 1024, -1, 1024 };
++	}
++};
++REGISTER_CAMERA_SENSOR_HELPER("imx319", CameraSensorHelperImx319)
++
+ class CameraSensorHelperImx471 : public CameraSensorHelper
+ {
+ public:

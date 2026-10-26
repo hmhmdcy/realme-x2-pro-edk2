@@ -1,0 +1,68 @@
+--- a/samurai-mp2650.c
++++ b/samurai-mp2650.c
+@@ -15,6 +15,7 @@
+ 
+ #include "mp2650-core.h"
+ #include "charge-cycle.h"
++#include "charge-cycle-hold.h"
+ #include "oem-full-cycle.h"
+ #include "gauge-i2c.h"
+ #include "charging-notify.h"
+@@ -40,6 +41,7 @@
+ 	int cell_ceiling_uv, current_cap_ua, input_cap_ua;
+ 	int last_error, stop_error;
+ 	bool auto_requested, latched, paused, sample_full;
++	bool timer_hold_confirmed;
+ 	bool source_inhibit;
+ 	ktime_t sampled_at;
+ 	struct sm_charge_cycle cycle;
+@@ -234,7 +236,11 @@
+ 	healthy_full = sm_cycle_full_allowed(c->sample_full ||
+ 		((c->full_result.full || c->full_result.recharge) && !c->full_result.stop_all),
+ 		c->latched, validation);
+-	c->sample.session_seconds = sm_cycle_update(&c->cycle, now, source, healthy_full);
++	c->sample.session_seconds = sm_cycle_update_held(&c->cycle, now, source, healthy_full,
++		c->timer_hold_confirmed && c->sample.valid && c->sample.protection_ok &&
++		!c->sample.fault && !c->latched && !c->stop_error &&
++		(!validation || reason == SM_POLICY_REASON_GAUGE_CHARGE_STOP ||
++		 sm_policy_reason_is_thermal(reason)));
+ 	if (!ret)
+ 		ret = sm_policy_with_band_reason(&c->sample, c->cell_ceiling_uv,
+ 			c->current_cap_ua, c->input_cap_ua,
+@@ -257,11 +263,14 @@
+ 		c->full_result.hold_charge_only;
+ 	if (c->hold_requested)
+ 		target.enable = 0; /* Desired CHG, distinct from healthy converter hold. */
++	c->timer_hold_confirmed = false;
+ 	if (control) {
+ 		if (ret || c->latched || !c->auto_requested ||
+ 		    (!target.enable && !c->hold_requested)) {
+ 			c->stop_error = sm_stop(&c->io);
+ 			if (c->stop_error) c->latched = true;
++			c->timer_hold_confirmed = source == 1 && !c->stop_error && !c->latched &&
++				(!c->auto_requested || c->gauge_charge_stop || sm_policy_reason_is_thermal(reason));
+ 			if (!ret) ret = c->stop_error;
+ 			target.enable = 0;
+ 		} else {
+--- /dev/null
++++ b/charge-cycle-hold.h
+@@ -0,0 +1,19 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++#ifndef SAMURAI_CHARGE_CYCLE_HOLD_H
++#define SAMURAI_CHARGE_CYCLE_HOLD_H
++#include "charge-cycle.h"
++
++/* The caller may exclude an interval only after this same driver successfully
++ * stopped hardware charging. It also requires a fresh, complete known-source
++ * sample; an unknown source or failed stop must retain conservative counting.
++ * This pauses accumulated time. It never completes a cycle or erases a timeout.
++ */
++static inline unsigned int sm_cycle_update_held(struct sm_charge_cycle *c,
++		sm_cycle_ns now, int source, int full_good, int confirmed_hold)
++{
++	if (confirmed_hold && source == 1 && c->attached && !c->timed_out &&
++	    now >= c->last_ns && c->anchor_ns <= c->last_ns)
++		c->anchor_ns += now - c->last_ns;
++	return sm_cycle_update(c, now, source, full_good);
++}
++#endif

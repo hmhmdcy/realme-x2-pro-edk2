@@ -1,0 +1,72 @@
+{
+  "date": "2026-10-23",
+  "repository": "https://github.com/realme-kernel-opensource/realmeX2pro-X3-AndroidR-kernel-source",
+  "commit": "23172a1571bd91156032cc9fef16284a82b63d2c",
+  "files": {
+    "oem_dts": {
+      "path": "E:\\edk2-samurai-out\\kernel83\\realme-kernel-opensource--realmeX2pro-X3-AndroidR-kernel-source--arch--arm64--boot--dts--19781--pm8150b.dtsi",
+      "sha256": "43d554879e68bb9b7795d7fb37530dfe6a5ce6cc6aae42514057e757079140c8"
+    },
+    "oem_policy": {
+      "path": "E:\\edk2-samurai-out\\kernel83\\realme-kernel-opensource--realmeX2pro-X3-AndroidR-kernel-source--drivers--power--oppo--oplus_charger.c",
+      "sha256": "6cfb97b4367afe25094f3f342db4c9cce7982a22708371bc08ac6ed8bc9aa2d4"
+    },
+    "oem_mp2650": {
+      "path": "E:\\edk2-samurai-out\\kernel83\\realme-kernel-opensource--realmeX2pro-X3-AndroidR-kernel-source--drivers--power--oppo--charger_ic--oplus_mp2650.c",
+      "sha256": "b6313a6592732597eee41c7171ca210a45f0ce05685447c3cb354a8df79d123e"
+    },
+    "oem_gauge": {
+      "path": "E:\\edk2-samurai-out\\kernel83\\realme-kernel-opensource--realmeX2pro-X3-AndroidR-kernel-source--drivers--power--oppo--gauge_ic--oplus_bq27541.c",
+      "sha256": "0c4640c85570f1a83ea8db3e82a63d75d9fc2650c71fbbb8c247e471c10b7a87"
+    },
+    "core": {
+      "path": "E:\\RealmeX2Pro edk2\\reference\\charging-management-20261023\\mp2650-core.h",
+      "sha256": "672995298c17f95954b25d31352e38be046176ec246a5b243fcc134878907147"
+    },
+    "profile": {
+      "path": "E:\\RealmeX2Pro edk2\\reference\\charging-management-20261023\\oem-profile.h",
+      "sha256": "14a425065aadcca1cc38efcc75cb112c0c25ac05567195b04feaa2bec21b0729"
+    },
+    "driver": {
+      "path": "E:\\RealmeX2Pro edk2\\reference\\charging-management-20261023\\samurai-mp2650.c",
+      "sha256": "a53260fce32e667debe055233ce24e28a4f3db2243228dd429ddc2c6ffc69e26"
+    },
+    "gauge_protocol": {
+      "path": "E:\\RealmeX2Pro edk2\\reference\\charging-management-20261023\\gauge-protocol.h",
+      "sha256": "0903f3fa9740f8645dfc8fb5c16f9a35ded63c4ea06f5c9c93475e37bc375f0f"
+    },
+    "ti_manual": {
+      "path": "E:\\edk2-samurai-out\\charging-management-20261023\\ti-manual-private.txt",
+      "sha256": "c5cfb494ed5dad0311a13f134702be09cd137ed2c4478b10143eab0c760327fc"
+    },
+    "probe": {
+      "path": "E:\\RealmeX2Pro edk2\\reference\\charging-oem-audit-20261023\\probe-current-policy.c",
+      "sha256": "077c22093ad36770209792989948f77ff25cac5385527dad2ba9b2d990b9ceb8"
+    }
+  },
+  "build_command": [
+    "wsl",
+    "-d",
+    "Ubuntu",
+    "-u",
+    "root",
+    "--",
+    "gcc",
+    "-std=c11",
+    "-g",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-fsanitize=address,undefined",
+    "-fno-omit-frame-pointer",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/probe-current-policy.c",
+    "-o",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/probe-current-policy"
+  ],
+  "probe_output": "temperature_recovered_policy_ret=0 target_enable=1 latched=1\nattached_35999s_ret=0 target_enable=1\nattached_36000s_ret=-62 target_enable=0\n",
+  "probe_passed": true,
+  "meaning": "The probe confirms two current behavior gaps; it is not a repaired implementation or physical acceptance",
+  "phone_accessed": false,
+  "shared_build_modified": false,
+  "candidate_sources_modified": false
+}

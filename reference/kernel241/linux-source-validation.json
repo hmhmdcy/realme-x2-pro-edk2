@@ -1,0 +1,496 @@
+{
+  "stage": 241,
+  "source_sha256": "949132f3203b78300224a1fb958cbd1fa44202661f35f64dbed4f84f3ff5ed24",
+  "daemon_sha256": "b350c55ba334b7d23564136fe3ce19bf37f95db0d374f63cc89351341d9b9ddc",
+  "loc_calls": [
+    "qmi_client_loc_get_nmea_types",
+    "qmi_client_loc_get_nmea_types_finish",
+    "qmi_client_loc_get_operation_mode",
+    "qmi_client_loc_get_operation_mode_finish",
+    "qmi_client_loc_get_predicted_orbits_data_source",
+    "qmi_client_loc_get_predicted_orbits_data_source_finish",
+    "qmi_client_loc_get_server",
+    "qmi_client_loc_get_server_finish",
+    "qmi_client_loc_inject_position",
+    "qmi_client_loc_inject_position_finish",
+    "qmi_client_loc_inject_predicted_orbits_data",
+    "qmi_client_loc_inject_predicted_orbits_data_finish",
+    "qmi_client_loc_inject_utc_time",
+    "qmi_client_loc_inject_utc_time_finish",
+    "qmi_client_loc_inject_xtra_data",
+    "qmi_client_loc_inject_xtra_data_finish",
+    "qmi_client_loc_register_events",
+    "qmi_client_loc_register_events_finish",
+    "qmi_client_loc_set_engine_lock",
+    "qmi_client_loc_set_engine_lock_finish",
+    "qmi_client_loc_set_nmea_types",
+    "qmi_client_loc_set_nmea_types_finish",
+    "qmi_client_loc_set_operation_mode",
+    "qmi_client_loc_set_operation_mode_finish",
+    "qmi_client_loc_set_server",
+    "qmi_client_loc_set_server_finish",
+    "qmi_client_loc_start",
+    "qmi_client_loc_start_finish",
+    "qmi_client_loc_stop",
+    "qmi_client_loc_stop_finish"
+  ],
+  "relevant_source_lines": [
+    {
+      "line": 5337,
+      "text": "loc_set_nmea_types_indication_cb (QmiClientLoc                       *client,"
+    },
+    {
+      "line": 5349,
+      "text": "if (!qmi_indication_loc_set_nmea_types_output_get_indication_status (output, &status, &error) ||"
+    },
+    {
+      "line": 5358,
+      "text": "loc_set_nmea_types_ready (QmiClientLoc *client,"
+    },
+    {
+      "line": 5366,
+      "text": "output = qmi_client_loc_set_nmea_types_finish (client, res, &error);"
+    },
+    {
+      "line": 5367,
+      "text": "if (!output || !qmi_message_loc_set_nmea_types_output_get_result (output, &error)) {"
+    },
+    {
+      "line": 5409,
+      "text": "input = qmi_message_loc_set_nmea_types_input_new ();"
+    },
+    {
+      "line": 5410,
+      "text": "qmi_message_loc_set_nmea_types_input_set_nmea_types (input, (nmea_types_mask | desired_nmea_types_mask), NULL);"
+    },
+    {
+      "line": 5411,
+      "text": "qmi_client_loc_set_nmea_types (ctx->client,"
+    },
+    {
+      "line": 5415,
+      "text": "(GAsyncReadyCallback)loc_set_nmea_types_ready,"
+    },
+    {
+      "line": 5421,
+      "text": "G_CALLBACK (loc_set_nmea_types_indication_cb),"
+    },
+    {
+      "line": 5656,
+      "text": "loc_register_events_ready (QmiClientLoc *client,"
+    },
+    {
+      "line": 5665,
+      "text": "output = qmi_client_loc_register_events_finish (client, res, &error);"
+    },
+    {
+      "line": 5673,
+      "text": "if (!qmi_message_loc_register_events_output_get_result (output, &error)) {"
+    },
+    {
+      "line": 5677,
+      "text": "qmi_message_loc_register_events_output_unref (output);"
+    },
+    {
+      "line": 5681,
+      "text": "qmi_message_loc_register_events_output_unref (output);"
+    },
+    {
+      "line": 5700,
+      "text": "loc_start_ready (QmiClientLoc *client,"
+    },
+    {
+      "line": 5709,
+      "text": "output = qmi_client_loc_start_finish (client, res, &error);"
+    },
+    {
+      "line": 5717,
+      "text": "if (!qmi_message_loc_start_output_get_result (output, &error)) {"
+    },
+    {
+      "line": 5721,
+      "text": "qmi_message_loc_start_output_unref (output);"
+    },
+    {
+      "line": 5725,
+      "text": "qmi_message_loc_start_output_unref (output);"
+    },
+    {
+      "line": 5727,
+      "text": "input = qmi_message_loc_register_events_input_new ();"
+    },
+    {
+      "line": 5731,
+      "text": "qmi_message_loc_register_events_input_set_event_registration_mask ("
+    },
+    {
+      "line": 5733,
+      "text": "qmi_client_loc_register_events (client,"
+    },
+    {
+      "line": 5737,
+      "text": "(GAsyncReadyCallback) loc_register_events_ready,"
+    },
+    {
+      "line": 5739,
+      "text": "qmi_message_loc_register_events_input_unref (input);"
+    },
+    {
+      "line": 5782,
+      "text": "input = qmi_message_loc_start_input_new ();"
+    },
+    {
+      "line": 5783,
+      "text": "qmi_message_loc_start_input_set_session_id (input, DEFAULT_LOC_SESSION_ID, NULL);"
+    },
+    {
+      "line": 5784,
+      "text": "qmi_message_loc_start_input_set_intermediate_report_state (input, QMI_LOC_INTERMEDIATE_REPORT_STATE_DISABLE, NULL);"
+    },
+    {
+      "line": 5785,
+      "text": "qmi_message_loc_start_input_set_minimum_interval_between_position_reports (input, 1000, NULL);"
+    },
+    {
+      "line": 5786,
+      "text": "qmi_message_loc_start_input_set_fix_recurrence_type (input, QMI_LOC_FIX_RECURRENCE_TYPE_REQUEST_PERIODIC_FIXES, NULL);"
+    },
+    {
+      "line": 5787,
+      "text": "qmi_client_loc_start (QMI_CLIENT_LOC (client),"
+    },
+    {
+      "line": 5791,
+      "text": "(GAsyncReadyCallback) loc_start_ready,"
+    },
+    {
+      "line": 5793,
+      "text": "qmi_message_loc_start_input_unref (input);"
+    },
+    {
+      "line": 6008,
+      "text": "if (!qmi_indication_loc_set_operation_mode_output_get_indication_status (output, &status, &error)) {"
+    },
+    {
+      "line": 6040,
+      "text": "loc_set_operation_mode_ready (QmiClientLoc *client,"
+    },
+    {
+      "line": 6050,
+      "text": "output = qmi_client_loc_set_operation_mode_finish (client, res, &error);"
+    },
+    {
+      "line": 6058,
+      "text": "if (!qmi_message_loc_set_operation_mode_output_get_result (output, &error)) {"
+    },
+    {
+      "line": 6061,
+      "text": "qmi_message_loc_set_operation_mode_output_unref (output);"
+    },
+    {
+      "line": 6075,
+      "text": "qmi_message_loc_set_operation_mode_output_unref (output);"
+    },
+    {
+      "line": 6148,
+      "text": "input = qmi_message_loc_set_operation_mode_input_new ();"
+    },
+    {
+      "line": 6149,
+      "text": "qmi_message_loc_set_operation_mode_input_set_operation_mode (input, mode, NULL);"
+    },
+    {
+      "line": 6150,
+      "text": "qmi_client_loc_set_operation_mode ("
+    },
+    {
+      "line": 6155,
+      "text": "(GAsyncReadyCallback)loc_set_operation_mode_ready,"
+    },
+    {
+      "line": 6157,
+      "text": "qmi_message_loc_set_operation_mode_input_unref (input);"
+    },
+    {
+      "line": 6606,
+      "text": "output = qmi_client_loc_set_engine_lock_finish (client, res, &error);"
+    },
+    {
+      "line": 6612,
+      "text": "if (!qmi_message_loc_set_engine_lock_output_get_result (output, &error)"
+    },
+    {
+      "line": 6618,
+      "text": "qmi_message_loc_set_engine_lock_output_unref (output);"
+    },
+    {
+      "line": 6645,
+      "text": "input = qmi_message_loc_set_engine_lock_input_new ();"
+    },
+    {
+      "line": 6646,
+      "text": "qmi_message_loc_set_engine_lock_input_set_lock_type (input, QMI_LOC_LOCK_TYPE_MT, NULL);"
+    },
+    {
+      "line": 6647,
+      "text": "qmi_client_loc_set_engine_lock (QMI_CLIENT_LOC (client),"
+    },
+    {
+      "line": 6653,
+      "text": "qmi_message_loc_set_engine_lock_input_unref (input);"
+    },
+    {
+      "line": 6799,
+      "text": "g_clear_pointer (&ctx->early_indication, qmi_indication_loc_inject_utc_time_output_unref);"
+    },
+    {
+      "line": 6846,
+      "text": "ctx->early_indication = qmi_indication_loc_inject_utc_time_output_ref (output);"
+    },
+    {
+      "line": 6850,
+      "text": "if (!qmi_indication_loc_inject_utc_time_output_get_indication_status (output, &status, &error))"
+    },
+    {
+      "line": 6868,
+      "text": "output = qmi_client_loc_inject_utc_time_finish (client, res, &error);"
+    },
+    {
+      "line": 6876,
+      "text": "qmi_message_loc_inject_utc_time_output_get_result (output, &error);"
+    },
+    {
+      "line": 6888,
+      "text": "qmi_indication_loc_inject_utc_time_output_unref (indication);"
+    },
+    {
+      "line": 6908,
+      "text": "input = qmi_message_loc_inject_utc_time_input_new ();"
+    },
+    {
+      "line": 6911,
+      "text": "qmi_message_loc_inject_utc_time_input_set_utc_time (input, utc_ms, NULL);"
+    },
+    {
+      "line": 6912,
+      "text": "qmi_message_loc_inject_utc_time_input_set_time_uncertainty (input, 1000, NULL);"
+    },
+    {
+      "line": 6913,
+      "text": "qmi_message_loc_inject_utc_time_input_set_time_source (input, QMI_LOC_INJECTED_TIME_SOURCE_UNKNOWN, NULL);"
+    },
+    {
+      "line": 6924,
+      "text": "qmi_client_loc_inject_utc_time ("
+    },
+    {
+      "line": 6963,
+      "text": "g_clear_pointer (&ctx->early_indication, qmi_indication_loc_inject_position_output_unref);"
+    },
+    {
+      "line": 7010,
+      "text": "ctx->early_indication = qmi_indication_loc_inject_position_output_ref (output);"
+    },
+    {
+      "line": 7014,
+      "text": "if (!qmi_indication_loc_inject_position_output_get_indication_status (output, &status, &error))"
+    },
+    {
+      "line": 7032,
+      "text": "output = qmi_client_loc_inject_position_finish (client, res, &error);"
+    },
+    {
+      "line": 7040,
+      "text": "qmi_message_loc_inject_position_output_get_result (output, &error);"
+    },
+    {
+      "line": 7052,
+      "text": "qmi_indication_loc_inject_position_output_unref (indication);"
+    },
+    {
+      "line": 7072,
+      "text": "qmi_indication_loc_inject_position_request_output_get_latitude (output, &lat, NULL);"
+    },
+    {
+      "line": 7073,
+      "text": "qmi_indication_loc_inject_position_request_output_get_longitude (output, &lon, NULL);"
+    },
+    {
+      "line": 7074,
+      "text": "qmi_indication_loc_inject_position_request_output_get_utc_timestamp (output, &timestamp, NULL);"
+    },
+    {
+      "line": 7092,
+      "text": "input = qmi_message_loc_inject_position_input_new ();"
+    },
+    {
+      "line": 7094,
+      "text": "qmi_message_loc_inject_position_input_set_latitude (input, last_lat, NULL);"
+    },
+    {
+      "line": 7095,
+      "text": "qmi_message_loc_inject_position_input_set_longitude (input, last_lon, NULL);"
+    },
+    {
+      "line": 7096,
+      "text": "qmi_message_loc_inject_position_input_set_position_source (input, QMI_LOC_POSITION_SOURCE_OTHER, NULL);"
+    },
+    {
+      "line": 7099,
+      "text": "qmi_message_loc_inject_position_input_set_horizontal_uncertainty_circular (input, 1000, NULL);"
+    },
+    {
+      "line": 7100,
+      "text": "qmi_message_loc_inject_position_input_set_horizontal_confidence (input, 68, NULL);"
+    },
+    {
+      "line": 7103,
+      "text": "qmi_message_loc_inject_position_input_set_utc_timestamp (input, utc_ms, NULL);"
+    },
+    {
+      "line": 7114,
+      "text": "qmi_client_loc_inject_position ("
+    },
+    {
+      "line": 7137,
+      "text": "output = qmi_client_loc_register_events_finish (client, res, &error);"
+    },
+    {
+      "line": 7143,
+      "text": "if (!qmi_message_loc_register_events_output_get_result (output, &error)) {"
+    },
+    {
+      "line": 7251,
+      "text": "input = qmi_message_loc_register_events_input_new ();"
+    },
+    {
+      "line": 7252,
+      "text": "qmi_message_loc_register_events_input_set_event_registration_mask ("
+    },
+    {
+      "line": 7254,
+      "text": "qmi_client_loc_register_events (client,"
+    },
+    {
+      "line": 7381,
+      "text": "g_clear_pointer (&ctx->early_predicted_orbits_indication, qmi_indication_loc_inject_predicted_orbits_data_output_unref);"
+    },
+    {
+      "line": 7382,
+      "text": "g_clear_pointer (&ctx->early_xtra_indication, qmi_indication_loc_inject_xtra_data_output_unref);"
+    },
+    {
+      "line": 7429,
+      "text": "if (qmi_indication_loc_inject_xtra_data_output_get_part_number (output, &part_number, NULL) &&"
+    },
+    {
+      "line": 7434,
+      "text": "ctx->early_xtra_indication = qmi_indication_loc_inject_xtra_data_output_ref (output);"
+    },
+    {
+      "line": 7439,
+      "text": "if (!qmi_indication_loc_inject_xtra_data_output_get_indication_status (output, &status, &error)) {"
+    },
+    {
+      "line": 7468,
+      "text": "output = qmi_client_loc_inject_xtra_data_finish (client, res, &error);"
+    },
+    {
+      "line": 7476,
+      "text": "qmi_message_loc_inject_xtra_data_output_get_result (output, &error);"
+    },
+    {
+      "line": 7491,
+      "text": "qmi_indication_loc_inject_xtra_data_output_unref (indication);"
+    },
+    {
+      "line": 7530,
+      "text": "input = qmi_message_loc_inject_xtra_data_input_new ();"
+    },
+    {
+      "line": 7531,
+      "text": "qmi_message_loc_inject_xtra_data_input_set_total_size ("
+    },
+    {
+      "line": 7535,
+      "text": "qmi_message_loc_inject_xtra_data_input_set_total_parts ("
+    },
+    {
+      "line": 7539,
+      "text": "qmi_message_loc_inject_xtra_data_input_set_part_number ("
+    },
+    {
+      "line": 7544,
+      "text": "qmi_message_loc_inject_xtra_data_input_set_part_data ("
+    },
+    {
+      "line": 7554,
+      "text": "qmi_client_loc_inject_xtra_data (ctx->client,"
+    },
+    {
+      "line": 7561,
+      "text": "qmi_message_loc_inject_xtra_data_input_unref (input);"
+    },
+    {
+      "line": 7597,
+      "text": "if (qmi_indication_loc_inject_predicted_orbits_data_output_get_part_number (output, &part_number, NULL) &&"
+    },
+    {
+      "line": 7602,
+      "text": "ctx->early_predicted_orbits_indication = qmi_indication_loc_inject_predicted_orbits_data_output_ref (output);"
+    },
+    {
+      "line": 7607,
+      "text": "if (!qmi_indication_loc_inject_predicted_orbits_data_output_get_indication_status (output, &status, &error)) {"
+    },
+    {
+      "line": 7636,
+      "text": "output = qmi_client_loc_inject_predicted_orbits_data_finish (client, res, &error);"
+    },
+    {
+      "line": 7644,
+      "text": "qmi_message_loc_inject_predicted_orbits_data_output_get_result (output, &error);"
+    },
+    {
+      "line": 7648,
+      "text": "g_clear_pointer (&ctx->early_predicted_orbits_indication, qmi_indication_loc_inject_predicted_orbits_data_output_unref);"
+    },
+    {
+      "line": 7666,
+      "text": "qmi_indication_loc_inject_predicted_orbits_data_output_unref (indication);"
+    },
+    {
+      "line": 7705,
+      "text": "input = qmi_message_loc_inject_predicted_orbits_data_input_new ();"
+    },
+    {
+      "line": 7706,
+      "text": "qmi_message_loc_inject_predicted_orbits_data_input_set_format_type ("
+    },
+    {
+      "line": 7710,
+      "text": "qmi_message_loc_inject_predicted_orbits_data_input_set_total_size ("
+    },
+    {
+      "line": 7714,
+      "text": "qmi_message_loc_inject_predicted_orbits_data_input_set_total_parts ("
+    },
+    {
+      "line": 7718,
+      "text": "qmi_message_loc_inject_predicted_orbits_data_input_set_part_number ("
+    },
+    {
+      "line": 7723,
+      "text": "qmi_message_loc_inject_predicted_orbits_data_input_set_part_data ("
+    },
+    {
+      "line": 7733,
+      "text": "qmi_client_loc_inject_predicted_orbits_data (ctx->client,"
+    },
+    {
+      "line": 7740,
+      "text": "qmi_message_loc_inject_predicted_orbits_data_input_unref (input);"
+    }
+  ],
+  "readonly": true
+}

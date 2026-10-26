@@ -1,0 +1,26 @@
+--- a/drivers/bluetooth/hci_qca.c
++++ b/drivers/bluetooth/hci_qca.c
+@@ -2775,8 +2775,10 @@
+ 		cmd = HCI_IBS_SLEEP_IND;
+ 		ret = serdev_device_write_buf(hu->serdev, &cmd, sizeof(cmd));
+ 
+-		if (ret < 0) {
++		if (ret != sizeof(cmd)) {
+ 			BT_ERR("Failed to send SLEEP to device");
++			if (ret >= 0)
++				ret = -EIO;
+ 			break;
+ 		}
+ 
+@@ -2811,8 +2813,9 @@
+ 	ret = wait_event_interruptible_timeout(qca->suspend_wait_q,
+ 			qca->rx_ibs_state == HCI_IBS_RX_ASLEEP,
+ 			IBS_BTSOC_TX_IDLE_TIMEOUT);
+-	if (ret == 0) {
+-		ret = -ETIMEDOUT;
++	if (ret <= 0) {
++		if (!ret)
++			ret = -ETIMEDOUT;
+ 		goto error;
+ 	}
+ 

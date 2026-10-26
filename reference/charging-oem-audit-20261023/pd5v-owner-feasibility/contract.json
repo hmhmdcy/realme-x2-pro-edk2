@@ -1,0 +1,45 @@
+{
+  "schema": "samurai-pd-disabled-owner-candidate-v1",
+  "implemented": true,
+  "default_enabled": false,
+  "installed": false,
+  "caller_automatically_wired": false,
+  "scope": "Real, exclusively bound PM8150B PDPHY disable control and a revocable control-generation lease; this is not a complete APSD gate, physical-attach epoch, voltage measurement or USB budget authority",
+  "probe": {
+    "driver": "existing qcom,pmic-typec platform driver, exclusive binding of actual native Type-C device",
+    "requires": ["module parameter samurai_5v_only=true and DT boolean realme,pd5v-only", "actual OF machine realme,samurai and device compatible qcom,pm8150b-typec", "reg tuple exactly 0x1500,0x1700", "no connector or other child node", "vdd-pdphy-supply phandle identical to actual native USB2 PHY vdda33-supply"],
+    "power": "probe only obtains regulator_get handle: zero enable/PD IO. First acquire may regulator_enable only after stable true off/vSafe0V, then fresh post-enable off recheck before PD IO/writes. Retain successful reference, no voltage/load change or shared-rail power-cycle",
+    "producer_exclusion": "special branch returns before port_probe, pdphy_probe, TCPM registration, port_start and pdphy_start; no PD IRQ handler/reset_work/PD TX callback exists in this branch",
+    "normal_default": "original normal qcom probe tail and remove tail preserved byte-for-byte; newly registered PM/shutdown callbacks return no-op when pd5v is absent",
+    "native_DTB_current": "still disabled and missing vdd-pdphy-supply; provided DTS fragment is design-only and remains disabled"
+  },
+  "first_acquire": {
+    "automatic_poll_or_retry": false,
+    "requires_explicit_real_client": "non-null cancel_join and empty lease; only actual bound device lookup can acquire externally",
+    "module_ref": "try_module_get before any I/O/write; kref and module reference retained for a successful lease",
+    "physical_off": "existing exact seven-field plugin/VBUS/CC/state off predicates AND Type-C SM_STATUS vSafe0V bit6=1, vSafe5V bit5=0; two identical status sets separated by at least 500ms; negative reads remain unknown",
+    "unchanged_policy": "0x1544 must equal 0x02 (already sink-only; no role write). 0x1362 bits6,5,2 must all be 0 and bit3 1 (HVDCP AUTH/AUTO/ENABLE disabled; no QC write)",
+    "known_control_values": "reject bits outside BIST 0x8f, TX 0x7f, FILTER 0x21, EN 0x01",
+    "power_takeover": "before regulator_enable, two fresh identical status-only observations and at least 500ms stable off/vSafe0V. Probe never powers an online PD block. Enable errno or changed off state after enable is terminal for the binding, zero PD writes and no retry; successful supply ref remains held until cleanup",
+    "only_writes_in_order": ["0x174e=0 BIST", "0x1744=0 TX", "0x174c=0 FRAME_FILTER", "0x1746=0 EN_CONTROL"],
+    "each_write": "fresh pre-read of all status/control (250ms maximum sampled read duration), exact stable status and off check; direct readback=0; full post-read and same physical off/policy status",
+    "failure": "before any write: return actual error or EAGAIN without permission. Once any write attempted: retain stage/write/readback/post error and terminal error for this binding; no automatic continuation, retry, PD enable/reset or old-state restore",
+    "engineering_limits": "500ms stability/250ms freshness are conservative software choices, not OEM timing requirements; electrical detach-to-write is not atomic and a post-read race is a failure, not a successful off transaction"
+  },
+  "lease": {
+    "acquire": "qcom_pmic_typec_5v_acquire(actual_device, client, lease)",
+    "validate": "samurai_pd5v_validate(lease): unique active lease object, live binding/control generation, no error/block, fresh real register verification; negative return obliges caller to unwind",
+    "release": "samurai_pd5v_release(lease): drops own lease references; disabled hardware is not re-enabled",
+    "success_proves": "the explicitly controlled PD block was disabled after a witnessed real detach/vSafe0V; currently retained disabled and inherited sink-only/QC-off policy reverified",
+    "does_not_prove": ["physical attachment epoch/generation", "attached sink/source budget", "EUD or DPDM route", "VBUS voltage exactly 5V or arbitrary adapter compliance", "VOOC MCU disabled/identified", "APSD rerun/USB500 permission", "UPower Charging or a screen icon"]
+  },
+  "lifecycle": {
+    "lookup": "short registry mutex only for actual device lookup/kref; no device_lock in runtime acquire, no IO/join under registry lock",
+    "system_PM": "prepare blocks acquisition and invalidates generation, then client cancel_join outside PD5V mutex; return EBUSY and retain error if client fails to release. complete only reads retained controls; changed/unknown controls remain blocked, no reset or auto rewrite. Waiting first-off remains waiting",
+    "runtime_PM": "special branch never enables runtime PM or defines a runtime power-off path; its regulator reference stays held. Any future runtime PM integration must first invalidate+join and reverify on resume; it is not silently inherited from TCPM",
+    "remove_shutdown": "remove withdraws real binding, marks removed, invalidates and calls join; references keep object/rail alive until actual lease release. Shutdown quiesces without re-enabling or writing PD. No lease may survive a successful join",
+    "trusted_client_contract": "cancel_join must synchronously finish and release its lease and must not call a future acquire while blocked; failure revokes permission and returns/logs EBUSY, not fake completion. No cancel/join under TCPM/IRQ/PD5V component locks",
+    "IRQ": "no PD IRQ consumers or reset workers are registered in this mode. No claim is made that historical PMIC latch bytes were cleared or that the chip has no pending interrupt; those cannot create a Linux TX callback here"
+  },
+  "future_integration_gates": ["independent review of this new controller/lifetime code", "new consistent Image/module and explicit native supply/mode binding; no change to current Image363 experiment", "in a separately coordinated physical window, prove actual off/vSafe0V and all four readbacks with retained power, then new attach still sink-only/PD-disabled", "source backend physical epoch, true sink sample and current budget; EUD/PHY/DWC restoration/withdrawal and DPDM route proof remain mandatory", "protocol/voltage/low-power/electrical verification before production use; full PD/VOOC work remains separate"]
+}

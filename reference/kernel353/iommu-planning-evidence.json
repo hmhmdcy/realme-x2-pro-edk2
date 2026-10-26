@@ -1,0 +1,48 @@
+{
+  "stage": 353,
+  "source": "/home/cy122/x2pro-linux/camera305-sensor-kernel",
+  "sources": [
+    {
+      "path": "drivers/iommu/of_iommu.c",
+      "sha256": "45b8483228d75a20a8d0aa3360ef8571ac1e1edbab373cb733a6bdaa3dedf61d"
+    },
+    {
+      "path": "drivers/iommu/iommu.c",
+      "sha256": "9803f65168c7207d1647bf0c61647d1544b7f00ce5e77a97f7b41f15bdd6c9f2"
+    },
+    {
+      "path": "drivers/iommu/dma-iommu.c",
+      "sha256": "466860e6d171d323b779e720956322875af73d917940b7d5836d00ba94217875"
+    },
+    {
+      "path": "drivers/iommu/arm/arm-smmu/arm-smmu.c",
+      "sha256": "6345148d8448a1edcf49998cc353b8131741af20484b5aa38a13325d1dd03e68"
+    },
+    {
+      "path": "include/linux/iommu.h",
+      "sha256": "ce6d31c2ff1a32ce5678d934519659a7c8d1233186c444c2804eefb73a342ad9"
+    }
+  ],
+  "exports": {
+    "iommu_get_domain_for_dev": "vmlinux",
+    "iommu_get_dma_domain": null,
+    "iommu_get_resv_regions": "vmlinux",
+    "iommu_put_resv_regions": "vmlinux",
+    "iommu_map": "vmlinux",
+    "iommu_unmap": "vmlinux",
+    "iommu_iova_to_phys": "vmlinux"
+  },
+  "no_physical_reg_iommu_addresses_node_becomes_reserved_iova_only": true,
+  "reservation_flows_through_core_and_dma_allocator": true,
+  "planned_firmware_alias": {
+    "start": 0,
+    "bytes": 5242880
+  },
+  "proposed_method": "Reserve firmware IOVA window through standard OF memory-region/iommu-addresses; obtain the current domain with exported iommu_get_domain_for_dev, verify it is a DMA domain, allocate coherent RAM elsewhere and map its pages at reserved A5 addresses.",
+  "iommu_get_dma_domain_is_not_exported_to_modules": true,
+  "no_physical_reserved_camera_carveout_required_by_this_proposal": true,
+  "hardware_domain_grouping_and_live_alias_mapping_not_yet_verified": true,
+  "no_dt_or_iommu_kernel_change_made": true,
+  "phone_changed": false,
+  "passed": true
+}

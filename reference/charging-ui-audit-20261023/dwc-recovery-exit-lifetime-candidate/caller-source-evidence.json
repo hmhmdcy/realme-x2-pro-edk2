@@ -1,0 +1,96 @@
+{
+  "passed": true,
+  "sources": {
+    "charging-oem-audit-20261023/usb-resume-errors/drivers--usb--gadget--udc--core.c": {
+      "sha256": "17d0d78f3de3d3dbf28d7136496a1a92c5e3744791b3221269b58c0aecd91041",
+      "bytes": 56279,
+      "functions": {
+        "usb_del_gadget": {
+          "line": 1575,
+          "sha256": "5ed122e4a5400e8ca1a96ebef359c978837affaabdf1b779090c83513da6750e"
+        },
+        "gadget_unbind_driver": {
+          "line": 1707,
+          "sha256": "7ee80f66c0c4585967569f2745148d239c37b94fd56db495994d1701e44c1ac4"
+        },
+        "usb_gadget_udc_stop_locked": {
+          "line": 1257,
+          "sha256": "5a0baff038dae4e1074ee825452f6dbdd6cb37d0c95de78015e9c2d5e823de2e"
+        },
+        "usb_gadget_disconnect_locked": {
+          "line": 763,
+          "sha256": "0154530d92cbbea7179285cb3549df9029b745a9cac00020cc554f62317a3272"
+        }
+      }
+    },
+    "charging-oem-audit-20261023/usb-input-irq-candidate/source-reference/drivers--base--core.c": {
+      "sha256": "52247f436f5328d0b174f3350cda7e6d3e9d929de3611b5acb546b502852de2c",
+      "bytes": 151345,
+      "functions": {
+        "device_del": {
+          "line": 3919,
+          "sha256": "8eeee47d0fc6dd0da06ad25ecdc950a72cea7c24ad6ad99b51f7ec088dd4d05d"
+        }
+      }
+    },
+    "charging-ui-audit-20261023/dwc-pm-error-unwind-candidate/core.c": {
+      "sha256": "5331ae946cde894e2da484df5b8fbc6d386d117a60ad0e3dac5a1ebaaec6a17f",
+      "bytes": 80828,
+      "functions": {
+        "__dwc3_set_mode": {
+          "line": 165,
+          "sha256": "fef35a9d316340afc270da230969169fe9a74399c7d0835368cb2e7a4a41428f"
+        },
+        "dwc3_core_remove": {
+          "line": 2477,
+          "sha256": "fe2263987dd8978374ea146e39f45355ee39cfa482ad11f2ec0f458f50fa0496"
+        },
+        "dwc3_runtime_resume": {
+          "line": 2802,
+          "sha256": "388a783929cd996733f6e79896e43166f0194f51d2c11e3305752961d1660e77"
+        },
+        "dwc3_pm_resume": {
+          "line": 2884,
+          "sha256": "73239a1389240ad2d72ba6b49581d3a2d49db1eb0cbc0ca0b094dd32cb25b5a2"
+        }
+      }
+    },
+    "charging-ui-audit-20261023/dwc-recovery-exit-lifetime-candidate/gadget.c": {
+      "sha256": "f32623e0bd1bdad968f84b08da28389d4d939b87ae18abcc850ccb4643640557",
+      "bytes": 141851,
+      "functions": {
+        "dwc3_gadget_pullup": {
+          "line": 2835,
+          "sha256": "0cbba3d92909ce5acf3ade996c0487dbc07cdea82c8b7d919bb19c08d6eaaf76"
+        },
+        "dwc3_gadget_stop": {
+          "line": 3091,
+          "sha256": "168f38bc92908e5f764ad86ba7414499d981a168f8f23b797a6682a6eb663810"
+        },
+        "dwc3_gadget_exit": {
+          "line": 5057,
+          "sha256": "3511c19e609a443152e348f732fc1259be8b02c32f1b081037ec206fa600c50b"
+        },
+        "dwc3_gadget_ep_disable": {
+          "line": 1162,
+          "sha256": "7b60cc9da61ab98ba6515273ae33a46b063c22d18e183b473afa4e13d798cb0f"
+        },
+        "dwc3_gadget_ep_dequeue": {
+          "line": 2138,
+          "sha256": "74d99c6fb34c17bbee7dac09a2c381236dbc4cf5fe3c874e9615cd92954e644c"
+        },
+        "dwc3_check_event_buf": {
+          "line": 4700,
+          "sha256": "52092d130e39bf9ad009a11623f025ce968349ab49caaf8eb46cef3b8b2033b4"
+        }
+      }
+    }
+  },
+  "udc_original_manifest_sha256": "30fe7d21ab13429bd0117761bf59a865064a62973510f427df5093119521ec7d",
+  "gadget_bus_remove_line": 1951,
+  "synchronous_unbind_basis": "usb_del_gadget documented contract + device_del/bus remove API; actual UDC remove/start-stop functions pinned",
+  "generic_bus_dd_newly_imported": false,
+  "source_core_not_changed": true,
+  "patch_applied_in_RAM_matches_both_complete_files": true,
+  "complete_PM_abort_or_DMA_lifetime_proved": false
+}

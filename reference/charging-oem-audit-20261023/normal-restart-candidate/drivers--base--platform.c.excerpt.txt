@@ -1,0 +1,14 @@
+Actual source354 / drivers/base/platform.c
+
+1527: static void platform_shutdown(struct device *_dev)
+1528: {
+1529: 	struct platform_device *dev = to_platform_device(_dev);
+1530: 	struct platform_driver *drv;
+1531: 
+1532: 	if (!_dev->driver)
+1533: 		return;
+1534: 
+1535: 	drv = to_platform_driver(_dev->driver);
+1536: 	if (drv->shutdown)
+1537: 		drv->shutdown(dev);
+1538: }

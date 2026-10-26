@@ -1,0 +1,11 @@
+# Eight-object supplement to frozen outcome source
+
+The source/test [delivery](../delivery.json) remains exactly `293a2e962499e9e02a6062b2014fe23ea6e69932761cb2412c4c4b77dc0987d6`. Its 15 files and completed fixture results were not rewritten for this build. This supplement records the subsequently authorized compile check.
+
+Native exec session `58457` reached terminal exit 0. The eight compiler children (PIDs 808, 824, 833, 846, 851, 858, 865, 872) each reached a real wait result 0, with W=1 and `-Werror` and no warning/error diagnostic. Each output was checked as AArch64 ELF64 relocatable. The targets are core, trace, gadget, ep0, debugfs, qcom, qcom-legacy and generic-plat, exactly the eight known internal-header dependencies.
+
+[build-eight.py](build-eight.py) reused #503's exact saved compiler commands, replacing source-prefix paths with a new private source view and adding `-Werror`. It copied generated includes/config and the frozen outcome gadget/header plus the existing `5331ae94…6a17f` core into `/home/cy122/charging-management-20261023/dwc-device-resume-outcome-objects-01`. No core consumer was added. Other source entries are read-only source-view symlinks; compiler outputs/dependencies are private. It ran no make, module/Image link or SDK.
+
+[build-result.json](build-result.json) binds commands, per-child terminal results, output hashes, source pins and before/after original #503/shared inputs. The original 284 Ubuntu/root storage helper re-established its mount (`original_helper_restored_mount=true`); mountinfo was identical before and after the compiler sequence **after that helper**, rather than claimed unchanged across the helper's authorized restoration. No manual mount/unmount, new anchor or global state adjustment was used. The shared source, #503 source/config/objects/Image and tracked shared build inputs remained unchanged. Actual full argv and stdout/stderr are retained in the unique private output; the public receipt binds their SHA values.
+
+The window was returned to the UI agent after all children exited. No fixture was rerun for this supplement. There is no linked candidate Image, device/SSH/USB operation, deployment, physical recovery result or safe PM failure unwind in this supplement.

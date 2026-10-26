@@ -1,0 +1,97 @@
+{
+  "scope": "Fixed local OEM source + linked Image502 bq source; no device read or new kernel build",
+  "OEM_repository": "https://github.com/realme-kernel-opensource/realmeX2pro-X3-AndroidR-kernel-source",
+  "OEM_commit": "23172a1571bd91156032cc9fef16284a82b63d2c",
+  "sources": {
+    "OEM_charger": {
+      "path": "E:\\edk2-samurai-out\\kernel83\\realme-kernel-opensource--realmeX2pro-X3-AndroidR-kernel-source--drivers--power--oppo--oplus_charger.c",
+      "sha256": "6cfb97b4367afe25094f3f342db4c9cce7982a22708371bc08ac6ed8bc9aa2d4"
+    },
+    "OEM_gauge": {
+      "path": "E:\\edk2-samurai-out\\kernel83\\realme-kernel-opensource--realmeX2pro-X3-AndroidR-kernel-source--drivers--power--oppo--gauge_ic--oplus_bq27541.c",
+      "sha256": "0c4640c85570f1a83ea8db3e82a63d75d9fc2650c71fbbb8c247e471c10b7a87"
+    },
+    "OEM_gauge_header": {
+      "path": "E:\\edk2-samurai-out\\kernel85\\official-oplus_bq27541.h",
+      "sha256": "58c68c362fc031eb73884a59e121ba25918e6728b37572df4116f8e1277e270e"
+    },
+    "Image502_bq_source": {
+      "path": "reference\\charging-ui-audit-20261023\\gauge-notify-immediate-candidate\\bq27xxx_battery.c",
+      "sha256": "0014077792948460fc2a2e9581225dc684cba4d5bff95c3e88767d661ce5439b"
+    }
+  },
+  "functions": {
+    "OEM_thermal": {
+      "first_line": 4271,
+      "last_line": 4337,
+      "sha256_lf": "1327ad2c7e671857b5e585f9eec27c9e044b43e2cd77bf9336421c3c9d15756d"
+    },
+    "OEM_voter_start": {
+      "first_line": 4103,
+      "last_line": 4132,
+      "sha256_lf": "7365667815641fbcaf3a1f50d238937eed2ce401f587958e5767f383fb3c7cee"
+    },
+    "OEM_gauge_soc": {
+      "first_line": 1172,
+      "last_line": 1205,
+      "sha256_lf": "59d3f15876a94f9f51082a2175f0c522e6fc61d4438d112ac4a77d1b1ece43f3"
+    },
+    "OEM_soc_calibrate": {
+      "first_line": 371,
+      "last_line": 393,
+      "sha256_lf": "4a9dddd68dfb9c3ccf400d928efe54668bc65bf3093fa4a0f8da280062b93f04"
+    },
+    "installed_soc_read": {
+      "first_line": 1618,
+      "last_line": 1631,
+      "sha256_lf": "6a39d4a8fcc5503790b770c5d56f26f8f5ce5caaccbabea643e786cf8d68a954"
+    }
+  },
+  "OEM_condition": {
+    "band_actually_changed": true,
+    "old_band": [
+      "WARM",
+      "COLD"
+    ],
+    "soc_not_100": true,
+    "batt_full": true,
+    "charging_state": "CHARGING_STATUS_FULL",
+    "only_FULL_voter_removed": true
+  },
+  "SOC_source": {
+    "register": "0x2c",
+    "SMBus": "unsigned word",
+    "unit": "integer percent 0..100",
+    "OEM_selector": {
+      "reg_soc_assignment_line": 1414,
+      "header_definition_line": 53,
+      "FFA5_current_override_only_lines": [
+        1590,
+        1592
+      ]
+    },
+    "OEM_online_getter_assignment_line": 5487,
+    "installed_bq28z610_SOC_row_line": 520,
+    "installed_CAPACITY_is_cached": true,
+    "cached_UI_SOC_used_for_permission": false,
+    "out_of_range_or_read_error": "unknown; not zero, clamp or stale fallback"
+  },
+  "Full_mode_gate": {
+    "base_suspend_keeps_full_holding_software_flag": true,
+    "requires_last_successful_Full_hold": true,
+    "eligible_edge_REG08_readback_mask": "0x18",
+    "required_value": 0,
+    "INHIBIT_or_CHG_enabled": "no immediate thermal release",
+    "read_failure": "existing I/O latch/stop path, Full fact retained"
+  },
+  "stricter_than_OEM": [
+    "all current safety, source, latch, timeout and TCA/OCA gates precede release",
+    "only valid charging destination band",
+    "AUTO only; no INHIBIT catch-up",
+    "fresh in-range SOC only; no OEM cache/default-zero fallback",
+    "explicitly honor recharge_forbidden"
+  ],
+  "ABI": "private charger internal structs only; no UAPI/export/new module parameter",
+  "kernel_built": false,
+  "hardware_verified": false
+}

@@ -1,0 +1,61 @@
+{
+  "passed": true,
+  "groups": [
+    "publication is zero I/O; exact instance, owner lifetime and single client",
+    "original OEM masked sequence and exact restore; busy unregister preserves owner",
+    "remove joins and restores before devres; old handle is readable tombstone only",
+    "failed restore retains independent error; forced withdrawal balances PM without retry",
+    "unfinished failed entry is revoked, never reported restored or retried",
+    "callback may unregister; its context lives until callback return",
+    "real concurrent in-flight begin drains; provider callback joins original worker",
+    "concurrent withdrawals wait for the original callback and run it once",
+    "shutdown revokes ordinary lifecycle entry as well as detection calls",
+    "probe action failure synchronously withdraws publication and frees state"
+  ],
+  "group_count": 10,
+  "flags": [
+    "-std=gnu11",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-Wno-unused-parameter",
+    "-Wno-sign-compare",
+    "-fsanitize=address,undefined",
+    "-fno-omit-frame-pointer",
+    "-pthread",
+    "-no-pie"
+  ],
+  "runtime_stdout": "ok: publication is zero I/O; exact instance, owner lifetime and single client\nok: original OEM masked sequence and exact restore; busy unregister preserves owner\nok: remove joins and restores before devres; old handle is readable tombstone only\nok: failed restore retains independent error; forced withdrawal balances PM without retry\nok: unfinished failed entry is revoked, never reported restored or retried\nok: callback may unregister; its context lives until callback return\nok: real concurrent in-flight begin drains; provider callback joins original worker\nok: concurrent withdrawals wait for the original callback and run it once\nok: shutdown revokes ordinary lifecycle entry as well as detection calls\nok: probe action failure synchronously withdraws publication and frees state\n",
+  "runtime_stderr": "",
+  "complete_provider_lifetime_bodies": true,
+  "actual_extracted_window_and_lifecycle_functions": [
+    "qcom_snps_hsphy_window_busy",
+    "qcom_snps_hsphy_window_write",
+    "qcom_snps_hsphy_window_bound_begin",
+    "qcom_snps_hsphy_window_bound_end",
+    "qcom_snps_hsphy_write_mask",
+    "qcom_snps_hsphy_suspend",
+    "qcom_snps_hsphy_resume",
+    "qcom_snps_hsphy_runtime_suspend",
+    "qcom_snps_hsphy_runtime_resume",
+    "qcom_snps_hsphy_set_mode",
+    "qcom_snps_hsphy_init",
+    "qcom_snps_hsphy_exit"
+  ],
+  "body_sha256": "20b721a6f2aa31b6c9709cd8308061af606756762efd5491244e0d92353dca0b",
+  "types_sha256": "caaac3e5d89c57f9476648959a1802688bd1cefa81c873098d2f5485e5b314d7",
+  "patch_applied_fuzz0_exact_bytes": true,
+  "files": {
+    "phy-qcom-snps-femto-v2.c": "50d80b9f7bbcc735335afc27ffa174d7c46379cb06bfd7306b81bcf0da097ead",
+    "phy-qcom-snps-femto-v2-window.h": "7df096f458789ad6be88697860ff7ebe5482af8c54d6b99dfeeee0e351201c21",
+    "provider-lifetime.inc": "cbbc00570e734a4b5cb7c642a643becdd198ca9893ac9b3baecdfe76b26a9493",
+    "prepare.py": "0ecece6f904ff7614c308d41e3e0b3308da15e3c782e827be19c9407270b1a7b",
+    "run-tests.py": "4f7594cdcb1329695ae6b1868ead23d78708bab99ae7d9d568d5b1fe601c3f1e",
+    "test-withdrawal.c": "7b0c9f84ee635fc17e3069bfd79f91712a233949312dd473018180487917c98b",
+    "withdrawal.patch": "c0e74b5b8359db6acf31be2a0da09f12b289848d080093a9c1aa40a7a07b0b10"
+  },
+  "real_pthread_mutex_join_and_completion": true,
+  "PM_MMIO_and_driver_core_edges_modeled": true,
+  "phone_accessed": false,
+  "consumer_connected": false
+}

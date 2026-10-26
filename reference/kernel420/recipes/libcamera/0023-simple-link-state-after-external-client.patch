@@ -1,0 +1,36 @@
+Subject: [PATCH] libcamera: simple: set links independently of cached enable flags
+
+A different process may reconfigure the media graph while a pipeline is
+released. Cached flags from enumeration do not describe that kernel state.
+Always request the required mutable-link states when configuring a pipeline.
+Retain immutable-link protection, routing-pad limits and ioctl error handling.
+
+---
+--- a/src/libcamera/pipeline/simple/simple.cpp
++++ b/src/libcamera/pipeline/simple/simple.cpp
+@@ -802,8 +802,8 @@
+ 				if (link == sinkLink)
+ 					continue;
+ 
+-				if ((link->flags() & MEDIA_LNK_FL_ENABLED) &&
+-				    !(link->flags() & MEDIA_LNK_FL_IMMUTABLE)) {
++				/* Another process may have changed the kernel link state. */
++				if (!(link->flags() & MEDIA_LNK_FL_IMMUTABLE)) {
+ 					ret = link->setEnabled(false);
+ 					if (ret < 0)
+ 						return ret;
+@@ -811,11 +811,9 @@
+ 			}
+ 		}
+ 
+-		if (!(sinkLink->flags() & MEDIA_LNK_FL_ENABLED)) {
+-			ret = sinkLink->setEnabled(true);
+-			if (ret < 0)
+-				return ret;
+-		}
++		ret = sinkLink->setEnabled(true);
++		if (ret < 0)
++			return ret;
+ 
+ 		sinkLink = e.sourceLink;
+ 	}

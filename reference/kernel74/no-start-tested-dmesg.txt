@@ -1,0 +1,1833 @@
+[  142.097038] sp : ffffffc0828abc40
+[  142.129279] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  142.196747] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  142.264230] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  142.331695] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  142.399173] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  142.466637] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 0000000000000739
+[  142.534113] x11: ffffff8083a3d8a0 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  142.601574] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 000000000000073a
+[  142.669042] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  142.736490] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  142.803955] Call trace:
+[  142.826966]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  142.875203]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  142.926630]  drm_fb_helper_damage_work+0x174/0x3a0
+[  142.971847]  process_one_work+0x188/0x2e4
+[  143.010465]  worker_thread+0x18c/0x300
+[  143.046082]  kthread+0x118/0x124
+[  143.075690]  ret_from_fork+0x10/0x20
+[  143.108511] ---[ end trace 0000000000000000 ]---
+[  143.239509] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  143.419470] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  144.351499] ------------[ cut here ]------------
+[  144.394020] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  144.467889] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  144.567388] Modules linked in:
+[  144.596609] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  144.699304] Tainted: [W]=WARN
+[  144.728337] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  144.799198] Workqueue: events drm_fb_helper_damage_work
+[  144.847861] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  144.912532] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  144.960787] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  145.009038] sp : ffffffc0828abc40
+[  145.041279] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  145.108748] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  145.176230] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  145.243696] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  145.311174] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  145.378636] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 000000000000075a
+[  145.446105] x11: ffffff8083a3c430 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  145.513564] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 000000000000075b
+[  145.581030] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  145.648478] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  145.715941] Call trace:
+[  145.738953]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  145.787195]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  145.838628]  drm_fb_helper_damage_work+0x174/0x3a0
+[  145.883848]  process_one_work+0x188/0x2e4
+[  145.922468]  worker_thread+0x18c/0x300
+[  145.958082]  kthread+0x118/0x124
+[  145.987692]  ret_from_fork+0x10/0x20
+[  146.020513] ---[ end trace 0000000000000000 ]---
+[  146.151790] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  146.331469] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  147.263850] ------------[ cut here ]------------
+[  147.306376] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  147.380247] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  147.479736] Modules linked in:
+[  147.508961] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  147.611664] Tainted: [W]=WARN
+[  147.640686] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  147.711566] Workqueue: events drm_fb_helper_damage_work
+[  147.760223] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  147.824882] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  147.873130] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  147.921394] sp : ffffffc0828abc40
+[  147.953626] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  148.021095] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  148.088575] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  148.156057] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  148.223520] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  148.290997] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 000000000000077b
+[  148.358458] x11: ffffff8083a3ca30 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  148.425928] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 000000000000077c
+[  148.493379] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  148.560842] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  148.628294] Call trace:
+[  148.651308]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  148.699539]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  148.750960]  drm_fb_helper_damage_work+0x174/0x3a0
+[  148.796174]  process_one_work+0x188/0x2e4
+[  148.834789]  worker_thread+0x18c/0x300
+[  148.870400]  kthread+0x118/0x124
+[  148.900010]  ret_from_fork+0x10/0x20
+[  148.932832] ---[ end trace 0000000000000000 ]---
+[  149.063509] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  149.243471] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  150.175856] ------------[ cut here ]------------
+[  150.218386] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  150.292266] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  150.391761] Modules linked in:
+[  150.420997] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  150.523691] Tainted: [W]=WARN
+[  150.552726] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  150.623598] Workqueue: events drm_fb_helper_damage_work
+[  150.672249] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  150.736915] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  150.785174] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  150.833426] sp : ffffffc0828abc40
+[  150.865660] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  150.933146] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  151.000616] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  151.068095] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  151.135570] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  151.203028] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 000000000000079c
+[  151.270499] x11: ffffff8083a3d8c0 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  151.337957] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 000000000000079d
+[  151.405415] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  151.472878] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  151.540329] Call trace:
+[  151.563339]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  151.611566]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  151.663000]  drm_fb_helper_damage_work+0x174/0x3a0
+[  151.708237]  process_one_work+0x188/0x2e4
+[  151.746860]  worker_thread+0x18c/0x300
+[  151.782476]  kthread+0x118/0x124
+[  151.812091]  ret_from_fork+0x10/0x20
+[  151.844899] ---[ end trace 0000000000000000 ]---
+[  151.975510] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  152.155471] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  153.087849] ------------[ cut here ]------------
+[  153.130381] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  153.204253] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  153.303750] Modules linked in:
+[  153.332983] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  153.435688] Tainted: [W]=WARN
+[  153.464723] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  153.535601] Workqueue: events drm_fb_helper_damage_work
+[  153.584250] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  153.648918] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  153.697185] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  153.745435] sp : ffffffc0828abc40
+[  153.777677] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  153.845164] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  153.912645] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  153.980112] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  154.047595] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  154.115062] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 00000000000007bd
+[  154.182540] x11: ffffff8083a3ce50 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  154.250001] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 00000000000007be
+[  154.317470] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  154.384928] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  154.452396] Call trace:
+[  154.475407]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  154.523648]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  154.575070]  drm_fb_helper_damage_work+0x174/0x3a0
+[  154.620289]  process_one_work+0x188/0x2e4
+[  154.658902]  worker_thread+0x18c/0x300
+[  154.694515]  kthread+0x118/0x124
+[  154.724129]  ret_from_fork+0x10/0x20
+[  154.756950] ---[ end trace 0000000000000000 ]---
+[  154.887788] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  155.067468] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  155.999859] ------------[ cut here ]------------
+[  156.042387] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  156.116266] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  156.215763] Modules linked in:
+[  156.244997] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  156.347688] Tainted: [W]=WARN
+[  156.376723] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  156.447598] Workqueue: events drm_fb_helper_damage_work
+[  156.496247] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  156.560908] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  156.609171] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  156.657427] sp : ffffffc0828abc40
+[  156.689661] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  156.757145] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  156.824616] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  156.892095] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  156.959570] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  157.027034] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 00000000000007de
+[  157.094512] x11: ffffff8083a3d8c0 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  157.161968] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 00000000000007df
+[  157.229439] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  157.296891] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  157.364343] Call trace:
+[  157.387360]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  157.435601]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  157.487040]  drm_fb_helper_damage_work+0x174/0x3a0
+[  157.532266]  process_one_work+0x188/0x2e4
+[  157.570887]  worker_thread+0x18c/0x300
+[  157.606503]  kthread+0x118/0x124
+[  157.636114]  ret_from_fork+0x10/0x20
+[  157.668930] ---[ end trace 0000000000000000 ]---
+[  157.799511] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  157.979139] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  158.910863] ------------[ cut here ]------------
+[  158.953386] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  159.027254] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  159.126758] Modules linked in:
+[  159.155978] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  159.258675] Tainted: [W]=WARN
+[  159.287703] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  159.358569] Workqueue: events drm_fb_helper_damage_work
+[  159.407235] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  159.471907] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  159.520157] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  159.568421] sp : ffffffc0828abc40
+[  159.600660] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  159.668133] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  159.735615] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  159.803095] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  159.870559] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  159.938036] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 00000000000007ff
+[  160.005499] x11: ffffff8083a3ca10 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  160.072969] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 0000000000000800
+[  160.140426] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  160.207892] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  160.275342] Call trace:
+[  160.298348]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  160.346579]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  160.398003]  drm_fb_helper_damage_work+0x174/0x3a0
+[  160.443216]  process_one_work+0x188/0x2e4
+[  160.481829]  worker_thread+0x18c/0x300
+[  160.517443]  kthread+0x118/0x124
+[  160.547051]  ret_from_fork+0x10/0x20
+[  160.579873] ---[ end trace 0000000000000000 ]---
+[  160.711512] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  160.891469] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  161.823852] ------------[ cut here ]------------
+[  161.866384] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  161.940261] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  162.039748] Modules linked in:
+[  162.068982] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  162.171677] Tainted: [W]=WARN
+[  162.200711] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  162.271585] Workqueue: events drm_fb_helper_damage_work
+[  162.320234] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  162.384895] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  162.433153] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  162.481407] sp : ffffffc0828abc40
+[  162.513641] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  162.581118] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  162.648588] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  162.716069] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  162.783531] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  162.851007] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 0000000000000820
+[  162.918468] x11: ffffff8083a3d810 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  162.985937] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 0000000000000821
+[  163.053387] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  163.120849] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  163.188298] Call trace:
+[  163.211306]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  163.259539]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  163.310963]  drm_fb_helper_damage_work+0x174/0x3a0
+[  163.356176]  process_one_work+0x188/0x2e4
+[  163.394786]  worker_thread+0x18c/0x300
+[  163.430400]  kthread+0x118/0x124
+[  163.460010]  ret_from_fork+0x10/0x20
+[  163.492828] ---[ end trace 0000000000000000 ]---
+[  163.623504] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  163.803121] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  164.735145] ------------[ cut here ]------------
+[  164.777663] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  164.851545] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  164.951042] Modules linked in:
+[  164.980268] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  165.082957] Tainted: [W]=WARN
+[  165.111991] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  165.182856] Workqueue: events drm_fb_helper_damage_work
+[  165.231500] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  165.296161] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  165.344423] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  165.392677] sp : ffffffc0828abc40
+[  165.424906] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  165.492390] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  165.559855] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  165.627337] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  165.694801] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  165.762275] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 0000000000000841
+[  165.829736] x11: ffffff8083a3d880 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  165.897202] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 0000000000000842
+[  165.964653] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  166.032117] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  166.099568] Call trace:
+[  166.122578]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  166.170804]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  166.222226]  drm_fb_helper_damage_work+0x174/0x3a0
+[  166.267446]  process_one_work+0x188/0x2e4
+[  166.306053]  worker_thread+0x18c/0x300
+[  166.341664]  kthread+0x118/0x124
+[  166.371275]  ret_from_fork+0x10/0x20
+[  166.404090] ---[ end trace 0000000000000000 ]---
+[  166.535781] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  166.715472] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  167.647011] ------------[ cut here ]------------
+[  167.689534] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  167.763412] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  167.862907] Modules linked in:
+[  167.892143] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  167.994836] Tainted: [W]=WARN
+[  168.023870] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  168.094745] Workqueue: events drm_fb_helper_damage_work
+[  168.143394] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  168.208053] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  168.256316] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  168.304571] sp : ffffffc0828abc40
+[  168.336797] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  168.404283] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  168.471749] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  168.539229] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  168.606689] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  168.674160] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 0000000000000862
+[  168.741621] x11: ffffff8083a3ca20 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  168.809087] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 0000000000000863
+[  168.876543] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  168.944011] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  169.011461] Call trace:
+[  169.034472]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  169.082697]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  169.134121]  drm_fb_helper_damage_work+0x174/0x3a0
+[  169.179343]  process_one_work+0x188/0x2e4
+[  169.217956]  worker_thread+0x18c/0x300
+[  169.253569]  kthread+0x118/0x124
+[  169.283175]  ret_from_fork+0x10/0x20
+[  169.315993] ---[ end trace 0000000000000000 ]---
+[  169.447788] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  169.627469] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  170.559759] ------------[ cut here ]------------
+[  170.602294] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  170.676172] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  170.775666] Modules linked in:
+[  170.804894] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  170.907581] Tainted: [W]=WARN
+[  170.936615] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  171.007489] Workqueue: events drm_fb_helper_damage_work
+[  171.056133] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  171.120795] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  171.169051] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  171.217306] sp : ffffffc0828abc40
+[  171.249539] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  171.317017] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  171.384481] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  171.451963] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  171.519424] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  171.586901] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 0000000000000883
+[  171.654362] x11: ffffff8083a3d8c0 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  171.721833] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 0000000000000884
+[  171.789283] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  171.856744] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  171.924193] Call trace:
+[  171.947198]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  171.995431]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  172.046852]  drm_fb_helper_damage_work+0x174/0x3a0
+[  172.092067]  process_one_work+0x188/0x2e4
+[  172.130681]  worker_thread+0x18c/0x300
+[  172.166294]  kthread+0x118/0x124
+[  172.195901]  ret_from_fork+0x10/0x20
+[  172.228723] ---[ end trace 0000000000000000 ]---
+[  172.359783] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  172.539076] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  173.470497] ------------[ cut here ]------------
+[  173.513026] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  173.586908] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  173.686410] Modules linked in:
+[  173.715638] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  173.818336] Tainted: [W]=WARN
+[  173.847365] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  173.918224] Workqueue: events drm_fb_helper_damage_work
+[  173.966873] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  174.031545] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  174.079807] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  174.128049] sp : ffffffc0828abc40
+[  174.160288] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  174.227771] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  174.295243] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  174.362715] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  174.430196] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  174.497661] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 00000000000008a4
+[  174.565138] x11: ffffff8083a3d8b0 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  174.632592] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 00000000000008a5
+[  174.700057] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  174.767506] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  174.834964] Call trace:
+[  174.857977]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  174.906215]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  174.957655]  drm_fb_helper_damage_work+0x174/0x3a0
+[  175.002880]  process_one_work+0x188/0x2e4
+[  175.041501]  worker_thread+0x18c/0x300
+[  175.077117]  kthread+0x118/0x124
+[  175.106729]  ret_from_fork+0x10/0x20
+[  175.139550] ---[ end trace 0000000000000000 ]---
+[  175.267512] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  175.447146] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  176.383502] ------------[ cut here ]------------
+[  176.426027] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  176.499892] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  176.599393] Modules linked in:
+[  176.628613] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  176.731312] Tainted: [W]=WARN
+[  176.760341] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  176.831207] Workqueue: events drm_fb_helper_damage_work
+[  176.879872] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  176.944543] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  176.992795] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  177.041052] sp : ffffffc0828abc40
+[  177.073291] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  177.140763] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  177.208245] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  177.275720] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  177.343193] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  177.410666] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 00000000000008c5
+[  177.478128] x11: ffffff8083a3d8c0 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  177.545604] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 00000000000008c6
+[  177.613055] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  177.680515] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  177.747972] Call trace:
+[  177.770988]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  177.819219]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  177.870643]  drm_fb_helper_damage_work+0x174/0x3a0
+[  177.915857]  process_one_work+0x188/0x2e4
+[  177.954470]  worker_thread+0x18c/0x300
+[  177.990082]  kthread+0x118/0x124
+[  178.019691]  ret_from_fork+0x10/0x20
+[  178.052511] ---[ end trace 0000000000000000 ]---
+[  178.183788] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  178.363469] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  179.295851] ------------[ cut here ]------------
+[  179.338380] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  179.412250] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  179.511744] Modules linked in:
+[  179.540975] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  179.643673] Tainted: [W]=WARN
+[  179.672701] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  179.743580] Workqueue: events drm_fb_helper_damage_work
+[  179.792232] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  179.856892] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  179.905146] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  179.953408] sp : ffffffc0828abc40
+[  179.985642] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  180.053120] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  180.120589] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  180.188071] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  180.255533] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  180.323008] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 00000000000008e6
+[  180.390471] x11: ffffff8083a3ca30 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  180.457940] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 00000000000008e7
+[  180.525391] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  180.592854] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  180.660301] Call trace:
+[  180.683307]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  180.731538]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  180.782963]  drm_fb_helper_damage_work+0x174/0x3a0
+[  180.828174]  process_one_work+0x188/0x2e4
+[  180.866788]  worker_thread+0x18c/0x300
+[  180.902401]  kthread+0x118/0x124
+[  180.932010]  ret_from_fork+0x10/0x20
+[  180.964831] ---[ end trace 0000000000000000 ]---
+[  181.094864] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  181.271470] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  182.207866] ------------[ cut here ]------------
+[  182.250403] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  182.324303] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  182.423816] Modules linked in:
+[  182.453036] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  182.555733] Tainted: [W]=WARN
+[  182.584764] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  182.655626] Workqueue: events drm_fb_helper_damage_work
+[  182.704288] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  182.768964] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  182.817217] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  182.865473] sp : ffffffc0828abc40
+[  182.897713] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  182.965178] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  183.032657] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  183.100122] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  183.167601] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  183.235062] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 0000000000000907
+[  183.302540] x11: ffffff8083a3ce60 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  183.370003] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 0000000000000908
+[  183.437468] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  183.504921] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  183.572385] Call trace:
+[  183.595397]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  183.643635]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  183.695065]  drm_fb_helper_damage_work+0x174/0x3a0
+[  183.740285]  process_one_work+0x188/0x2e4
+[  183.778900]  worker_thread+0x18c/0x300
+[  183.814512]  kthread+0x118/0x124
+[  183.844120]  ret_from_fork+0x10/0x20
+[  183.876941] ---[ end trace 0000000000000000 ]---
+[  184.007510] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  184.187471] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  185.119102] ------------[ cut here ]------------
+[  185.161642] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  185.235522] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  185.335017] Modules linked in:
+[  185.364250] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  185.466944] Tainted: [W]=WARN
+[  185.495977] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  185.566852] Workqueue: events drm_fb_helper_damage_work
+[  185.615500] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  185.680161] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  185.728423] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  185.776677] sp : ffffffc0828abc40
+[  185.808905] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  185.876387] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  185.943856] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  186.011339] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  186.078801] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  186.146276] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 0000000000000928
+[  186.213742] x11: ffffff8083a3cdf0 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  186.281207] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 0000000000000929
+[  186.348668] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  186.416130] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  186.483582] Call trace:
+[  186.506594]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  186.554820]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  186.606253]  drm_fb_helper_damage_work+0x174/0x3a0
+[  186.651483]  process_one_work+0x188/0x2e4
+[  186.690105]  worker_thread+0x18c/0x300
+[  186.725732]  kthread+0x118/0x124
+[  186.755346]  ret_from_fork+0x10/0x20
+[  186.788154] ---[ end trace 0000000000000000 ]---
+[  186.919787] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  187.099472] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  188.031852] ------------[ cut here ]------------
+[  188.074385] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  188.148265] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  188.247762] Modules linked in:
+[  188.276990] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  188.379677] Tainted: [W]=WARN
+[  188.408709] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  188.479584] Workqueue: events drm_fb_helper_damage_work
+[  188.528234] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  188.592895] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  188.641148] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  188.689408] sp : ffffffc0828abc40
+[  188.721641] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  188.789118] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  188.856588] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  188.924070] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  188.991531] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  189.059008] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 0000000000000949
+[  189.126469] x11: ffffff8083a3d800 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  189.193939] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 000000000000094a
+[  189.261389] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  189.328850] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  189.396300] Call trace:
+[  189.419307]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  189.467540]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  189.518963]  drm_fb_helper_damage_work+0x174/0x3a0
+[  189.564175]  process_one_work+0x188/0x2e4
+[  189.602789]  worker_thread+0x18c/0x300
+[  189.638403]  kthread+0x118/0x124
+[  189.668008]  ret_from_fork+0x10/0x20
+[  189.700830] ---[ end trace 0000000000000000 ]---
+[  189.831507] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  190.011469] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  190.943765] ------------[ cut here ]------------
+[  190.986296] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  191.060182] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  191.159682] Modules linked in:
+[  191.188907] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  191.291596] Tainted: [W]=WARN
+[  191.320631] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  191.391498] Workqueue: events drm_fb_helper_damage_work
+[  191.440141] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  191.504809] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  191.553070] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  191.601320] sp : ffffffc0828abc40
+[  191.633553] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  191.701037] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  191.768506] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  191.835990] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  191.903464] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  191.970927] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 000000000000096a
+[  192.038397] x11: ffffff8083a3ca00 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  192.105856] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 000000000000096b
+[  192.173320] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  192.240777] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  192.308221] Call trace:
+[  192.331232]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  192.379458]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  192.430893]  drm_fb_helper_damage_work+0x174/0x3a0
+[  192.476128]  process_one_work+0x188/0x2e4
+[  192.514756]  worker_thread+0x18c/0x300
+[  192.550373]  kthread+0x118/0x124
+[  192.579992]  ret_from_fork+0x10/0x20
+[  192.612804] ---[ end trace 0000000000000000 ]---
+[  192.743788] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  192.923172] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  193.854502] ------------[ cut here ]------------
+[  193.897026] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  193.970910] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  194.070414] Modules linked in:
+[  194.099640] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  194.202336] Tainted: [W]=WARN
+[  194.231365] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  194.302223] Workqueue: events drm_fb_helper_damage_work
+[  194.350872] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  194.415545] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  194.463809] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  194.512054] sp : ffffffc0828abc40
+[  194.544300] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  194.611771] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  194.679244] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  194.746716] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  194.814196] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  194.881660] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 000000000000098b
+[  194.949136] x11: ffffff8083a3ddf0 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  194.964813] [236] Jan 01 00:03:12 Child connection from 169.254.191.135:54353
+[  195.015788] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 000000000000098c
+[  195.015792] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  195.015794] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  195.015797] Call trace:
+[  195.015798]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  195.015802]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  195.015804]  drm_fb_helper_damage_work+0x174/0x3a0
+[  195.015806]  process_one_work+0x188/0x2e4
+[  195.319444] [236] Jan 01 00:03:12 Pubkey auth succeeded for 'root' with ssh-ed25519 key SHA256:MJFUR9BsjAXOdjFL6zVatq+XtOT+d5F4fYQV0SkDUTs f
+[  195.355283]  worker_thread+0x18c/0x300
+[  195.355286]  kthread+0x118/0x124
+[  195.355289]  ret_from_fork+0x10/0x20
+[  195.405952] rom 169.254.191.135:54353
+[  195.450390] ---[ end trace 0000000000000000 ]---
+[  195.604525] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  195.614058] [236] Jan 01 00:03:12 Exit (root) from <169.254.191.135:54353>: Disconnect received
+[  195.726142] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  196.671225] ------------[ cut here ]------------
+[  196.713752] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  196.787648] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  196.887146] Modules linked in:
+[  196.916381] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  197.019083] Tainted: [W]=WARN
+[  197.048124] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  197.118998] Workqueue: events drm_fb_helper_damage_work
+[  197.167678] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  197.232360] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  197.280629] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  197.328892] sp : ffffffc0828abc40
+[  197.361134] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  197.428618] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  197.496084] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  197.563558] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  197.631022] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  197.698489] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 00000000000009b0
+[  197.765947] x11: ffffff8083a3c7b0 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  197.833410] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 00000000000009b1
+[  197.900861] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  197.968324] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  198.035769] Call trace:
+[  198.058780]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  198.107023]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  198.158465]  drm_fb_helper_damage_work+0x174/0x3a0
+[  198.203717]  process_one_work+0x188/0x2e4
+[  198.242354]  worker_thread+0x18c/0x300
+[  198.277983]  kthread+0x118/0x124
+[  198.307605]  ret_from_fork+0x10/0x20
+[  198.340430] ---[ end trace 0000000000000000 ]---
+[  198.471520] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  198.651471] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  199.583515] ------------[ cut here ]------------
+[  199.626059] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  199.699937] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  199.799449] Modules linked in:
+[  199.828688] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  199.931394] Tainted: [W]=WARN
+[  199.960432] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  200.031308] Workqueue: events drm_fb_helper_damage_work
+[  200.079986] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  200.144680] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  200.192951] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  200.241221] sp : ffffffc0828abc40
+[  200.273471] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  200.340956] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  200.408444] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  200.475915] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  200.543394] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  200.610857] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 00000000000009d1
+[  200.678321] x11: ffffff8083a3c100 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  200.745781] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 00000000000009d2
+[  200.813249] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  200.880701] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  200.948169] Call trace:
+[  200.971187]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  201.019442]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  201.070882]  drm_fb_helper_damage_work+0x174/0x3a0
+[  201.116131]  process_one_work+0x188/0x2e4
+[  201.154773]  worker_thread+0x18c/0x300
+[  201.190408]  kthread+0x118/0x124
+[  201.220033]  ret_from_fork+0x10/0x20
+[  201.252861] ---[ end trace 0000000000000000 ]---
+[  201.383784] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  201.563144] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  202.495177] ------------[ cut here ]------------
+[  202.537710] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  202.611583] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  202.711089] Modules linked in:
+[  202.740328] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  202.843036] Tainted: [W]=WARN
+[  202.872080] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  202.942971] Workqueue: events drm_fb_helper_damage_work
+[  202.991638] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  203.056337] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  203.104603] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  203.152875] sp : ffffffc0828abc40
+[  203.185118] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  203.252607] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  203.320073] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  203.387550] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  203.455008] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  203.522474] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 00000000000009f2
+[  203.589932] x11: ffffff8083a3ddd0 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  203.657400] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 00000000000009f3
+[  203.724850] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  203.792315] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  203.859766] Call trace:
+[  203.882783]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  203.931027]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  203.982469]  drm_fb_helper_damage_work+0x174/0x3a0
+[  204.027718]  process_one_work+0x188/0x2e4
+[  204.066358]  worker_thread+0x18c/0x300
+[  204.101986]  kthread+0x118/0x124
+[  204.131609]  ret_from_fork+0x10/0x20
+[  204.164435] ---[ end trace 0000000000000000 ]---
+[  204.295790] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  204.475470] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  205.407854] ------------[ cut here ]------------
+[  205.450397] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  205.524290] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  205.623796] Modules linked in:
+[  205.653037] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  205.755753] Tainted: [W]=WARN
+[  205.784793] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  205.855689] Workqueue: events drm_fb_helper_damage_work
+[  205.904359] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  205.969045] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  206.017320] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  206.065585] sp : ffffffc0828abc40
+[  206.097834] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  206.165310] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  206.232792] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  206.300270] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  206.367729] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  206.435206] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 0000000000000a13
+[  206.502659] x11: ffffff8083a3c430 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  206.570122] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 0000000000000a14
+[  206.637576] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  206.705023] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  206.772491] Call trace:
+[  206.795511]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  206.843762]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  206.895203]  drm_fb_helper_damage_work+0x174/0x3a0
+[  206.940449]  process_one_work+0x188/0x2e4
+[  206.979092]  worker_thread+0x18c/0x300
+[  207.014728]  kthread+0x118/0x124
+[  207.044353]  ret_from_fork+0x10/0x20
+[  207.077181] ---[ end trace 0000000000000000 ]---
+[  207.207788] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  207.387467] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  208.319852] ------------[ cut here ]------------
+[  208.362399] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  208.436291] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  208.535798] Modules linked in:
+[  208.565039] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  208.667743] Tainted: [W]=WARN
+[  208.696790] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  208.767680] Workqueue: events drm_fb_helper_damage_work
+[  208.816344] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  208.881015] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  208.929280] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  208.977537] sp : ffffffc0828abc40
+[  209.009776] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  209.077262] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  209.144743] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  209.212216] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  209.279695] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  209.347158] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 0000000000000a34
+[  209.414637] x11: ffffff8083a3d870 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  209.482099] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 0000000000000a35
+[  209.549565] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  209.617015] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  209.684471] Call trace:
+[  209.707484]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  209.755723]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  209.807146]  drm_fb_helper_damage_work+0x174/0x3a0
+[  209.852376]  process_one_work+0x188/0x2e4
+[  209.890995]  worker_thread+0x18c/0x300
+[  209.926613]  kthread+0x118/0x124
+[  209.956226]  ret_from_fork+0x10/0x20
+[  209.989047] ---[ end trace 0000000000000000 ]---
+[  210.119522] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  210.299468] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  211.231913] ------------[ cut here ]------------
+[  211.274429] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  211.348306] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  211.447817] Modules linked in:
+[  211.477039] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  211.579734] Tainted: [W]=WARN
+[  211.608768] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  211.679635] Workqueue: events drm_fb_helper_damage_work
+[  211.728303] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  211.792977] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  211.841227] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  211.889492] sp : ffffffc0828abc40
+[  211.921733] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  211.989204] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  212.056684] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  212.124165] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  212.191630] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  212.259105] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 0000000000000a55
+[  212.326569] x11: ffffff8083a3d8a0 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  212.394043] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 0000000000000a56
+[  212.461497] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  212.528962] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  212.596411] Call trace:
+[  212.619419]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  212.667652]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  212.719082]  drm_fb_helper_damage_work+0x174/0x3a0
+[  212.764307]  process_one_work+0x188/0x2e4
+[  212.802928]  worker_thread+0x18c/0x300
+[  212.838549]  kthread+0x118/0x124
+[  212.868159]  ret_from_fork+0x10/0x20
+[  212.900973] ---[ end trace 0000000000000000 ]---
+[  213.031520] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  213.211469] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  214.143852] ------------[ cut here ]------------
+[  214.186391] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  214.260277] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  214.359777] Modules linked in:
+[  214.389004] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  214.491692] Tainted: [W]=WARN
+[  214.520728] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  214.591600] Workqueue: events drm_fb_helper_damage_work
+[  214.640250] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  214.704917] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  214.753177] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  214.801427] sp : ffffffc0828abc40
+[  214.833662] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  214.901147] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  214.968617] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  215.036096] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  215.103573] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  215.171038] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 0000000000000a76
+[  215.238514] x11: ffffff8083a3d8b0 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  215.305971] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 0000000000000a77
+[  215.373444] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  215.440892] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  215.508345] Call trace:
+[  215.531362]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  215.579602]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  215.631039]  drm_fb_helper_damage_work+0x174/0x3a0
+[  215.676269]  process_one_work+0x188/0x2e4
+[  215.714887]  worker_thread+0x18c/0x300
+[  215.750505]  kthread+0x118/0x124
+[  215.780118]  ret_from_fork+0x10/0x20
+[  215.812940] ---[ end trace 0000000000000000 ]---
+[  215.943522] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  216.123468] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  217.055853] ------------[ cut here ]------------
+[  217.098385] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  217.172264] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  217.271761] Modules linked in:
+[  217.300997] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  217.403687] Tainted: [W]=WARN
+[  217.432720] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  217.503598] Workqueue: events drm_fb_helper_damage_work
+[  217.552249] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  217.616918] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  217.665186] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  217.713435] sp : ffffffc0828abc40
+[  217.745675] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  217.813153] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  217.880629] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  217.948103] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  218.015585] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  218.083050] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 0000000000000a97
+[  218.150529] x11: ffffff8083a3d840 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  218.217992] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 0000000000000a98
+[  218.285455] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  218.352905] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  218.420369] Call trace:
+[  218.443379]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  218.491617]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  218.543053]  drm_fb_helper_damage_work+0x174/0x3a0
+[  218.588274]  process_one_work+0x188/0x2e4
+[  218.626893]  worker_thread+0x18c/0x300
+[  218.662508]  kthread+0x118/0x124
+[  218.692118]  ret_from_fork+0x10/0x20
+[  218.724940] ---[ end trace 0000000000000000 ]---
+[  218.855524] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  219.035466] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  219.967866] ------------[ cut here ]------------
+[  220.010394] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  220.084276] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  220.183771] Modules linked in:
+[  220.213002] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  220.315691] Tainted: [W]=WARN
+[  220.344725] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  220.415598] Workqueue: events drm_fb_helper_damage_work
+[  220.464248] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  220.528915] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  220.577175] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  220.625426] sp : ffffffc0828abc40
+[  220.657660] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  220.725146] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  220.792616] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  220.860096] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  220.927571] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  220.995034] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 0000000000000ab8
+[  221.062503] x11: ffffff8083a3ddf0 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  221.129962] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 0000000000000ab9
+[  221.197427] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  221.264884] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  221.332328] Call trace:
+[  221.355339]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  221.403564]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  221.454998]  drm_fb_helper_damage_work+0x174/0x3a0
+[  221.500236]  process_one_work+0x188/0x2e4
+[  221.538864]  worker_thread+0x18c/0x300
+[  221.574480]  kthread+0x118/0x124
+[  221.604099]  ret_from_fork+0x10/0x20
+[  221.636912] ---[ end trace 0000000000000000 ]---
+[  221.767522] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  221.947470] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  222.879869] ------------[ cut here ]------------
+[  222.922401] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  222.996287] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  223.095777] Modules linked in:
+[  223.125002] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  223.227690] Tainted: [W]=WARN
+[  223.256725] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  223.327598] Workqueue: events drm_fb_helper_damage_work
+[  223.376247] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  223.440907] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  223.489170] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  223.537423] sp : ffffffc0828abc40
+[  223.569652] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  223.637135] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  223.704602] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  223.772084] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  223.839544] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  223.907020] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 0000000000000ad9
+[  223.974483] x11: ffffff8083a3ce20 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  224.041950] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 0000000000000ada
+[  224.109402] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  224.176866] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  224.244315] Call trace:
+[  224.267326]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  224.315549]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  224.366973]  drm_fb_helper_damage_work+0x174/0x3a0
+[  224.412194]  process_one_work+0x188/0x2e4
+[  224.450806]  worker_thread+0x18c/0x300
+[  224.486414]  kthread+0x118/0x124
+[  224.516023]  ret_from_fork+0x10/0x20
+[  224.548844] ---[ end trace 0000000000000000 ]---
+[  224.679523] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  224.859468] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  225.791873] ------------[ cut here ]------------
+[  225.834391] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  225.908281] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  226.007777] Modules linked in:
+[  226.037004] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  226.139693] Tainted: [W]=WARN
+[  226.168725] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  226.239598] Workqueue: events drm_fb_helper_damage_work
+[  226.288249] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  226.352915] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  226.401185] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  226.449436] sp : ffffffc0828abc40
+[  226.481674] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  226.549160] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  226.616641] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  226.684110] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  226.751585] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  226.819049] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 0000000000000afa
+[  226.886527] x11: ffffff8083a3c430 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  226.953986] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 0000000000000afb
+[  227.021456] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  227.088904] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  227.156368] Call trace:
+[  227.179381]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  227.227627]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  227.279059]  drm_fb_helper_damage_work+0x174/0x3a0
+[  227.324278]  process_one_work+0x188/0x2e4
+[  227.362897]  worker_thread+0x18c/0x300
+[  227.398510]  kthread+0x118/0x124
+[  227.428118]  ret_from_fork+0x10/0x20
+[  227.460939] ---[ end trace 0000000000000000 ]---
+[  227.591519] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  227.770850] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  228.703853] ------------[ cut here ]------------
+[  228.746388] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  228.820267] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  228.919758] Modules linked in:
+[  228.948996] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  229.051690] Tainted: [W]=WARN
+[  229.080724] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  229.151598] Workqueue: events drm_fb_helper_damage_work
+[  229.200246] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  229.264907] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  229.313170] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  229.361425] sp : ffffffc0828abc40
+[  229.393653] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  229.461136] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  229.528604] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  229.596086] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  229.663557] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  229.731027] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 0000000000000b1b
+[  229.798497] x11: ffffff8083a3ce40 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  229.865956] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 0000000000000b1c
+[  229.933413] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  230.000877] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  230.068326] Call trace:
+[  230.091338]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  230.139563]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  230.190997]  drm_fb_helper_damage_work+0x174/0x3a0
+[  230.236234]  process_one_work+0x188/0x2e4
+[  230.274860]  worker_thread+0x18c/0x300
+[  230.310478]  kthread+0x118/0x124
+[  230.340099]  ret_from_fork+0x10/0x20
+[  230.372913] ---[ end trace 0000000000000000 ]---
+[  230.503521] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  230.683470] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  231.615855] ------------[ cut here ]------------
+[  231.658389] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  231.732269] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  231.831763] Modules linked in:
+[  231.860995] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  231.963691] Tainted: [W]=WARN
+[  231.992727] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  232.063598] Workqueue: events drm_fb_helper_damage_work
+[  232.112249] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  232.176916] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  232.225182] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  232.273432] sp : ffffffc0828abc40
+[  232.305666] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  232.373150] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  232.440616] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  232.508097] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  232.575573] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  232.643036] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 0000000000000b3c
+[  232.710515] x11: ffffff8083a3c430 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  232.777970] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 0000000000000b3d
+[  232.845441] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  232.912891] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  232.980341] Call trace:
+[  233.003354]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  233.051591]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  233.103028]  drm_fb_helper_damage_work+0x174/0x3a0
+[  233.148256]  process_one_work+0x188/0x2e4
+[  233.186873]  worker_thread+0x18c/0x300
+[  233.222491]  kthread+0x118/0x124
+[  233.252104]  ret_from_fork+0x10/0x20
+[  233.284924] ---[ end trace 0000000000000000 ]---
+[  233.415524] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  233.595141] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  234.527511] ------------[ cut here ]------------
+[  234.570039] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  234.643906] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  234.743400] Modules linked in:
+[  234.772616] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  234.875306] Tainted: [W]=WARN
+[  234.904338] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  234.975198] Workqueue: events drm_fb_helper_damage_work
+[  235.023861] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  235.088533] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  235.136788] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  235.185037] sp : ffffffc0828abc40
+[  235.217277] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  235.284748] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  235.352229] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  235.419696] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  235.487173] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  235.554636] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 0000000000000b5d
+[  235.622111] x11: ffffff8083a3d850 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  235.689566] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 0000000000000b5e
+[  235.757029] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  235.824476] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  235.891940] Call trace:
+[  235.914951]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  235.963190]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  236.014624]  drm_fb_helper_damage_work+0x174/0x3a0
+[  236.059845]  process_one_work+0x188/0x2e4
+[  236.098463]  worker_thread+0x18c/0x300
+[  236.134080]  kthread+0x118/0x124
+[  236.163690]  ret_from_fork+0x10/0x20
+[  236.196510] ---[ end trace 0000000000000000 ]---
+[  236.327817] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  236.507471] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  237.439852] ------------[ cut here ]------------
+[  237.482385] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  237.556264] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  237.655758] Modules linked in:
+[  237.684995] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  237.787683] Tainted: [W]=WARN
+[  237.816711] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  237.887582] Workqueue: events drm_fb_helper_damage_work
+[  237.936231] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  238.000890] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  238.049141] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  238.097398] sp : ffffffc0828abc40
+[  238.129635] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  238.197106] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  238.264580] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  238.332059] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  238.399519] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  238.466994] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 0000000000000b7e
+[  238.534450] x11: ffffff8083a3d880 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  238.601922] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 0000000000000b7f
+[  238.669373] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  238.736832] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  238.804286] Call trace:
+[  238.827292]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  238.875527]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  238.926954]  drm_fb_helper_damage_work+0x174/0x3a0
+[  238.972169]  process_one_work+0x188/0x2e4
+[  239.010786]  worker_thread+0x18c/0x300
+[  239.046402]  kthread+0x118/0x124
+[  239.076010]  ret_from_fork+0x10/0x20
+[  239.108831] ---[ end trace 0000000000000000 ]---
+[  239.239520] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  239.419467] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  240.351860] ------------[ cut here ]------------
+[  240.394390] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  240.468267] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  240.567759] Modules linked in:
+[  240.596989] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  240.699677] Tainted: [W]=WARN
+[  240.728709] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  240.799585] Workqueue: events drm_fb_helper_damage_work
+[  240.848234] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  240.912892] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  240.961144] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  241.009407] sp : ffffffc0828abc40
+[  241.041641] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  241.109119] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  241.176589] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  241.244067] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  241.311530] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  241.379006] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 0000000000000b9f
+[  241.446463] x11: ffffff8083a3d8a0 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  241.513937] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 0000000000000ba0
+[  241.581387] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  241.648851] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  241.716303] Call trace:
+[  241.739308]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  241.787540]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  241.838963]  drm_fb_helper_damage_work+0x174/0x3a0
+[  241.884176]  process_one_work+0x188/0x2e4
+[  241.922791]  worker_thread+0x18c/0x300
+[  241.958404]  kthread+0x118/0x124
+[  241.988011]  ret_from_fork+0x10/0x20
+[  242.020833] ---[ end trace 0000000000000000 ]---
+[  242.151519] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  242.331469] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  243.263771] ------------[ cut here ]------------
+[  243.306289] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  243.380177] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  243.479673] Modules linked in:
+[  243.508898] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  243.611585] Tainted: [W]=WARN
+[  243.640619] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  243.711490] Workqueue: events drm_fb_helper_damage_work
+[  243.760139] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  243.824800] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  243.873063] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  243.921319] sp : ffffffc0828abc40
+[  243.953546] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  244.021029] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  244.088496] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  244.155976] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  244.223439] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  244.290915] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 0000000000000bc0
+[  244.358379] x11: ffffff8083a3d8c0 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  244.425845] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 0000000000000bc1
+[  244.493297] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  244.560759] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  244.628208] Call trace:
+[  244.651219]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  244.699446]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  244.750868]  drm_fb_helper_damage_work+0x174/0x3a0
+[  244.796088]  process_one_work+0x188/0x2e4
+[  244.834701]  worker_thread+0x18c/0x300
+[  244.870306]  kthread+0x118/0x124
+[  244.899917]  ret_from_fork+0x10/0x20
+[  244.932739] ---[ end trace 0000000000000000 ]---
+[  245.063788] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  245.243138] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  246.175138] ------------[ cut here ]------------
+[  246.217663] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  246.291544] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  246.391043] Modules linked in:
+[  246.420267] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  246.522958] Tainted: [W]=WARN
+[  246.551992] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  246.622859] Workqueue: events drm_fb_helper_damage_work
+[  246.671504] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  246.736170] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  246.784437] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  246.832685] sp : ffffffc0828abc40
+[  246.864921] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  246.932402] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  246.999871] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  247.067354] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  247.134830] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  247.202291] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 0000000000000be1
+[  247.269770] x11: ffffff8083a3d810 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  247.337230] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 0000000000000be2
+[  247.404697] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  247.472145] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  247.539597] Call trace:
+[  247.562616]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  247.610856]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  247.662292]  drm_fb_helper_damage_work+0x174/0x3a0
+[  247.707518]  process_one_work+0x188/0x2e4
+[  247.746141]  worker_thread+0x18c/0x300
+[  247.781758]  kthread+0x118/0x124
+[  247.811369]  ret_from_fork+0x10/0x20
+[  247.844189] ---[ end trace 0000000000000000 ]---
+[  247.975817] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  248.155137] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  249.086885] ------------[ cut here ]------------
+[  249.129404] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  249.203270] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  249.302762] Modules linked in:
+[  249.331987] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  249.434687] Tainted: [W]=WARN
+[  249.463713] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  249.534580] Workqueue: events drm_fb_helper_damage_work
+[  249.583236] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  249.647908] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  249.696156] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  249.744411] sp : ffffffc0828abc40
+[  249.776658] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  249.844124] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  249.911601] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  249.979066] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  250.046534] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  250.113996] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 0000000000000c02
+[  250.181472] x11: ffffff8083a3c430 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  250.248927] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 0000000000000c03
+[  250.316391] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  250.383839] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  250.451304] Call trace:
+[  250.474314]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  250.522550]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  250.573986]  drm_fb_helper_damage_work+0x174/0x3a0
+[  250.619209]  process_one_work+0x188/0x2e4
+[  250.657827]  worker_thread+0x18c/0x300
+[  250.693442]  kthread+0x118/0x124
+[  250.723050]  ret_from_fork+0x10/0x20
+[  250.755873] ---[ end trace 0000000000000000 ]---
+[  250.887728] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  251.067469] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  251.999855] ------------[ cut here ]------------
+[  252.042384] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  252.116263] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  252.215758] Modules linked in:
+[  252.244996] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  252.347698] Tainted: [W]=WARN
+[  252.376735] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  252.447606] Workqueue: events drm_fb_helper_damage_work
+[  252.496251] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  252.560918] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  252.609185] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  252.657435] sp : ffffffc0828abc40
+[  252.689674] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  252.757151] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  252.824618] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  252.892096] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  252.959572] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  253.027036] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 0000000000000c23
+[  253.094513] x11: ffffff8083a3d8d0 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  253.161969] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 0000000000000c24
+[  253.229439] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  253.296891] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  253.364345] Call trace:
+[  253.387363]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  253.435603]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  253.487039]  drm_fb_helper_damage_work+0x174/0x3a0
+[  253.532266]  process_one_work+0x188/0x2e4
+[  253.570887]  worker_thread+0x18c/0x300
+[  253.606504]  kthread+0x118/0x124
+[  253.636115]  ret_from_fork+0x10/0x20
+[  253.668928] ---[ end trace 0000000000000000 ]---
+[  253.799822] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  253.979141] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  254.911173] ------------[ cut here ]------------
+[  254.953697] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  255.027567] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  255.127068] Modules linked in:
+[  255.156290] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  255.258994] Tainted: [W]=WARN
+[  255.288022] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  255.358888] Workqueue: events drm_fb_helper_damage_work
+[  255.407554] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  255.472228] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  255.520480] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  255.568741] sp : ffffffc0828abc40
+[  255.600981] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  255.668453] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  255.735938] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  255.803417] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  255.870880] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  255.938357] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 0000000000000c44
+[  256.005820] x11: ffffff8083a3ce20 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  256.073295] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 0000000000000c45
+[  256.140749] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  256.208213] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  256.275662] Call trace:
+[  256.298668]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  256.346900]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  256.398324]  drm_fb_helper_damage_work+0x174/0x3a0
+[  256.443537]  process_one_work+0x188/0x2e4
+[  256.482153]  worker_thread+0x18c/0x300
+[  256.517767]  kthread+0x118/0x124
+[  256.547380]  ret_from_fork+0x10/0x20
+[  256.580197] ---[ end trace 0000000000000000 ]---
+[  256.711799] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  256.891465] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  257.823738] ------------[ cut here ]------------
+[  257.866268] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  257.940143] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  258.039630] Modules linked in:
+[  258.068855] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  258.171557] Tainted: [W]=WARN
+[  258.200578] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  258.271453] Workqueue: events drm_fb_helper_damage_work
+[  258.320108] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  258.384770] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  258.433018] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  258.481278] sp : ffffffc0828abc40
+[  258.513518] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  258.580989] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  258.648470] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  258.715950] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  258.783411] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  258.850888] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 0000000000000c65
+[  258.918346] x11: ffffff8083a3c430 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  258.985816] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 0000000000000c66
+[  259.053268] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  259.120729] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  259.188185] Call trace:
+[  259.211201]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  259.259434]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  259.310857]  drm_fb_helper_damage_work+0x174/0x3a0
+[  259.356070]  process_one_work+0x188/0x2e4
+[  259.394684]  worker_thread+0x18c/0x300
+[  259.430297]  kthread+0x118/0x124
+[  259.459904]  ret_from_fork+0x10/0x20
+[  259.492727] ---[ end trace 0000000000000000 ]---
+[  259.623522] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  259.803469] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  260.735854] ------------[ cut here ]------------
+[  260.778389] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  260.852270] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  260.951762] Modules linked in:
+[  260.980997] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  261.083699] Tainted: [W]=WARN
+[  261.112733] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  261.183603] Workqueue: events drm_fb_helper_damage_work
+[  261.232248] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  261.296917] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  261.345185] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  261.393436] sp : ffffffc0828abc40
+[  261.425676] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  261.493162] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  261.560642] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  261.628112] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  261.695589] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  261.763050] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 0000000000000c86
+[  261.830528] x11: ffffff8083a3d8b0 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  261.897989] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 0000000000000c87
+[  261.965457] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  262.032906] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  262.100370] Call trace:
+[  262.123383]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  262.171626]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  262.223061]  drm_fb_helper_damage_work+0x174/0x3a0
+[  262.268277]  process_one_work+0x188/0x2e4
+[  262.306896]  worker_thread+0x18c/0x300
+[  262.342510]  kthread+0x118/0x124
+[  262.372119]  ret_from_fork+0x10/0x20
+[  262.404940] ---[ end trace 0000000000000000 ]---
+[  262.535518] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  262.715471] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  263.647865] ------------[ cut here ]------------
+[  263.690404] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  263.764290] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  263.863786] Modules linked in:
+[  263.893015] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  263.995702] Tainted: [W]=WARN
+[  264.024736] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  264.095606] Workqueue: events drm_fb_helper_damage_work
+[  264.144251] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  264.208919] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  264.257186] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  264.305436] sp : ffffffc0828abc40
+[  264.337676] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  264.405153] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  264.472627] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  264.540102] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  264.607585] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  264.675050] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 0000000000000ca7
+[  264.742528] x11: ffffff8083a3c430 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  264.809987] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 0000000000000ca8
+[  264.877458] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  264.944905] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  265.012371] Call trace:
+[  265.035381]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  265.083627]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  265.135059]  drm_fb_helper_damage_work+0x174/0x3a0
+[  265.180278]  process_one_work+0x188/0x2e4
+[  265.218897]  worker_thread+0x18c/0x300
+[  265.254510]  kthread+0x118/0x124
+[  265.284118]  ret_from_fork+0x10/0x20
+[  265.316940] ---[ end trace 0000000000000000 ]---
+[  265.447521] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  265.627139] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  266.559290] ------------[ cut here ]------------
+[  266.601816] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  266.675681] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  266.775185] Modules linked in:
+[  266.804403] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  266.907101] Tainted: [W]=WARN
+[  266.936127] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  267.006987] Workqueue: events drm_fb_helper_damage_work
+[  267.055650] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  267.120325] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  267.168578] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  267.216837] sp : ffffffc0828abc40
+[  267.249078] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  267.316549] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  267.384033] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  267.451507] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  267.518980] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  267.586456] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 0000000000000cc8
+[  267.653915] x11: ffffff8083a3c430 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  267.721391] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 0000000000000cc9
+[  267.788846] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  267.856309] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  267.923764] Call trace:
+[  267.946776]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  267.995008]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  268.046435]  drm_fb_helper_damage_work+0x174/0x3a0
+[  268.091653]  process_one_work+0x188/0x2e4
+[  268.130267]  worker_thread+0x18c/0x300
+[  268.165879]  kthread+0x118/0x124
+[  268.195493]  ret_from_fork+0x10/0x20
+[  268.228313] ---[ end trace 0000000000000000 ]---
+[  268.359520] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  268.539468] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  269.471854] ------------[ cut here ]------------
+[  269.514390] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  269.588271] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  269.687763] Modules linked in:
+[  269.716990] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  269.819679] Tainted: [W]=WARN
+[  269.848714] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  269.919588] Workqueue: events drm_fb_helper_damage_work
+[  269.968236] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  270.032901] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  270.081162] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  270.129417] sp : ffffffc0828abc40
+[  270.161648] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  270.229127] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  270.296596] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  270.364083] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  270.431546] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  270.499024] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 0000000000000ce9
+[  270.566489] x11: ffffff8083a3c430 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  270.633953] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 0000000000000cea
+[  270.701412] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  270.768876] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  270.836329] Call trace:
+[  270.859341]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  270.907575]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  270.959015]  drm_fb_helper_damage_work+0x174/0x3a0
+[  271.004244]  process_one_work+0x188/0x2e4
+[  271.042865]  worker_thread+0x18c/0x300
+[  271.078490]  kthread+0x118/0x124
+[  271.108104]  ret_from_fork+0x10/0x20
+[  271.140926] ---[ end trace 0000000000000000 ]---
+[  271.271520] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  271.450850] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  272.383855] ------------[ cut here ]------------
+[  272.426390] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  272.500269] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  272.599766] Modules linked in:
+[  272.628991] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  272.731680] Tainted: [W]=WARN
+[  272.760715] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  272.831586] Workqueue: events drm_fb_helper_damage_work
+[  272.880235] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  272.944897] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  272.993156] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  273.041412] sp : ffffffc0828abc40
+[  273.073646] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  273.141125] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  273.208592] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  273.276074] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  273.343543] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  273.411016] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 0000000000000d0a
+[  273.478476] x11: ffffff8083a3ce50 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  273.545952] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 0000000000000d0b
+[  273.613406] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  273.680866] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  273.748317] Call trace:
+[  273.771329]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  273.819556]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  273.870986]  drm_fb_helper_damage_work+0x174/0x3a0
+[  273.916222]  process_one_work+0x188/0x2e4
+[  273.954852]  worker_thread+0x18c/0x300
+[  273.990479]  kthread+0x118/0x124
+[  274.020101]  ret_from_fork+0x10/0x20
+[  274.052916] ---[ end trace 0000000000000000 ]---
+[  274.183524] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  274.362853] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  275.295857] ------------[ cut here ]------------
+[  275.338387] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  275.412269] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  275.511775] Modules linked in:
+[  275.541005] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  275.643702] Tainted: [W]=WARN
+[  275.672737] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  275.743604] Workqueue: events drm_fb_helper_damage_work
+[  275.792251] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  275.856920] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  275.905185] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  275.953436] sp : ffffffc0828abc40
+[  275.985676] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  276.053160] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  276.120642] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  276.188111] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  276.255591] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  276.323052] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 0000000000000d2b
+[  276.390529] x11: ffffff8083a3ca00 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  276.457992] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 0000000000000d2c
+[  276.525455] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  276.592905] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  276.660372] Call trace:
+[  276.683389]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  276.731628]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  276.783061]  drm_fb_helper_damage_work+0x174/0x3a0
+[  276.828280]  process_one_work+0x188/0x2e4
+[  276.866897]  worker_thread+0x18c/0x300
+[  276.902511]  kthread+0x118/0x124
+[  276.932117]  ret_from_fork+0x10/0x20
+[  276.964939] ---[ end trace 0000000000000000 ]---
+[  277.095787] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  277.275469] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  278.207859] ------------[ cut here ]------------
+[  278.250392] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  278.324279] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  278.423778] Modules linked in:
+[  278.453006] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  278.555706] Tainted: [W]=WARN
+[  278.584740] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  278.655606] Workqueue: events drm_fb_helper_damage_work
+[  278.704254] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  278.768921] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  278.817186] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  278.865437] sp : ffffffc0828abc40
+[  278.897677] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  278.965163] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  279.032644] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  279.100111] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  279.167591] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  279.235051] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 0000000000000d4c
+[  279.302528] x11: ffffff8083a3ddc0 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  279.369989] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 0000000000000d4d
+[  279.437458] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  279.504907] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  279.572371] Call trace:
+[  279.595390]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  279.643628]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  279.695060]  drm_fb_helper_damage_work+0x174/0x3a0
+[  279.740277]  process_one_work+0x188/0x2e4
+[  279.778898]  worker_thread+0x18c/0x300
+[  279.814512]  kthread+0x118/0x124
+[  279.844119]  ret_from_fork+0x10/0x20
+[  279.876942] ---[ end trace 0000000000000000 ]---
+[  280.007518] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  280.187140] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  281.119513] ------------[ cut here ]------------
+[  281.162045] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  281.235918] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  281.335416] Modules linked in:
+[  281.364644] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  281.467348] Tainted: [W]=WARN
+[  281.496378] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  281.567256] Workqueue: events drm_fb_helper_damage_work
+[  281.615908] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  281.680572] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  281.728825] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  281.777089] sp : ffffffc0828abc40
+[  281.809324] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  281.876804] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  281.944273] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  282.011753] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  282.079218] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  282.146693] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 0000000000000d6d
+[  282.214156] x11: ffffff8083a3ca10 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  282.281624] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 0000000000000d6e
+[  282.349084] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  282.416548] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  282.483996] Call trace:
+[  282.507009]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  282.555237]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  282.606667]  drm_fb_helper_damage_work+0x174/0x3a0
+[  282.651904]  process_one_work+0x188/0x2e4
+[  282.690532]  worker_thread+0x18c/0x300
+[  282.726157]  kthread+0x118/0x124
+[  282.755773]  ret_from_fork+0x10/0x20
+[  282.788582] ---[ end trace 0000000000000000 ]---
+[  282.919839] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  283.099470] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  284.032097] ------------[ cut here ]------------
+[  284.074625] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  284.148505] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  284.248003] Modules linked in:
+[  284.277228] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  284.379915] Tainted: [W]=WARN
+[  284.408949] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  284.479818] Workqueue: events drm_fb_helper_damage_work
+[  284.528465] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  284.593132] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  284.641397] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  284.689647] sp : ffffffc0828abc40
+[  284.721885] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  284.789362] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  284.856829] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  284.924309] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  284.991784] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  285.059249] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 0000000000000d8e
+[  285.126727] x11: ffffff8083a3d8b0 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  285.194182] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 0000000000000d8f
+[  285.261652] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  285.329105] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  285.396558] Call trace:
+[  285.419576]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  285.467815]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  285.519253]  drm_fb_helper_damage_work+0x174/0x3a0
+[  285.564479]  process_one_work+0x188/0x2e4
+[  285.603103]  worker_thread+0x18c/0x300
+[  285.638722]  kthread+0x118/0x124
+[  285.668330]  ret_from_fork+0x10/0x20
+[  285.701151] ---[ end trace 0000000000000000 ]---
+[  285.831695] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  286.011468] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  286.943667] ------------[ cut here ]------------
+[  286.986203] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  287.060082] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  287.159585] Modules linked in:
+[  287.188815] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  287.291512] Tainted: [W]=WARN
+[  287.320542] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  287.391402] Workqueue: events drm_fb_helper_damage_work
+[  287.440059] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  287.504734] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  287.552989] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  287.601235] sp : ffffffc0828abc40
+[  287.633476] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  287.700953] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  287.768433] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  287.835899] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  287.903382] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  287.970847] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 0000000000000daf
+[  288.038320] x11: ffffff8083a3d890 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  288.105779] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 0000000000000db0
+[  288.173244] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  288.240691] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  288.308157] Call trace:
+[  288.331169]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  288.379413]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  288.430847]  drm_fb_helper_damage_work+0x174/0x3a0
+[  288.476065]  process_one_work+0x188/0x2e4
+[  288.514685]  worker_thread+0x18c/0x300
+[  288.550298]  kthread+0x118/0x124
+[  288.579907]  ret_from_fork+0x10/0x20
+[  288.612726] ---[ end trace 0000000000000000 ]---
+[  288.743518] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  288.923136] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  289.855514] ------------[ cut here ]------------
+[  289.898041] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  289.971905] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  290.071402] Modules linked in:
+[  290.100627] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  290.203329] Tainted: [W]=WARN
+[  290.232357] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  290.303224] Workqueue: events drm_fb_helper_damage_work
+[  290.351890] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  290.416556] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  290.464803] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  290.513061] sp : ffffffc0828abc40
+[  290.545300] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  290.612765] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  290.680244] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  290.747713] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  290.815188] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  290.882662] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 0000000000000dd0
+[  290.950126] x11: ffffff8083a3c430 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  291.017596] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 0000000000000dd1
+[  291.085053] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  291.152508] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  291.219970] Call trace:
+[  291.242982]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  291.291218]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  291.342644]  drm_fb_helper_damage_work+0x174/0x3a0
+[  291.387858]  process_one_work+0x188/0x2e4
+[  291.426473]  worker_thread+0x18c/0x300
+[  291.462085]  kthread+0x118/0x124
+[  291.491693]  ret_from_fork+0x10/0x20
+[  291.524514] ---[ end trace 0000000000000000 ]---
+[  291.655523] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  291.835137] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  292.767234] ------------[ cut here ]------------
+[  292.809770] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  292.883652] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  292.983153] Modules linked in:
+[  293.012384] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  293.115086] Tainted: [W]=WARN
+[  293.144114] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  293.214970] Workqueue: events drm_fb_helper_damage_work
+[  293.263624] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  293.328308] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  293.376573] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  293.424825] sp : ffffffc0828abc40
+[  293.457068] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  293.524540] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  293.592028] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  293.659507] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  293.726985] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  293.794474] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 0000000000000df1
+[  293.861939] x11: ffffff8083a3ddf0 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  293.929410] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 0000000000000df2
+[  293.996869] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  294.064336] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  294.131795] Call trace:
+[  294.154807]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  294.203036]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  294.254479]  drm_fb_helper_damage_work+0x174/0x3a0
+[  294.299717]  process_one_work+0x188/0x2e4
+[  294.338345]  worker_thread+0x18c/0x300
+[  294.373972]  kthread+0x118/0x124
+[  294.403594]  ret_from_fork+0x10/0x20
+[  294.436411] ---[ end trace 0000000000000000 ]---
+[  294.567786] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  294.747470] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  295.679863] ------------[ cut here ]------------
+[  295.722394] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  295.796279] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  295.895777] Modules linked in:
+[  295.925004] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  296.027693] Tainted: [W]=WARN
+[  296.056736] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  296.127607] Workqueue: events drm_fb_helper_damage_work
+[  296.176254] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  296.240922] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  296.289187] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  296.337437] sp : ffffffc0828abc40
+[  296.369678] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  296.437164] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  296.504648] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  296.572116] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  296.639598] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  296.707065] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 0000000000000e12
+[  296.774541] x11: ffffff8083a3c430 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  296.842005] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 0000000000000e13
+[  296.909471] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  296.976920] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  297.044386] Call trace:
+[  297.067399]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  297.115637]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  297.167069]  drm_fb_helper_damage_work+0x174/0x3a0
+[  297.212285]  process_one_work+0x188/0x2e4
+[  297.250902]  worker_thread+0x18c/0x300
+[  297.286515]  kthread+0x118/0x124
+[  297.316130]  ret_from_fork+0x10/0x20
+[  297.348953] ---[ end trace 0000000000000000 ]---
+[  297.479068] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  297.655470] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  298.591861] ------------[ cut here ]------------
+[  298.634386] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  298.708267] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  298.807763] Modules linked in:
+[  298.836999] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  298.939693] Tainted: [W]=WARN
+[  298.968736] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  299.039609] Workqueue: events drm_fb_helper_damage_work
+[  299.088262] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  299.152944] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  299.201205] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  299.249452] sp : ffffffc0828abc40
+[  299.281702] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  299.349176] x26: ffffff81ff0ea7e8 x25: 0000000000000000 x24: ffffff80839fb488
+[  299.416660] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  299.484129] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  299.551606] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  299.619075] x14: ffffffffffffffff x13: ffffffc081ab31d8 x12: 0000000000000e33
+[  299.686545] x11: ffffff8083a3ce80 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  299.754008] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 0000000000000e34
+[  299.821474] x5 : ffffffc081b0b1d8 x4 : 0000000000000000 x3 : 0000000000000000
+[  299.888931] x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff808190f000
+[  299.956398] Call trace:
+[  299.979417]  drm_crtc_wait_one_vblank+0x19c/0x220 (P)
+[  300.027648]  drm_client_modeset_wait_for_vblank+0x6c/0x80
+[  300.079076]  drm_fb_helper_damage_work+0x174/0x3a0
+[  300.124295]  process_one_work+0x188/0x2e4
+[  300.162907]  worker_thread+0x18c/0x300
+[  300.198520]  kthread+0x118/0x124
+[  300.228133]  ret_from_fork+0x10/0x20
+[  300.260955] ---[ end trace 0000000000000000 ]---
+[  300.391701] [drm:dpu_encoder_phys_cmd_prepare_for_kickoff] *ERROR* failed wait_for_idle: id:35 ret:-110 pp:0
+[  300.571470] [drm:dpu_encoder_frame_done_timeout:2730] [dpu error]enc35 frame done timeout
+[  301.503665] ------------[ cut here ]------------
+[  301.546200] msm_dpu ae01000.display-controller: [drm] vblank wait timed out on crtc 0
+[  301.620082] WARNING: drivers/gpu/drm/drm_vblank.c:1329 at drm_crtc_wait_one_vblank+0x19c/0x220, CPU#5: kworker/5:1/82
+[  301.719588] Modules linked in:
+[  301.748815] CPU: 5 UID: 0 PID: 82 Comm: kworker/5:1 Tainted: G        W           7.3.0-rc6-rmx1931-samurai+ #66 PREEMPT 
+[  301.813903] [238] Jan 01 00:04:59 Child connection from 169.254.191.135:61243
+[  301.850705] Tainted: [W]=WARN
+[  301.850706] Hardware name: Realme X2 Pro/X2 Pro, BIOS edk2-msm bd23aaa Oct  7 2026
+[  301.850709] Workqueue: events drm_fb_helper_damage_work
+[  301.850712] pstate: 60400005 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+[  301.850714] pc : drm_crtc_wait_one_vblank+0x19c/0x220
+[  301.850717] lr : drm_crtc_wait_one_vblank+0x19c/0x220
+[  301.850720] sp : ffffffc0828abc40
+[  301.850721] x29: ffffffc0828abc70 x28: ffffff8083a0d000 x27: ffffff8083a0d158
+[  301.850724] x26: ffffff81ff0ea7e8
+[  302.148466] [238] Jan 01 00:04:59 Pubkey auth succeeded for 'root' with ssh-ed25519 key SHA256:MJFUR9BsjAXOdjFL6zVatq+XtOT+d5F4fYQV0SkDUTs f
+[  302.178029]  x25: 0000000000000000 x24: ffffff80839fb488
+[  302.178032] x23: 000000000000000a x22: 0000000000000000 x21: 0000000000000000
+[  302.178034] x20: 0000000000000000 x19: ffffff8083a0d000 x18: 000000000000000a
+[  302.178036] x17: 2074756f2064656d x16: 6974207469617720 x15: 0000000000000000
+[  302.178038] x14: ffffffffffffffff
+[  302.225483] rom 169.254.191.135:61243
+[  302.256906]  x13: ffffffc081ab31d8 x12: 0000000000000e54
+[  302.256908] x11: ffffff8083a3ce00 x10: ffffffc0890f5f00 x9 : ffffffc081ab31d8
+[  302.256910] x8 : 3fffffffffffefff x7 : ffffffc081b0b1d8 x6 : 0000000000000e55

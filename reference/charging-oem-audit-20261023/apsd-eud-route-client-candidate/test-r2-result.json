@@ -1,0 +1,43 @@
+{
+  "passed": true,
+  "groups": [
+    "1 disabled route client refuses before PHY/PD/analog/command access",
+    "2 missing actual route publication defers; real provider/client binds before PD preparation",
+    "3 real route lease plus PD/PHY final validation permits one modeled transfer and exact reverse restoration",
+    "4 fresh EFI evidence failure at final callback consumes the epoch but blocks the modeled command",
+    "5 route-only removal joins and normally restores a live gadget before debug ownership can resume",
+    "6 UDC retirement retains route exclusion until actual shutdown/end and later unregister acknowledgement",
+    "7 failed PHY restoration retains real route publication and owner tombstone without another MMIO write",
+    "8 actual route callback pin survives DWC unbind between retirement publication and callback dispatch",
+    "9 PM expires the actual route and joins/restores; ordinary resume neither rearms stale evidence nor grants debug ownership"
+  ],
+  "group_count": 9,
+  "flags": [
+    "-std=gnu11",
+    "-g",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-Wno-unused-parameter",
+    "-Wno-sign-compare",
+    "-fsanitize=address,undefined",
+    "-fno-omit-frame-pointer",
+    "-no-pie"
+  ],
+  "actual_whole_owner_PD_PHY_and_route_provider": true,
+  "EFI_copy_and_kernel_work_DWC_MMIO_edges_modeled": true,
+  "real_concurrency_in_prior_provider_suite_only": true,
+  "simulated_bus_attempts_only": true,
+  "phone_accessed": false,
+  "installed": false,
+  "PM_route_retention_proved": false,
+  "fixture_sha256": "eea5711684d06c39b188f216217a4a129bb6ef2ed1737dc5d7e85fbf5ad0c367",
+  "files": {
+    "samurai-apsd-owner.c": "55a17971a1ef3dd378e80052875074c2b27332b7e154c2ef167e6ca27621bb31",
+    "samurai-apsd-owner.h": "8c5aba7bb45f59a65e09f0effaf0d8dde65ed9acd283341be1603cad1d081d08",
+    "route-client-functions.inc": "a9599a0df56f088b30e2ff4b047a02238a22b8b2d88a37cc4cffb9763c392363",
+    "route-test-boundary.inc": "03e870e21e4965aebe796af9baa7f24293a139baff0f944c20df5dabc9e79cd5",
+    "test-client.c": "c465cf434f2656f22134e81cb12fb1da5e0cf50fc331188ab920f44ac5b6cc12",
+    "run-tests.py": "727bdfbfcd230e3c6e740755756c8fb084a06de7cd2311ea0db319b486c27173"
+  }
+}

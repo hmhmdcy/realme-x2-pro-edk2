@@ -1,0 +1,6 @@
+#!/bin/sh
+set -eu
+tr '\0' '\n' < /proc/device-tree/compatible | grep -qx realme,samurai || { echo WRONG_DEVICE >&2; exit 1; }
+sha256sum -c >/dev/null <<'SAMURAI_TFTP207_HASH'
+b3bb82b9d090a5d06e9ba2ca24e3373ab1c1e7cc2a5c6b603e2acb02715487a1  /usr/sbin/samurai-tqftpserv
+SAMURAI_TFTP207_HASH

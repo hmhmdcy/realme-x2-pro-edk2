@@ -1,0 +1,33 @@
+0000f07e 41 ba 20 01 00 c0        mov      r10d, 0xc0000120
+0000f084 45 39 57 30              cmp      dword ptr [r15 + 0x30], r10d
+0000f088 75 21                    jne      0xf0ab
+0000f08a 45 33 ff                 xor      r15d, r15d
+0000f08d 44 38 bb 17 0e 00 00     cmp      byte ptr [rbx + 0xe17], r15b
+0000f094 75 18                    jne      0xf0ae
+0000f096 48 8b 83 20 0e 00 00     mov      rax, qword ptr [rbx + 0xe20]
+0000f09d 48 69 cf f8 00 00 00     imul     rcx, rdi, 0xf8
+0000f0a4 44 88 7c 01 25           mov      byte ptr [rcx + rax + 0x25], r15b
+0000f0a9 eb 16                    jmp      0xf0c1
+0000f0ab 45 33 ff                 xor      r15d, r15d
+0000f0ae 48 8b 83 20 0e 00 00     mov      rax, qword ptr [rbx + 0xe20]
+0000f0b5 48 69 cf f8 00 00 00     imul     rcx, rdi, 0xf8
+0000f0bc 44 88 44 01 25           mov      byte ptr [rcx + rax + 0x25], r8b
+0000f0c1 48 8b 8b 20 0e 00 00     mov      rcx, qword ptr [rbx + 0xe20]
+0000f0c8 8b 45 50                 mov      eax, dword ptr [rbp + 0x50]
+0000f0cb 48 69 d7 f8 00 00 00     imul     rdx, rdi, 0xf8
+0000f0d2 89 44 11 10              mov      dword ptr [rcx + rdx + 0x10], eax
+0000f0d6 48 8b 8b 20 0e 00 00     mov      rcx, qword ptr [rbx + 0xe20]
+0000f0dd 42 8b 44 36 64           mov      eax, dword ptr [rsi + r14 + 0x64]
+0000f0e2 89 44 11 20              mov      dword ptr [rcx + rdx + 0x20], eax
+0000f0e6 46 39 7c 36 64           cmp      dword ptr [rsi + r14 + 0x64], r15d
+0000f0eb 77 06                    ja       0xf0f3
+0000f0ed 44 39 7d 50              cmp      dword ptr [rbp + 0x50], r15d
+0000f0f1 74 13                    je       0xf106
+0000f0f3 48 8b 83 20 0e 00 00     mov      rax, qword ptr [rbx + 0xe20]
+0000f0fa 48 69 cf f8 00 00 00     imul     rcx, rdi, 0xf8
+0000f101 44 88 44 01 24           mov      byte ptr [rcx + rax + 0x24], r8b
+0000f106 48 8b 83 20 0e 00 00     mov      rax, qword ptr [rbx + 0xe20]
+0000f10d ba 00 00 00 80           mov      edx, 0x80000000
+0000f112 44 8b 75 58              mov      r14d, dword ptr [rbp + 0x58]
+0000f116 48 69 cf f8 00 00 00     imul     rcx, rdi, 0xf8
+0000f11d c7 84 01 d8 00 00 00 02 00 00 00 mov      dword ptr [rcx + rax + 0xd8], 2

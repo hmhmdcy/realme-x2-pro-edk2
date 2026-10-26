@@ -1,0 +1,49 @@
+{
+  "schema": "samurai-usb-native-system-pm-link-evidence-v1",
+  "source_audit_only": true,
+  "sources": {
+    "driver_core": {
+      "path": "../usb-input-irq-candidate/source-reference/drivers--base--core.c",
+      "sha256": "52247f436f5328d0b174f3350cda7e6d3e9d929de3611b5acb546b502852de2c",
+      "lines": {"cycle_rejection": [843, 847], "stateless_none": [959, 963], "reorder": [973, 989], "raw_del_purge_warning": [1030, 1044], "endpoint_remove": [1046, 1072], "purge": [1693, 1718], "device_del": [3919, 3980]}
+    },
+    "system_pm": {
+      "path": "../../charging-session-20261023/dwc-resume-error-independent-review/source--drivers--base--power--main.c",
+      "sha256": "a704473ddbabfc19fea20d24944b12e6e1889a230d7a76b66ef92bce1cc77eb4",
+      "lines": {"supplier_wait": [278, 298], "consumer_wait": [334, 362], "resume_wait": [1144, 1148], "suspend_wait": [1940, 1951]}
+    },
+    "dwc_core": {
+      "path": "../apsd-integration/current-r7/snapshots/drivers--usb--dwc3--core.c",
+      "sha256": "bd8a8aabf199952717926b8ee79562e283ed9cd6a1ee485d22cd52167ad7ffcf",
+      "lines": {"draw_work": [2177, 2189], "notifier_no_replay": [2191, 2229], "name_lookup": [2231, 2274]}
+    },
+    "dwc_gadget": {
+      "path": "../apsd-integration/current-r7/snapshots/drivers--usb--dwc3--gadget.c",
+      "sha256": "9eec86e42945a786447e6a6548a25b495e29a01bed8e8fbfc13e02903e1ff0c5",
+      "lines": {"vbus_draw": [3156, 3181], "system_suspend": [4993, 5011], "system_resume": [5013, 5018]}
+    },
+    "composite": {
+      "path": "../../charging-session-20261023/dwc-r2-independent-review/source--drivers--usb--gadget--composite.c",
+      "sha256": "01eefa9a5f01f135892a0527264905bddc23f483cd7bdff3730f75a794c819e1",
+      "lines": {"set_configuration": [1037, 1062], "disconnect_reset": [2305, 2319], "suspend": [2582, 2607], "resume": [2609, 2650]}
+    }
+  },
+  "permitted_unordered_counterexample": [
+    "input_suspend: paused=true, udc_valid=false",
+    "DWC resume soft-connect before provider resume; real reset/configuration queues a new draw request",
+    "actual DWC draw work calls actual provider setter: -EBUSY, valid=false; no retry",
+    "input_resume: valid=false, paused=false; later supply notification does not replay held DWC allowance",
+    "online SDP/FLOAT budget remains -ENODATA until a later accepted actual draw event"
+  ],
+  "candidate_guarantee": "System-PM callbacks ordered supplier-before-consumer on resume and consumer-before-supplier on suspend",
+  "limitations": [
+    "No join/barrier/retry for arbitrary already-queued system_wq vbus work",
+    "No runtime-PM dependency or cached-permission replay",
+    "device_is_registered is not a lock against concurrent platform device deletion",
+    "No dynamic tracking of platform destruction and recreation",
+    "Existing old post-publication stop-action allocation failure is unchanged",
+    "No actual PM/device enumeration, r5 attribution or latency benefit established"
+  ],
+  "device_accessed": false,
+  "source_shared_config_or_Image_changed": false
+}

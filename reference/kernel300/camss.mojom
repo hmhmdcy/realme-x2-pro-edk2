@@ -1,0 +1,27 @@
+/* SPDX-License-Identifier: LGPL-2.1-or-later */
+module ipa.camss;
+import "include/libcamera/ipa/core.mojom";
+
+struct Statistics {
+	int32 status;
+	uint64 population;
+	uint64 weightedSum;
+	bool parametersKnown;
+};
+
+interface IPACamssInterface {
+	init(libcamera.IPASettings settings) => (int32 ret);
+	configure(libcamera.IPACameraSensorInfo sensorInfo, libcamera.Size input) => (int32 ret);
+	mapBuffers(array<libcamera.IPABuffer> parameters, array<libcamera.IPABuffer> statistics) => (int32 ret);
+	unmapBuffers(array<uint32> ids);
+	start(uint64 epoch, libcamera.ControlList controls) => (int32 ret);
+	stop();
+	prepareParameters(uint64 epoch, uint32 bufferId) => (int32 ret, uint32 bytesused);
+	[async] parametersApplied(uint64 epoch, uint32 firstSof);
+	[async] processStats(uint64 epoch, uint32 sof, uint32 bufferId, uint32 bytesused);
+};
+
+interface IPACamssEventInterface {
+	statsProcessed(uint64 epoch, uint32 sof, uint32 bufferId,
+		       Statistics statistics, libcamera.ControlList metadata);
+};

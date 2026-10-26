@@ -1,0 +1,819 @@
+--- a/drivers/media/platform/qcom/camss/camss-icp-a5-boot.c
++++ b/drivers/media/platform/qcom/camss/camss-icp-a5-boot.c
+@@ -652,7 +652,8 @@
+ bool camss_a5_backing_owned(const struct camss_a5 *a5)
+ {
+ 	return a5->firmware.cpu || a5->shared.cpu || a5->heap.cpu || a5->config.cpu ||
+-	       a5->request.cpu || a5->image_input.cpu || a5->image_output.cpu;
++	       a5->request.cpu || a5->image_input.cpu || a5->image_output.cpu ||
++	       a5->dma_input.buffer || a5->dma_output.buffer;
+ }
+ EXPORT_SYMBOL_GPL(camss_a5_backing_owned);
+ 
+@@ -716,6 +717,16 @@
+ 	dev_coredumpv(a5->dev, dump, sizeof(*dump), GFP_KERNEL);
+ }
+ 
++static int free_imported_images(struct camss_a5 *a5)
++{
++ int ret;
++
++ if (a5->ipe_dma_pending || a5->request_fw_mapped)
++  return -EBUSY;
++ ret = camss_a5_dma_image_release(&a5->dma_output);
++ return ret ?: camss_a5_dma_image_release(&a5->dma_input);
++}
++
+ static int free_memory(struct camss_a5 *a5)
+ {
+ 	struct camss_a5_fw_memory *memories[] = {
+@@ -727,6 +738,9 @@
+ 
+ 	if (a5->cpu_enabled || a5->ipe_dma_pending)
+ 		return -EBUSY;
++	ret = free_imported_images(a5);
++	if (ret)
++		return ret;
+ 	capture_shared_state(a5);
+ 	for (i = 0; i < ARRAY_SIZE(memories); i++) {
+ 		ret = camss_a5_fw_memory_unmap(memories[i]);
+@@ -959,6 +973,7 @@
+ 	a5->session_creates = a5->session_destroys = a5->session_peak = 0;
+ 	a5->io_configs = a5->config_maps = a5->config_unmaps = 0;
+ 	a5->frames_submitted = a5->frames_completed = 0;
++	a5->direct_frames = a5->copy_frames = 0;
+ 	a5->transfer_maps = a5->transfer_unmaps = 0;
+ 	ret = prepare_memory(a5, firmware);
+ 	if (ret)
+@@ -1226,6 +1241,9 @@
+ 
+ 	if (a5->ipe_dma_pending || a5->request_fw_mapped)
+ 		return -EBUSY;
++	ret = free_imported_images(a5);
++	if (ret)
++		return ret;
+ 	for (i = 0; i < ARRAY_SIZE(memories); i++) {
+ 		ret = camss_a5_fw_memory_unmap(memories[i]);
+ 		if (ret)
+@@ -1281,10 +1299,14 @@
+ 	u8 packet[40] = {};
+ 	u64 input_bytes, output_bytes, parcel;
+ 	u32 stripe_bytes, iq_offset, scratch_offset, bl_offset;
++	bool direct;
+ 	int ret, cleanup;
+ 
+-	if (!a5 || !session || !job ||
+-	    !job->input || !job->output ||
++	if (!a5 || !session || !job)
++		return -EINVAL;
++	direct = job->input_dma || job->output_dma;
++	if ((direct && (!job->input_dma || !job->output_dma || job->input || job->output)) ||
++	    (!direct && (!job->input || !job->output || job->input_offset || job->output_offset)) ||
+ 	    !job->bl_bytes || job->bl_bytes < 32 ||
+ 	    !job->max_cores || job->max_cores > 2 || !job->target_time_ns)
+ 		return -EINVAL;
+@@ -1295,7 +1317,8 @@
+ 		goto done;
+ 	}
+ 	if (a5->session_uncertain || a5->ipe_dma_pending ||
+-	    a5->request.cpu || a5->image_input.cpu || a5->image_output.cpu) {
++	    a5->request.cpu || a5->image_input.cpu || a5->image_output.cpu ||
++	    a5->dma_input.buffer || a5->dma_output.buffer) {
+ 		ret = -EBUSY;
+ 		goto done;
+ 	}
+@@ -1330,10 +1353,19 @@
+ 	ret = transfer_alloc(a5, &a5->request, REQUEST_IOVA, parcel);
+ 	if (ret)
+ 		goto release;
+-	ret = transfer_alloc(a5, &a5->image_input, IMAGE_INPUT_IOVA, PAGE_ALIGN(input_bytes));
+-	if (ret)
+-		goto release;
+-	ret = transfer_alloc(a5, &a5->image_output, IMAGE_OUTPUT_IOVA, PAGE_ALIGN(output_bytes));
++	if (direct) {
++		ret = camss_a5_dma_image_map(a5->dev, &a5->dma_input, job->input_dma,
++					     job->input_offset, input_bytes, DMA_TO_DEVICE);
++		if (!ret)
++			ret = camss_a5_dma_image_map(a5->dev, &a5->dma_output, job->output_dma,
++						     job->output_offset, output_bytes, DMA_FROM_DEVICE);
++		if (!ret)
++			ret = camss_a5_dma_images_disjoint(&a5->dma_input, &a5->dma_output);
++	} else {
++		ret = transfer_alloc(a5, &a5->image_input, IMAGE_INPUT_IOVA, PAGE_ALIGN(input_bytes));
++		if (!ret)
++			ret = transfer_alloc(a5, &a5->image_output, IMAGE_OUTPUT_IOVA, PAGE_ALIGN(output_bytes));
++	}
+ 	if (ret)
+ 		goto release;
+ 	ret = camss_a5_ipe_encode_bypass_striping(a5->request.cpu + PAGE_SIZE,
+@@ -1344,14 +1376,16 @@
+ 	ret = camss_a5_ipe_encode_bypass_iq(a5->request.cpu + iq_offset, CAMSS_A5_IPE_IQ_BYTES);
+ 	if (ret)
+ 		goto release;
+-	memcpy(a5->image_input.cpu, job->input, input_bytes);
+-	memset(a5->image_output.cpu, 0xa5, output_bytes);
++	if (!direct) {
++		memcpy(a5->image_input.cpu, job->input, input_bytes);
++		memset(a5->image_output.cpu, 0xa5, output_bytes);
++	}
+ 	frame.striping = (struct camss_a5_ipe_buffer){ REQUEST_IOVA + PAGE_SIZE, stripe_bytes };
+ 	frame.iq = (struct camss_a5_ipe_buffer){ REQUEST_IOVA + iq_offset, CAMSS_A5_IPE_IQ_BYTES };
+ 	frame.scratch = (struct camss_a5_ipe_buffer){ REQUEST_IOVA + scratch_offset, session->scratch_bytes };
+ 	frame.bl = (struct camss_a5_ipe_buffer){ REQUEST_IOVA + bl_offset, job->bl_bytes };
+-	frame.input = (struct camss_a5_ipe_buffer){ IMAGE_INPUT_IOVA, input_bytes };
+-	frame.output = (struct camss_a5_ipe_buffer){ IMAGE_OUTPUT_IOVA, output_bytes };
++	frame.input = (struct camss_a5_ipe_buffer){ direct ? a5->dma_input.iova : IMAGE_INPUT_IOVA, input_bytes };
++	frame.output = (struct camss_a5_ipe_buffer){ direct ? a5->dma_output.iova : IMAGE_OUTPUT_IOVA, output_bytes };
+ 	frame.striping_cpu = a5->request.cpu + PAGE_SIZE;
+ 	frame.required_scratch_bytes = session->scratch_bytes;
+ 	frame.required_bl_bytes = job->bl_bytes;
+@@ -1394,7 +1428,12 @@
+ 	} else {
+ 		a5->frames_completed++;
+ 		dma_rmb();
+-		memcpy(job->output, a5->image_output.cpu, output_bytes);
++		if (direct)
++			a5->direct_frames++;
++		else {
++			a5->copy_frames++;
++			memcpy(job->output, a5->image_output.cpu, output_bytes);
++		}
+ 		dev_info(a5->dev, "A5 IPE frame completed request=%u\n", job->request_id);
+ 	}
+ unmap:
+--- a/drivers/media/platform/qcom/camss/camss-icp-a5-boot.h
++++ b/drivers/media/platform/qcom/camss/camss-icp-a5-boot.h
+@@ -8,6 +8,7 @@
+ #include <linux/reset.h>
+ #include <linux/spinlock.h>
+ #include "camss-icp-a5.h"
++#include "camss-icp-a5-dma.h"
+ #include "camss-icp-a5-resources.h"
+ 
+ struct camss_a5;
+@@ -48,6 +49,7 @@
+ 	phys_addr_t firmware_physical;
+ 	struct camss_a5_fw_memory firmware, shared, heap, config;
+ 	struct camss_a5_fw_memory request, image_input, image_output;
++	struct camss_a5_dma_image dma_input, dma_output;
+ 	struct camss_a5_ring rings[CAMSS_A5_QUEUE_COUNT];
+ 	struct camss_a5_qtable *table;
+ 	struct completion response;
+@@ -73,6 +75,7 @@
+ 	bool engine_dma_capable, ipe_dma_pending, request_fw_mapped;
+ 	struct camss_a5_session *request_owner;
+ 	u32 frames_submitted, frames_completed, transfer_maps, transfer_unmaps;
++	u32 direct_frames, copy_frames;
+ 	u32 session_scratch_bytes, io_configs, config_maps, config_unmaps;
+ 	u32 session_header_error, session_payload_status;
+ 	bool power_held, irq_enabled, cpu_enabled, initialized;
+--- a/drivers/media/platform/qcom/camss/camss-icp-a5-ipe.h
++++ b/drivers/media/platform/qcom/camss/camss-icp-a5-ipe.h
+@@ -33,12 +33,16 @@
+ 
+ 
+ /* Sleeping synchronous transfer with kernel-generated bypass IQ and striping.
+- * The core owns all DMA backing and retains it after
++ * Select either CPU pointers (legacy fixture) or two DMA-BUF references.
++ * QBUF/DQBUF ownership is explicit; do not access or resubmit live images.
++ * The core takes its own import references and retains all backing after
+  * uncertain completion until A5 and both IPE engines are quiescent.
+  */
+ struct camss_a5_ipe_job {
+ 	const void *input;
+ 	void *output;
++	struct dma_buf *input_dma, *output_dma;
++	u32 input_offset, output_offset;
+ 	u32 input_bytes, output_bytes;
+ 	u32 bl_bytes, request_id, max_cores, target_time_ns;
+ };
+--- a/drivers/media/platform/qcom/camss/camss-icp-a5-m2m.c
++++ b/drivers/media/platform/qcom/camss/camss-icp-a5-m2m.c
+@@ -1,10 +1,10 @@
+ // SPDX-License-Identifier: GPL-2.0-only
+ /* SM8150 A5/IPE V4L2 queue adapter. Geometry/IQ/DMA stay in the SoC core.
+- * Initial unity-scale NV12/NV21 processing uses the core's owned DMA copies.
++ * Unity-scale NV12/NV21 uses core-owned DMA-BUF imports; no image CPU copy.
+  */
+ #include <linux/dma-buf.h>
+ #include <linux/firmware.h>
+-#include <linux/iosys-map.h>
++#include <linux/fcntl.h>
+ #include <linux/kernel.h>
+ #include <linux/module.h>
+ #include <linux/slab.h>
+@@ -14,7 +14,7 @@
+ #include <media/v4l2-fh.h>
+ #include <media/v4l2-ioctl.h>
+ #include <media/v4l2-mem2mem.h>
+-#include <media/videobuf2-vmalloc.h>
++#include <media/videobuf2-dma-sg.h>
+ 
+ #include "camss-icp-a5-ipe.h"
+ #include "camss-icp-a5-m2m.h"
+@@ -47,9 +47,23 @@
+ 	struct mutex video_lock, hw_lock;
+ 	struct list_head contexts;
+ 	u32 users;
++	struct vb2_mem_ops memory_ops;
++	int first_error;
+ 	bool running, fatal, power_pin, removing, mc_registered, media_registered;
+-	u64 jobs, completed, cancelled, failed, starts, stops;
++	u64 jobs, completed, direct_completed, cancelled, failed, starts, stops;
+ };
++
++/* Export the original SG buffer with the platform owner pinned. The owner
++ * depends on this adapter, which depends on DMA-SG; the DMA-BUF core drops
++ * that pin only after allocator release, including delayed fput and VMAs.
++ */
++static struct dma_buf *owned_export_buffer(struct vb2_buffer *vb, void *private,
++					  unsigned long flags)
++{
++	struct ipe_context *ctx = vb2_get_drv_priv(vb->vb2_queue);
++
++	return vb2_dma_sg_get_dmabuf_owner(vb, private, flags, ctx->dev->owner);
++}
+ 
+ static struct ipe_context *file_context(struct file *file)
+ {
+@@ -130,46 +144,22 @@
+ 	return ret;
+ }
+ 
+-struct ipe_cpu_buffer {
+-	struct dma_buf *dma;
+-	struct iosys_map map;
+-	void *address;
+-	bool access, mapped;
+-};
+-
+-static int cpu_begin(struct vb2_buffer *vb, struct ipe_cpu_buffer *buffer)
+-{
+-	int ret;
+-
+-	buffer->dma = vb->planes[0].dbuf;
+-	if (!buffer->dma) {
+-		buffer->address = vb2_plane_vaddr(vb, 0);
+-		if (!buffer->address)
+-			return -EFAULT;
+-	} else {
+-		ret = dma_buf_begin_cpu_access(buffer->dma, DMA_BIDIRECTIONAL);
+-		if (ret)
+-			return ret;
+-		buffer->access = true;
+-		ret = dma_buf_vmap_unlocked(buffer->dma, &buffer->map);
+-		if (ret)
+-			return ret;
+-		buffer->mapped = true;
+-		if (buffer->map.is_iomem || iosys_map_is_null(&buffer->map))
+-			return -EOPNOTSUPP;
+-		buffer->address = buffer->map.vaddr;
+-	}
+-	buffer->address += vb->planes[0].data_offset;
+-	return 0;
+-}
+-
+-static int cpu_end(struct ipe_cpu_buffer *buffer)
+-{
+-	if (buffer->mapped)
+-		dma_buf_vunmap_unlocked(buffer->dma, &buffer->map);
+-	if (buffer->access)
+-		return dma_buf_end_cpu_access(buffer->dma, DMA_BIDIRECTIONAL);
+-	return 0;
++/* An MMAP export pins vb2 backing independently of queue/file lifetime;
++ * imported buffers already carry a DMA-BUF. The core takes another reference
++ * before starting DMA, including on uncertain completion/reset failure.
++ */
++static struct dma_buf *image_buffer(struct vb2_buffer *vb)
++{
++ struct dma_buf *buffer = vb->planes[0].dbuf;
++
++ if (buffer) {
++  get_dma_buf(buffer);
++  return buffer;
++ }
++ if (vb->memory != V4L2_MEMORY_MMAP || !vb->vb2_queue->mem_ops->get_dmabuf)
++  return ERR_PTR(-EINVAL);
++ buffer = vb->vb2_queue->mem_ops->get_dmabuf(vb, vb->planes[0].mem_priv, O_RDWR);
++ return buffer ?: ERR_PTR(-ENOMEM);
+ }
+ 
+ static int ensure_session(struct ipe_context *ctx)
+@@ -201,14 +191,14 @@
+ 	struct camss_a5_m2m *dev = ctx->dev;
+ 	struct vb2_v4l2_buffer *src = v4l2_m2m_next_src_buf(ctx->fh.m2m_ctx);
+ 	struct vb2_v4l2_buffer *dst = v4l2_m2m_next_dst_buf(ctx->fh.m2m_ctx);
+-	struct ipe_cpu_buffer input = {}, output = {};
++	struct dma_buf *input = NULL, *output = NULL;
+ 	struct camss_a5_ipe_job job = {
+ 		.input_bytes = ctx->format.plane_fmt[0].sizeimage,
+ 		.output_bytes = ctx->format.plane_fmt[0].sizeimage,
+ 		.bl_bytes = 512 * 1024, .max_cores = 2,
+ 		.target_time_ns = 100000000,
+ 	};
+-	int ret = -ECANCELED, end_ret;
++	int ret = -ECANCELED;
+ 
+ 	if (!src || !dst) {
+ 		if (src)
+@@ -232,14 +222,22 @@
+ 		ret = -EAGAIN;
+ 		goto finish;
+ 	}
+-	ret = cpu_begin(&src->vb2_buf, &input);
+-	if (ret)
++	input = image_buffer(&src->vb2_buf);
++	if (IS_ERR(input)) {
++		ret = PTR_ERR(input);
++		input = NULL;
+ 		goto finish;
+-	ret = cpu_begin(&dst->vb2_buf, &output);
+-	if (ret)
++	}
++	output = image_buffer(&dst->vb2_buf);
++	if (IS_ERR(output)) {
++		ret = PTR_ERR(output);
++		output = NULL;
+ 		goto finish;
+-	job.input = input.address;
+-	job.output = output.address;
++	}
++	job.input_dma = input;
++	job.output_dma = output;
++	job.input_offset = src->vb2_buf.planes[0].data_offset;
++	job.output_offset = dst->vb2_buf.planes[0].data_offset;
+ 	ret = ensure_session(ctx);
+ 	if (ret)
+ 		goto hw_fail;
+@@ -249,25 +247,30 @@
+ 		goto finish;
+ hw_fail:
+ 	dev->fatal = true;
+-	/* The original input/output are CPU copied by the core, so even a
+-	 * retained engine transaction owns separate backing, not vb2 memory.
++	/* On uncertain completion the core retains its own attachment and
++	 * DMA-BUF reference. Queue teardown cannot free that backing. A failed
++	 * quiesce keeps the platform owner and PM pin for explicit cleanup.
+ 	 */
+ 	stop_backend(dev);
+ finish:
+-	end_ret = cpu_end(&output);
+-	if (!ret)
+-		ret = end_ret;
+-	end_ret = cpu_end(&input);
+-	if (!ret)
+-		ret = end_ret;
++	if (output)
++		dma_buf_put(output);
++	if (input)
++		dma_buf_put(input);
+ 	if (!ret && READ_ONCE(ctx->aborting))
+ 		ret = -ECANCELED;
+ 	if (ret == -ECANCELED)
+ 		dev->cancelled++;
+-	else if (ret)
++	else if (ret) {
+ 		dev->failed++;
+-	else
++		if (!dev->first_error)
++			dev->first_error = ret;
++		dev_info(dev->a5->dev, "IPE m2m job failed ret=%d\n", ret);
++	}
++	else {
+ 		dev->completed++;
++		dev->direct_completed++;
++	}
+ 	mutex_unlock(&dev->hw_lock);
+ 	if (ret && ret != -ECANCELED) {
+ 		vb2_queue_error(v4l2_m2m_get_src_vq(ctx->fh.m2m_ctx));
+@@ -399,7 +402,7 @@
+ 		q->drv_priv = ctx;
+ 		q->buf_struct_size = sizeof(struct v4l2_m2m_buffer);
+ 		q->ops = &queue_ops;
+-		q->mem_ops = &vb2_vmalloc_memops;
++		q->mem_ops = &ctx->dev->memory_ops;
+ 		q->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_COPY;
+ 		q->lock = &ctx->dev->video_lock;
+ 		q->dev = ctx->dev->a5->dev;
+@@ -627,6 +630,8 @@
+ 	mutex_init(&dev->video_lock);
+ 	mutex_init(&dev->hw_lock);
+ 	INIT_LIST_HEAD(&dev->contexts);
++	dev->memory_ops = vb2_dma_sg_memops;
++	dev->memory_ops.get_dmabuf = owned_export_buffer;
+ 	ret = v4l2_device_register(a5->dev, &dev->v4l2);
+ 	if (ret)
+ 		goto free;
+@@ -743,10 +748,12 @@
+ 	ret = scnprintf(buffer, size,
+ 		"{\"registered\":true,\"users\":%u,\"running\":%s,\"fatal\":%s,"
+ 		"\"pinned\":%s,\"orphans\":%u,\"jobs\":%llu,\"completed\":%llu,"
+-		"\"cancelled\":%llu,\"failed\":%llu,\"starts\":%llu,\"stops\":%llu}\n",
++		"\"owner_refs\":%d,\"first_error\":%d,\"direct_completed\":%llu,\"cancelled\":%llu,\"failed\":%llu,\"starts\":%llu,\"stops\":%llu}\n",
+ 		dev->users, dev->running ? "true" : "false", dev->fatal ? "true" : "false",
+ 		dev->power_pin ? "true" : "false", orphans,
+ 		(unsigned long long)dev->jobs, (unsigned long long)dev->completed,
++		module_refcount(dev->owner), dev->first_error,
++		(unsigned long long)dev->direct_completed,
+ 		(unsigned long long)dev->cancelled, (unsigned long long)dev->failed,
+ 		(unsigned long long)dev->starts,
+ 		(unsigned long long)dev->stops);
+--- a/drivers/media/platform/qcom/camss/camss-icp-a5-boot-test.c
++++ b/drivers/media/platform/qcom/camss/camss-icp-a5-boot-test.c
+@@ -299,7 +299,7 @@
+ 		  "\"cpu_enabled\":%s,\"irq_enabled\":%s,\"power_held\":%s,\"backing_owned\":%s,"
+ 		  "\"mapped_bytes\":%u,\"remaining_groups\":%u,\"remaining_domains\":%u,"
+ 		  "\"interrupts\":%u,\"messages\":%u,\"debug_packets\":%u,\"watchdogs\":%u,\"protocol_errors\":%u,"
+-		  "\"last_type\":%u,\"queue_state\":[%u,%u,%u,%u,%u,%u],\"image_sessions\":%u,\"session_creates\":%u,\"session_destroys\":%u,\"session_peak\":%u,\"session_uncertain\":%s,\"io_configs\":%u,\"config_maps\":%u,\"config_unmaps\":%u,\"config_fw_mapped\":%s,\"scratch_bytes\":[%u,%u],\"image_frames\":%u,\"frames_completed\":%u,\"transfer_maps\":%u,\"transfer_unmaps\":%u,\"ipe_dma_pending\":%s,\"request_fw_mapped\":%s,\"engine_dma_capable\":%s,\"ipe_reset_acks\":[%u,%u],\"image_bytes\":%u,\"input_crc\":%u,\"output_crc\":%u",
++		  "\"last_type\":%u,\"queue_state\":[%u,%u,%u,%u,%u,%u],\"image_sessions\":%u,\"session_creates\":%u,\"session_destroys\":%u,\"session_peak\":%u,\"session_uncertain\":%s,\"io_configs\":%u,\"config_maps\":%u,\"config_unmaps\":%u,\"config_fw_mapped\":%s,\"scratch_bytes\":[%u,%u],\"direct_frames\":%u,\"copy_frames\":%u,\"imported_buffers\":%u,\"imported_bytes\":%llu,\"image_frames\":%u,\"frames_completed\":%u,\"transfer_maps\":%u,\"transfer_unmaps\":%u,\"ipe_dma_pending\":%s,\"request_fw_mapped\":%s,\"engine_dma_capable\":%s,\"ipe_reset_acks\":[%u,%u],\"image_bytes\":%u,\"input_crc\":%u,\"output_crc\":%u",
+ 		  finished ? "true" : "false", phase, test_error, a5->cleanup_error, a5->pc_error,
+ 		  a5->cpu_release_attempted ? "true" : "false", a5->init_response, a5->fw_version,
+ 		  a5->response_before, a5->init_bytes,
+@@ -316,6 +316,9 @@
+ 		  a5->session_count, a5->session_creates, a5->session_destroys, a5->session_peak,
+ 		  a5->session_uncertain ? "true" : "false", a5->io_configs, a5->config_maps, a5->config_unmaps,
+ 		  a5->config_fw_mapped ? "true" : "false", scratch_observed[0], scratch_observed[1],
++		  a5->direct_frames, a5->copy_frames,
++		  !!a5->dma_input.buffer + !!a5->dma_output.buffer,
++		  (unsigned long long)a5->dma_input.bytes + a5->dma_output.bytes,
+ 		  a5->frames_submitted, a5->frames_completed, a5->transfer_maps, a5->transfer_unmaps,
+ 		  a5->ipe_dma_pending ? "true" : "false", a5->request_fw_mapped ? "true" : "false",
+ 		  a5->engine_dma_capable ? "true" : "false", a5->resources.ipe_reset_acks[0],
+--- a/drivers/media/platform/qcom/camss/camss-icp-a5-core.c
++++ b/drivers/media/platform/qcom/camss/camss-icp-a5-core.c
+@@ -3,3 +3,4 @@
+ 
+ MODULE_DESCRIPTION("Qualcomm A5 ICP firmware and HFI core helpers");
+ MODULE_LICENSE("GPL");
++MODULE_IMPORT_NS("DMA_BUF");
+--- a/drivers/media/platform/qcom/camss/Makefile
++++ b/drivers/media/platform/qcom/camss/Makefile
+@@ -59,3 +59,5 @@
+ obj-$(CONFIG_VIDEO_QCOM_CAMSS_ICP_A5_BOOT_TEST) += camss-icp-a5-boot-test.o
+ 
+ obj-$(CONFIG_VIDEO_QCOM_CAMSS_ICP_A5_M2M) += camss-icp-a5-m2m.o
++
++qcom-camss-icp-a5-core-y += camss-icp-a5-dma.o
+--- a/drivers/media/platform/qcom/camss/Kconfig
++++ b/drivers/media/platform/qcom/camss/Kconfig
+@@ -12,6 +12,7 @@
+ 
+ config VIDEO_QCOM_CAMSS_ICP_A5_CORE
+ 	tristate
++	select DMA_SHARED_BUFFER
+ 	depends on VIDEO_QCOM_CAMSS && IOMMU_DMA && OF && PM_GENERIC_DOMAINS && RESET_CONTROLLER
+ 
+ config VIDEO_QCOM_CAMSS_ICP_A5_MEMORY_TEST
+@@ -31,4 +32,4 @@
+ 	tristate
+ 	depends on VIDEO_QCOM_CAMSS_ICP_A5_CORE && VIDEO_DEV
+ 	select V4L2_MEM2MEM_DEV
+-	select VIDEOBUF2_VMALLOC
++	select VIDEOBUF2_DMA_SG
+--- /dev/null
++++ b/drivers/media/platform/qcom/camss/camss-icp-a5-dma.c
+@@ -0,0 +1,224 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/* Linear IPE images imported into the same DMA domain as A5 and its engines. */
++#include <linux/dma-buf.h>
++#include <linux/dma-resv.h>
++#include <linux/err.h>
++#include <linux/iommu.h>
++#include <linux/jiffies.h>
++#include <linux/kernel.h>
++#include <linux/limits.h>
++#include <linux/scatterlist.h>
++#include <linux/sort.h>
++#include <linux/string.h>
++#include <linux/vmalloc.h>
++
++#include "camss-icp-a5-dma.h"
++
++/* SG entries may be physically scattered while their DMA addresses form one
++ * IOVA span, as in CAMSS video_check_dma_mapping(). Clip to the image range;
++ * no identity mapping or one-physical-extent assumption is made.
++ */
++static int image_iova(const struct sg_table *sgt, u32 offset, u32 bytes, u32 *iova)
++{
++	struct scatterlist *sg;
++	u64 skip = offset, remaining = bytes, expected = 0, first = 0;
++	unsigned int i;
++
++	if (!sgt || !sgt->sgl || !bytes || !iova)
++		return -EINVAL;
++	for_each_sgtable_dma_sg(sgt, sg, i) {
++		u64 length = sg_dma_len(sg), address = sg_dma_address(sg), take;
++
++		if (!length)
++			return -EINVAL;
++		if (skip >= length) {
++			skip -= length;
++			continue;
++		}
++		if (address > U32_MAX || skip > U32_MAX - address)
++			return -ERANGE;
++		address += skip;
++		take = min_t(u64, remaining, length - skip);
++		if (!address || take - 1 > U32_MAX - address ||
++		    (expected && address != expected))
++			return -ERANGE;
++		if (!first)
++			first = address;
++		expected = address + take;
++		remaining -= take;
++		if (!remaining) {
++			if (first & 3)
++				return -EINVAL;
++			*iova = first;
++			return 0;
++		}
++		skip = 0;
++	}
++	return -EINVAL;
++}
++
++int camss_a5_dma_image_release(struct camss_a5_dma_image *image)
++{
++	if (!image)
++		return -EINVAL;
++	if (!image->buffer)
++		return 0;
++	/* The platform owner must not switch domains while an import is live. */
++	if (iommu_get_domain_for_dev(image->device) != image->domain)
++		return -EXDEV;
++	if (image->sgt)
++		dma_buf_unmap_attachment_unlocked(image->attachment, image->sgt,
++						image->direction);
++	if (image->attachment)
++		dma_buf_detach(image->buffer, image->attachment);
++	dma_buf_put(image->buffer);
++	memset(image, 0, sizeof(*image));
++	return 0;
++}
++
++int camss_a5_dma_image_map(struct device *dev, struct camss_a5_dma_image *image,
++			   struct dma_buf *buffer, u32 offset, u32 bytes,
++			   enum dma_data_direction direction)
++{
++	struct iommu_domain *domain;
++	enum dma_resv_usage usage;
++	long waited;
++	int ret, cleanup;
++
++	if (!dev || !image || !buffer || !bytes || (offset & 3) ||
++	    offset > buffer->size || bytes > buffer->size - offset ||
++	    (direction != DMA_TO_DEVICE && direction != DMA_FROM_DEVICE))
++		return -EINVAL;
++	if (image->buffer || image->attachment || image->sgt)
++		return -EBUSY;
++	domain = iommu_get_domain_for_dev(dev);
++	if (!domain || !iommu_is_dma_domain(domain))
++		return -ENODEV;
++	/* V4L2 QBUF/DQBUF remains the explicit ownership protocol. Respect
++	 * pre-existing producer/read fences as well; this synchronous interface
++	 * does not advertise asynchronous implicit-fence interoperability.
++	 */
++	usage = direction == DMA_TO_DEVICE ? DMA_RESV_USAGE_WRITE : DMA_RESV_USAGE_READ;
++	waited = dma_resv_wait_timeout(buffer->resv, usage, true, msecs_to_jiffies(1000));
++	if (waited <= 0)
++		return waited ? (int)waited : -ETIMEDOUT;
++	get_dma_buf(buffer);
++	image->device = dev;
++	image->domain = domain;
++	image->buffer = buffer;
++	image->direction = direction;
++	image->offset = offset;
++	image->bytes = bytes;
++	image->attachment = dma_buf_attach(buffer, dev);
++	if (IS_ERR(image->attachment)) {
++		ret = PTR_ERR(image->attachment);
++		image->attachment = NULL;
++		goto fail;
++	}
++	image->sgt = dma_buf_map_attachment_unlocked(image->attachment, direction);
++	if (IS_ERR(image->sgt)) {
++		ret = PTR_ERR(image->sgt);
++		image->sgt = NULL;
++		goto fail;
++	}
++	ret = image_iova(image->sgt, offset, bytes, &image->iova);
++	if (!ret)
++		return 0;
++fail:
++	cleanup = camss_a5_dma_image_release(image);
++	return cleanup ? cleanup : ret;
++}
++
++struct image_range {
++	phys_addr_t first, last;
++};
++
++static int physical_ranges(const struct camss_a5_dma_image *image,
++			   struct image_range *ranges, unsigned int *count)
++{
++	u64 address = image->iova, remaining = image->bytes;
++	unsigned int used = 0;
++
++	/* DMA-BUF importers must use DMA addresses only. DMABUF_DEBUG returns
++	 * a table with page/physical-length fields removed. Resolve aliases
++	 * through our own, pinned DMA domain instead of exporter SG internals.
++	 */
++	while (remaining) {
++		u64 offset = address & (PAGE_SIZE - 1);
++		u64 take = min_t(u64, remaining, PAGE_SIZE - offset);
++		phys_addr_t physical = iommu_iova_to_phys(image->domain, address - offset);
++		phys_addr_t first, last;
++
++		if (!physical || !IS_ALIGNED(physical, PAGE_SIZE))
++			return -EFAULT;
++		if (physical + offset < physical || physical + offset + take - 1 < physical + offset)
++			return -ERANGE;
++		first = physical + offset;
++		last = first + take - 1;
++		if (used && ranges[used - 1].last != (phys_addr_t)~0ULL &&
++		    ranges[used - 1].last + 1 == first)
++			ranges[used - 1].last = last;
++		else
++			ranges[used++] = (struct image_range){ first, last };
++		remaining -= take;
++		address += take;
++	}
++	*count = used;
++	return 0;
++}
++
++static int range_compare(const void *left, const void *right)
++{
++	const struct image_range *a = left, *b = right;
++
++	return a->first < b->first ? -1 : a->first > b->first;
++}
++
++/* Different attachments/exports can alias the same RAM even with distinct
++ * IOVAs. Reject physical overlap without a quadratic SG cross-product.
++ */
++int camss_a5_dma_images_disjoint(const struct camss_a5_dma_image *input,
++			       const struct camss_a5_dma_image *output)
++{
++	struct image_range *in, *out;
++	unsigned int ni, no, i = 0, j = 0;
++	int ret;
++
++	if (!input || !output || !input->buffer || !output->buffer ||
++	    !input->sgt || !output->sgt || !input->iova || !output->iova ||
++	    !input->bytes || !output->bytes || input->buffer == output->buffer)
++		return -EINVAL;
++	if (input->domain != output->domain ||
++	    iommu_get_domain_for_dev(input->device) != input->domain ||
++	    iommu_get_domain_for_dev(output->device) != output->domain)
++		return -EXDEV;
++	ni = DIV_ROUND_UP((u64)(input->iova & (PAGE_SIZE - 1)) + input->bytes, PAGE_SIZE);
++	no = DIV_ROUND_UP((u64)(output->iova & (PAGE_SIZE - 1)) + output->bytes, PAGE_SIZE);
++	in = kvmalloc_array(ni, sizeof(*in), GFP_KERNEL);
++	out = kvmalloc_array(no, sizeof(*out), GFP_KERNEL);
++	if (!in || !out) {
++		ret = -ENOMEM;
++		goto done;
++	}
++	ret = physical_ranges(input, in, &ni);
++	if (!ret)
++		ret = physical_ranges(output, out, &no);
++	if (ret)
++		goto done;
++	sort(in, ni, sizeof(*in), range_compare, NULL);
++	sort(out, no, sizeof(*out), range_compare, NULL);
++	while (i < ni && j < no) {
++		if (in[i].first <= out[j].last && out[j].first <= in[i].last) {
++			ret = -EINVAL;
++			goto done;
++		}
++		if (in[i].last < out[j].last)
++			i++;
++		else
++			j++;
++	}
++done:
++	kvfree(out);
++	kvfree(in);
++	return ret;
++}
+--- /dev/null
++++ b/drivers/media/platform/qcom/camss/camss-icp-a5-dma.h
+@@ -0,0 +1,34 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++#ifndef CAMSS_ICP_A5_DMA_H
++#define CAMSS_ICP_A5_DMA_H
++
++#include <linux/dma-direction.h>
++#include <linux/types.h>
++
++struct device;
++struct iommu_domain;
++struct dma_buf;
++struct dma_buf_attachment;
++struct sg_table;
++
++/* Core-owned reference and mapping. Keep through an uncertain command until
++ * the CPU/IRQ and both IPE engines are quiescent. Never copy this object.
++ */
++struct camss_a5_dma_image {
++	struct device *device;
++	struct iommu_domain *domain;
++	struct dma_buf *buffer;
++	struct dma_buf_attachment *attachment;
++	struct sg_table *sgt;
++	enum dma_data_direction direction;
++	u32 offset, bytes, iova;
++};
++
++int camss_a5_dma_image_map(struct device *dev, struct camss_a5_dma_image *image,
++			   struct dma_buf *buffer, u32 offset, u32 bytes,
++			   enum dma_data_direction direction);
++int camss_a5_dma_image_release(struct camss_a5_dma_image *image);
++int camss_a5_dma_images_disjoint(const struct camss_a5_dma_image *input,
++			       const struct camss_a5_dma_image *output);
++
++#endif
+--- a/drivers/media/common/videobuf2/videobuf2-dma-sg.c
++++ b/drivers/media/common/videobuf2/videobuf2-dma-sg.c
+@@ -519,30 +519,44 @@
+ 	.release = vb2_dma_sg_dmabuf_ops_release,
+ };
+ 
++struct dma_buf *vb2_dma_sg_get_dmabuf_owner(struct vb2_buffer *vb,
++					 void *buf_priv, unsigned long flags,
++					 struct module *owner)
++{
++	struct vb2_dma_sg_buf *buf = buf_priv;
++	struct dma_buf *dbuf;
++	DEFINE_DMA_BUF_EXPORT_INFO(exp_info);
++
++	exp_info.ops = &vb2_dma_sg_dmabuf_ops;
++	exp_info.owner = owner;
++	exp_info.size = buf->size;
++	exp_info.flags = flags;
++	exp_info.priv = buf;
++
++	if (WARN_ON(!buf->dma_sgt))
++		return NULL;
++
++	dbuf = dma_buf_export(&exp_info);
++	if (IS_ERR(dbuf))
++		return NULL;
++
++	/* dmabuf keeps reference to vb2 buffer */
++	refcount_inc(&buf->refcount);
++
++	return dbuf;
++}
++
++/* The caller's owner must keep the allocation device and this allocator
++ * valid through the exported file's release. A modular caller already has
++ * an allocator dependency; use its bound owner, including for deferred fput.
++ */
++EXPORT_SYMBOL_GPL(vb2_dma_sg_get_dmabuf_owner);
++
+ static struct dma_buf *vb2_dma_sg_get_dmabuf(struct vb2_buffer *vb,
+ 					     void *buf_priv,
+ 					     unsigned long flags)
+ {
+-	struct vb2_dma_sg_buf *buf = buf_priv;
+-	struct dma_buf *dbuf;
+-	DEFINE_DMA_BUF_EXPORT_INFO(exp_info);
+-
+-	exp_info.ops = &vb2_dma_sg_dmabuf_ops;
+-	exp_info.size = buf->size;
+-	exp_info.flags = flags;
+-	exp_info.priv = buf;
+-
+-	if (WARN_ON(!buf->dma_sgt))
+-		return NULL;
+-
+-	dbuf = dma_buf_export(&exp_info);
+-	if (IS_ERR(dbuf))
+-		return NULL;
+-
+-	/* dmabuf keeps reference to vb2 buffer */
+-	refcount_inc(&buf->refcount);
+-
+-	return dbuf;
++	return vb2_dma_sg_get_dmabuf_owner(vb, buf_priv, flags, THIS_MODULE);
+ }
+ 
+ /*********************************************/
+--- a/include/media/videobuf2-dma-sg.h
++++ b/include/media/videobuf2-dma-sg.h
+@@ -21,6 +21,13 @@
+ 	return (struct sg_table *)vb2_plane_cookie(vb, plane_no);
+ }
+ 
++struct dma_buf;
++struct module;
++
++/* The owner must retain the DMA allocation device and the allocator module. */
++struct dma_buf *vb2_dma_sg_get_dmabuf_owner(struct vb2_buffer *vb, void *buf_priv,
++					 unsigned long flags, struct module *owner);
++
+ extern const struct vb2_mem_ops vb2_dma_sg_memops;
+ 
+ #endif

@@ -1,0 +1,30 @@
+from pathlib import Path
+import ast
+
+r = Path('/mnt/e/RealmeX2Pro edk2')
+ref = r / 'reference/kernel136'
+out = Path('/mnt/e/edk2-samurai-out/kernel136')
+assert not (ref / 'quiesce-current132.sh').exists()
+t = (r / 'reference/kernel134/collect-preflash.sh').read_text()
+t = t.replace('k134', 'k136').replace('K134', 'K136')
+t = t.replace('/var/lib/samurai/k132-first-runtime/boot-id-private.txt', '/var/lib/samurai/k136-current132/boot-id-private.txt')
+(ref / 'collect-preflash.sh').write_text(t)
+t = (r / 'reference/kernel134/quiesce-current132.sh').read_text()
+t = t.replace('k134', 'k136').replace('K134', 'K136')
+t = t.replace('(cd /usr/lib/modules/7.3.0-rc6-rmx1931-samurai-k136+ && sha256sum -c "$before/new-module-tree.sha256")',
+              '(cd /usr/lib/modules/7.3.0-rc6-rmx1931-samurai-k132+ && sha256sum -c "$before/old132-module-tree.sha256")')
+(ref / 'quiesce-current132.sh').write_text(t)
+t = (r / 'reference/kernel134/verify-quiesce.py').read_text()
+t = t.replace('reference/kernel134', 'reference/kernel136').replace('out/kernel134', 'out/kernel136')
+t = t.replace('target_kernel=134', 'target_kernel=136').replace('staged134_module_checks_pass=True', 'same132_module_checks_pass=True').replace('K134_', 'K136_')
+ast.parse(t)
+(ref / 'verify-quiesce.py').write_text(t)
+t = (r / 'reference/kernel135/freeze-for-bootloader.sh').read_text()
+t = t.replace('k135', 'k136').replace('K135', 'K136').replace("'^#134 '", "'^#132 '")
+t = t.replace('/dev/dri/card0', '/dev/dri/card1').replace('/dri/0/', '/dri/1/')
+t = t.replace('samurai-k134+', 'samurai-k132+').replace('old134-module-tree.sha256', 'old132-module-tree.sha256')
+(ref / 'freeze-for-bootloader.sh').write_text(t)
+t = (r / 'reference/kernel135/enter-bootloader.ps1').read_text()
+t = t.replace('kernel135', 'kernel136').replace('k135', 'k136').replace('K135', 'K136').replace('mdss-reset-first', 'vm-trace-first')
+(ref / 'enter-bootloader.ps1').write_text(t)
+print('K136_DISTINCT_FRESH_BOOT_DEPLOYMENT_TOOLS_READY', flush=True)

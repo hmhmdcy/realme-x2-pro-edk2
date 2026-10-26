@@ -1,0 +1,129 @@
+{
+  "stage": 472,
+  "scope": "two measurement clients only",
+  "passed": true,
+  "script_sha256": "df35d212d7640f89ce0f9dc80e143ab901a2fd6b67eb5b214765a2551c8ee189",
+  "sdk": "/home/cy122/x2pro-linux/libcamera214-root",
+  "source": "/mnt/samurai-full282/libcamera461-completion-ownership/src/libcamera-v0.7.2",
+  "version": "0.7.2",
+  "wsl_boot_id": "fa730d96-2078-473d-afbe-4a4bf23cd4f3",
+  "sdk_source_slot_unbound_before": true,
+  "exclusive_compiler_check_empty": true,
+  "read_only_source_binding": {
+    "target": "/home/cy122/x2pro-linux/libcamera214-root/work/libcamera",
+    "source": "/dev/loop0[/libcamera461-completion-ownership]",
+    "fstype": "ext4",
+    "options": "ro,noatime"
+  },
+  "sdk_bind_unmounted": true,
+  "compiler_versions": {
+    "gcc": "gcc (Alpine 15.2.0) 15.2.0",
+    "g++": "g++ (Alpine 15.2.0) 15.2.0"
+  },
+  "tools": [
+    {
+      "label": "stepper",
+      "command": [
+        "chroot",
+        "/home/cy122/x2pro-linux/libcamera214-root",
+        "gcc",
+        "-std=gnu11",
+        "-static",
+        "-O2",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-Wno-misleading-indentation",
+        "/private/camss472-tools/candidate-control-stepper.c",
+        "-o",
+        "/private/camss472-tools/control-stepper-mode2-aarch64"
+      ],
+      "returncode": 0,
+      "path": "/mnt/e/edk2-samurai-out/kernel472/control-stepper-mode2-aarch64",
+      "bytes": 520528,
+      "sha256": "d8b73c3b88f47716d4bc92e4e587f103d48c9d57bc317293f74befdd8455ce98",
+      "source_sha256": "cb167ab1d1df16e3682f44d44fecff8a362e321320bfde94e2f5298179d94679",
+      "aarch64": true,
+      "static": true,
+      "interpreter": null,
+      "needed": []
+    },
+    {
+      "label": "capture",
+      "command": [
+        "chroot",
+        "/home/cy122/x2pro-linux/libcamera214-root",
+        "g++",
+        "-std=c++20",
+        "-O2",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-I/work/libcamera/src/libcamera-v0.7.2/include",
+        "-I/work/libcamera/src/libcamera-v0.7.2/output/include",
+        "/private/camss472-tools/candidate-delay-capture.cpp",
+        "-L/work/libcamera/src/libcamera-v0.7.2/output/src/libcamera",
+        "-L/work/libcamera/src/libcamera-v0.7.2/output/src/libcamera/base",
+        "-Wl,-rpath-link,/work/libcamera/src/libcamera-v0.7.2/output/src/libcamera/base",
+        "-lcamera",
+        "-lcamera-base",
+        "-pthread",
+        "-o",
+        "/private/camss472-tools/delay-capture-mode2-aarch64"
+      ],
+      "returncode": 0,
+      "path": "/mnt/e/edk2-samurai-out/kernel472/delay-capture-mode2-aarch64",
+      "bytes": 85480,
+      "sha256": "efaed465acb59ef653f28e7d2a2286dd511830759223f72acde5f686f751ef52",
+      "source_sha256": "8a038dedbf60dbed8da94fe7d514c443af0e30dc4ab7b50ef01f65afdd79a037",
+      "aarch64": true,
+      "static": false,
+      "interpreter": "[Requesting program interpreter: /lib/ld-musl-aarch64.so.1]",
+      "needed": [
+        "0x0000000000000001 (NEEDED)             Shared library: [libcamera.so.0.7]",
+        "0x0000000000000001 (NEEDED)             Shared library: [libcamera-base.so.0.7]",
+        "0x0000000000000001 (NEEDED)             Shared library: [libstdc++.so.6]",
+        "0x0000000000000001 (NEEDED)             Shared library: [libgcc_s.so.1]",
+        "0x0000000000000001 (NEEDED)             Shared library: [libc.musl-aarch64.so.1]"
+      ]
+    }
+  ],
+  "headers_sha256": "b0e9049979289770b22800739b56d03b29f85cfd10cd48050c58cd0331a24171",
+  "header_files": 124,
+  "runtime_files": [
+    {
+      "path": "/mnt/samurai-full282/libcamera461-completion-ownership/src/libcamera-v0.7.2/output/src/libcamera/libcamera.so.0.7.2",
+      "sha256": "9b352a12a8825935155106d17b81bb33ac60c4d14d7d2007efaad9e3f06af3af"
+    },
+    {
+      "path": "/mnt/samurai-full282/libcamera461-completion-ownership/src/libcamera-v0.7.2/output/src/libcamera/base/libcamera-base.so.0.7.2",
+      "sha256": "f8c3039b31a18007b8ccb920493b010a3629113f30d151a8820f68c0b845f3c4"
+    },
+    {
+      "path": "/mnt/samurai-full282/libcamera461-completion-ownership/src/libcamera-v0.7.2/output/src/ipa/camss-vfe/ipa_camss_vfe.so",
+      "sha256": "4c90047d42a91b9b1585d3b2cda997d8eee61f5e3a20f136b4345abcc2556d39"
+    },
+    {
+      "path": "/mnt/samurai-full282/libcamera461-completion-ownership/src/libcamera-v0.7.2/output/src/ipa/camss-vfe/ipa_camss_vfe.so.sign",
+      "sha256": "f5c351bd947363791c072a7b9916adea00ec1a02c52671d7f9692aa735386205"
+    },
+    {
+      "path": "/mnt/samurai-full282/libcamera461-completion-ownership/src/libcamera-v0.7.2/output/src/libcamera/proxy/worker/camss_ipa_proxy",
+      "sha256": "c7887708377b92b167d917173cb2840a78e437a773985fa087ef980bd382038c"
+    }
+  ],
+  "headers_and_runtime_unchanged": true,
+  "ninja_state_unchanged": true,
+  "frozen306_sources_unchanged": true,
+  "candidate_sources_unchanged": true,
+  "capture_configure_before_stepper": true,
+  "mode_guard_after_configure_before_start_and_at_sof0": true,
+  "original_project_c_warning_exception": "-Wno-misleading-indentation, retained for original compact C style",
+  "clients_executed": false,
+  "uploaded": false,
+  "phone_accessed": false,
+  "shared_source_changed": false,
+  "libcamera_or_ipa_rebuilt": false,
+  "physical_delay_measured": false,
+  "seconds": 30.465
+}

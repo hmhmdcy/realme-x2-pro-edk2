@@ -1,0 +1,50 @@
+{
+  "passed": true,
+  "group_count": 11,
+  "groups": [
+    "normal/no-gadget/no-softconnect and OTG keep original first-call behavior",
+    "primary reset/RUN_STOP errors retained separately from successful one-shot recovery",
+    "disconnect failure stops before reconnect/count; connect error and MAX3 policy-EIO distinct",
+    "new synchronous claim cannot revive old UNRECOVERABLE; real IRQ preserves original policy",
+    "new IRQ in actual soft_connect survives successful publication and coalesced queue",
+    "IRQ immediately before and after success publication has an execution opportunity",
+    "failure publication also preserves true later IRQ instead of poisoning its queued work",
+    "pending old worker skips only consumed generation; coalesced new generation still executes",
+    "actual concurrently RUNNING old worker blocked on connect_mutex preserves and consumes new IRQ",
+    "IRQ during actual running worker is requeued, not hidden by PENDING coalescing",
+    "unchanged actual runtime/system callers retain powered success/SUSPHY/pending reference and IRQ tail"
+  ],
+  "actual_functions": 8,
+  "flags": [
+    "-std=c11",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-Wno-unused-parameter",
+    "-pthread",
+    "-fsanitize=address,undefined",
+    "-fno-omit-frame-pointer",
+    "-no-pie"
+  ],
+  "asan_ubsan": true,
+  "actual_functions_not_fake_algorithm": true,
+  "real_pthread_connection_and_irq_mutexes": true,
+  "runtime_stdout": "ok: normal/no-gadget/no-softconnect and OTG keep original first-call behavior\nok: primary reset/RUN_STOP errors retained separately from successful one-shot recovery\nok: disconnect failure stops before reconnect/count; connect error and MAX3 policy-EIO distinct\nok: new synchronous claim cannot revive old UNRECOVERABLE; real IRQ preserves original policy\nok: new IRQ in actual soft_connect survives successful publication and coalesced queue\nok: IRQ immediately before and after success publication has an execution opportunity\nok: failure publication also preserves true later IRQ instead of poisoning its queued work\nok: pending old worker skips only consumed generation; coalesced new generation still executes\nok: actual concurrently RUNNING old worker blocked on connect_mutex preserves and consumes new IRQ\nok: IRQ during actual running worker is requeued, not hidden by PENDING coalescing\nok: unchanged actual runtime/system callers retain powered success/SUSPHY/pending reference and IRQ tail\ngroups: 11\n",
+  "runtime_stderr": "",
+  "binary_private": "/home/cy122/charging-management-20261023/dwc-device-sync-recovery-candidate-tests/test-sync",
+  "binary_sha256": "bb6a9c7e7ec3f1858cdb7a04743b30d6ca3903c284173049863f97600c89b88d",
+  "files": {
+    "gadget.c": "5d4ed305192653c0165a21b3037b7be2c80ff1491ad074b767a06363750c826a",
+    "core.h": "9a8dc48a1283db17b6a0cad01f0bc43ff916cfa7dc3a11b680c2145984f97a67",
+    "prepare-tests.py": "bca69f71f0c55b640156cc349e84c278ed298b1801b0105f55f6662cf88791fd",
+    "test-sync.c": "98cb3c602634608130eb418a6f5a582679e5c60389b9075bcadb209f374ef930",
+    "tested-functions.inc": "b6c5a9d908d34fbececa9388f6c8a71281bb52cdb45821a3934ec710665bddc4",
+    "function-manifest.json": "4a965e918ec3eb85d3504c19bb9031492e7f5b7006fc6da1d3a0c19cb96501d8",
+    "run-tests.py": "b90f1bfd00de23d3799fbfe664da1bdd822a8b906602c4d58154688c02fd1ced"
+  },
+  "scope": "new actual generation/publication/recovery/resume/worker and unchanged original core PM callers; fake hardware/workqueue per read original semantics",
+  "original_126_rerun": false,
+  "original_caller_repros_rerun": false,
+  "phone_accessed": false,
+  "sdk_invoked": false
+}

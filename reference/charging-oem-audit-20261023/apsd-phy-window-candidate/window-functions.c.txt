@@ -1,0 +1,168 @@
+static const struct phy_ops qcom_snps_hsphy_gen_ops;
+
+static bool qcom_snps_hsphy_window_busy(struct qcom_snps_hsphy *hsphy)
+{
+	return hsphy->window.state != QCOM_HSPHY_WINDOW_IDLE;
+}
+
+static int qcom_snps_hsphy_window_write(struct qcom_snps_hsphy *hsphy,
+				      u32 offset, u32 mask, u32 value)
+{
+	u32 actual;
+
+	lockdep_assert_held(&hsphy->phy->mutex);
+	actual = readl_relaxed(hsphy->base + offset);
+	writel_relaxed((actual & ~mask) | (value & mask), hsphy->base + offset);
+	actual = readl_relaxed(hsphy->base + offset);
+	return (actual & mask) == (value & mask) ? 0 : -EIO;
+}
+
+/* Same three masked operations and entry order as the pinned OEM DPDM
+ * regulator. Power, clocks and reset are deliberately not borrowed from its
+ * enable path: only an initialized, already-active PHY can be claimed. */
+static const u32 qcom_snps_hsphy_window_offsets[] = {
+	USB2_PHY_USB_PHY_HS_PHY_CTRL2,
+	USB2_PHY_USB_PHY_UTMI_CTRL0,
+	USB2_PHY_USB_PHY_CFG0,
+};
+static const u32 qcom_snps_hsphy_window_masks[] = {
+	USB2_SUSPEND_N_SEL | USB2_SUSPEND_N,
+	OPMODE_MASK,
+	UTMI_PHY_DATAPATH_CTRL_OVERRIDE_EN,
+};
+static const u32 qcom_snps_hsphy_window_values[] = {
+	USB2_SUSPEND_N_SEL | USB2_SUSPEND_N,
+	OPMODE_NONDRIVING,
+	UTMI_PHY_DATAPATH_CTRL_OVERRIDE_EN,
+};
+
+/**
+ * qcom_snps_hsphy_window_begin - borrow this active PHY's masked UTMI state
+ * @phy: bound femto-v2 PHY protected by the caller's DWC active HALT window
+ * @result: cookie, exact old values, and per-step readback receipt
+ *
+ * Process context only; caller holds no PHY/DWC/EUD component lock. A failed
+ * enter with a cookie remains owned, with its PM reference and old values.
+ * It is not a high-Z success and requires explicit end after detection stops.
+ */
+int qcom_snps_hsphy_window_begin(struct phy *phy,
+		struct qcom_snps_hsphy_window_result *result)
+{
+	struct qcom_snps_hsphy_window_result *window;
+	struct qcom_snps_hsphy *hsphy;
+	int i, ret;
+
+	if (!result)
+		return -EINVAL;
+	memset(result, 0, sizeof(*result));
+	if (!phy || phy->ops != &qcom_snps_hsphy_gen_ops)
+		return -ENODEV;
+	hsphy = phy_get_drvdata(phy);
+	/* Never resume to gain a detection window; PM operations are outside
+	 * the generic PHY mutex, including all failure/ref-release paths. */
+	ret = pm_runtime_get_if_active(hsphy->dev);
+	if (ret <= 0)
+		return ret < 0 ? ret : -EAGAIN;
+	mutex_lock(&phy->mutex);
+	window = &hsphy->window;
+	if (qcom_snps_hsphy_window_busy(hsphy))
+		ret = -EBUSY;
+	else if (!hsphy->phy_initialized || phy->init_count <= 0)
+		ret = -EAGAIN;
+	else if (hsphy->mode != PHY_MODE_USB_DEVICE)
+		ret = -EOPNOTSUPP;
+	else {
+		memset(window, 0, sizeof(*window));
+		if (!++hsphy->window_generation)
+			++hsphy->window_generation;
+		window->cookie = hsphy->window_generation;
+		window->state = QCOM_HSPHY_WINDOW_CLAIMED;
+		hsphy->window_pm_ref = true;
+		/* Capture all originals before any write, including when entering
+		 * later fails part-way. Never synthesize normal/default values. */
+		for (i = 0; i < ARRAY_SIZE(qcom_snps_hsphy_window_offsets); i++)
+			window->saved[i] = readl_relaxed(hsphy->base +
+				qcom_snps_hsphy_window_offsets[i]) & qcom_snps_hsphy_window_masks[i];
+		for (i = 0; i < ARRAY_SIZE(qcom_snps_hsphy_window_offsets); i++) {
+			window->attempted |= BIT(i);
+			ret = qcom_snps_hsphy_window_write(hsphy,
+				qcom_snps_hsphy_window_offsets[i],
+				qcom_snps_hsphy_window_masks[i], qcom_snps_hsphy_window_values[i]);
+			if (ret)
+				break;
+			window->verified |= BIT(i);
+		}
+		window->enter_error = ret;
+		window->high_z = !ret;
+		window->state = ret ? QCOM_HSPHY_WINDOW_FAILED : QCOM_HSPHY_WINDOW_HIGH_Z;
+		*result = *window;
+		mutex_unlock(&phy->mutex);
+		return ret;
+	}
+	mutex_unlock(&phy->mutex);
+	pm_runtime_put_noidle(hsphy->dev);
+	return ret;
+}
+
+/**
+ * qcom_snps_hsphy_window_end - restore exactly the borrowed masked state
+ * @phy: same bound PHY, still under caller's active DWC/lifetime protection
+ * @cookie: nonzero begin cookie, including a failed enter's cookie
+ * @result: old values and independent enter/restore error receipt
+ *
+ * Reverse entry order; each write is read back. Failure preserves ownership
+ * and PM reference for explicit retry; it never reconnects DWC/EUD. Success
+ * means these masked values were restored, not that USB enumerated.
+ */
+int qcom_snps_hsphy_window_end(struct phy *phy, u64 cookie,
+		struct qcom_snps_hsphy_window_result *result)
+{
+	struct qcom_snps_hsphy_window_result *window;
+	struct qcom_snps_hsphy *hsphy;
+	int i, ret = 0;
+
+	if (!result)
+		return -EINVAL;
+	memset(result, 0, sizeof(*result));
+	if (!phy || phy->ops != &qcom_snps_hsphy_gen_ops)
+		return -ENODEV;
+	hsphy = phy_get_drvdata(phy);
+	mutex_lock(&phy->mutex);
+	window = &hsphy->window;
+	if (!cookie || cookie != window->cookie || !qcom_snps_hsphy_window_busy(hsphy)) {
+		ret = -ESTALE;
+		goto unlock;
+	}
+	/* exit/set_mode/runtime callbacks cannot invalidate this snapshot. */
+	if (!hsphy->phy_initialized || phy->init_count <= 0 || !hsphy->window_pm_ref) {
+		ret = -ESHUTDOWN;
+		goto failed;
+	}
+	window->high_z = false;
+	window->restored_mask = 0;
+	for (i = ARRAY_SIZE(qcom_snps_hsphy_window_offsets) - 1; i >= 0; i--) {
+		ret = qcom_snps_hsphy_window_write(hsphy,
+			qcom_snps_hsphy_window_offsets[i],
+			qcom_snps_hsphy_window_masks[i], window->saved[i]);
+		if (ret)
+			goto failed;
+		window->restored_mask |= BIT(i);
+	}
+	window->restored = true;
+	window->restore_error = 0;
+	window->state = QCOM_HSPHY_WINDOW_IDLE;
+	hsphy->window_pm_ref = false;
+	*result = *window;
+	mutex_unlock(&phy->mutex);
+	pm_runtime_mark_last_busy(hsphy->dev);
+	pm_runtime_put_autosuspend(hsphy->dev);
+	return 0;
+failed:
+	window->high_z = false;
+	window->restore_error = ret;
+	window->state = QCOM_HSPHY_WINDOW_FAILED;
+	*result = *window;
+unlock:
+	mutex_unlock(&phy->mutex);
+	return ret;
+}

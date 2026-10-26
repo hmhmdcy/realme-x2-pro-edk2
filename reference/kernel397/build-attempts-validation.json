@@ -1,0 +1,29 @@
+{
+  "stage": 397,
+  "attempts": [
+    {
+      "attempt": 1,
+      "passed": false,
+      "cause": "The temporary adapter build selected core/adapter only; modpost lacked the matching media and DMA-SG helper targets.",
+      "source_restored": true,
+      "phone_changed": false
+    },
+    {
+      "attempt": 2,
+      "passed": false,
+      "cause": "Build started before preparation completed and still used the old target list. The log contains no helper object build; unresolved symbols repeated.",
+      "source_restored": true,
+      "phone_changed": false
+    },
+    {
+      "attempt": 3,
+      "passed": true,
+      "cause": "After preparation was terminal and the generated script was inspected, include matching media/DMA-SG helper targets for modpost.",
+      "diagnostics": 0,
+      "normal_and_temporary_build_core_bytes_equal": true,
+      "helpers_selected_for_device_installation": false,
+      "evidence": "test-intree-build-r3-validation.json"
+    }
+  ],
+  "historical_failed_build_report_template_booleans_not_success_evidence": true
+}

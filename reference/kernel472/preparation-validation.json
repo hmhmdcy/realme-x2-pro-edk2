@@ -1,0 +1,109 @@
+{
+  "stage": 472,
+  "scope": "offline minimal 306-tool adaptation candidate",
+  "applied_to_shared_source": false,
+  "compiled": false,
+  "hardware_accessed": false,
+  "sdk_accessed": false,
+  "original_source_sha256": {
+    "control-stepper.c": "4ebf88c45cc1b1feac89b1d358944fbc8c0be4886cdee80b9e648395bc7c7aca",
+    "delay-capture.cpp": "0d8682ea2c23a08241f9542ac97e6317176e33a211b2d621505d989e94df31c4"
+  },
+  "candidate_source_sha256": {
+    "control-stepper.c": "cb167ab1d1df16e3682f44d44fecff8a362e321320bfde94e2f5298179d94679",
+    "delay-capture.cpp": "8a038dedbf60dbed8da94fe7d514c443af0e30dc4ab7b50ef01f65afdd79a037"
+  },
+  "patch_sha256": "2c7e92808c1a57e3c7df9ca7ff9d32409e5cb04bdeda5f21df8dd9a385793097",
+  "only_test_tools_changed": true,
+  "control_schedule_unchanged": true,
+  "control_write_and_sof_recording_unchanged": true,
+  "capture_frames": 240,
+  "control_steps": 9,
+  "stepper_sof_events": 233,
+  "measurement_sensor": [
+    4208,
+    2368
+  ],
+  "measurement_crop": [
+    0,
+    376,
+    4208,
+    2368
+  ],
+  "expected_ll": 4848,
+  "expected_fll": 3312,
+  "expected_pixel_rate": 481930000,
+  "measurement_output": [
+    320,
+    180
+  ],
+  "linear_bhist_roi": [
+    0,
+    0,
+    4208,
+    2368
+  ],
+  "expected_population": 2491136,
+  "exposure_steps_lines": [
+    500,
+    1200,
+    800
+  ],
+  "gain_steps_codes": [
+    64,
+    128
+  ],
+  "delay_not_preset": true,
+  "old300_runtime_compatible": false,
+  "reason": "old IPA requires exact BHIST-only bytes; current kernel appends AWB_BG statistics",
+  "planned_runtime": "existing461 complete matched libcamera/IPA/signature/proxy set; slim measurement profile, no sensor_controls or AGC",
+  "actual_measurement_or_delay_result": null,
+  "passed": true,
+  "source_evidence": [
+    {
+      "path": "/mnt/e/RealmeX2Pro edk2/reference/kernel306/analyse-delay.py",
+      "sha256": "709f8862743e3098332bd681577f076eeccc118ed1fe6ab843096337133c5e34"
+    },
+    {
+      "path": "/mnt/e/RealmeX2Pro edk2/reference/kernel306/native-delay.py",
+      "sha256": "a9702b15244b26b43f2f0eba1eaf7e7826e0b837b051077491f617cb1d6b1ed6"
+    },
+    {
+      "path": "/mnt/e/RealmeX2Pro edk2/reference/kernel300/ipa/camss.cpp",
+      "sha256": "0b7aa3c246dae0de9ebc0d2cb06dd11dd1d38a52a82708d93ab7a24138ba51a6"
+    },
+    {
+      "path": "/mnt/e/RealmeX2Pro edk2/reference/kernel300/pipeline/camss_vfe.cpp",
+      "sha256": "97e89568fb23bbad7df08e32f32b43ab63a8574af9d9c0b57e7dedca6c12b579"
+    },
+    {
+      "path": "/mnt/e/RealmeX2Pro edk2/reference/kernel299/ipa/parameter_encoder.cpp",
+      "sha256": "ab23d91ce8c91557dcd169f4d4c46659398593d57c2df04a827bc140df1e784f"
+    },
+    {
+      "path": "/mnt/e/RealmeX2Pro edk2/reference/kernel442/capture.cpp",
+      "sha256": "795b1b715b858b1d939786e3eed449c7e90b7026f7f1d1cae2b13241edd13e59"
+    },
+    {
+      "path": "/mnt/e/RealmeX2Pro edk2/reference/kernel469/prepare-runtime.py",
+      "sha256": "9a25ddbc531a3aa040e1299581e0c77fa64c0e151daed80a7f34b0eff679bbca"
+    },
+    {
+      "path": "/mnt/samurai-full282/libcamera461-completion-ownership/src/libcamera-v0.7.2/src/ipa/camss-vfe/camss.cpp",
+      "sha256": "d963f91d55b52b7693b73c6a05ad0ad282de47335592fb5c02821ddc9cb7520c"
+    },
+    {
+      "path": "/mnt/samurai-full282/libcamera461-completion-ownership/src/libcamera-v0.7.2/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp",
+      "sha256": "befec1da3743545652adc669cc649860d6840738e38a3798305d213b2e874b40"
+    },
+    {
+      "path": "/mnt/samurai-full282/source354/drivers/media/platform/qcom/camss/camss-vfe-175-stats.c",
+      "sha256": "c965a5eedd568fa988c9c639ab08b6ed7e0c50fc4746cfa580b17058bc6bf859"
+    }
+  ],
+  "preparation_sha256": "3b2dc996d848dd42f51805f1ec0bd10be301697f4ccc16ae21cb793866a17a89",
+  "raw_roi_capture_present": false,
+  "linear_bhist_full_input_roi_present": true,
+  "old_analyser_top_level_would_ssh": true,
+  "pure_response_algorithm_requires_no_delay_input": true
+}

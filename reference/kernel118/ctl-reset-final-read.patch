@@ -1,0 +1,14 @@
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_ctl.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_ctl.c
+@@ -429,7 +429,10 @@
+ 			usleep_range(20, 50);
+ 	} while (status && ktime_compare_safe(ktime_get(), timeout) < 0);
+ 
+-	return status;
++	/* A delayed wakeup can cross the deadline after hardware cleared
++	 * reset. Sample again rather than return the value from before sleep.
++	 */
++	return DPU_REG_READ(c, CTL_SW_RESET) & BIT(0);
+ }
+ 
+ static int dpu_hw_ctl_reset_control(struct dpu_hw_ctl *ctx)

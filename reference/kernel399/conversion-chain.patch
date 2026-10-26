@@ -1,0 +1,297 @@
+--- a/drivers/media/platform/qcom/camss/camss-icp-a5-colour.c
++++ b/drivers/media/platform/qcom/camss/camss-icp-a5-colour.c
+@@ -76,3 +76,132 @@
+ 	memcpy(output + CAMSS_A5_IPE_CC_PACKET_OFFSET, command, sizeof(command));
+ 	return 0;
+ }
++
++/* Every program is generated from typed, bounded values, never external CDM. */
++int camss_a5_ipe_colour_check(const struct camss_a5_ipe_colour *colour)
++{
++	u8 command[CAMSS_A5_IPE_CC_COMMAND_BYTES];
++	u32 i;
++
++	if (!colour || (colour->modules & ~CAMSS_A5_IPE_COLOUR_MODULES))
++		return -EINVAL;
++	if (colour->modules & CAMSS_A5_IPE_COLOUR_CST) {
++		const struct camss_a5_ipe_cst *cst = &colour->cst;
++
++		for (i = 0; i < 9; i++)
++			if (cst->matrix[i] < -4096 || cst->matrix[i] > 4095)
++				return -ERANGE;
++		for (i = 0; i < 3; i++)
++			if (cst->subtract[i] < -1024 || cst->subtract[i] > 1023 ||
++			    cst->offset[i] > 1023 || cst->minimum[i] > 1023 ||
++			    cst->maximum[i] > 1023 || cst->minimum[i] > cst->maximum[i])
++				return -ERANGE;
++	}
++	if (colour->modules & CAMSS_A5_IPE_COLOUR_CC) {
++		int ret = camss_a5_ipe_cc_encode(command, sizeof(command), &colour->cc);
++
++		if (ret)
++			return ret;
++	}
++	if (colour->modules & CAMSS_A5_IPE_COLOUR_CV) {
++		const struct camss_a5_ipe_cv *cv = &colour->cv;
++
++		for (i = 0; i < 3; i++)
++			if (cv->luma[i] < -2048 || cv->luma[i] > 2047)
++				return -ERANGE;
++		for (i = 0; i < 8; i++)
++			if (cv->chroma[i] < -2048 || cv->chroma[i] > 2047)
++				return -ERANGE;
++		if (cv->y_offset < -1024 || cv->y_offset > 1023 ||
++		    cv->offset[0] < -1024 || cv->offset[0] > 1023 ||
++		    cv->offset[1] < -1024 || cv->offset[1] > 1023)
++			return -ERANGE;
++	}
++	return 0;
++}
++
++static void encode_cst(u8 *output, const struct camss_a5_ipe_cst *cst)
++{
++	u32 i;
++
++	put_unaligned_le32(0x0300000c, output);
++	put_unaligned_le32(0x5a68, output + 4);
++	for (i = 0; i < 3; i++) {
++		u8 *row = output + 8 + i * 16;
++
++		put_unaligned_le32((cst->matrix[3 * i] & 0x1fff) |
++				   ((cst->matrix[3 * i + 1] & 0x1fff) << 16), row);
++		put_unaligned_le32(cst->matrix[3 * i + 2] & 0x1fff, row + 4);
++		put_unaligned_le32((cst->subtract[i] & 0x7ff) |
++				   ((u32)cst->offset[i] << 16), row + 8);
++		put_unaligned_le32(cst->minimum[i] |
++				   ((u32)cst->maximum[i] << 16), row + 12);
++	}
++}
++
++static void encode_cv(u8 *output, const struct camss_a5_ipe_cv *cv)
++{
++	u32 i;
++
++	put_unaligned_le32(0x03000008, output);
++	put_unaligned_le32(0x6468, output + 4);
++	put_unaligned_le32((cv->luma[0] & 0xfff) |
++			   ((cv->luma[1] & 0xfff) << 16), output + 8);
++	put_unaligned_le32((cv->luma[2] & 0xfff) |
++			   ((cv->y_offset & 0x7ff) << 16), output + 12);
++	for (i = 0; i < 4; i++)
++		put_unaligned_le32((cv->chroma[2 * i] & 0xfff) |
++				   ((cv->chroma[2 * i + 1] & 0xfff) << 16),
++				   output + 16 + 4 * i);
++	put_unaligned_le32(cv->offset[0] & 0x1fff, output + 32);
++	put_unaligned_le32(cv->offset[1] & 0x1fff, output + 36);
++}
++
++static void encode_program(u8 *descriptor, u32 address, u32 bytes)
++{
++	put_unaligned_le32(address, descriptor);
++	put_unaligned_le32((bytes - 1) << 12, descriptor + 4);
++}
++
++int camss_a5_ipe_encode_colour_iq(void *destination, u32 bytes, u32 iq_iova,
++				const struct camss_a5_ipe_colour *colour)
++{
++	u8 *output = destination;
++	u8 *pre, *post;
++	u32 count = 0;
++	int ret;
++
++	if (!output || bytes < CAMSS_A5_IPE_COLOUR_IQ_BYTES || !iq_iova ||
++	    (iq_iova & 31) ||
++	    (u64)iq_iova + CAMSS_A5_IPE_COLOUR_IQ_BYTES > (1ULL << 32))
++		return -EINVAL;
++	ret = camss_a5_ipe_colour_check(colour);
++	if (ret)
++		return ret;
++	ret = camss_a5_ipe_encode_bypass_iq(output, bytes);
++	if (ret)
++		return ret;
++	memset(output + CAMSS_A5_IPE_IQ_BYTES, 0,
++	       CAMSS_A5_IPE_COLOUR_IQ_BYTES - CAMSS_A5_IPE_IQ_BYTES);
++	pre = output + CAMSS_A5_IPE_COLOUR_ARRAY_OFFSET + CAMSS_A5_IPE_COLOUR_PRE_OFFSET;
++	post = output + CAMSS_A5_IPE_COLOUR_ARRAY_OFFSET + CAMSS_A5_IPE_COLOUR_POST_OFFSET;
++	if (colour->modules & CAMSS_A5_IPE_COLOUR_CST) {
++		put_unaligned_le32(1, output + 2092);
++		put_unaligned_le32(1, pre + 4);
++		encode_program(pre + 8, iq_iova + CAMSS_A5_IPE_CST_PACKET_OFFSET, 56);
++		encode_cst(output + CAMSS_A5_IPE_CST_PACKET_OFFSET, &colour->cst);
++	}
++	if (colour->modules & CAMSS_A5_IPE_COLOUR_CC) {
++		put_unaligned_le32(1, output + 2188);
++		encode_program(post + 8 + 24 * count++, iq_iova + CAMSS_A5_IPE_COLOUR_CC_PACKET_OFFSET, 44);
++		/* Already validated above; this fixed encoder cannot fail here. */
++		camss_a5_ipe_cc_encode(output + CAMSS_A5_IPE_COLOUR_CC_PACKET_OFFSET, 44, &colour->cc);
++	}
++	if (colour->modules & CAMSS_A5_IPE_COLOUR_CV) {
++		put_unaligned_le32(1, output + 2200);
++		encode_program(post + 8 + 24 * count++, iq_iova + CAMSS_A5_IPE_CV_PACKET_OFFSET, 40);
++		encode_cv(output + CAMSS_A5_IPE_CV_PACKET_OFFSET, &colour->cv);
++	}
++	put_unaligned_le32(count, post + 4);
++	return 0;
++}
+--- a/drivers/media/platform/qcom/camss/camss-icp-a5-colour.h
++++ b/drivers/media/platform/qcom/camss/camss-icp-a5-colour.h
+@@ -28,4 +28,50 @@
+ int camss_a5_ipe_encode_cc_iq(void *destination, u32 bytes, u32 iq_iova,
+ 			    const struct camss_a5_ipe_cc *cc);
+ 
++/* Quantized target IPE component transform; matrix Q10, signed13.
++ * Subtract is signed11; additive offsets and clamps are unsigned10.
++ */
++struct camss_a5_ipe_cst {
++	s16 matrix[9];
++	s16 subtract[3];
++	u16 offset[3];
++	u16 minimum[3];
++	u16 maximum[3];
++};
++
++/* Target native CV leaf order, verified through its deserializer and Execute.
++ * Coefficients are signed12/Q8; offsets have signed11 numerical range.
++ * Chroma pairs are ap/am, bp/bm, cp/cm, dp/dm; cb/cr offsets follow packet order.
++ */
++struct camss_a5_ipe_cv {
++	s16 luma[3];
++	s16 y_offset;
++	s16 chroma[8];
++	s16 offset[2];
++};
++
++#define CAMSS_A5_IPE_COLOUR_CST 1U
++#define CAMSS_A5_IPE_COLOUR_CC 2U
++#define CAMSS_A5_IPE_COLOUR_CV 4U
++#define CAMSS_A5_IPE_COLOUR_MODULES 7U
++
++struct camss_a5_ipe_colour {
++	u32 modules;
++	struct camss_a5_ipe_cst cst;
++	struct camss_a5_ipe_cc cc;
++	struct camss_a5_ipe_cv cv;
++};
++
++#define CAMSS_A5_IPE_COLOUR_ARRAY_OFFSET 2592U
++#define CAMSS_A5_IPE_COLOUR_PRE_OFFSET 32U
++#define CAMSS_A5_IPE_COLOUR_POST_OFFSET 64U
++#define CAMSS_A5_IPE_CST_PACKET_OFFSET 2720U
++#define CAMSS_A5_IPE_COLOUR_CC_PACKET_OFFSET 2776U
++#define CAMSS_A5_IPE_CV_PACKET_OFFSET 2820U
++#define CAMSS_A5_IPE_COLOUR_IQ_BYTES 2860U
++
++int camss_a5_ipe_colour_check(const struct camss_a5_ipe_colour *colour);
++int camss_a5_ipe_encode_colour_iq(void *destination, u32 bytes, u32 iq_iova,
++				const struct camss_a5_ipe_colour *colour);
++
+ #endif
+--- a/drivers/media/platform/qcom/camss/camss-icp-a5-ipe.h
++++ b/drivers/media/platform/qcom/camss/camss-icp-a5-ipe.h
+@@ -69,6 +69,14 @@
+ 				 const struct camss_a5_ipe_job *job,
+ 				 const struct camss_a5_ipe_cc *cc,
+ 				 enum camss_a5_ipe_result *result);
++/* Optional typed pre/post conversion and CCM; NULL retains the old bypass.
++ * Enabled modules are copied/validated before allocation or firmware MAP.
++ */
++int camss_a5_ipe_run_colour_chain_status(struct camss_a5 *a5,
++				       struct camss_a5_session *session,
++				       const struct camss_a5_ipe_job *job,
++				       const struct camss_a5_ipe_colour *colour,
++				       enum camss_a5_ipe_result *result);
+ int camss_a5_ipe_run(struct camss_a5 *a5, struct camss_a5_session *session,
+ 		     const struct camss_a5_ipe_job *job);
+ 
+--- a/drivers/media/platform/qcom/camss/camss-icp-a5-boot.c
++++ b/drivers/media/platform/qcom/camss/camss-icp-a5-boot.c
+@@ -1344,12 +1344,15 @@
+ static int run_colour_status(struct camss_a5 *a5, struct camss_a5_session *session,
+ 			     const struct camss_a5_ipe_job *job,
+ 			     const struct camss_a5_ipe_cc *cc,
++			     const struct camss_a5_ipe_colour *chain,
+ 			     enum camss_a5_ipe_result *result)
+ {
+ 	struct camss_a5_ipe_frame frame = {};
+ 	struct camss_a5_ipe_cc colour;
++	struct camss_a5_ipe_colour configuration;
+ 	u8 colour_command[CAMSS_A5_IPE_CC_COMMAND_BYTES];
+-	u32 iq_bytes = cc ? CAMSS_A5_IPE_CC_IQ_BYTES : CAMSS_A5_IPE_IQ_BYTES;
++	u32 iq_bytes = chain ? CAMSS_A5_IPE_COLOUR_IQ_BYTES :
++		cc ? CAMSS_A5_IPE_CC_IQ_BYTES : CAMSS_A5_IPE_IQ_BYTES;
+ 	u8 packet[40] = {};
+ 	u64 input_bytes, output_bytes, parcel;
+ 	u32 stripe_bytes, iq_offset, scratch_offset, bl_offset;
+@@ -1375,6 +1378,16 @@
+ 	}
+ 	/* Only a configured, coherent engine may reject a job locally. */
+ 	local_ready = true;
++	if (cc && chain) {
++		ret = -EINVAL;
++		goto done;
++	}
++	if (chain) {
++		configuration = *chain;
++		ret = camss_a5_ipe_colour_check(&configuration);
++		if (ret)
++			goto done;
++	}
+ 	if (cc) {
+ 		colour = *cc;
+ 		ret = camss_a5_ipe_cc_encode(colour_command, sizeof(colour_command), &colour);
+@@ -1439,7 +1452,10 @@
+ 						 job->max_cores, &stripe_bytes);
+ 	if (ret)
+ 		goto release;
+-	if (cc)
++	if (chain)
++		ret = camss_a5_ipe_encode_colour_iq(a5->request.cpu + iq_offset, iq_bytes,
++						  REQUEST_IOVA + iq_offset, &configuration);
++	else if (cc)
+ 		ret = camss_a5_ipe_encode_cc_iq(a5->request.cpu + iq_offset, iq_bytes,
+ 					      REQUEST_IOVA + iq_offset, &colour);
+ 	else
+@@ -1466,7 +1482,12 @@
+ 					 &session->io, &frame);
+ 	if (ret)
+ 		goto release;
+-	if (cc) {
++	if (chain) {
++		put_unaligned_le32(REQUEST_IOVA + iq_offset + CAMSS_A5_IPE_COLOUR_ARRAY_OFFSET,
++				   a5->request.cpu + 40);
++		put_unaligned_le32(CAMSS_A5_IPE_COLOUR_PRE_OFFSET, a5->request.cpu + 44);
++		put_unaligned_le32(CAMSS_A5_IPE_COLOUR_POST_OFFSET, a5->request.cpu + 48);
++	} else if (cc) {
+ 		put_unaligned_le32(REQUEST_IOVA + iq_offset + CAMSS_A5_IPE_CC_ARRAY_OFFSET,
+ 				   a5->request.cpu + 40);
+ 		put_unaligned_le32(CAMSS_A5_IPE_CC_POST_OFFSET, a5->request.cpu + 48);
+@@ -1540,7 +1561,7 @@
+ 			  const struct camss_a5_ipe_job *job,
+ 			  enum camss_a5_ipe_result *result)
+ {
+-	return run_colour_status(a5, session, job, NULL, result);
++	return run_colour_status(a5, session, job, NULL, NULL, result);
+ }
+ EXPORT_SYMBOL_GPL(camss_a5_ipe_run_status);
+ 
+@@ -1550,9 +1571,19 @@
+ 				 const struct camss_a5_ipe_cc *cc,
+ 				 enum camss_a5_ipe_result *result)
+ {
+-	return run_colour_status(a5, session, job, cc, result);
++	return run_colour_status(a5, session, job, cc, NULL, result);
+ }
+ EXPORT_SYMBOL_GPL(camss_a5_ipe_run_colour_status);
++
++int camss_a5_ipe_run_colour_chain_status(struct camss_a5 *a5,
++				       struct camss_a5_session *session,
++				       const struct camss_a5_ipe_job *job,
++				       const struct camss_a5_ipe_colour *colour,
++				       enum camss_a5_ipe_result *result)
++{
++	return run_colour_status(a5, session, job, NULL, colour, result);
++}
++EXPORT_SYMBOL_GPL(camss_a5_ipe_run_colour_chain_status);
+ 
+ /* Preserve existing in-kernel callers and their conservative errno contract. */
+ int camss_a5_ipe_run(struct camss_a5 *a5, struct camss_a5_session *session,

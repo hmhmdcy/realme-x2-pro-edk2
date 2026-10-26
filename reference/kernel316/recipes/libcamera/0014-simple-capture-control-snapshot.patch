@@ -1,0 +1,65 @@
+Subject: [PATCH] pipeline: simple: snapshot controls for the captured frame
+
+Requests and captured frames diverge when an application stops queueing
+requests while internal buffers keep streaming. Resolve the sensor history
+using the captured sequence when frame-start events are available and keep
+a per-request copy until ISP statistics are processed. Preserve the legacy
+non-frame-start path and the request-keyed IPA context.
+
+---
+diff --git a/src/libcamera/pipeline/simple/simple.cpp b/src/libcamera/pipeline/simple/simple.cpp
+--- a/src/libcamera/pipeline/simple/simple.cpp
++++ b/src/libcamera/pipeline/simple/simple.cpp
+@@ -198,6 +198,7 @@
+ 	Request *request;
+ 	bool metadataRequired;
+ 	bool metadataProcessed;
++	std::optional<ControlList> sensorControls;
+ };
+ 
+ class SimpleFrames
+@@ -957,14 +958,23 @@
+ 
+ 		if (converter_)
+ 			converter_->queueBuffers(buffer, conversionQueue_.front().outputs);
+-		else
+-			/*
+-			 * request->sequence() cannot be retrieved from `buffer' inside
+-			 * queueBuffers because unique_ptr's make buffer->request() invalid
+-			 * already here.
+-			 */
++		else {
++			SimpleFrameInfo *info = frameInfo_.find(request->sequence());
++			ASSERT(info);
++
++			/* Snapshot before ISP processing can evict the sensor history. */
++			uint32_t sequence = frameStartEmitter_
++				? buffer->metadata().sequence : request->sequence();
++			info->sensorControls = delayedCtrls_->get(sequence);
++			LOG(SimplePipeline, Debug)
++				<< "Captured request " << request->sequence()
++				<< " from sequence " << buffer->metadata().sequence
++				<< ", control sequence " << sequence;
++
++			/* The software ISP frame context remains keyed by request. */
+ 			swIsp_->queueBuffers(request->sequence(), buffer,
+ 					     conversionQueue_.front().outputs);
++		}
+ 
+ 		conversionQueue_.pop();
+ 		return;
+@@ -1026,8 +1036,12 @@
+ 
+ void SimpleCameraData::ispStatsReady(uint32_t frame, uint32_t bufferId)
+ {
+-	swIsp_->processStats(frame, bufferId,
+-			     delayedCtrls_->get(frame));
++	SimpleFrameInfo *info = frameInfo_.find(frame);
++	if (!info)
++		return;
++
++	ASSERT(info->sensorControls.has_value());
++	swIsp_->processStats(frame, bufferId, *info->sensorControls);
+ }
+ 
+ void SimpleCameraData::metadataReady(uint32_t frame, const ControlList &metadata)

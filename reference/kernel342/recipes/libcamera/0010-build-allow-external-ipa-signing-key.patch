@@ -1,0 +1,34 @@
+--- a/meson_options.txt
++++ b/meson_options.txt
+@@ -45,6 +45,11 @@
+         type : 'feature',
+         value : 'auto',
+         description : 'Compile libcamera GStreamer plugin')
++
++option('ipa-priv-key',
++        type : 'string',
++        value : '',
++        description : 'External IPA signing private key (empty generates a new key)')
+ 
+ option('ipas',
+         type : 'array',
+--- a/src/meson.build
++++ b/src/meson.build
+@@ -17,9 +17,14 @@
+ # Module Signing
+ openssl = find_program('openssl', required : false)
+ if openssl.found()
+-    ipa_priv_key = custom_target('ipa-priv-key',
+-                                 output : ['ipa-priv-key.pem'],
+-                                 command : [gen_ipa_priv_key, '@OUTPUT@'])
++    ipa_key_path = get_option('ipa-priv-key')
++    if ipa_key_path == ''
++        ipa_priv_key = custom_target('ipa-priv-key',
++                                     output : ['ipa-priv-key.pem'],
++                                     command : [gen_ipa_priv_key, '@OUTPUT@'])
++    else
++        ipa_priv_key = files(ipa_key_path)[0]
++    endif
+     config_h.set('HAVE_IPA_PUBKEY', 1)
+     ipa_sign_module = true
+ else

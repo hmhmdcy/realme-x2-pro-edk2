@@ -1,0 +1,59 @@
+{
+  "stage": 372,
+  "firmware_sha256": "a22bc8adbb4ae97e4f8d728eecb1fd19c1bf866250b0bb7e668951c41c159e63",
+  "windows": [
+    {
+      "offset": 1087904,
+      "words": 3,
+      "role": "exception-globals"
+    },
+    {
+      "offset": 1048728,
+      "words": 1,
+      "role": "architecture-context-pointer"
+    },
+    {
+      "offset": 1084356,
+      "words": 40,
+      "role": "original-context-destination"
+    },
+    {
+      "offset": 1062676,
+      "words": 32,
+      "role": "original-abort-stack-tail"
+    }
+  ],
+  "original_context_save_executed": true,
+  "cp15_values_synthetic": true,
+  "rtos_cache_and_hardware_mmu_not_simulated": true,
+  "field_layout": {
+    "far": 1087904,
+    "fsr": 1087908,
+    "type": 1087912,
+    "context_pointer": 1048728,
+    "initial_context": 1084356,
+    "abt_sp_offset": 88,
+    "fault_pc_stack_offset": 32
+  },
+  "A5ContextRegisters_not_the_executed_abort_save_destination": true,
+  "tests": [
+    {
+      "path": "data",
+      "context_save_function_executed": true,
+      "abt_sp_context_offset": "0x58",
+      "fault_pc_at_saved_abt_sp_plus": 32,
+      "original_abt_stack_top": "0x103794",
+      "passed": true
+    },
+    {
+      "path": "prefetch",
+      "context_save_function_executed": true,
+      "abt_sp_context_offset": "0x58",
+      "fault_pc_at_saved_abt_sp_plus": 32,
+      "original_abt_stack_top": "0x103794",
+      "passed": true
+    }
+  ],
+  "phone_operations": false,
+  "passed": true
+}

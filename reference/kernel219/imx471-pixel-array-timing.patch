@@ -1,0 +1,68 @@
+Subject: [PATCH] media: imx471: report pixel-array timing from the VT PLL
+
+Active register reads and 120-frame timestamp measurements identify the
+legacy line length as 5120. Program it explicitly, and report the VT PLL
+pixel-array rates instead of serial-link throughput in all three modes.
+Keep the PLL register profiles and link frequencies unchanged.
+
+---
+diff --git a/drivers/media/i2c/imx471.c b/drivers/media/i2c/imx471.c
+--- a/drivers/media/i2c/imx471.c
++++ b/drivers/media/i2c/imx471.c
+@@ -29,6 +29,7 @@
+ 
+ /* V_TIMING internal */
+ #define IMX471_REG_FLL				CCI_REG16(0x0340)
++#define IMX471_REG_LLP				CCI_REG16(0x0342)
+ #define IMX471_FLL_MAX				0xffff
+ 
+ /* Exposure control */
+@@ -239,6 +240,7 @@
+ static const struct cci_reg_sequence mode_1928x1088_regs[] = {
+ 	{ IMX471_REG_CSI_DATA_FORMAT, IMX471_CSI_DATA_FORMAT_RAW10 },
+ 	{ IMX471_REG_CSI_LANE_MODE, IMX471_CSI_4_LANE_MODE },
++	{ IMX471_REG_LLP, 5120 },
+ 	{ IMX471_REG_X_ADD_STA, 8 },
+ 	{ IMX471_REG_Y_ADD_STA, 408 },
+ 	{ IMX471_REG_X_ADD_END, 4647 },
+@@ -437,9 +439,9 @@
+ 		},
+ 		.fll_def = 1308,
+ 		.fll_min = 1308,
+-		.llp = 2328,
++		.llp = 5120,
+ 		.link_freq_index = 0,
+-		.pixel_rate = 160000000,
++		.pixel_rate = 387200000,
+ 		.default_mode_regs = mode_1928x1088_regs,
+ 		.default_mode_regs_length = ARRAY_SIZE(mode_1928x1088_regs),
+ 	},
+@@ -451,7 +453,7 @@
+ 		.fll_min = 2124,
+ 		.llp = 2560,
+ 		.link_freq_index = 1,
+-		.pixel_rate = 320000000,
++		.pixel_rate = 326400000,
+ 		.requires_remosaic = false,
+ 		.default_mode_regs = mode_2304x1728_factory_regs,
+ 		.default_mode_regs_length = ARRAY_SIZE(mode_2304x1728_factory_regs),
+@@ -464,7 +466,7 @@
+ 		.fll_min = 3762,
+ 		.llp = 5120,
+ 		.link_freq_index = 2,
+-		.pixel_rate = 599040000,
++		.pixel_rate = 578133333,
+ 		.requires_remosaic = true,
+ 		.default_mode_regs = mode_4608x3456_factory_regs,
+ 		.default_mode_regs_length = ARRAY_SIZE(mode_4608x3456_factory_regs),
+@@ -995,8 +997,8 @@
+ 	link_freq->menu_skip_mask = GENMASK(ARRAY_SIZE(link_freq_menu_items) - 1, 0) &
+ 				    ~sensor->link_freq_bitmap;
+ 
+-	/* pixel_rate = link_freq * 2 * nr_of_lanes / bits_per_sample */
+-	pixel_rate = div_u64(IMX471_LINK_FREQ_DEFAULT * 2 * 4, 10);
++	/* Pixel-array rate comes from the VT PLL, not CSI-2 throughput. */
++	pixel_rate = mode->pixel_rate;
+ 
+ 	sensor->pixel_rate = v4l2_ctrl_new_std(ctrl_hdlr, &imx471_ctrl_ops,
+ 			  V4L2_CID_PIXEL_RATE, pixel_rate,

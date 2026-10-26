@@ -1,0 +1,121 @@
+{
+  "patch_applies_and_reverse_checks": true,
+  "applied_source_equals_candidate": true,
+  "all_functions_after_file_create_byte_unchanged": true,
+  "harness_compiled": true,
+  "compiler_command": [
+    "gcc",
+    "-std=c11",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-Wno-unused-parameter",
+    "candidate-dispatch-harness.c",
+    "-o",
+    "candidate-dispatch-harness"
+  ],
+  "cases": [
+    {
+      "case": "opt_in_eud",
+      "in_resets": 0,
+      "out_resets": 0,
+      "keys_balanced": true,
+      "status": 0
+    },
+    {
+      "case": "absent_value",
+      "in_resets": 1,
+      "out_resets": 1,
+      "keys_balanced": true,
+      "status": 0
+    },
+    {
+      "case": "disabled",
+      "in_resets": 1,
+      "out_resets": 1,
+      "keys_balanced": true,
+      "status": 0
+    },
+    {
+      "case": "unsupported_value",
+      "in_resets": 1,
+      "out_resets": 1,
+      "keys_balanced": true,
+      "status": 0
+    },
+    {
+      "case": "wrong_vendor",
+      "in_resets": 1,
+      "out_resets": 1,
+      "keys_balanced": true,
+      "status": 0
+    },
+    {
+      "case": "control_pid_excluded",
+      "in_resets": 1,
+      "out_resets": 1,
+      "keys_balanced": true,
+      "status": 0
+    },
+    {
+      "case": "no_usb_device",
+      "in_resets": 1,
+      "out_resets": 1,
+      "keys_balanced": true,
+      "status": 0
+    },
+    {
+      "case": "registry_open_error",
+      "in_resets": 1,
+      "out_resets": 1,
+      "keys_balanced": true,
+      "status": 0
+    },
+    {
+      "case": "wrong_registry_type",
+      "in_resets": 1,
+      "out_resets": 1,
+      "keys_balanced": true,
+      "status": 0
+    },
+    {
+      "case": "registry_query_error",
+      "in_resets": 1,
+      "out_resets": 1,
+      "keys_balanced": true,
+      "status": 0
+    },
+    {
+      "case": "idle_failure",
+      "in_resets": 0,
+      "out_resets": 0,
+      "keys_balanced": true,
+      "status": -1
+    },
+    {
+      "case": "pending_idle_opt_in",
+      "in_resets": 0,
+      "out_resets": 0,
+      "keys_balanced": true,
+      "status": 0
+    },
+    {
+      "case": "legacy_in_reset_failure",
+      "in_resets": 3,
+      "out_resets": 1,
+      "keys_balanced": true,
+      "status": 0
+    },
+    {
+      "case": "legacy_out_reset_failure",
+      "in_resets": 1,
+      "out_resets": 3,
+      "keys_balanced": true,
+      "status": -1
+    }
+  ],
+  "legacy_transport_lifecycle_equal_for_all_inactive_cases": true,
+  "full_wdk_build": false,
+  "hardware_validated": false,
+  "limits": "Extracted actual patched/baseline FileCreate with mocked WDF APIs; no USB/registry/device writes. Not a Windows driver build or hardware proof."
+}

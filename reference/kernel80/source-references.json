@@ -1,0 +1,58 @@
+{
+  "date": "2026-10-10",
+  "scope": "Primary-source charging observation research; no full documents redistributed",
+  "ti": {
+    "url": "https://www.ti.com/lit/pdf/sluua65",
+    "version": "SLUUA65E June2023",
+    "sha256": "f62ec12bb5aa23631759e59a378f36d254f9b0e2b5b6b8523a0dd081a13e4139",
+    "bytes": 1989101,
+    "pages": 135,
+    "sections": [
+      "12.1.28-31",
+      "12.2",
+      "Table 12-2",
+      "12.2.1-2",
+      "12.2.37-38"
+    ],
+    "device_type_confirmation_url": "https://e2e.ti.com/support/power-management-group/power-management/f/power-management-forum/979612/bq28z610-device-type",
+    "expected_device_type": "0x2610",
+    "support_author": "Wyatt Keller",
+    "confirmed_from_retrieved_page": true
+  },
+  "stock": {
+    "repository": "realme-kernel-opensource/realmeX2Pro-kernel-source",
+    "commit": "9668fcdc6ec15be7a10d66f7b93c347829e0fdb6",
+    "base_url": "https://github.com/realme-kernel-opensource/realmeX2Pro-kernel-source/blob/9668fcdc6ec15be7a10d66f7b93c347829e0fdb6/",
+    "audited_paths": {
+      "drivers/power/oppo/gauge_ic/oppo_bq27541.c": [
+        "legacy DeviceType/FirmwareVersion queries: 765-812",
+        "bq28z610_get_2cell_voltage: 1458-1487"
+      ],
+      "drivers/power/oppo/gauge_ic/oppo_bq27541.h": [
+        "DEVICE_TYPE_BQ28Z610 0xFFA5: 162",
+        "fixed cell query definitions: 227-230"
+      ],
+      "drivers/power/oppo/charger_ic/oppo_mp2650.c": [
+        "mp2650_chg_ops: 1611-1681"
+      ],
+      "drivers/power/oppo/charger_ic/oppo_battery_msm8150_pro.c": [
+        "set_sdp_current and smblib_set_icl_current: 1669-1830",
+        "vbatt_num charger-operations selection: 14220-14233"
+      ]
+    }
+  },
+  "observations": {
+    "legacy_device_type": "0xffa5",
+    "extended_device_type": "0x2719",
+    "extended_2610_guard_passed": false,
+    "firmware_payload_hex": "2719000400060003850200",
+    "firmware_payload_decoded": false,
+    "stock_cell_query_0071_confirmed": true,
+    "broad_status_005x_or_DAStatus2_0072_executed": false
+  },
+  "searches": {
+    "native_web": "Canonical TI PDF succeeded; subsequent search batch encountered connection failure",
+    "firecrawl": "TI identity confirmation retrieved; 0x2719 identity mapping not established",
+    "github": "gh API searches succeeded after one earlier EOF; broad/incorrect phrase searches are not proof of absence"
+  }
+}

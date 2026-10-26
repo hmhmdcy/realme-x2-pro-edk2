@@ -1,0 +1,120 @@
+{
+  "schema": "samurai-irq-icon-short-pulse-result-v1",
+  "transaction": "charging-icon-irq-001",
+  "actual_cohort": "adopted IRQ/protection cohort; unchanged Image502, charger and desktop",
+  "user_feedback": "已接好，约2至5秒出现",
+  "user_action_count": "User confirmed multiple manual unplug/replug trials; the three captured intervals are not evidence of spontaneous connection bounce.",
+  "original_cycle_audit": {
+    "physical_cycle_passed": false,
+    "screen_latency_verified": false,
+    "terminal_reason": "deadline",
+    "sample_count": 274,
+    "kernel_event_count": 84,
+    "dbus_signal_count": 134,
+    "monitor_complete": true
+  },
+  "short_pulse_evidence": {
+    "source_and_acok_offline_samples": 5,
+    "offline_sample_groups": [
+      {
+        "indices": [
+          130
+        ],
+        "first_sample_start": 145.3947244110002,
+        "last_sample_end": 145.41839745700008
+      },
+      {
+        "indices": [
+          134,
+          135
+        ],
+        "first_sample_start": 149.48996989900024,
+        "last_sample_end": 150.52682479500004
+      },
+      {
+        "indices": [
+          140,
+          141
+        ],
+        "first_sample_start": 155.6485728460002,
+        "last_sample_end": 156.69755063300022
+      }
+    ],
+    "continuous_offline_sample_threshold_met": false,
+    "sample_gaps": [],
+    "interpretation": "Three short source/ACOK off/on intervals are real. Sampling did not meet the original continuous three-sample/two-second condition. This does not show the user failed to unplug and does not bound physical outage duration to the sample span."
+  },
+  "irq_delivery": {
+    "before": {
+      "usbin-plugin": {
+        "irq": 227,
+        "count": 0
+      },
+      "usbin-src-change": {
+        "irq": 228,
+        "count": 0
+      }
+    },
+    "after": {
+      "usbin-plugin": {
+        "irq": 227,
+        "count": 6
+      },
+      "usbin-src-change": {
+        "irq": 228,
+        "count": 4
+      }
+    },
+    "count_delta": {
+      "usbin-plugin": 6,
+      "usbin-src-change": 4
+    },
+    "hardware_interrupts_delivered_in_observation_bracket": true,
+    "precise_interrupt_timestamps_or_one_to_one_causality_proven": false
+  },
+  "supplemental_timing": {
+    "clock": "uevent receipt times and endpoint-estimated target D-Bus times relative to capture start; not screen pixels",
+    "three_source_online_to_target_charging_seconds_approx": [
+      2.101,
+      2.1,
+      2.084
+    ],
+    "last_reconnect": {
+      "acok_online_received_s": 156.997,
+      "source_online_unknown_native100_received_s": 157.099,
+      "native500_received_s": 157.208,
+      "sdp_budget500_received_s": 157.838,
+      "converter_charging_battery_discharging_sample_s": [
+        158.737,
+        158.762
+      ],
+      "battery_charging_received_s": 159.173,
+      "target_display_state1_and_charging_icon_estimated_s": 159.184
+    },
+    "interpretation": "The roughly 2.1-second interval precedes the Battery/target Display Charging change. The target Display event closely follows Battery Charging; no additional multi-second D-Bus lag is seen. The measured first positive average-current sample occurs later and is not the cause of this state wait.",
+    "detailed_analysis": "../charging-ui-audit-20261023/icon-irq001-timing/README.md"
+  },
+  "safety": {
+    "all_sample_fault_latched_stop_error_zero": true,
+    "transition_ENODATA_is_not_protection_fault": true,
+    "charging_or_full_not_fabricated": true
+  },
+  "cleanup": {
+    "exact_worker_absent": true,
+    "worker_terminal": true,
+    "monitor_errors": [],
+    "dbus_returncode": -15,
+    "identity_unchanged": true,
+    "new_observer_active": false
+  },
+  "retained_evidence_sha256": {
+    "original_fetch_receipt": "a4910e994ea084d31f886ee3f81290549a0377217563a51491ae5cbc2ace5e34",
+    "original_cycle_audit": "acd5c22fdaa60f2efd063fc9a0f26c794d14c782d253a59cdf437f48e704afeb",
+    "samples": "f7f9077939a501d19dc7eea334af497079b85ba2e02ef72e3a43e69802ca02c6",
+    "kernel_events": "cbac7dd4e9014fff454d71fd4292d5ef7a2dcc9fac2f3133ad4d96eae1badd6c",
+    "dbus_log": "fe6574ba7daca6b73f29f32c742a5f6ec28c6f82d8c717def40a09e165912e20",
+    "irq_before": "3b20d51366da63d70cc1b047a20b27b1f329f3c3486bc0cd7c50760c5b19b01d",
+    "irq_after": "91c0618e55c33f7f198373937db1f0f9ea089ce7330f4c337f6ff2386fc8d5ec"
+  },
+  "scope": "Saved-data analysis and documentation only; no new phone/PM/flash/module/desktop changes."
+}

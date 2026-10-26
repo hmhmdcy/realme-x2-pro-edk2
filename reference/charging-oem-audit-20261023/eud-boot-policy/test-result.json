@@ -1,0 +1,51 @@
+{
+  "passed": true,
+  "case_count": 12,
+  "cases": [
+    "known1 one write; static event context; repeated notification and late direct producer inert",
+    "already zero is verified without write",
+    "unknown full words including unproven replica refuse arm and current launch",
+    "value becomes unknown after arm; no write and no automatic retry",
+    "failed readback records device error, remains terminal, no fabricated off",
+    "registration failure refuses kernel launch and leaves panel untouched",
+    "loader returns before EBS: close/cancel and no CSR change",
+    "failed CloseEvent retains cancelled static context; future signal cannot write",
+    "actual CoreExitBootServices bad MapKey then success: Before fires twice, sole write stays once",
+    "void callback failure does not prevent actual EBS success; Linux validation remains required",
+    "actual CoreRestoreTpl does not dispatch equal-TPL notification inside callback",
+    "missing context/BootServices are inert"
+  ],
+  "flags": [
+    "-std=c11",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-Wno-unused-parameter",
+    "-fsanitize=address,undefined",
+    "-fno-omit-frame-pointer"
+  ],
+  "panel_functions_and_original_call_block_byte_exact": true,
+  "actual_existing_EDK2_functions": [
+    "CoreExitBootServices",
+    "CoreRestoreTpl"
+  ],
+  "actual_candidate_functions": "all four new helpers plus modified direct FIFO and launch snippet; fake MMIO/BootServices edges",
+  "files": {
+    "test-boot.c": "2bb92a315203914e5057d4cad9da8ea6561eecd26b7bf02218be02b441b0c019",
+    "eud-handoff-fragment.inc": "fcadb83f9b358aaebf5d82ee16937d88bd0b5a4adb60098a1f420bcc22a9ebac",
+    "PlatformBm.c": "eda995b4a7f50fdd8e792a8989d570fa4be9e3466a5afb946282456fba27198a",
+    "PlatformBm.c.candidate": "7cbff9cc3dab17b36a76940fdd7dd34145c3a9109b2776d7ca45a1acb192dab7",
+    "core-functions.inc": "e87a4a829154c19dd569ce84ca8f675c0e9a5d49a5f7ea99d7e940c49447239b",
+    "direct-fifo.inc": "10d73a815d508463f6127c7bc2f0191415155e0ab5abf05e7668ecf7009bd347",
+    "launch.inc": "df1fdc5ab7a1a6e79044ca1a324eaf90ee57da5b96e77fe57c538fd90abcdba7",
+    "run-tests.py": "a5cd998a710998698d4314d71bdc1255716d7d9faf7bf30dd4cedfb37b18b3b9",
+    "candidate-result.json": "547202e68a89ade22ad45479057e597943f6c6244134cec31cf5c0b900afbad5"
+  },
+  "stdout": "ok: known1 one write; static event context; repeated notification and late direct producer inert\nok: already zero is verified without write\nok: unknown full words including unproven replica refuse arm and current launch\nok: value becomes unknown after arm; no write and no automatic retry\nok: failed readback records device error, remains terminal, no fabricated off\nok: registration failure refuses kernel launch and leaves panel untouched\nok: loader returns before EBS: close/cancel and no CSR change\nok: failed CloseEvent retains cancelled static context; future signal cannot write\nok: actual CoreExitBootServices bad MapKey then success: Before fires twice, sole write stays once\nok: void callback failure does not prevent actual EBS success; Linux validation remains required\nok: actual CoreRestoreTpl does not dispatch equal-TPL notification inside callback\nok: missing context/BootServices are inert\n",
+  "stderr": "",
+  "no_full_firmware_compile": true,
+  "no_live_tpl_or_hardware_validation": true,
+  "SDK_invoked": false,
+  "phone_accessed": false,
+  "shared_writes": false
+}

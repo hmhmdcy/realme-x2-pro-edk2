@@ -1,0 +1,299 @@
+--- a/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec.c
++++ b/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec.c
+@@ -8,6 +8,8 @@
+ #include <linux/module.h>
+ #include <linux/of.h>
+ #include <linux/platform_device.h>
++#include <linux/property.h>
++#include <linux/usb/pd.h>
+ #include <linux/regmap.h>
+ #include <linux/slab.h>
+ #include <linux/usb/tcpm.h>
+@@ -32,6 +34,55 @@
+ static int qcom_pmic_typec_init(struct tcpc_dev *tcpc)
+ {
+ 	return 0;
++}
++
++
++/* Only the reviewed fixed 5V/500mA, fixed-device Samurai profile uses this
++ * handoff. This is not a shutdown-to-5V implementation for a 9V contract.
++ */
++static bool qcom_pmic_typec_samurai_fixed_5v(struct pmic_typec *tcpm)
++{
++	struct fwnode_handle *f = tcpm->tcpc.fwnode;
++	const char *role;
++	u32 pdo, microwatt;
++
++	if (!of_machine_is_compatible("realme,samurai") ||
++	    !of_device_is_compatible(tcpm->dev->of_node, "qcom,pm8150b-typec"))
++		return false;
++	if (fwnode_property_read_string(f, "power-role", &role) || strcmp(role, "sink"))
++		return false;
++	if (fwnode_property_read_string(f, "data-role", &role) || strcmp(role, "device"))
++		return false;
++	if (fwnode_property_present(f, "source-pdos") ||
++	    fwnode_property_count_u32(f, "sink-pdos") != 1 ||
++	    fwnode_property_read_u32(f, "sink-pdos", &pdo) ||
++	    pdo != PDO_FIXED(5000, 500, PDO_FIXED_USB_COMM) ||
++	    fwnode_property_read_u32(f, "op-sink-microwatt", &microwatt) ||
++	    microwatt != 2500000)
++		return false;
++	return true;
++}
++
++static int qcom_pmic_typec_stop_samurai_5v(struct pmic_typec *tcpm)
++{
++	int pd, cc;
++
++	if (tcpm->samurai_joined)
++		return tcpm->samurai_stop_error;
++	tcpm->port_stop(tcpm);
++	qcom_pmic_typec_pdphy_quiesce_5v(tcpm);
++	tcpm_unregister_port(tcpm->tcpm_port);
++	tcpm->tcpm_port = NULL;
++	tcpm->samurai_joined = true;
++	pd = qcom_pmic_typec_pdphy_finish_5v(tcpm);
++	cc = qcom_pmic_typec_port_finish_5v(tcpm, !pd);
++	tcpm->samurai_stop_error = pd ? pd : cc;
++	if (tcpm->samurai_stop_error)
++		dev_err(tcpm->dev, "fixed5V shutdown failed: PD %d CC %d\n", pd, cc);
++	else
++		dev_info(tcpm->dev, "fixed5V callbacks joined, PD quiet=%d, sink handoff restored\n",
++	          tcpm->samurai_pd_quiet);
++	return tcpm->samurai_stop_error;
+ }
+ 
+ static int qcom_pmic_typec_probe(struct platform_device *pdev)
+@@ -117,6 +168,8 @@
+ 	if (!tcpm->tcpc.fwnode)
+ 		return -EINVAL;
+ 
++	tcpm->samurai_fixed_5v = qcom_pmic_typec_samurai_fixed_5v(tcpm);
++
+ 	bridge_dev = devm_drm_dp_hpd_bridge_alloc(tcpm->dev, to_of_node(tcpm->tcpc.fwnode));
+ 	if (IS_ERR(bridge_dev)) {
+ 		ret = PTR_ERR(bridge_dev);
+@@ -144,11 +197,16 @@
+ 	return 0;
+ 
+ pdphy_stop:
+-	tcpm->pdphy_stop(tcpm);
++	if (!tcpm->samurai_fixed_5v)
++		tcpm->pdphy_stop(tcpm);
+ port_stop:
+-	tcpm->port_stop(tcpm);
++	if (!tcpm->samurai_fixed_5v)
++		tcpm->port_stop(tcpm);
+ port_unregister:
+-	tcpm_unregister_port(tcpm->tcpm_port);
++	if (tcpm->samurai_fixed_5v)
++		qcom_pmic_typec_stop_samurai_5v(tcpm);
++	else
++		tcpm_unregister_port(tcpm->tcpm_port);
+ fwnode_remove:
+ 	fwnode_handle_put(tcpm->tcpc.fwnode);
+ 
+@@ -164,6 +222,12 @@
+ 		return;
+ 	}
+ 
++	if (tcpm->samurai_fixed_5v) {
++		qcom_pmic_typec_stop_samurai_5v(tcpm);
++		fwnode_handle_put(tcpm->tcpc.fwnode);
++		tcpm->tcpc.fwnode = NULL;
++		return;
++	}
+ 	tcpm->pdphy_stop(tcpm);
+ 	tcpm->port_stop(tcpm);
+ 	tcpm_unregister_port(tcpm->tcpm_port);
+@@ -188,6 +252,11 @@
+ 	struct pmic_typec *tcpm = platform_get_drvdata(pdev);
+ 	if (tcpm->pd5v)
+ 		samurai_pd5v_quiesce(tcpm->pd5v);
++	else if (tcpm->samurai_fixed_5v) {
++		qcom_pmic_typec_stop_samurai_5v(tcpm);
++		fwnode_handle_put(tcpm->tcpc.fwnode);
++		tcpm->tcpc.fwnode = NULL;
++	}
+ }
+ 
+ static const struct dev_pm_ops qcom_pmic_typec_pm_ops = {
+--- a/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec.h
++++ b/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec.h
+@@ -9,6 +9,10 @@
+ struct pmic_typec {
+ 	struct device		*dev;
+ 	struct samurai_pd5v	*pd5v;
++	bool			samurai_fixed_5v;
++	bool			samurai_joined;
++	bool			samurai_pd_quiet;
++	int			samurai_stop_error;
+ 	struct tcpm_port	*tcpm_port;
+ 	struct tcpc_dev		tcpc;
+ 	struct pmic_typec_pdphy	*pmic_typec_pdphy;
+--- a/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_pdphy.c
++++ b/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_pdphy.c
+@@ -100,6 +100,8 @@
+ 	struct work_struct		reset_work;
+ 	struct work_struct		receive_work;
+ 	struct regulator		*vdd_pdphy;
++	bool			supply_held;
++	bool			irqs_started;
+ 	spinlock_t			lock;		/* Register atomicity */
+ };
+ 
+@@ -518,6 +520,7 @@
+ 	if (ret)
+ 		return ret;
+ 
++	pmic_typec_pdphy->supply_held = true;
+ 	pmic_typec_pdphy->tcpm_port = tcpm_port;
+ 
+ 	ret = pmic_typec_pdphy_reset(pmic_typec_pdphy);
+@@ -526,12 +529,70 @@
+ 
+ 	for (i = 0; i < pmic_typec_pdphy->nr_irqs; i++)
+ 		enable_irq(pmic_typec_pdphy->irq_data[i].irq);
++	pmic_typec_pdphy->irqs_started = true;
+ 
+ 	return 0;
+ 
+ err_disable_vdd_pdhy:
++	/* This profile joins TCPM before disabling its still-owned PD supply. */
++	if (tcpm->samurai_fixed_5v)
++		return ret;
+ 	regulator_disable(pmic_typec_pdphy->vdd_pdphy);
+-
++	pmic_typec_pdphy->supply_held = false;
++
++	return ret;
++}
++
++
++/* Keep the supply referenced until every protocol callback has been joined. */
++void qcom_pmic_typec_pdphy_quiesce_5v(struct pmic_typec *tcpm)
++{
++	struct pmic_typec_pdphy *p = tcpm->pmic_typec_pdphy;
++	int i;
++
++	if (p->irqs_started) {
++		for (i = 0; i < p->nr_irqs; i++)
++			disable_irq(p->irq_data[i].irq);
++		p->irqs_started = false;
++	}
++	/* receive_work is unused/uninitialised in this source; RX runs in the IRQ. */
++	cancel_work_sync(&p->reset_work);
++}
++
++int qcom_pmic_typec_pdphy_finish_5v(struct pmic_typec *tcpm)
++{
++	static const unsigned int controls[] = {
++		USB_PDPHY_BIST_MODE_REG, USB_PDPHY_TX_CONTROL_REG,
++		USB_PDPHY_FRAME_FILTER_REG, USB_PDPHY_EN_CONTROL_REG,
++	};
++	struct pmic_typec_pdphy *p = tcpm->pmic_typec_pdphy;
++	unsigned int val;
++	int i, ret, first = 0;
++
++	if (!tcpm->samurai_joined || tcpm->tcpm_port || p->irqs_started)
++		return -EBUSY;
++	p->tcpm_port = NULL;
++	if (!p->supply_held)
++		return 0; /* Startup never acquired the supply; no disabled proof claimed. */
++	for (i = 0; i < ARRAY_SIZE(controls); i++) {
++		ret = regmap_write(p->regmap, p->base + controls[i], 0);
++		if (ret) {
++			if (!first)
++	   first = ret;
++			continue;
++		}
++		ret = regmap_read(p->regmap, p->base + controls[i], &val);
++		if (!ret && val)
++			ret = -EIO;
++		if (ret && !first)
++			first = ret;
++	}
++	if (first)
++		return first; /* Retain power on unknown control state, without retries. */
++	tcpm->samurai_pd_quiet = true;
++	ret = regulator_disable(p->vdd_pdphy);
++	if (!ret)
++		p->supply_held = false;
+ 	return ret;
+ }
+ 
+--- a/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_pdphy.h
++++ b/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_pdphy.h
+@@ -23,6 +23,8 @@
+ };
+ 
+ /* API */
++void qcom_pmic_typec_pdphy_quiesce_5v(struct pmic_typec *tcpm);
++int qcom_pmic_typec_pdphy_finish_5v(struct pmic_typec *tcpm);
+ struct pmic_typec_pdphy;
+ 
+ extern const struct pmic_typec_pdphy_resources pm8150b_pdphy_res;
+--- a/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_port.c
++++ b/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_port.c
+@@ -175,6 +175,7 @@
+ 	struct regulator		*vdd_vbus;
+ 	bool				vbus_enabled;
+ 	bool				sink_only;
++	bool				irqs_started;
+ 	struct mutex			vbus_lock;		/* VBUS state serialization */
+ 
+ 	int				cc;
+@@ -706,6 +707,7 @@
+ 
+ 	for (i = 0; i < pmic_typec_port->nr_irqs; i++)
+ 		enable_irq(pmic_typec_port->irq_data[i].irq);
++	pmic_typec_port->irqs_started = true;
+ 
+ done:
+ 	if (ret)
+@@ -719,10 +721,32 @@
+ 	struct pmic_typec_port *pmic_typec_port = tcpm->pmic_typec_port;
+ 	int i;
+ 
+-	for (i = 0; i < pmic_typec_port->nr_irqs; i++)
+-		disable_irq(pmic_typec_port->irq_data[i].irq);
++	if (!tcpm->samurai_fixed_5v || pmic_typec_port->irqs_started) {
++		for (i = 0; i < pmic_typec_port->nr_irqs; i++)
++			disable_irq(pmic_typec_port->irq_data[i].irq);
++	}
++	pmic_typec_port->irqs_started = false;
+ 
+ 	disable_delayed_work_sync(&pmic_typec_port->cc_debounce_dwork);
++}
++
++
++int qcom_pmic_typec_port_finish_5v(struct pmic_typec *tcpm, bool restore_sink)
++{
++	struct pmic_typec_port *p = tcpm->pmic_typec_port;
++	unsigned int mode = restore_sink ? EN_SNK_ONLY : TYPEC_DISABLE_CMD, val;
++	int ret;
++
++	if (!tcpm->samurai_joined || tcpm->tcpm_port || p->irqs_started)
++		return -EBUSY;
++	/* TCPM work can queue a last debounce after the first port_stop(). */
++	disable_delayed_work_sync(&p->cc_debounce_dwork);
++	p->tcpm_port = NULL;
++	ret = regmap_write(p->regmap, p->base + TYPEC_MODE_CFG_REG, mode);
++	if (ret)
++		return ret;
++	ret = regmap_read(p->regmap, p->base + TYPEC_MODE_CFG_REG, &val);
++	return ret ? ret : val == mode ? 0 : -EIO;
+ }
+ 
+ /* A fixed sink needs no VBUS source regulator; a DRP/source still does. */
+--- a/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_port.h
++++ b/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_port.h
+@@ -23,6 +23,7 @@
+ };
+ 
+ /* API */
++int qcom_pmic_typec_port_finish_5v(struct pmic_typec *tcpm, bool restore_sink);
+ 
+ extern const struct pmic_typec_port_resources pm8150b_port_res;
+ 

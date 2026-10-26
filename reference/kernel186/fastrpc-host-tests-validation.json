@@ -1,0 +1,34 @@
+{
+  "actual_probe_remove_and_helpers_extracted": true,
+  "permission_enforcing_scm_stub": true,
+  "asan_ubsan_passed": true,
+  "scenarios": "PASS cases=337 allocations=606 frees=606",
+  "source_sha256": "ba187458dcaa5bb7011a3b5286ac6c0bef690be731e8d175c160c8ffb5836840",
+  "repeated_probe_remove_and_probe_unwind_checked": true,
+  "reclaim_failure_preserves_metadata": true,
+  "unrelated_domains_and_missing_vmids_checked": true,
+  "hardware_verified": false,
+  "negative_controls": [
+    {
+      "mutation": "remove_leaves_pool_assigned",
+      "compiled": true,
+      "expected_runtime_failure_detected": true
+    },
+    {
+      "mutation": "failed_probe_leaves_pool_assigned",
+      "compiled": true,
+      "expected_runtime_failure_detected": true
+    },
+    {
+      "mutation": "failed_reclaim_discards_ownership",
+      "compiled": true,
+      "expected_runtime_failure_detected": true
+    },
+    {
+      "mutation": "failed_reclaim_claims_success",
+      "compiled": true,
+      "expected_runtime_failure_detected": true
+    }
+  ],
+  "all_negative_controls_detected": true
+}

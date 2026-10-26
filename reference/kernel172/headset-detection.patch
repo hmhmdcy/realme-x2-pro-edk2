@@ -1,0 +1,305 @@
+Subject: [PATCH] ASoC: samurai: bind WCD934x headset detection once
+
+Keep RX and TX channel maps while sharing one MBHC jack binding. Route
+headset AMIC2 through MIC BIAS2 and gate handset input and speakers from
+jack reports. Parse micbias before copying its voltage into MBHC, reject
+zero ADC threshold divisors, and retain detection state on failed start.
+Propagate micbias and MBHC initialization failures, and use millivolts
+for default button thresholds as for device-tree thresholds.
+
+---
+--- a/sound/soc/qcom/samurai-audio.c
++++ b/sound/soc/qcom/samurai-audio.c
+@@ -2,13 +2,76 @@
+ /* Realme X2 Pro: native Q6ASM/ADM/AFE, WCD934x SLIM and MAX98937 I2S.
+  * SLIM channel setup follows the upstream SDM845 machine driver. */
+ #include <dt-bindings/sound/qcom,q6afe.h>
++#include <linux/input.h>
+ #include <linux/module.h>
+ #include <linux/of.h>
+ #include <linux/platform_device.h>
++#include <sound/jack.h>
+ #include <sound/pcm_params.h>
+ #include <sound/soc.h>
+ #include "qdsp6/q6afe.h"
+ #include "common.h"
++
++struct samurai_audio_data {
++	struct snd_soc_jack jack;
++	struct snd_soc_component *jack_component;
++	bool jack_created;
++};
++
++static struct snd_soc_jack_pin samurai_jack_pins[] = {
++	{ .pin = "Headphone Jack", .mask = SND_JACK_HEADPHONE },
++	{ .pin = "Mic Jack", .mask = SND_JACK_MICROPHONE },
++	{ .pin = "Handset Mic", .mask = SND_JACK_MICROPHONE, .invert = 1 },
++	{ .pin = "Left Speaker", .mask = SND_JACK_HEADPHONE, .invert = 1 },
++	{ .pin = "Right Speaker", .mask = SND_JACK_HEADPHONE, .invert = 1 },
++};
++
++static int samurai_setup_jack(struct snd_soc_pcm_runtime *rtd)
++{
++	static const unsigned int buttons[] = {
++		SND_JACK_BTN_0, SND_JACK_BTN_1, SND_JACK_BTN_2, SND_JACK_BTN_3,
++	};
++	static const unsigned int keys[] = {
++		KEY_PLAYPAUSE, KEY_VOICECOMMAND, KEY_VOLUMEUP, KEY_VOLUMEDOWN,
++	};
++	struct samurai_audio_data *data = snd_soc_card_get_drvdata(rtd->card);
++	struct snd_soc_dai *codec;
++	int i, ret;
++
++	if (!data->jack_created) {
++		ret = snd_soc_card_jack_new_pins(rtd->card, "Headset Jack",
++						 SND_JACK_HEADSET | SND_JACK_BTN_0 |
++						 SND_JACK_BTN_1 | SND_JACK_BTN_2 | SND_JACK_BTN_3,
++						 &data->jack, samurai_jack_pins,
++						 ARRAY_SIZE(samurai_jack_pins));
++		if (ret)
++			return ret;
++		for (i = 0; i < ARRAY_SIZE(buttons); i++) {
++			ret = snd_jack_set_key(data->jack.jack, buttons[i], keys[i]);
++			if (ret)
++				return ret;
++		}
++		data->jack_created = true;
++	}
++
++	for_each_rtd_codec_dais(rtd, i, codec) {
++		/* RX and TX share this WCD component, but keep both channel maps. */
++		if (data->jack_component == codec->component)
++			continue;
++		if (data->jack_component)
++			return -EINVAL;
++		ret = snd_soc_dai_set_sysclk(codec, 0, 9600000,
++					     SNDRV_PCM_STREAM_PLAYBACK);
++		if (ret)
++			return ret;
++		ret = snd_soc_component_set_jack(codec->component, &data->jack, NULL);
++		if (ret)
++			return ret;
++		data->jack_component = codec->component;
++		dev_info(rtd->card->dev, "WCD934x headset detection connected\n");
++	}
++	return 0;
++}
+ 
+ static int samurai_fixup(struct snd_soc_pcm_runtime *rtd,
+ 			struct snd_pcm_hw_params *params)
+@@ -38,7 +101,7 @@
+ 		if (ret)
+ 			return ret;
+ 	}
+-	return 0;
++	return samurai_setup_jack(rtd);
+ }
+ 
+ static int samurai_startup(struct snd_pcm_substream *substream)
+@@ -104,6 +167,7 @@
+ static int samurai_probe(struct platform_device *pdev)
+ {
+ 	struct snd_soc_card *card;
++	struct samurai_audio_data *data;
+ 	struct snd_soc_dai_link *link;
+ 	int i, ret;
+ 	if (!of_machine_is_compatible("realme,samurai"))
+@@ -113,6 +177,10 @@
+ 		return -ENOMEM;
+ 	card->dev = &pdev->dev;
+ 	card->owner = THIS_MODULE;
++	data = devm_kzalloc(&pdev->dev, sizeof(*data), GFP_KERNEL);
++	if (!data)
++		return -ENOMEM;
++	snd_soc_card_set_drvdata(card, data);
+ 	ret = qcom_snd_parse_of(card);
+ 	if (ret)
+ 		return ret;
+--- a/sound/soc/codecs/wcd934x.c
++++ b/sound/soc/codecs/wcd934x.c
+@@ -551,6 +551,7 @@
+ 	struct wcd_mbhc_config mbhc_cfg;
+ 	struct wcd_mbhc_intr intr_ids;
+ 	bool mbhc_started;
++	struct snd_soc_jack *mbhc_jack;
+ 	struct mutex micb_lock;
+ 	u32 micb_ref[WCD934X_MAX_MICBIAS];
+ 	u32 pullup_ref[WCD934X_MAX_MICBIAS];
+@@ -2190,14 +2191,24 @@
+ 	if (ret)
+ 		return ret;
+ 
+-	snd_soc_component_update_bits(comp, WCD934X_ANA_MICB1,
+-				      WCD934X_MICB_VAL_MASK, wcd->common.micb_vout[0]);
+-	snd_soc_component_update_bits(comp, WCD934X_ANA_MICB2,
+-				      WCD934X_MICB_VAL_MASK, wcd->common.micb_vout[1]);
+-	snd_soc_component_update_bits(comp, WCD934X_ANA_MICB3,
+-				      WCD934X_MICB_VAL_MASK, wcd->common.micb_vout[2]);
+-	snd_soc_component_update_bits(comp, WCD934X_ANA_MICB4,
+-				      WCD934X_MICB_VAL_MASK, wcd->common.micb_vout[3]);
++	wcd->mbhc_cfg.micb_mv = wcd->common.micb_mv[MIC_BIAS_2 - 1];
++
++	ret = snd_soc_component_update_bits(comp, WCD934X_ANA_MICB1,
++					    WCD934X_MICB_VAL_MASK, wcd->common.micb_vout[0]);
++	if (ret < 0)
++		return ret;
++	ret = snd_soc_component_update_bits(comp, WCD934X_ANA_MICB2,
++					    WCD934X_MICB_VAL_MASK, wcd->common.micb_vout[1]);
++	if (ret < 0)
++		return ret;
++	ret = snd_soc_component_update_bits(comp, WCD934X_ANA_MICB3,
++					    WCD934X_MICB_VAL_MASK, wcd->common.micb_vout[2]);
++	if (ret < 0)
++		return ret;
++	ret = snd_soc_component_update_bits(comp, WCD934X_ANA_MICB4,
++					    WCD934X_MICB_VAL_MASK, wcd->common.micb_vout[3]);
++	if (ret < 0)
++		return ret;
+ 
+ 	if (wcd->rate == WCD934X_MCLK_CLK_9P6MHZ)
+ 		def_dmic_rate = WCD9XXX_DMIC_SAMPLE_RATE_4P8MHZ;
+@@ -2207,8 +2218,10 @@
+ 	wcd->dmic_sample_rate = def_dmic_rate;
+ 
+ 	dmic_clk_drv = 0;
+-	snd_soc_component_update_bits(comp, WCD934X_TEST_DEBUG_PAD_DRVCTL_0,
+-				      0x0C, dmic_clk_drv << 2);
++	ret = snd_soc_component_update_bits(comp, WCD934X_TEST_DEBUG_PAD_DRVCTL_0,
++					    0x0C, dmic_clk_drv << 2);
++	if (ret < 0)
++		return ret;
+ 
+ 	return 0;
+ }
+@@ -2968,6 +2981,7 @@
+ 	struct wcd934x_ddata *data = dev_get_drvdata(component->dev->parent);
+ 	struct wcd934x_codec *wcd = snd_soc_component_get_drvdata(component);
+ 	struct wcd_mbhc_intr *intr_ids = &wcd->intr_ids;
++	int ret;
+ 
+ 	intr_ids->mbhc_sw_intr = regmap_irq_get_virq(data->irq_data,
+ 						     WCD934X_IRQ_MBHC_SW_DET);
+@@ -2986,16 +3000,23 @@
+ 
+ 	wcd->mbhc = wcd_mbhc_init(component, &mbhc_cb, intr_ids, wcd_mbhc_fields, true);
+ 	if (IS_ERR(wcd->mbhc)) {
++		ret = PTR_ERR(wcd->mbhc);
++
+ 		wcd->mbhc = NULL;
+-		return -EINVAL;
+-	}
+-
+-	snd_soc_add_component_controls(component, impedance_detect_controls,
+-				       ARRAY_SIZE(impedance_detect_controls));
+-	snd_soc_add_component_controls(component, hph_type_detect_controls,
+-				       ARRAY_SIZE(hph_type_detect_controls));
+-
+-	return 0;
++		return ret;
++	}
++
++	ret = snd_soc_add_component_controls(component, impedance_detect_controls,
++					     ARRAY_SIZE(impedance_detect_controls));
++	if (!ret)
++		ret = snd_soc_add_component_controls(component, hph_type_detect_controls,
++						     ARRAY_SIZE(hph_type_detect_controls));
++	if (ret) {
++		wcd_mbhc_deinit(wcd->mbhc);
++		wcd->mbhc = NULL;
++	}
++
++	return ret;
+ }
+ 
+ static void wcd934x_mbhc_deinit(struct snd_soc_component *component)
+@@ -3006,6 +3027,9 @@
+ 		return;
+ 
+ 	wcd_mbhc_deinit(wcd->mbhc);
++	wcd->mbhc = NULL;
++	wcd->mbhc_started = false;
++	wcd->mbhc_jack = NULL;
+ }
+ 
+ static int wcd934x_comp_probe(struct snd_soc_component *component)
+@@ -3047,8 +3071,11 @@
+ 		return ret;
+ 	}
+ 
+-	if (wcd934x_mbhc_init(component))
+-		dev_err(component->dev, "Failed to Initialize MBHC\n");
++	ret = wcd934x_mbhc_init(component);
++	if (ret) {
++		wcd_clsh_ctrl_free(wcd->clsh_ctrl);
++		return dev_err_probe(component->dev, ret, "Failed to initialize MBHC\n");
++	}
+ 
+ 	return 0;
+ }
+@@ -5799,12 +5826,21 @@
+ 	if (!wcd->mbhc)
+ 		return -ENOTSUPP;
+ 
+-	if (jack && !wcd->mbhc_started) {
++	if (jack) {
++		if (wcd->mbhc_started)
++			return wcd->mbhc_jack == jack ? 0 : -EBUSY;
+ 		ret = wcd_mbhc_start(wcd->mbhc, &wcd->mbhc_cfg, jack);
++		if (ret)
++			return ret;
++		wcd->mbhc_jack = jack;
+ 		wcd->mbhc_started = true;
++		if (of_machine_is_compatible("realme,samurai"))
++			dev_info(comp->dev, "samurai MBHC started: micbias=%u mV\n",
++				 wcd->mbhc_cfg.micb_mv);
+ 	} else if (wcd->mbhc_started) {
+ 		wcd_mbhc_stop(wcd->mbhc);
+ 		wcd->mbhc_started = false;
++		wcd->mbhc_jack = NULL;
+ 	}
+ 
+ 	return ret;
+@@ -5862,7 +5898,6 @@
+ 	cfg->anc_micbias = MIC_BIAS_2;
+ 	cfg->v_hs_max = WCD_MBHC_HS_V_MAX;
+ 	cfg->num_btn = WCD934X_MBHC_MAX_BUTTONS;
+-	cfg->micb_mv = wcd->common.micb_mv[1];
+ 	cfg->linein_th = 5000;
+ 	cfg->hs_thr = 1700;
+ 	cfg->hph_thr = 50;
+--- a/sound/soc/codecs/wcd-mbhc-v2.c
++++ b/sound/soc/codecs/wcd-mbhc-v2.c
+@@ -1435,6 +1435,9 @@
+ {
+ 	if (!mbhc || !cfg || !jack)
+ 		return -EINVAL;
++	/* ADC threshold scaling uses this voltage as a divisor. */
++	if ((cfg->hs_thr || cfg->hph_thr) && !cfg->micb_mv)
++		return -EINVAL;
+ 
+ 	mbhc->cfg = cfg;
+ 	mbhc->jack = jack;
+@@ -1490,7 +1493,7 @@
+ 
+ 	for (i = 0; i < WCD_MBHC_DEF_BUTTONS; i++) {
+ 		if (ret) /* default voltage */
+-			cfg->btn_high[i] = 500000;
++			cfg->btn_high[i] = 500;
+ 		else
+ 			/* Micro to Milli Volts */
+ 			cfg->btn_high[i] = cfg->btn_high[i]/1000;
+--- a/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
++++ b/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
+@@ -850,9 +850,11 @@
+ 		model = "Realme X2 Pro";
+ 		widgets = "Speaker", "Left Speaker", "Speaker", "Right Speaker",
+ 			  "Headphone", "Headphone Jack", "Microphone", "Handset Mic",
+-			  "Microphone", "Secondary Mic", "Microphone", "Speaker Mic";
++			  "Microphone", "Secondary Mic", "Microphone", "Speaker Mic",
++			  "Microphone", "Mic Jack";
+ 		audio-routing = "Left Speaker", "Left OUT", "Right Speaker", "Right OUT",
+ 				"Headphone Jack", "HPHL", "Headphone Jack", "HPHR",
++				"AMIC2", "Mic Jack", "AMIC2", "MIC BIAS2", "AMIC2", "MCLK",
+ 				/* Native WCD934x uses distinct DMIC input pins and supplies. */
+                 "DMIC0 Pin", "Handset Mic", "DMIC0", "MIC BIAS1", "DMIC0", "MCLK",
+                 "DMIC1 Pin", "Secondary Mic", "DMIC1", "MIC BIAS1", "DMIC1", "MCLK",

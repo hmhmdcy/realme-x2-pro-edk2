@@ -1,0 +1,30 @@
+from pathlib import Path
+import dbus,hashlib,json,os,pwd,subprocess,time
+os.umask(0o077);root=Path('/var/lib/samurai');out=root/'k201-final-health-r2';assert not out.exists();out.mkdir(mode=0o700)
+boot=Path('/proc/sys/kernel/random/boot_id').read_bytes();assert boot==(root/'k201-baseline/boot-id-private.txt').read_bytes();(out/'boot-id-private.txt').write_bytes(boot)
+assert os.uname().version.startswith('#183 ') and Path('/proc/sys/kernel/tainted').read_text().strip()=='0'
+bus=dbus.SystemBus(private=True);service='org.freedesktop.ModemManager1';obj=bus.get_object(service,'/org/freedesktop/ModemManager1/Modem/0');props=dbus.Interface(obj,'org.freedesktop.DBus.Properties');m=props.GetAll(service+'.Modem');loc=props.GetAll(service+'.Modem.Location');assert int(loc['Enabled'])==0 and not loc['SignalsLocation'] and int(loc['GpsRefreshRate'])==30 and int(m['PowerState'])==3 and int(m['State'])==-1 and int(m['StateFailedReason'])==2 and not m['Bearers']
+daemon=dbus.Interface(bus.get_object('org.freedesktop.DBus','/org/freedesktop/DBus'),'org.freedesktop.DBus');pid=int(daemon.GetConnectionUnixProcessID(daemon.GetNameOwner(service)));assert hashlib.sha256((Path('/proc')/str(pid)/'exe').read_bytes()).hexdigest()=='b350c55ba334b7d23564136fe3ce19bf37f95db0d374f63cc89351341d9b9ddc'
+sensor=dbus.Interface(bus.get_object('net.hadess.SensorProxy','/net/hadess/SensorProxy'),'org.freedesktop.DBus.Properties');has={n:bool(sensor.Get('net.hadess.SensorProxy',n)) for n in ['HasAccelerometer','HasAmbientLight','HasProximity']};assert all(has.values());assert not bus.name_has_owner('org.freedesktop.GeoClue2');bus.close()
+assert Path('/etc/geoclue/geoclue.conf').read_bytes()==(root/'k201-geoclue-install/geoclue.conf-private').read_bytes()
+assert not Path('/etc/geoclue/conf.d/99-samurai-gnss-test.conf').exists() and not Path('/usr/share/applications/org.realme.SamuraiGNSSValidation.desktop').exists()
+user=pwd.getpwuid(10000)
+def demote():os.initgroups(user.pw_name,user.pw_gid);os.setgid(user.pw_gid);os.setuid(10000)
+env={**os.environ,**json.loads((root/'k201-baseline/desktop-env-private.json').read_text()),'HOME':user.pw_dir}
+p=subprocess.run(['gsettings','get','org.gnome.system.location','enabled'],preexec_fn=demote,env=env,capture_output=True,text=True,timeout=10);assert p.returncode==0 and p.stdout.strip()=='false'
+helper=Path('/usr/sbin/samurai-gnss-assist');assert hashlib.sha256(helper.read_bytes()).hexdigest()=='cf3d92a46e619ceba30342fb2c063fb39ba9de5ddd2043e5dc0a5f59f39bef41'
+init=Path('/etc/init.d/samurai-gnss-assist');assert hashlib.sha256(init.read_bytes()).hexdigest()=='54b8174507e97badfafba6c373ebf937045c1c85034f094e7de910369af78af3'
+watch=json.loads((root/'gnss-assist/watch-state.json').read_text());assert watch['running'] and not watch['active'] and watch['worker_starts']==watch['worker_completions']==1 and watch['source_sha256']==hashlib.sha256(helper.read_bytes()).hexdigest()
+assert watch['last_result']['status']=='current' and watch['last_result']['download_count']==watch['last_result']['injection_count']==0 and watch['last_result']['qmi_clients_released_and_closed']
+assert subprocess.run(['rc-service','samurai-gnss-assist','status'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode==0 and Path('/etc/runlevels/default/samurai-gnss-assist').exists()
+snapshot=root/'k201-product-snapshot';snapshot.mkdir(mode=0o700)
+for source,name in [(helper,'samurai-gnss-assist.py'),(init,'samurai-gnss-assist.initd'),(root/'gnss-assist/watch-state.json','watch-state.json'),(root/'gnss-assist/last-result.json','last-result.json'),(root/'gnss-assist/rejected-payloads.json','rejected-payloads-private.json')]: (snapshot/name).write_bytes(source.read_bytes())
+temporary=Path('/usr/libexec/samurai-gnss-validation');assert temporary.exists();(snapshot/'validation-client-private.py').write_bytes(temporary.read_bytes());temporary.unlink()
+rp={(p/'name').read_text().strip():(p/'state').read_text().strip() for p in Path('/sys/class/remoteproc').glob('remoteproc*')};assert all(v=='running' for v in rp.values())
+assert (Path('/sys/bus/platform/devices/acb3000.camss')/'driver').resolve()==Path('/sys/bus/platform/drivers/qcom-camss')
+assert Path('/sys/firmware/devicetree/base/soc@0/camss@acb3000/power-domain-names').read_bytes()==b'ife0\0ife1\0top\0mmcx\0'
+assert all(not Path('/sys/module/'+n).exists() for n in ['samurai_front_overlay','samurai_vio_phandle','samurai_cci_bringup','qcom_pm8008','imx471','i2c_qcom_cci'])
+log=subprocess.check_output(['dmesg']);(out/'dmesg-private.txt').write_bytes(log);counts={k:log.count(v) for k,v in dict(warning=b'WARNING:',oops=b'Oops:',gpu=b'gpu fault:',slpi_fatal=b'fatal error received',bluetooth=b'Frame reassembly failed').items()};assert not any(counts.values())
+subprocess.run(['sha256sum','-c','/run/samurai-wifi/nv-source-hashes.txt'],check=True,stdout=(out/'nv-check-private.txt').open('wb'))
+report=dict(stage=201,same_boot200=True,kernel_build=183,uptime_seconds=float(Path('/proc/uptime').read_text().split()[0]),taint=0,fault_counts=counts,remoteprocs=rp,sensor_proxy=has,mm191_loaded_file_unchanged=True,mm_state=int(m['State']),mm_failed_reason=int(m['StateFailedReason']),mm_power_state=int(m['PowerState']),bearers=0,gps_enabled=0,gps_refresh_rate=30,signals_location=False,desktop_location_setting_restored_false=True,temporary_geoclue_test_policy_desktop_and_executable_removed=True,base_geoclue_configuration_exact=True,assist_source_sha256=hashlib.sha256(helper.read_bytes()).hexdigest(),assist_openrc_default_enabled=True,assist_idle=True,final_auto_activation_worker_starts=1,final_auto_activation_worker_completions=1,normal_camss200_four_domains_unchanged=True,nv_sources_unchanged=True,reboot_or_flash_performed=False,real_gnss_fix_not_obtained=True)
+(out/'summary.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report))

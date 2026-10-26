@@ -1,0 +1,35 @@
+{
+  "retrieved": "2026-10-10",
+  "queries": ["Qualcomm EUD data toggle", "Qualcomm EUD CLEAR_FEATURE", "qcusbser zero packet", "Improve Qualcomm EUD driver and platform support v9"],
+  "sources": [
+    {
+      "url": "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/usb/ns-usb-_urb_header",
+      "finding": "Reset-and-clear-stall sends CLEAR_FEATURE ENDPOINT_HALT and resets the host data toggle. If a device preserves its toggle, first packets can be interpreted as duplicates. Separate reset/clear URBs exist for that case.",
+      "limit": "The installed selector maps to 0x1e. Documentation plus frame parity supports a candidate; it does not directly measure EUD physical DATA0/1.",
+      "supersedes": "RX58 session 58.3 and reference/rx58/focused-research.json incorrectly suggested the 0x1e path might not reset host DATA0/1. 0x30 preserves host toggle; 0x1e resets it by specification."
+    },
+    {
+      "path": "C:\\Program Files (x86)\\Windows Kits\\10\\Include\\10.0.26100.0\\shared\\usb.h",
+      "sha256": "1331b7f1476699ae071f2c1708ae30973b0d977f5832c1a610d9370dfd66a58a",
+      "excerpt_lines": {"156": "URB_FUNCTION_SYNC_RESET_PIPE_AND_CLEAR_STALL = 0x001e", "181": "URB_FUNCTION_SYNC_RESET_PIPE = 0x0030", "182": "URB_FUNCTION_SYNC_CLEAR_STALL = 0x0031", "212-213": "URB_FUNCTION_RESET_PIPE aliases RESET_PIPE_AND_CLEAR_STALL"},
+      "full_header_committed": false
+    },
+    {
+      "url": "https://patchew.org/linux/20260929213513.2401005-1-elson.serrao@oss.qualcomm.com/",
+      "canonical_url": "https://lore.kernel.org/all/20260929213513.2401005-1-elson.serrao@oss.qualcomm.com/",
+      "canonical_access": "web open unavailable; original author email read through mailing-list archive",
+      "author": "Elson Serrao, Qualcomm",
+      "dated": "2026-09-29",
+      "finding": "v9 adds UTMI path/PHY/role handling and validates OpenOCD on newer platforms. An October test reply confirms port selection and role switching on Glymur-CRD.",
+      "limit": "This is upstream qcom_eud hub/control routing, not the SM8150 tty COM driver or a Windows first-frame repair. It provides no new evidence about this retail phone's fuses."
+    },
+    {
+      "url": "https://patchew.org/linux/20260929213513.2401005-1-elson.serrao@oss.qualcomm.com/20260929213513.2401005-8-elson.serrao@oss.qualcomm.com/",
+      "finding": "Patch 7 fixes virtual detach role from HOST to NONE while retaining the physical debug connection.",
+      "limit": "No virtual attach/detach was invoked here. Do not apply this different control-path patch as a COM drop repair."
+    }
+  ],
+  "root_cause_proven": false,
+  "new_fuse_evidence": false,
+  "external_contact": false
+}

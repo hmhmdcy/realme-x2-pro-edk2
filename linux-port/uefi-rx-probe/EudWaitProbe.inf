@@ -1,0 +1,27 @@
+[Defines]
+  INF_VERSION = 0x0001001B
+  BASE_NAME = EudWaitProbe
+  FILE_GUID = 0c8cf77e-3e53-4621-af3a-8f5d074e4dac
+  MODULE_TYPE = UEFI_APPLICATION
+  VERSION_STRING = 0.1
+  ENTRY_POINT = UefiMain
+
+[Sources]
+  EudWaitProbe.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  ArmPkg/ArmPkg.dec
+
+[LibraryClasses]
+  UefiApplicationEntryPoint
+  UefiBootServicesTableLib
+  BaseLib
+  DevicePathLib
+  IoLib
+  MemoryAllocationLib
+  PrintLib
+  TimerLib
+
+[Protocols]
+  gEfiLoadedImageProtocolGuid

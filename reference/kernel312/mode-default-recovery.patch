@@ -1,0 +1,318 @@
+--- a/include/libcamera/ipa/camss.mojom
++++ b/include/libcamera/ipa/camss.mojom
+@@ -50,6 +50,7 @@
+ 	start(uint64 epoch, libcamera.ControlList controls) => (int32 ret, libcamera.ControlList sensorControls);
+ 	convertControls(uint64 epoch, libcamera.ControlList controls) => (int32 ret, libcamera.ControlList sensorControls);
+ 	applyIspControls(uint64 epoch, libcamera.ControlList controls) => (int32 ret, AutoIspUpdate update);
++	frameMetadata(uint64 epoch, uint32 sof, SensorContext sensorContext) => (int32 ret, libcamera.ControlList metadata);
+ 	stop();
+ 	prepareParameters(uint64 epoch, uint32 bufferId, uint32 revision) => (int32 ret, uint32 bytesused);
+ 	[async] parametersApplied(uint64 epoch, uint32 firstSof, uint32 revision);
+--- a/src/ipa/camss-vfe/camss.cpp
++++ b/src/ipa/camss-vfe/camss.cpp
+@@ -39,6 +39,7 @@
+ 	int start(uint64_t epoch, const ControlList &controls, ControlList *sensorControls) override;
+ 	int convertControls(uint64_t epoch, const ControlList &controls, ControlList *sensorControls) override;
+ 	int applyIspControls(uint64_t epoch, const ControlList &controls, AutoIspUpdate *update) override;
++	int frameMetadata(uint64_t epoch, uint32_t sof, const SensorContext &sensorContext, ControlList *metadata) override;
+ 	void stop() override;
+ 	int prepareParameters(uint64_t epoch, uint32_t id, uint32_t revision, uint32_t *bytesused) override;
+ 	void parametersApplied(uint64_t epoch, uint32_t firstSof, uint32_t revision) override;
+@@ -140,23 +141,42 @@
+   File file(profilePath);
+   if (!file.open(File::OpenModeFlag::ReadOnly)) return file.error();
+   auto root = YamlParser::parse(file);
+-  if (!root || (*root)["version"].get<unsigned int>().value_or(0) != 1 ||
+-      (*root)["sensor_model"].get<std::string>().value_or("") != model_) return -EINVAL;
+-  auto subtraction = (*root)["residual_black_subtraction"].get<uint16_t>();
+-  auto normalization = (*root)["range_normalization"].get<double>();
++  if (!root || (*root)["sensor_model"].get<std::string>().value_or("") != model_) return -EINVAL;
++  const unsigned int version=(*root)["version"].get<unsigned int>().value_or(0);
++  const ValueNode *selected=root.get();
++  if (version==2) {
++   const auto &modes=(*root)["modes"];
++   if (!modes.isList()) return -EINVAL;
++   selected=nullptr;
++   for (const auto &mode:modes.asList()) {
++    const auto &match=mode["match"];
++    if (!mode.isDictionary() || !match.isDictionary()) return -EINVAL;
++    if (match["width"].get<unsigned int>().value_or(0)!=input.width ||
++        match["height"].get<unsigned int>().value_or(0)!=input.height ||
++        match["pixel_rate"].get<unsigned int>().value_or(0)!=info.pixelRate ||
++        match["line_length"].get<unsigned int>().value_or(0)!=info.minLineLength ||
++        match["frame_length"].get<unsigned int>().value_or(0)!=info.minFrameLength) continue;
++    if (selected) return -EINVAL;
++    selected=&mode;
++   }
++   if (!selected) return -ENOTSUP;
++  } else if (version!=1) return -EINVAL;
++  const ValueNode &tuning=*selected;
++  auto subtraction = tuning["residual_black_subtraction"].get<uint16_t>();
++  auto normalization = tuning["range_normalization"].get<double>();
+   if (!subtraction || !normalization) return -EINVAL;
+   profile_ = { *subtraction, *normalization };
+-  const auto &awb = (*root)["awb"];
++  const auto &awb = tuning["awb"];
+   if (!awb.isEmpty()) {
+    auto candidate = std::make_unique<HardwareAwb>();
+    if (!awb.isDictionary() || candidate->initialise(awb)) return -EINVAL;
+    awb_ = std::move(candidate);
+    ControlInfoMap::Map map;
+    for (const auto &[id, value] : *ipaControls) map.emplace(id, value);
+-   map[&controls::AwbEnable] = ControlInfo(false, true, false);
++   map[&controls::AwbEnable] = ControlInfo(false, true, true);
+    *ipaControls = ControlInfoMap(std::move(map), controls::controls);
+   }
+-  const auto &timing = (*root)["sensor_controls"];
++  const auto &timing = tuning["sensor_controls"];
+   if (!timing.isEmpty()) {
+    if (!timing.isDictionary()) return -EINVAL;
+    if (timing["width"].get<unsigned int>().value_or(0) != input.width ||
+@@ -170,7 +190,7 @@
+        !*exposureDelay || *exposureDelay > 4) return -EINVAL;
+    *sensorConfiguration = { true, *exposureDelay, *gainDelay };
+   }
+-  const auto &agc = (*root)["agc"];
++  const auto &agc = tuning["agc"];
+   if (!agc.isEmpty()) {
+    if (!sensorConfiguration->enabled || !agc.isDictionary()) return -EINVAL;
+    auto candidate = std::make_unique<HardwareAgc>();
+@@ -181,9 +201,9 @@
+    ControlInfoMap::Map map;
+    for (const auto &[id, value] : *ipaControls) map.emplace(id, value);
+    map[&controls::ExposureTimeMode] = ControlInfo(std::vector<ControlValue>{
+-    int32_t(controls::ExposureTimeModeAuto), int32_t(controls::ExposureTimeModeManual)}, int32_t(controls::ExposureTimeModeManual));
++    int32_t(controls::ExposureTimeModeAuto), int32_t(controls::ExposureTimeModeManual)}, int32_t(controls::ExposureTimeModeAuto));
+    map[&controls::AnalogueGainMode] = ControlInfo(std::vector<ControlValue>{
+-    int32_t(controls::AnalogueGainModeAuto), int32_t(controls::AnalogueGainModeManual)}, int32_t(controls::AnalogueGainModeManual));
++    int32_t(controls::AnalogueGainModeAuto), int32_t(controls::AnalogueGainModeManual)}, int32_t(controls::AnalogueGainModeAuto));
+    *ipaControls = ControlInfoMap(std::move(map), controls::controls);
+   }
+  }
+@@ -274,6 +294,28 @@
+  return 0;
+ }
+ 
++int IPACamss::frameMetadata(uint64_t epoch, uint32_t sof, const SensorContext &sensorContext, ControlList *metadata)
++{
++ if (!metadata) return -EINVAL;
++ *metadata=ControlList(controls::controls);
++ if (!running_ || epoch!=epoch_) return -ESTALE;
++ auto context=parameterHistory_.upper_bound(sof);
++ if (context==parameterHistory_.begin()) return -ENODATA;
++ --context;
++ if (!sensorContext.valid || sensorContext.exposureLines<uint32_t(minLines_) ||
++     sensorContext.exposureLines>uint32_t(maxLines_) || sensorContext.gainCode<uint32_t(minGainCode_) ||
++     sensorContext.gainCode>uint32_t(maxGainCode_)) return -ENODATA;
++ const std::array<float,2> gains{float(context->second.red),float(context->second.blue)};
++ metadata->set(controls::ColourGains,Span<const float,2>(gains));
++ metadata->set(controls::AwbEnable,context->second.awbEnabled);
++ metadata->set(controls::AwbLocked,false);
++ metadata->set(controls::ExposureTimeMode,int32_t(automatic_?controls::ExposureTimeModeAuto:controls::ExposureTimeModeManual));
++ metadata->set(controls::AnalogueGainMode,int32_t(automatic_?controls::AnalogueGainModeAuto:controls::AnalogueGainModeManual));
++ metadata->set(controls::ExposureTime,int32_t(std::lround(sensorContext.exposureLines*lineUs_)));
++ metadata->set(controls::AnalogueGain,float(helper_->gain(sensorContext.gainCode)));
++ return 0;
++}
++
+ int IPACamss::mapBuffers(const std::vector<IPABuffer> &parameters, const std::vector<IPABuffer> &statistics)
+ {
+ 	if (running_)
+@@ -319,12 +361,12 @@
+  ControlList initial(sensorControls_);
+  int translated = translate(controls, true, &initial);
+  if (translated) return translated;
+- const int32_t exposureMode = controls.get(controls::ExposureTimeMode).value_or(controls::ExposureTimeModeManual);
+- const int32_t gainMode = controls.get(controls::AnalogueGainMode).value_or(controls::AnalogueGainModeManual);
++ const int32_t exposureMode = controls.get(controls::ExposureTimeMode).value_or(autoAvailable_ ? controls::ExposureTimeModeAuto : controls::ExposureTimeModeManual);
++ const int32_t gainMode = controls.get(controls::AnalogueGainMode).value_or(autoAvailable_ ? controls::AnalogueGainModeAuto : controls::AnalogueGainModeManual);
+  const bool automatic = exposureMode == controls::ExposureTimeModeAuto && gainMode == controls::AnalogueGainModeAuto;
+  const bool manual = exposureMode == controls::ExposureTimeModeManual && gainMode == controls::AnalogueGainModeManual;
+  if ((!automatic && !manual) || (automatic && !autoAvailable_)) return -ENOTSUP;
+-	const bool awbEnabled = controls.get(controls::AwbEnable).value_or(false);
++	const bool awbEnabled = controls.get(controls::AwbEnable).value_or(bool(awb_));
+ 	if (awbEnabled && !awb_) return -ENOTSUP;
+ 	double red = 1, blue = 1;
+ 	for (const auto &[id, value] : controls) {
+--- a/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
++++ b/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
+@@ -8,6 +8,7 @@
+ #include <cmath>
+ #include <cstring>
+ #include <deque>
++#include <iomanip>
+ #include <map>
+ #include <queue>
+ #include <set>
+@@ -58,6 +59,7 @@
+ 	int configurePath(const V4L2SubdeviceFormat &sensorFormat, const Size &output);
+ 	void restoreLinks();
+ 	void submitStatistics();
++	void completeMissingStatistics();
+ 	void statsProcessed(uint64_t epoch, uint32_t sof, uint32_t id,
+ 		const ipa::camss::Statistics &statistics, const ControlList &metadata);
+ 	void imageReady(FrameBuffer *buffer);
+@@ -101,6 +103,7 @@
+ 
+ 	struct PendingStats { uint32_t sof; FrameBuffer *buffer; bool submitted; };
+ 	std::map<uint32_t, PendingStats> pendingStats_;
++	std::optional<uint32_t> newestStatsSof_;
+ 	bool running_ = false;
+ 	bool paramsApplied_ = false;
+ 	bool parameterBusy_ = false, ispHealthy_ = true;
+@@ -344,7 +347,9 @@
+ 	/* Only Bayer10 modes currently verified by this inline backend. */
+ 	const std::array<unsigned int, 4> codes{ MEDIA_BUS_FMT_SRGGB10_1X10,
+ 		MEDIA_BUS_FMT_SGRBG10_1X10, MEDIA_BUS_FMT_SGBRG10_1X10, MEDIA_BUS_FMT_SBGGR10_1X10 };
+-	sensorFormat_ = data_->sensor_->getFormat(codes, cfg.size);
++	if (sensorConfig && (!sensorConfig->isValid() || sensorConfig->bitDepth != 10)) return Invalid;
++ sensorFormat_ = data_->sensor_->getFormat(codes, sensorConfig ? sensorConfig->outputSize : cfg.size);
++ if (sensorConfig && sensorFormat_.size != sensorConfig->outputSize) return Invalid;
+ 	if (!sensorFormat_.code || sensorFormat_.size.width > 8192 ||
+ 	    sensorFormat_.size.height > 16384)
+ 		return Invalid;
+@@ -408,8 +413,10 @@
+ 		d->restoreLinks();
+ 		return ret ? ret : -EINVAL;
+ 	}
++ ret = initIPA(d);
++ if (ret) { d->restoreLinks(); return ret; }
+  const char *profile = utils::secure_getenv("LIBCAMERA_CAMSS_VFE_PROFILE");
+- d->ipaProfilePath_ = profile ? profile : "";
++ d->ipaProfilePath_ = profile ? profile : d->ipa_->configurationFile(d->sensor_->model()+".yaml");
+  ret = configureIPA(d);
+  if (ret) { d->restoreLinks(); return ret; }
+ 	cfg->at(0).setStream(&d->stream_);
+@@ -485,7 +492,7 @@
+   ControlList initial(d->sensor_->controls());
+   ret = d->ipa_->start(d->epoch_, controls ? *controls : empty, &initial);
+   if (ret) goto error;
+-  d->automatic_ = controls && controls->get(libcamera::controls::ExposureTimeMode).value_or(libcamera::controls::ExposureTimeModeManual) == libcamera::controls::ExposureTimeModeAuto;
++  d->automatic_ = (controls ? controls->get(libcamera::controls::ExposureTimeMode) : std::nullopt).value_or(d->controlInfo_.at(&libcamera::controls::ExposureTimeMode).def().get<int32_t>()) == libcamera::controls::ExposureTimeModeAuto;
+   d->lastAutoRevision_ = 0; d->automaticUpdate_.reset();
+   if (!initial.empty()) {
+    ret = d->sensor_->setControls(&initial);
+@@ -509,6 +516,7 @@
+  d->parameterBusy_ = false; d->ispHealthy_ = true;
+  d->parameterRevision_ = d->lastIspRevision_ = 0;
+  d->ispControls_.clear();
++ d->newestStatsSof_.reset();
+  d->imageSequenceOffset_.reset();
+  for (auto &buffer : d->paramsBuffers_) {
+   uint32_t used = 0;
+@@ -611,6 +619,7 @@
+ 	paramsApplied_ = true;
+ 	firstParamSof_ = buffer->_d()->kernelSequence();
+ 	ipa_->parametersApplied(epoch_, firstParamSof_, parameterRevision_);
++	completeMissingStatistics();
+ 	submitStatistics();
+ 	LOG(CamssVfe, Info) << "Parameters epoch=" << epoch_ << " first-sof=" << firstParamSof_ << " revision=" << parameterRevision_;
+ }
+@@ -642,7 +651,7 @@
+ 	}
+ 	parameterRevision_ = lastIspRevision_ = update.revision;
+ 	LOG(CamssVfe, Info) << "WB queue epoch=" << epoch_ << " revision=" << update.revision
+-		<< " red=" << update.red << " blue=" << update.blue;
++		<< " red=" << std::setprecision(17) << update.red << " blue=" << update.blue << " precision=17";
+ }
+ 
+ void CamssVfeData::frameStart(uint32_t sequence)
+@@ -704,9 +713,11 @@
+ 	const uint32_t sequence = buffer->_d()->kernelSequence();
+ 	const int64_t offset = int64_t(sequence) - buffer->request()->sequence();
+ 	if (imageSequenceOffset_ && *imageSequenceOffset_ != offset) {
+-		ispHealthy_ = false; ispControls_.clear();
+-		LOG(CamssVfe, Error) << "Image/request sequence mapping changed; runtime ISP requests need restart";
+-	} else imageSequenceOffset_ = offset;
++		LOG(CamssVfe, Info) << "Resynced image/request mapping old=" << *imageSequenceOffset_ << " new=" << offset;
++	}
++	// A missing image buffer does not invalidate the ISP parameter queue.
++	// Pending request controls use the refreshed mapping when they are submitted.
++	imageSequenceOffset_ = offset;
+ 	if (images_.count(sequence)) {
+ 		LOG(CamssVfe, Error) << "Duplicate image SOF " << sequence;
+ 		buffer->_d()->metadata().status = FrameMetadata::FrameError;
+@@ -718,8 +729,10 @@
+ 	images_[sequence] = buffer;
+ 	if (histograms_.count(sequence))
+ 		finish(sequence, true);
+-	else if (!deadline_.isRunning())
+-		deadline_.start(std::chrono::milliseconds(250));
++	else {
++		completeMissingStatistics();
++		if (images_.count(sequence) && !deadline_.isRunning()) deadline_.start(std::chrono::milliseconds(250));
++	}
+ }
+ 
+ void CamssVfeData::statsReady(FrameBuffer *buffer)
+@@ -736,7 +749,24 @@
+   return;
+  }
+  pendingStats_.emplace(id, PendingStats{ buffer->_d()->kernelSequence(), buffer, false });
++ newestStatsSof_=std::max(newestStatsSof_.value_or(0),buffer->_d()->kernelSequence());
++ completeMissingStatistics();
+  submitStatistics();
++}
++
++void CamssVfeData::completeMissingStatistics()
++{
++ if (!running_ || !paramsApplied_ || parameterBusy_ || !newestStatsSof_) return;
++ std::vector<uint32_t> missing;
++ for (const auto &[sequence,buffer]:images_) {
++  (void)buffer;
++  if (sequence>=*newestStatsSof_ || histograms_.count(sequence)) continue;
++  const bool pending=std::any_of(pendingStats_.begin(),pendingStats_.end(),
++   [sequence](const auto &entry){return entry.second.sof==sequence;});
++  if (!pending) missing.push_back(sequence);
++ }
++ // Ordered stats buffers have moved past these images; do not wait for a missing packet.
++ for (uint32_t sequence:missing) finish(sequence,false);
+ }
+ 
+ void CamssVfeData::submitStatistics()
+@@ -785,9 +815,15 @@
+  const auto &update = statistics.automaticUpdate;
+  if (update.valid && automatic_ && sensorContextHealthy_) {
+   const auto &range = sensor_->controls();
++  const auto sampled=sensorContexts_.find(sof);
++  const auto current=sensorContexts_.find(lastSof_.value_or(0));
++  const bool sameContext=sampled!=sensorContexts_.end() && current!=sensorContexts_.end() &&
++   sampled->second.valid && current->second.valid &&
++   sampled->second.exposureLines==current->second.exposureLines &&
++   sampled->second.gainCode==current->second.gainCode && sampled->second.source==current->second.source;
+   bool valid = !statistics.status && statistics.parametersKnown && statistics.sensorControlsKnown && delayedControls_ &&
+    !automaticUpdate_ && update.revision == lastAutoRevision_ + 1 && update.revision < UINT32_MAX - 1 &&
+-   lastSof_ && *lastSof_ >= sof && *lastSof_ - sof <= 4 &&
++   lastSof_ && *lastSof_ >= sof && sameContext &&
+    update.exposureLines >= uint32_t(range.at(V4L2_CID_EXPOSURE).min().get<int32_t>()) &&
+    update.exposureLines <= uint32_t(range.at(V4L2_CID_EXPOSURE).max().get<int32_t>()) &&
+    update.gainCode >= uint32_t(range.at(V4L2_CID_ANALOGUE_GAIN).min().get<int32_t>()) &&
+@@ -830,7 +866,6 @@
+ 	FrameBuffer *buffer = it->second;
+ 	Request *request = buffer->request();
+ 	images_.erase(it);
+-	sensorContexts_.erase(sequence);
+ 	if (paired) {
+ 		const Histogram &h = histograms_.at(sequence);
+ 		request->_d()->metadata().merge(h.metadata);
+@@ -840,8 +875,18 @@
+ 			<< " parameters-acknowledged=" << paramsApplied_;
+ 		histograms_.erase(sequence);
+ 	} else {
+-		LOG(CamssVfe, Warning) << "Image without valid statistics epoch=" << epoch_ << " sof=" << sequence;
+-	}
++		ControlList metadata(controls::controls);
++		auto context=sensorContexts_.find(sequence);
++		int ret=context==sensorContexts_.end()?-ENODATA:ipa_->frameMetadata(epoch_,sequence,context->second,&metadata);
++		if (!ret) {
++			request->_d()->metadata().merge(metadata);
++			LOG(CamssVfe, Info) << "Image controls recovered epoch=" << epoch_ << " sof=" << sequence << " request=" << request->sequence();
++		} else {
++			buffer->_d()->metadata().status=FrameMetadata::FrameError;
++			LOG(CamssVfe, Warning) << "Image controls unavailable epoch=" << epoch_ << " sof=" << sequence;
++		}
++	}
++	sensorContexts_.erase(sequence);
+ 	request->_d()->metadata().set(controls::SensorTimestamp, buffer->metadata().timestamp);
+ 	handler()->completeBuffer(request, buffer);
+ 	handler()->completeRequest(request);

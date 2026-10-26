@@ -1,0 +1,139 @@
+--- icon-capture-image502-candidate/launcher.py
++++ icon-capture-irq-cohort-candidate/launcher.py
+@@ -1,4 +1,4 @@
+-"""Image502 EUD-off host launch/status/fetch for the unchanged read-only icon collector.
++"""IRQ cohort Image502 EUD-off host launch/status/fetch for the unchanged read-only icon collector.
+ 
+ Import is inert. No network call occurs except an explicit CLI action.
+ """
+@@ -19,61 +19,48 @@
+ import uuid
+ 
+ HERE = Path(__file__).resolve().parent
+-PRIVATE = Path('/mnt/e/edk2-samurai-out/charging-ui-audit-20261023/icon-capture-image502')
+-PINS = Path('/mnt/e/edk2-samurai-out/charging-management-20261023/image502-notify-activation/image502-notify-live-001/adoption-01-private/icon-identity-pins-private.json')
++PRIVATE = Path('/mnt/e/edk2-samurai-out/charging-session-20261023/icon-capture-irq-cohort')
++PINS = PRIVATE / 'identity-pins-private.json'
+ MIGRATION = HERE / 'template-test-result.json'
+-MANIFEST = '320316c3d93c1dbcaae29440f1f17d72c75e4994d656a9da9fcd5aeb93c10a1f'
++MANIFEST = '5fca8e5a0795325bd780b7965579068c7edc35fa7da12bac357bb30bbde69417'
+ FROZEN = {'worker.py': '446cf5dbcbb0ae0a1c765c7b0887c27c4ee978f4d02b590c93be4ff0b3586b21',
+           'audit.py': '7a7c5342fcdef85b5d941d7d9cb351a240d561b9d219817790f63c4825a7a287',
+           'baseline-test-result.json': '4aeb77e82f845a4f79c6cac44e3779ba3ed86561da2dd0f615e4ff2195b1be0f',
+-          'capture-entry.py': '9c101bf2350c21a52d1fc0d0a204862a5ba56e9a291f6c0c2a01f847feb98a16'}
+-REMOTE_BASE = '/root/charging-ui-audit-20261023/icon-capture-image502'
++          'capture-entry.py': '1526bdebd985bb75ab5eb25218b26f465474c110f4024e7403452437d28a1662'}
++REMOTE_BASE = '/root/charging-session-20261023/icon-capture-irq-cohort'
+ 
+ 
+ def sha(raw): return hashlib.sha256(raw).hexdigest()
+ 
+ 
++def identity_review():
++    spec = importlib.util.spec_from_file_location('icon_irq_identity', HERE / 'adoption-review.py')
++    module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
++    return module
++
++
+ def reviewed_identity(pins=PINS):
+-    entries=json.loads(pins.read_bytes());evidence={}
+-    expected={'adoption','adopt_request','adopt_result','endpoint','postboot','receiver','transport','key_transport'}
+-    if set(entries)!=expected:raise ValueError('Image502 reviewed pin set differs')
+-    if (Path(entries['transport']['path']).resolve()!=(HERE/'transport.py').resolve()
+-        or entries['key_transport']['sha256']!='7f49a922e0babf167c77ad6e9bd7edf63e437418d5134e3d081fb8a0082a4f4c'):
+-        raise ValueError('original strict-key transport differs')
+-    for name,entry in entries.items():
+-        value=Path(entry['path']).read_bytes()
+-        if sha(value)!=entry['sha256']:raise ValueError('actual Image502 input changed: '+name)
+-        if name not in ['transport','key_transport']:evidence[name]=json.loads(value)
+-    a,r,result,e,post,receiver=[evidence[n] for n in ['adoption','adopt_request','adopt_result','endpoint','postboot','receiver']]
+-    raw=post['raw'];checks=post['result']['checks']
+-    if not (a.get('Image502_verified') is True and a.get('original_key_verified') is True and a.get('baseline481_verified') is True
+-        and a.get('charging_manifest_sha256')==r.get('manifest')==MANIFEST
+-        and a.get('candidate_boot_sha256')==r.get('candidate_boot_sha256')==raw['boot_partition']['sha256']=='97811cc4ae13b36fec98b2eae7cd54a4f12bca988864df0f3d8f663a8c67f695'
+-        and a.get('candidate_logdump_sha256')==r.get('candidate_logdump_sha256')==raw['logdump_partition']['sha256']=='ace2e261bbfbd923fc3e631e857163f172d09bfb3489f7107782394fbf763ed1'
+-        and a.get('postboot_raw_sha256')==r.get('postboot_raw_sha256')==entries['postboot']['sha256']
+-        and result.get('passed') is True and result.get('guard_created') is True and result.get('old_guards_preserved') is True and result.get('old_pointer_backup_preserved') is True
+-        and receiver.get('passed') is True and receiver.get('transport_exit')==0
+-        and post.get('schema')=='samurai-image502-notify-postboot-readonly-v1' and post['result']['passed'] is True
+-        and checks['R8_install']['R8_disk_and_live_notes'] is True
+-        and checks['camera481']['camera481_files_packages_notes'] is True
+-        and checks['EUD_producers']['DT_disabled_no_EUD_cmdline_or_active_producer'] is True
+-        and checks['instant_gauge']['flag_Y_and_exact_cmdline'] is True
+-        and checks['instant_gauge']['startup500_descriptor_and_native500_preserved'] is True):raise ValueError('actual Image502 fullpair/optin/500 adoption not proved')
+-    boot,guard=r['boot'],r['guard']
+-    if str(uuid.UUID(boot))!=boot:raise ValueError('invalid actual boot')
+-    if guard!=a.get('guard_path') or guard!='/var/lib/samurai/image502-notify-live-001-adopted/boot-id-private.txt':raise ValueError('wrong adopted guard')
+-    if not (raw['identity_before']==raw['identity_after'] and raw['identity_after']['boot_id']==boot
+-        and r['version']==raw['identity_after']['uname']['version'] and r['version'].startswith('#502 ')
+-        and e.get('kind')=='usb-ipv6' and e.get('original_key_verified') is True and e.get('postboot_Image502_passed') is True
+-        and e.get('host_key_alias')=='169.254.42.1' and e.get('interface_index')==29 and e.get('peer')=='fe80::62:bcff:fe28:a101%29'
+-        and e.get('observed_new_boot')==boot and e.get('guard_path')==guard):raise ValueError('new501 original-key endpoint/boot differs')
+-    return boot,guard,entries
++    module = identity_review(); bound = json.loads(pins.read_bytes())
++    if bound.get('schema') != 'samurai-icon-irq-identity-v1':
++        raise ValueError('actual IRQ adoption pin set required')
++    inputs = bound['review_inputs']
++    actual = module.review_adoption(inputs['context'], inputs['camera'], inputs['probe_directory'], inputs['capture_directory'])
++    if bound['reviewed'] != actual:
++        raise ValueError('actual IRQ adoption originals/current pointer changed')
++    entries = bound['transport_inputs']
++    if set(entries) != {'transport', 'key_transport'} or Path(entries['transport']['path']).resolve() != (HERE / 'transport.py').resolve():
++        raise ValueError('original IRQ transport differs')
++    for name, entry in entries.items():
++        if sha(Path(entry['path']).read_bytes()) != entry['sha256']:
++            raise ValueError('original IRQ input changed: ' + name)
++    if entries['key_transport'] != actual['files']['key_transport']:
++        raise ValueError('original strict key differs')
++    return actual['boot_id'], actual['guard_path'], entries
+ 
+ 
+ def runtime_expected(pins=PINS):
+-    _, _, entries = reviewed_identity(pins)
+-    r = json.loads(Path(entries['adopt_request']['path']).read_bytes())
+-    return {k:r[k] for k in ['release','version','rootfs','notes']}
++    reviewed_identity(pins)
++    return json.loads(pins.read_bytes())['reviewed']['runtime_expected']
+ 
+ 
+ def adopt_local(bundle=HERE, pins=PINS, migration=MIGRATION):
+@@ -87,11 +74,11 @@
+     migrated = json.loads(migration.read_bytes())
+     for name,digest in migrated['files'].items():
+         if sha((bundle/name).read_bytes())!=digest:raise ValueError('tested template source changed: '+name)
+-    if not (migrated.get('schema') == 'charging-icon-image502-template-tests-v1' and migrated.get('passed') is True
++    if not (migrated.get('schema') == 'charging-icon-irq-template-tests-v1' and migrated.get('passed') is True
+             and migrated.get('launcher_sha256') == sha((bundle / 'launcher.py').read_bytes())
+             and migrated.get('runtime_identity_unbound') is True
+             and migrated.get('sha256') == FROZEN and migrated.get('manifest_sha256') == MANIFEST):
+-        raise ValueError('R7 affected-path test receipt differs')
++        raise ValueError('IRQ affected-path test receipt differs')
+     boot, guard, entries = reviewed_identity(pins)
+     return files, boot, guard
+ 
+@@ -155,7 +142,7 @@
+ import base64,hashlib,json,os,re,subprocess,sys,time,traceback
+ data=json.loads(sys.stdin.buffer.read());os.umask(0o077)
+ sha=lambda raw:hashlib.sha256(raw).hexdigest()
+-base=Path('/root/charging-ui-audit-20261023/icon-capture-image502')
++base=Path('/root/charging-session-20261023/icon-capture-irq-cohort')
+ txn=data['transaction'];assert re.fullmatch(r'charging-icon-[a-z0-9][a-z0-9-]{0,40}',txn)
+ bundle=base/(txn+'-bundle');out=base/txn
+ assert str(bundle)==data['remote_bundle'] and str(out)==data['remote_output']
+@@ -302,7 +289,7 @@
+                        manifest_sha256=MANIFEST, guard_path=guard, files=FROZEN,
+                        remote_bundle=remote_bundle, remote_output=REMOTE_BASE + '/' + transaction,
+                        max_seconds=max_seconds, dispatch_count=1, identity_pins_sha256=sha(pins.read_bytes()),
+-                       candidate_revision="image502-eud-off-300-v1", identity_expected=runtime_expected(pins))
++                       candidate_revision="irq-cohort-image502-300-v1", identity_expected=runtime_expected(pins))
+         request['argv'] = ['python3', remote_bundle + '/capture-entry.py', '--execute', '--window-confirmed',
+                            '--transaction', transaction, '--output-root', REMOTE_BASE,
+                            '--boot-id', boot, '--manifest-sha256', MANIFEST, '--max-seconds', str(max_seconds)]
+@@ -356,6 +343,7 @@
+     parser.add_argument('--max-seconds', type=int, default=300)
+     args = parser.parse_args(argv)
+     if args.action == 'check-local':
++        identity_review().adoption_module()
+         for name,digest in FROZEN.items():
+             if sha((HERE/name).read_bytes())!=digest:raise ValueError('frozen source differs: '+name)
+         for name in ['launcher.py','capture-entry.py','worker.py','audit.py']:ast.parse((HERE/name).read_text())

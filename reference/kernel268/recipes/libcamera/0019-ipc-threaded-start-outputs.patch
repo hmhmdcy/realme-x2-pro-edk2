@@ -1,0 +1,22 @@
+Subject: [PATCH] ipc: forward start output arguments with a return value
+
+The threaded proxy accepts customizable start signatures but drops output
+arguments when start also returns a value. Forward them consistently with
+the existing void-returning branch. Software IPA start uses these outputs
+to apply initial sensor controls before streaming begins.
+
+---
+diff --git a/utils/codegen/ipc/generators/libcamera_templates/module_ipa_proxy.h.tmpl b/utils/codegen/ipc/generators/libcamera_templates/module_ipa_proxy.h.tmpl
+--- a/utils/codegen/ipc/generators/libcamera_templates/module_ipa_proxy.h.tmpl
++++ b/utils/codegen/ipc/generators/libcamera_templates/module_ipa_proxy.h.tmpl
+@@ -90,7 +90,9 @@
+ 		{{proxy_funcs.func_sig(proxy_name + "Threaded", method, "", false)|indent(16)}}
+ 		{
+ {%- if method|method_return_value != "void" %}
+-			return ipa_->{{method.mojom_name}}({{method.parameters|params_comma_sep}});
++			return ipa_->{{method.mojom_name}}({{method.parameters|params_comma_sep}}
++	{{- ", " if method|method_param_outputs|params_comma_sep -}}
++	{{- method|method_param_outputs|params_comma_sep}});
+ {%- else %}
+ 			ipa_->{{method.mojom_name}}({{method.parameters|params_comma_sep}}
+ 	{{- ", " if method|method_param_outputs|params_comma_sep -}}

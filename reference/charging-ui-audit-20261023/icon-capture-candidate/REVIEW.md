@@ -1,0 +1,39 @@
+# One physical USB/UI capture candidate
+
+Offline candidate only. No phone connection, deployment, PM action or SDK action has been performed. `worker.py` and `audit.py` import without reads or subprocesses. The worker reuses the existing `usb-hotplug.py` NETLINK_KOBJECT_UEVENT and `dbus-monitor` approach; it adds durable per-event logs and a stricter single-cycle scheduler. It is independent of the old r4/r5 and all PM/kernel candidates.
+
+The future coordinator must first obtain the phone window from the camera conversation. `--window-confirmed` records that external coordination; the worker does not infer or borrow a window. A future launcher must create a **detached session** (`subprocess.Popen(..., start_new_session=True, stdin=DEVNULL, stdout=own_log, stderr=STDOUT)`) so physical USB SSH loss does not terminate the collector. This directory deliberately contains no SSH, deployment or launch command.
+
+## Invocation contract for the later coordinator
+
+Run the reviewed pair on the phone only with explicit `--execute --window-confirmed`, an unused `charging-icon-...` transaction, an absolute private output root, and the **already reviewed** current boot ID and manifest SHA256. Default deadline is 300 seconds; accepted bounds are 50–600 seconds. Existing transaction directories are refused and never overwritten. The worker writes only inside its new output directory, uses mode 0700/umask 077, checks adopted identity and taint/charger driver before sampling, and checks identity again at the end.
+
+Before telling the user to unplug, verify **two fresh status reads** with increasing `tick`, `active=true`, `terminal=false`, `ready_for_user_action=true`, the same PID and `start_ticks`, and a matching live `/proc/PID/stat` start time and `/proc/PID/cmdline` for this worker/transaction. Verify that `realtime` is current and `remaining_boottime_seconds` is at least 45. A historical `ready` file or a PID alone is insufficient. Recheck immediately before the user instruction. The worker revokes the action flag below 45 seconds, after either source/ACOK first goes offline, or when baseline health becomes uncertain.
+
+One user unplug/replug is enough for this collector: it requires three healthy baseline samples, then three consecutive samples with **both** PMIC source `online=0` and charger ACOK `online=0` spanning at least two seconds, then three coherent online samples followed by **25 more seconds** of continuous online observation. Normal 1-second spacing gives a 27-second online tail. Sample reads taking over two seconds or gaps over 2.5 seconds break continuity. There is no automatic retry. Deadline uses `CLOCK_BOOTTIME`, including any unrelated system sleep. The worker does not request or inhibit sleep. Deadlines are checked between bounded driver reads; a stalled worker is never permission to tell the user to act.
+
+Fetch all files after worker termination, including raw JSONL and DBus log even if `result.json` is missing or failed. Confirm the PID/start time has ended and terminal status is fresh before releasing the window. A lost SSH connection is expected during physical removal; do not launch another observer or treat connection restoration as physical proof. If the worker is still alive past its expected deadline or the phone remains unreachable, retain that uncertainty and coordinate recovery through the root session.
+
+## Observations and interpretation
+
+Each poll reads only:
+
+- Existing charger `telemetry`, including raw gauge `flags` and `age_ms`; this is a cached sample and triggers no new gauge command.
+- `/sys/class/power_supply/samurai-usb-input/online` and `mp2650-input/online`. The latter standard getter reads REG13 ACOK; it does not read REG14.
+- The actual original gauge Battery's standard `status` and `current_now`, discovered by type and the real `5-0055` parent instead of guessing its name.
+
+Each row retains its start/end monotonic bracket. Properties are read sequentially, not atomically. Cached flags have their own telemetry age and `flags_fresh` is true only with fresh valid online telemetry and both source/ACOK online. Offline telemetry flags may be cleared/placeholder values and are explicitly not fresh. Standard Battery current/status remain exactly as read; negative current is never converted to Charging. A standard Battery getter can perform the original driver's cache maintenance or announce a real change; this collector adds no broadcast, forced refresh, direct gauge transaction or `uevent` write.
+
+The event receiver retains genuine power_supply packets, including all their kernel fields and a monotonic **receive** time. Packet truncation/receive errors are reported. `dbus-monitor` records UPower PropertiesChanged without requesting Refresh or polling DBus. Battery and Display `State` events are parsed separately. UpdateTime, Percentage, line online, USB logical `configured`, source budget and SSH reachability cannot substitute for a missing State or physical ACOK removal.
+
+Start/end realtime↔monotonic clock brackets are retained in independent files and the complete capture. DBus header realtime is mapped by these endpoints only when offsets agree within 50 ms and each clock bracket is at most 50 ms. An endpoint inconsistency suppresses event latency estimates. Consistent endpoints cannot disprove cancelling clock steps inside the interval. NETLINK times include receiver scheduling delay. The audit reports the interval to the **first following State event**, with all nearby States retained; this is not proof of causality, the intended icon state, or screen presentation. A missing State stays missing. `screen_latency_verified` is always false because this collector does not record the screen.
+
+## Retained evidence and offline audit
+
+`samples-private.jsonl`, `kernel-events-private.jsonl`, `upower-dbus-private.log`, `clock-start.json` and `clock-end.json` remain independent of final audit success. The complete `capture-private.json` contains samples, raw events, clocks, worker summary, adopted-identity outcome, exception and cleanup evidence. `result.json` is also local evidence; it includes sampled status/current/flags and should not be published as a public report without review.
+
+The independent auditor rebuilds baseline/offline/online continuity from the **raw samples**, not the worker's summary. `physical_cycle_passed` requires this raw cycle, a normal cycle-complete terminal reason, same adopted identity, clean capture and event-monitor completion. It is only an observation qualifier, not charging or PM acceptance. Monitor and clock quality remain separate fields. The collector does not claim that net charging occurred or that the visible icon met any latency target.
+
+On a retained local copy, run `python audit.py --directory <copied-transaction-directory>`. This prints a report without modifying inputs. If complete capture is absent, it recovers complete JSONL records, preserves malformed/truncated-line evidence, and marks `terminal_unproved_partial_logs`; it cannot pass the physical cycle or guess missing clock mapping. Never reuse r4's timed-out baseline as the next user action: its user action was outside its active observation window.
+
+The host-only test suite executes the actual scheduler, standard-property sampler, NETLINK receiver, DBus parser and auditor with fake OS boundaries. It covers the complete cycle and 25-second tail, live ticks, deadline including sleep time, delayed human action, mixed/short/sparse offline evidence, forged summary, missing State, clock discontinuity, signed current/flags, existing-directory refusal, import/execute guards, identity/discovery failure, monitor/read/cleanup failure, constructor cleanup and retained partial logs. It does not open a network connection or exercise the actual phone boundary.

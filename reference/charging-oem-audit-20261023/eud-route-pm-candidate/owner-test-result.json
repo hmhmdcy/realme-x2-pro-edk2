@@ -1,0 +1,22 @@
+{
+  "passed": true,
+  "groups": [
+    "1 disabled route client refuses before PHY/PD/analog/command access",
+    "2 missing actual route publication defers; real provider/client binds before PD preparation",
+    "3 real route lease plus PD/PHY final validation permits one modeled transfer and exact reverse restoration",
+    "4 fresh EFI evidence failure at final callback consumes the epoch but blocks the modeled command",
+    "5 route-only removal joins and normally restores a live gadget before debug ownership can resume",
+    "6 UDC retirement retains route exclusion until actual shutdown/end and later unregister acknowledgement",
+    "7 failed PHY restoration retains real route publication and owner tombstone without another MMIO write",
+    "8 actual route callback pin survives DWC unbind between retirement publication and callback dispatch",
+    "PM owner1 route-first pause restores exact tokens; DWC complete cannot resume early or rerun the old physical epoch",
+    "PM owner2 DWC-first prepare and route-first complete preserve every other lifecycle fence",
+    "PM owner3 logical sleep/resume cannot synthesize the first physical off needed to initialize PD5V",
+    "PM owner4 failed PHY restore stays quarantined through repeated PM calls with no additional writes",
+    "PM owner5 failed live route revalidation cannot restart the actual APSD worker"
+  ],
+  "actual_whole_owner_PD_PHY_route_C": true,
+  "driver_core_scheduling_and_MMIO_edges_modeled": true,
+  "phone_accessed": false,
+  "fixture_sha256": "45eeef3d4faaf47898e4f931a523aca77126d0933c201bf9f764fc1168ac9226"
+}

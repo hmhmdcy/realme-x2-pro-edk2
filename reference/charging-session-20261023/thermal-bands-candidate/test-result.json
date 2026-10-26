@@ -1,0 +1,96 @@
+{
+  "passed": true,
+  "tests": {
+    "test-differential": {
+      "result": {
+        "passed": true,
+        "samples": 20079,
+        "assertions": 368171,
+        "absolute_stop_stricter_samples": 151,
+        "oracle_general_band_equal": true
+      },
+      "command": [
+        "wsl",
+        "-d",
+        "Ubuntu",
+        "-u",
+        "root",
+        "--",
+        "gcc",
+        "-std=c11",
+        "-g",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-fsanitize=address,undefined",
+        "-fno-omit-frame-pointer",
+        "-I/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/thermal-bands-candidate",
+        "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/thermal-bands-candidate/test-differential.c",
+        "-o",
+        "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/thermal-bands-candidate/test-differential"
+      ]
+    },
+    "test-step": {
+      "result": {
+        "integration_sequences": 33,
+        "assertions": 278,
+        "passed": true
+      },
+      "command": [
+        "wsl",
+        "-d",
+        "Ubuntu",
+        "-u",
+        "root",
+        "--",
+        "gcc",
+        "-std=c11",
+        "-g",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-fsanitize=address,undefined",
+        "-fno-omit-frame-pointer",
+        "-I/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/thermal-bands-candidate",
+        "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/thermal-bands-candidate/test-step.c",
+        "-o",
+        "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/thermal-bands-candidate/test-step"
+      ]
+    }
+  },
+  "extracted_step_sha256": "e81ac161f861ddde71835a29502d19866afee552040bd430f357ca1059f01ea1",
+  "files": {
+    "samurai-mp2650.c": "ed2e1d4d96ea4f2d55b514288b0e8da1d731864d385944d02a105d41b03a144c",
+    "mp2650-core.h": "df9caed5c3678551b84e04d416c53caafd2b51036f2244b26974a87aa1ced4e8",
+    "oem-full-cycle.h": "91554031a1ea454e1a70fa8bae89316bd8770686c19c5a33ec6a1dbb06bdfba4",
+    "thermal-bands.h": "a06962f52e570b2b418c9e03354f634a1b356ed86c234cf598489a9f02f09112"
+  },
+  "test_files": {
+    "test-candidate.py": "35202cabbb75a46d311810fa0dbb7f0998552e69ac38c5d89d7e057e573a3494",
+    "test-differential.c": "f3bc89937033707e5141156f3a1b9d6272f2632b6e72c56aca622c7aec2f97b5",
+    "test-step.c": "f7a53ece5c622f7b39975b7b95ed277cef60dd11ba0c624b9805e360b99b236c",
+    "extra-step.inc": "e578f8b1072062f890bbb588d519ad04e750f8d39d2a92913ca25709518c4c5f",
+    "oracle-fixture.h": "43aaead9f2af26efb8f0d617c9eb575b7251529beb4e9ec7a2087776786cf4c4",
+    "oracle-functions.inc": "058f4ecf8c575fb88e3205da5ce7bf2e12dd51a9cbe7a9017a317397a4ed918a",
+    "oracle-limits.inc": "a3314cef61e0de3fdb2eb319d30124d8e2cdcbdd0c8fa48921f1742b1a2aab7f",
+    "oracle-limit-fields.inc": "41a2dab8792363830bb52542ace1b105bc0e56974524927f2452f79eed6560c0",
+    "oracle-result.json": "64ec4d1c6c5c75d6c346c2e1aad884e29890f6b71d3df39bbde9a55335e7bf84"
+  },
+  "baseline": {
+    "samurai-mp2650.c": "a8a03a463f23a75d8820f64b971dafce9fb57ba0e5344ef909321b18f3d43a45",
+    "mp2650-core.h": "6ddeec6edbf61e50257b39ce97beab41b7607dcdacbf09259f8a162aa20a851a",
+    "oem-full-cycle.h": "8284c957a900fb8a80e24c3485ada55f4120cba8c23c8a60a5ed25e27a59eac9",
+    "charging-notify.h": "3619110d1ef2b2abb2c5b64fe6188e3c0a5f900ef3d7e5d39dec9c0614efd5dd",
+    "oem-profile.h": "14a425065aadcca1cc38efcc75cb112c0c25ac05567195b04feaa2bec21b0729",
+    "charge-cycle.h": "717e7ae2579cbf970f3802a21dcfa0fe0124e7fd236588661c613fcd3903e07b",
+    "gauge-i2c.h": "897a961d765f794af2358205b46998ac4889f4ad9e91db2265d99cd70d701e77",
+    "gauge-protocol.h": "0903f3fa9740f8645dfc8fb5c16f9a35ded63c4ea06f5c9c93475e37bc375f0f"
+  },
+  "frozen_v2_unchanged": true,
+  "completed_oracle_97_unchanged": true,
+  "patch_sha256": "0048ea468a120a93505ad5fa386d9722f2fdd5541c8a20f6594d24c8366c2d24",
+  "phone_accessed": false,
+  "sdk_accessed": false,
+  "shared_source_modified": false,
+  "scope": "single OEM effective band, inherited caps; explicit stricter immutable outer stop and conservative Full continuity"
+}

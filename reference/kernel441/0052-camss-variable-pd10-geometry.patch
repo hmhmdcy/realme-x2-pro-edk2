@@ -1,0 +1,190 @@
+--- a/src/libcamera/pipeline/camss-vfe/camss_ipe.h
++++ b/src/libcamera/pipeline/camss-vfe/camss_ipe.h
+@@ -50,6 +50,7 @@
+ 	Timer watchdog_;
+ 	bool running_ = false, stopping_ = false, opened_ = false, failed_ = false;
+ 	bool requestsEnabled_ = false, pd10_ = false;
++	uint32_t fullBytes_ = 0, lumaBytes_ = 0, coarseBytes_ = 0;
+ 	uint64_t nextSerial_ = 0;
+ 	std::vector<std::unique_ptr<V4L2Request>> requests_;
+ 	std::deque<V4L2Request *> freeRequests_;
+--- a/src/libcamera/pipeline/camss-vfe/camss_ipe.cpp
++++ b/src/libcamera/pipeline/camss-vfe/camss_ipe.cpp
+@@ -1,5 +1,6 @@
+ /* SPDX-License-Identifier: LGPL-2.1-or-later */
+ #include "camss_ipe.h"
++#include "camss_pd10.h"
+ 
+ #include <cerrno>
+ #include <chrono>
+@@ -42,7 +43,17 @@
+ 		return ret;
+ 	opened_ = true;
+ 	pd10_ = pd10;
+-	if (pd10 && (format.size != Size(640,480) || format.planesCount != 1)) { stop(); return -EINVAL; }
++	const auto coarseLayout = camssPd10Layout(format.size);
++	if (pd10) {
++		const uint64_t luma = uint64_t(format.planes[0].bpl) * format.size.height;
++		if (!coarseLayout || format.planesCount != 1 ||
++		    format.fourcc != V4L2PixelFormat(V4L2_PIX_FMT_NV12) ||
++		    format.planes[0].bpl < format.size.width ||
++		    luma * 3 / 2 != format.planes[0].size) { stop(); return -EINVAL; }
++		fullBytes_ = format.planes[0].size;
++		lumaBytes_ = luma;
++		coarseBytes_ = coarseLayout->frameSize;
++	}
+ 	const auto *info = device_.output()->controlInfo(V4L2_CID_QCOM_IPE_A5_FRAME_PARAMS);
+ 	requestsEnabled_ = info;
+ 	if (requestsEnabled_) {
+@@ -71,7 +82,7 @@
+         if (pd10 && queue == device_.output()) {
+             expected.fourcc = V4L2PixelFormat(V4L2_PIX_FMT_QCOM_NV12_PD10);
+             expected.planesCount = 2;
+-            expected.planes[1].bpl = 768; expected.planes[1].size = 46080;
++            expected.planes[1].bpl = coarseLayout->stride; expected.planes[1].size = coarseBytes_;
+         }
+         V4L2DeviceFormat negotiated = expected;
+ 		ret = queue->setFormat(&negotiated);
+@@ -119,18 +130,18 @@
+ 	}
+ 	if (bool(coarse) != pd10_ || (coarse && (coarse == input || coarse == output ||
+         coarse->planes().size()!=1 || coarse->metadata().status!=FrameMetadata::FrameSuccess ||
+-        coarse->metadata().planes()[0].bytesused!=46080 ||
++        coarse->metadata().planes()[0].bytesused!=coarseBytes_ ||
+         coarse->_d()->kernelSequence()!=input->_d()->kernelSequence()))) return -EINVAL;
+     auto planes = input->planes();
+     std::vector<FrameBuffer::Plane> joined(planes.begin(),planes.end());
+     if (coarse) {
+-        unsigned int used=0;for(const auto &p:input->metadata().planes())used+=p.bytesused;
+-        if(used!=460800 || (planes.size()!=1 && planes.size()!=2))return -EINVAL;
+-        if(planes.size()==1 && planes[0].length<460800)return -EINVAL;
++        uint64_t used=0;for(const auto &p:input->metadata().planes())used+=p.bytesused;
++        if(used!=fullBytes_ || (planes.size()!=1 && planes.size()!=2))return -EINVAL;
++        if(planes.size()==1 && planes[0].length<fullBytes_)return -EINVAL;
+         if(planes.size()==2 && (planes[0].fd.get()!=planes[1].fd.get() ||
+-            uint64_t(planes[0].offset)+307200!=planes[1].offset ||
+-            planes[0].length<307200 || planes[1].length<153600))return -EINVAL;
+-        joined={FrameBuffer::Plane{planes[0].fd,planes[0].offset,460800},coarse->planes()[0]};
++            uint64_t(planes[0].offset)+lumaBytes_!=planes[1].offset ||
++            planes[0].length<lumaBytes_ || planes[1].length<fullBytes_-lumaBytes_))return -EINVAL;
++        joined={FrameBuffer::Plane{planes[0].fd,planes[0].offset,fullBytes_},coarse->planes()[0]};
+     }
+     if (params && !requestsEnabled_)
+ 		return -ENOTSUP;
+@@ -157,7 +168,7 @@
+      * NV12's logical Y/UV views share one validated contiguous DMA interval. */
+     auto &metadata=job.input->_d()->metadata();
+     metadata.status=input->metadata().status;metadata.sequence=input->metadata().sequence;metadata.timestamp=input->metadata().timestamp;
+-    if(coarse) {metadata.planes()[0].bytesused=460800;metadata.planes()[1]=coarse->metadata().planes()[0];}
++    if(coarse) {metadata.planes()[0].bytesused=fullBytes_;metadata.planes()[1]=coarse->metadata().planes()[0];}
+     else for(unsigned int i=0;i<planes.size();++i)metadata.planes()[i]=input->metadata().planes()[i];
+ 	job.request = request;
+ 	job.requestDone = !request;
+--- a/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
++++ b/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
+@@ -8,6 +8,7 @@
+ #include <time.h>
+ #include "hardware_focus.h"
+ #include "camss_ipe.h"
++#include "camss_pd10.h"
+ #include "tone_trace.h"
+ #include "libcamera/internal/camera_lens.h"
+ #include <cmath>
+@@ -103,7 +104,7 @@
+  bool requiresPd10() const { return processedEnabled_ && sensorConfiguration_.pd10; }
+  std::unique_ptr<CamssIpe> ipe_;
+  Size output_;
+- unsigned int outputStride_ = 0;
++ unsigned int outputStride_ = 0, outputFrameBytes_ = 0;
+  V4L2DeviceFormat rawFormat_;
+ 
+ 	void statsReady(FrameBuffer *buffer);
+@@ -383,7 +384,7 @@
+ 		return ret;
+ 	};
+ 
+- coarseEnabled_ = bool(coarseRequested_ && coarse_ && ipe_ && processedEnabled_ && output==Size(640,480));
++ coarseEnabled_ = bool(coarseRequested_ && coarse_ && ipe_ && processedEnabled_);
+  std::vector<MediaLink *> routes = path_;
+  if(coarseEnabled_) routes.push_back(coarseLink_);
+  if (rawEnabled_) routes.insert(routes.end(), rawPath_.begin(), rawPath_.end());
+@@ -441,12 +442,14 @@
+ 	if (ret || compose != Rectangle(output))
+ 		return ret ? ret : -EINVAL;
+     if (coarseEnabled_) {
+-        V4L2SubdeviceFormat coarse{MEDIA_BUS_FMT_UYYVYY10_0_5X30,Size(160,120),{}};
++        const auto layout = camssPd10Layout(output);
++        if (!layout) return -EINVAL;
++        V4L2SubdeviceFormat coarse{MEDIA_BUS_FMT_UYYVYY10_0_5X30,layout->size,{}};
+         ret=pix_->setFormat(coarseLink_->source()->index(),&coarse);
+-        if(ret || coarse.size!=Size(160,120) || coarse.code!=MEDIA_BUS_FMT_UYYVYY10_0_5X30)return ret?ret:-EINVAL;
+-        V4L2DeviceFormat wire;wire.fourcc=V4L2PixelFormat(V4L2_PIX_FMT_QCOM_PD10_LOCAL);wire.size=Size(160,120);
++        if(ret || coarse.size!=layout->size || coarse.code!=MEDIA_BUS_FMT_UYYVYY10_0_5X30)return ret?ret:-EINVAL;
++        V4L2DeviceFormat wire;wire.fourcc=V4L2PixelFormat(V4L2_PIX_FMT_QCOM_PD10_LOCAL);wire.size=layout->size;
+         ret=coarse_->setFormat(&wire);
+-        if(ret || wire.planesCount!=1 || wire.planes[0].bpl!=768 || wire.planes[0].size!=46080 || wire.size!=Size(160,120))return ret?ret:-EINVAL;
++        if(ret || wire.planesCount!=1 || wire.planes[0].bpl!=layout->stride || wire.planes[0].size!=layout->frameSize || wire.size!=layout->size)return ret?ret:-EINVAL;
+     }
+     return 0;
+ }
+@@ -586,7 +589,7 @@
+ 		d->restoreLinks();
+ 		return ret ? ret : -EINVAL;
+ 	}
+- d->outputStride_=format.planes[0].bpl;
++ d->outputStride_=format.planes[0].bpl;d->outputFrameBytes_=format.planes[0].size;
+  ret = initIPA(d);
+  if (ret) { d->restoreLinks(); return ret; }
+  const char *profile = utils::secure_getenv("LIBCAMERA_CAMSS_VFE_PROFILE");
+@@ -594,7 +597,7 @@
+  ret = configureIPA(d);
+  if (ret) { d->restoreLinks(); return ret; }
+  if(d->requiresPd10()) {
+-  if(!d->coarse_ || !d->ipe_ || d->output_!=Size(640,480)){d->restoreLinks();return -ENOTSUP;}
++  if(!d->coarse_ || !d->ipe_ || !camssPd10Layout(d->output_)){d->restoreLinks();return -ENOTSUP;}
+   d->coarseRequested_=true;ret=d->configurePath(cfg->sensorFormat_,d->output_);
+   if(ret){d->restoreLinks();return ret;}
+  }
+@@ -1350,8 +1353,9 @@
+      !tone.empty() && requests_.at(request).coarse) {
+    toneTraceSaved_=true;
+    std::string base=std::string(traceDir)+"/tone-"+std::to_string(sequence);
+-   ret=toneTraceBuffer(base+"-full.nv12",buffer,460800);
+-   if(!ret)ret=toneTraceBuffer(base+"-coarse.pd10",requests_.at(request).coarse,46080);
++   const auto layout=camssPd10Layout(output_);
++   ret=layout?toneTraceBuffer(base+"-full.nv12",buffer,outputFrameBytes_):-EINVAL;
++   if(!ret)ret=toneTraceBuffer(base+"-coarse.pd10",requests_.at(request).coarse,layout->frameSize);
+    if(!ret)ret=toneTraceBytes(base+"-params.bin",&packet,sizeof packet);
+    LOG(CamssVfe,Info)<<"IPE_TONE_TRACE epoch="<<toneEpoch<<" sof="<<sequence<<" token="<<toneToken
+     <<" revision="<<toneRevision<<" full-sequence="<<buffer->_d()->kernelSequence()
+--- /dev/null
++++ b/src/libcamera/pipeline/camss-vfe/camss_pd10.h
+@@ -0,0 +1,28 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++
++#include <optional>
++#include <libcamera/geometry.h>
++
++namespace libcamera {
++
++struct CamssPd10Layout {
++	Size size;
++	unsigned int stride, sliceHeight, frameSize;
++};
++
++/* Retained SM8150 allocation: even quarter, 192-byte packed rows, four rows. */
++inline std::optional<CamssPd10Layout> camssPd10Layout(const Size &full)
++{
++	if (full.width < 128 || full.height < 128 || full.width > 8192 ||
++	    full.height > 8192 || ((full.width | full.height) & 1))
++		return std::nullopt;
++	CamssPd10Layout layout;
++	layout.size = { ((full.width + 7) / 4) & ~1U, ((full.height + 7) / 4) & ~1U };
++	layout.stride = ((layout.size.width * 4 + 191) / 192) * 192;
++	layout.sliceHeight = ((layout.size.height + 7) / 8) * 4;
++	layout.frameSize = layout.stride * layout.sliceHeight;
++	return layout;
++}
++
++} /* namespace libcamera */

@@ -1,0 +1,39 @@
+--- a/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
++++ b/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
+@@ -583,8 +583,13 @@
+ 
+ &uart13 {
+     status = "okay";
+-    pinctrl-names = "default";
++    /delete-property/ interrupts;
++    interrupts-extended = <&intc GIC_SPI 585 IRQ_TYPE_LEVEL_HIGH>,
++                          <&tlmm 46 IRQ_TYPE_EDGE_FALLING>;
++    pinctrl-names = "default", "sleep";
+     pinctrl-0 = <&samurai_bt_uart_default>;
++    pinctrl-1 = <&samurai_bt_uart_sleep_ctsrts>,
++                <&samurai_bt_uart_sleep_txrx>;
+     bluetooth {
+         compatible = "qcom,wcn3990-bt";
+         /* Same-handset revision-21 files; ROM 0x1001 derives a missing 01 name. */
+@@ -914,3 +919,21 @@
+ 	status = "okay";
+ 	vdda-phy-supply = <&vreg_l3c_1p2>;
+ };
++
++&tlmm {
++    samurai_bt_uart_sleep_ctsrts: samurai-bt-uart-sleep-ctsrts-state {
++        pins = "gpio43", "gpio44";
++        function = "gpio";
++        drive-strength = <2>;
++        /* CTS matches the controller; active-low RTS permits RX wake. */
++        bias-pull-down;
++    };
++
++    samurai_bt_uart_sleep_txrx: samurai-bt-uart-sleep-txrx-state {
++        pins = "gpio45", "gpio46";
++        function = "gpio";
++        drive-strength = <2>;
++        /* Keep idle TX and the RX wake input high while GENI sleeps. */
++        bias-pull-up;
++    };
++};

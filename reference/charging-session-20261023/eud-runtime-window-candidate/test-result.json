@@ -1,0 +1,33 @@
+{
+  "passed": true,
+  "actual_functions": 15,
+  "boundary_groups": 7,
+  "compile_returncode": 0,
+  "compile_stderr": "",
+  "runtime_returncode": 0,
+  "runtime_stdout": "normal actual TX baseline\ntx_stopping cannot preserve queued TTY bytes or prove device ACK\nUART stop callbacks are no-ops; start still queues; startup does not restore\nIRQ stop is not synchronization or restart; mask readback is not checked\nAHB helper restores probe-era value and cannot report readback mismatch\nTX-only console gate still consumes RX; both flags suppress FIFO but retain no printk bytes\nalready accepted F1 is a separate pending restart, not a restorable RX sample\ngroups=7\n",
+  "runtime_stderr": "",
+  "flags": [
+    "-std=gnu11",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-Wno-unused-parameter",
+    "-fsanitize=address,undefined",
+    "-fno-omit-frame-pointer"
+  ],
+  "tested_files": {
+    "actual-functions.inc": "c82c532237c282681c4912af9baec6865be6ca3e9e0fa7d9fe8c2f85ee369d36",
+    "function-manifest.json": "0b75dae981412f566701252c90b5586384654d924a519aab7ea9741b1ee769b2",
+    "test-existing-boundaries.c": "c864d82a183f16e1b324bf6cd229de06c93ee6beb74ddf3b2b2a5792d7ddaf41",
+    "prepare-fixture.py": "6bbaff3bbd3bd25bc8d74aac789cf9971d0083bf6a4b664c619090da6d8303b9",
+    "run-tests.py": "4ecc9d313433a27e63a7127326ab702b7a366d8a49b6227b09c584ed25d1c4f1"
+  },
+  "phone_accessed": false,
+  "ssh_executed": false,
+  "usb_accessed": false,
+  "sdk_invoked": false,
+  "shared_source_modified": false,
+  "driver_patch_created": false,
+  "scope": "unchanged Image-linked callbacks plus fake OS/MMIO; demonstrates missing semantics, not a quiet/restore implementation or hardware validation"
+}

@@ -1,0 +1,59 @@
+{
+  "schema": 1,
+  "passed": true,
+  "new_blockers": [],
+  "author_delivery_sha256": "d5946973156dd800d1028ccb740828c87cd82c763ec6c48064f35c036bd40e14",
+  "adopt_source_sha256": "6f0a0da1da20b3013d27c20b97d817c9db1bfc00b3e1d3ee2db59411a04c5b44",
+  "remote_tail_sha256": "d140e18883382cf7dd48c1eae91ff4eefa767e6b0a26f43a8d14b88d75e73d5a",
+  "new_author_cases": 20,
+  "reused_independent_review_sha256": {
+    "postboot_host_R2": "7d6c19735233fabd6d95e6d27263da313c78b402fbead2e94b9e3e75c51accc1",
+    "boot_operator_completion": "fd091da013c1ea3103f7c32e4d89e85d5798c80693359e26e5032af4d7624abe"
+  },
+  "source_inputs": {
+    "host_delivery": {
+      "path": "charging-oem-audit-20261023/irq-cohort-postboot-host-candidate/delivery.json",
+      "sha256": "8a4301cb9850dcab65069f6ec0e2ca47b8be72b1fcbb2676357863518f640d2a"
+    },
+    "host": {
+      "path": "charging-oem-audit-20261023/irq-cohort-postboot-host-candidate/host.py",
+      "sha256": "58d0cbf0dd4ec2db29725bdfd2b01467cbe04c4401b1ca411960438e66dca6e7"
+    },
+    "device_delivery": {
+      "path": "charging-oem-audit-20261023/irq-cohort-postboot-readonly/delivery.json",
+      "sha256": "b2c1d2de692b2d302450b0debbfdd50221b84790523829dc57b5c96ba271689b"
+    },
+    "device": {
+      "path": "charging-oem-audit-20261023/irq-cohort-postboot-readonly/device.py",
+      "sha256": "78337b7801b21e120f7814a2f8857e52dc1056ef80364821a6507d5faf2a444d"
+    },
+    "operator_delivery": {
+      "path": "charging-oem-audit-20261023/usb-irq-protection-fastboot-candidate/delivery.json",
+      "sha256": "ff8051089bc6306f9cfbf29914f8531fa4d627cc0661a5b7e7401ec42f362a41"
+    },
+    "old_adopt": {
+      "path": "charging-oem-audit-20261023/image502-adoption-candidate/adopt.py",
+      "sha256": "1af20988d81b439348e5e04ceb477937faaf78944103134232167dc7463e93e3"
+    }
+  },
+  "accepted_boundaries": [
+    "actual host R2 completion/stage/input/whole raw audit before descriptor",
+    "exact #502 new UUID and IRQ boot/logdump/manifest, original authenticated request object and output digest",
+    "fresh collector audit before unique proof-then-guard fsync/readback; existing/partial directory refuses reuse",
+    "owned original SSH child, requested and interop observed argv separately retained, input SHA and same-child EOF/wait",
+    "known original #502 pointer plus retained byte comparisons before atomic replacement; old guards/pointer backup remain"
+  ],
+  "limitations": [
+    "canonical postboot request-object SHA is not a separate JSON original-format hash",
+    "pointer publication requires exclusive owner window and is not a general atomic CAS",
+    "unknown after remote guard or pointer write is retained, never automatically retried",
+    "author host/device IO boundaries are fake; no actual future materials or device acceptance are established"
+  ],
+  "author_import_entry_or_test_executed": false,
+  "device_SSH_USB_build_SDK_Git_used": false,
+  "physical_delivery_or_latency_accepted": false,
+  "own_files": {
+    "review.py": "829018bf9d15cd215bedba080178d6141ecac718acc84dcdf65ff32d9e756cc2",
+    "README.md": "0514eae585585df08ca7d80752b98b1b4ddec8160a5930407b6a3c8827aa533d"
+  }
+}

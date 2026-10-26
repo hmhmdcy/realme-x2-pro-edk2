@@ -1,0 +1,114 @@
+{
+  "schema": "samurai-native-usb-pm-materialized-package-review-v1",
+  "passed": true,
+  "scope": "Read-only original materialized small artifacts; no installation/staging or hardware acceptance",
+  "prior_binding_review_sha256": "b5544dcc5bb5c1366373456f7f664bee5b7f505c25b7e03fdce076bd3c04a319",
+  "materialization_result_sha256": "82814291e7f3e26d1dc77093bde5feddccfc71ae109e19d92b1c2bb2912baf8c",
+  "materialized_result_files": {
+    "manifest.json": {
+      "sha256": "f74a702a1f86515235820ee89c0f9cb057b30674c6be13decbed6be0ef2716b9",
+      "bytes": 1868
+    },
+    "rollback-manifest.json": {
+      "sha256": "320316c3d93c1dbcaae29440f1f17d72c75e4994d656a9da9fcd5aeb93c10a1f",
+      "bytes": 1848
+    },
+    "cohort.json": {
+      "sha256": "b1d8c30b1a66296e3ae66e53a122c864bd174f665170e88b3fe1669fd8e8a795",
+      "bytes": 4259
+    },
+    "native-usb-pm-payload.tar.gz": {
+      "sha256": "2e1320e9940539eaf3fe6c485970124c1836ead4ba67389f6659f324b9070bc6",
+      "bytes": 25692
+    },
+    "rollback-r8-payload.tar.gz": {
+      "sha256": "4575cdabf2b780fd0afdf6d81e731a44dfbd528c430e82588dcf3d6a4b0c3579",
+      "bytes": 24010
+    }
+  },
+  "archives": {
+    "native-usb-pm-payload.tar.gz": {
+      "sha256": "2e1320e9940539eaf3fe6c485970124c1836ead4ba67389f6659f324b9070bc6",
+      "bytes": 25692,
+      "members": [
+        {
+          "path": "/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-usb-input.ko",
+          "sha256": "2691c3ceb6245c7c4999c122f015ad93588dce5928b8cd982a5ac725539c4448",
+          "bytes": 87712,
+          "mode": "0600",
+          "uid": 0,
+          "gid": 0,
+          "regular": true
+        },
+        {
+          "path": "/usr/share/samurai-charging/manifest.json",
+          "sha256": "f74a702a1f86515235820ee89c0f9cb057b30674c6be13decbed6be0ef2716b9",
+          "bytes": 1868,
+          "mode": "0600",
+          "uid": 0,
+          "gid": 0,
+          "regular": true
+        }
+      ]
+    },
+    "rollback-r8-payload.tar.gz": {
+      "sha256": "4575cdabf2b780fd0afdf6d81e731a44dfbd528c430e82588dcf3d6a4b0c3579",
+      "bytes": 24010,
+      "members": [
+        {
+          "path": "/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-usb-input.ko",
+          "sha256": "7d4e0f948b993a6e0cc9459bac4ade2db2fe7b88ce7b7d462ea34bcb933c4f70",
+          "bytes": 82584,
+          "mode": "0600",
+          "uid": 0,
+          "gid": 0,
+          "regular": true
+        },
+        {
+          "path": "/usr/share/samurai-charging/manifest.json",
+          "sha256": "320316c3d93c1dbcaae29440f1f17d72c75e4994d656a9da9fcd5aeb93c10a1f",
+          "bytes": 1848,
+          "mode": "0600",
+          "uid": 0,
+          "gid": 0,
+          "regular": true
+        }
+      ]
+    }
+  },
+  "new_manifest_sha256": "f74a702a1f86515235820ee89c0f9cb057b30674c6be13decbed6be0ef2716b9",
+  "new_manifest_bytes": 1868,
+  "exact_three_manifest_fields_changed": true,
+  "exact_raw_R8_manifest_rollback": true,
+  "all_six_other_installed_files_unchanged": {
+    "/usr/sbin/samurai-charging": "61451ffea87cca466dbbb2f1a2c6e7c05d0eee517479e8b019d43b1869355aa4",
+    "/etc/init.d/samurai-charging": "bfed48ebbcaced5f017110564045eef500a88f12fefe7ebff6d1e74cabfe570a",
+    "/usr/lib/samurai-charging/control-trial.py": "c33cb2eec24031e72a5f1dda9b94c05607615e0b12a14ba3cecd6db56c820761",
+    "/usr/lib/samurai-charging/live-session.py": "2199d7d413b2f4a5aeaa8270c20e967f5da711397c29e959e59463c1a5715f2b",
+    "/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-mp2650.ko": "10ec06fb9d798d72e08495617cfc04e7e49c77e536a12f205053e9cdbfa6297f",
+    "/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-gauge-protection.ko": "75b97e0d6b906ec600171ce68adec6f25a91556758f76bbf3d563cf831e783c7"
+  },
+  "USB_actual_archive_bytes_equal_saved2691_and7d4": true,
+  "old_and_new_actual_ELF_notes_equal_cohort": true,
+  "caps_protection_manager_and_startup500_retained": true,
+  "cohort_sha256": "b1d8c30b1a66296e3ae66e53a122c864bd174f665170e88b3fe1669fd8e8a795",
+  "source_and_both_input_hashes_match_result": true,
+  "original_reported_host_termination": {
+    "build_chunk": "addbcf",
+    "build_exit_code": 0,
+    "read_only_audit_chunk": "965081",
+    "audit_exit_code": 0,
+    "source": "root original owner observation; reviewer did not repeat entry points"
+  },
+  "bound_inherited_limits": [
+    "saved502 ace2 rollback and original rootfs pair must both align by normal restart",
+    "original current501/prepared502 remains separate; new transaction/fresh actual identity required",
+    "no hot-unload/replay and no loaded-note equality claimed before future cold boot",
+    "native9271/boot97811 and all original protection/limits remain; physical PM/USB/icon acceptance pending"
+  ],
+  "reviewer_actions": {
+    "read_only_tar_manifest_ELF_note_and_result": true,
+    "entrypoint_or_old_test_or_build_or_audit_rerun": false,
+    "new_payload_or_device_SDK_284_Git_action": false
+  }
+}

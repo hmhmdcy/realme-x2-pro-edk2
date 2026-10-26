@@ -1,0 +1,64 @@
+{
+    "captured_at":  "2026-10-09T22:50:58.8843139+08:00",
+    "ps_version":  "5.1.26100.9549",
+    "runtime":  "4.0.30319.42000",
+    "assembly":  "System, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089",
+    "assembly_path":  "C:\\WINDOWS\\Microsoft.Net\\assembly\\GAC_MSIL\\System\\v4.0_4.0.0.0__b77a5c561934e089\\System.dll",
+    "assembly_sha256":  "2b3c17c6208a0b4b6beb94e1a066f99ba06cdb2ea919479e99d47e8c6d96dc71",
+    "methods":  [
+                    {
+                        "type":  "System.IO.Ports.SerialStream",
+                        "name":  "get_BytesToRead",
+                        "calls":  [
+                                      "0010 call Microsoft.Win32.UnsafeNativeMethods.ClearCommError",
+                                      "0017 call System.IO.Ports.InternalResources.WinIOError"
+                                  ]
+                    },
+                    {
+                        "type":  "System.IO.Ports.SerialPort",
+                        "name":  "get_BytesToRead",
+                        "calls":  [
+                                      "0001 call System.IO.Ports.SerialPort.get_IsOpen",
+                                      "000d call System.SR.GetString",
+                                      "0012 newobj System.InvalidOperationException..ctor",
+                                      "001e callvirt System.IO.Ports.SerialStream.get_BytesToRead",
+                                      "0024 call System.IO.Ports.SerialPort.get_CachedBytesToRead"
+                                  ]
+                    },
+                    {
+                        "type":  "System.IO.Ports.SerialPort",
+                        "name":  "Read",
+                        "calls":  [
+                                      "0001 call System.IO.Ports.SerialPort.get_IsOpen",
+                                      "000d call System.SR.GetString",
+                                      "0012 newobj System.InvalidOperationException..ctor",
+                                      "0025 call System.SR.GetString",
+                                      "002a newobj System.ArgumentNullException..ctor",
+                                      "003e call System.SR.GetString",
+                                      "0043 newobj System.ArgumentOutOfRangeException..ctor",
+                                      "0057 call System.SR.GetString",
+                                      "005c newobj System.ArgumentOutOfRangeException..ctor",
+                                      "006f call System.SR.GetString",
+                                      "0074 newobj System.ArgumentException..ctor",
+                                      "007d call System.IO.Ports.SerialPort.get_CachedBytesToRead",
+                                      "0086 call System.IO.Ports.SerialPort.get_CachedBytesToRead",
+                                      "008c call System.Math.Min",
+                                      "00a1 call System.Buffer.BlockCopy",
+                                      "00d9 call System.IO.Ports.SerialPort.get_BytesToRead",
+                                      "0102 callvirt System.IO.Stream.Read",
+                                      "010f callvirt System.Text.Decoder.Reset"
+                                  ]
+                    },
+                    {
+                        "type":  "System.IO.Ports.SerialStream+EventLoopRunner",
+                        "name":  "CallEvents",
+                        "calls":  [
+                                      "0018 call Microsoft.Win32.UnsafeNativeMethods.ClearCommError",
+                                      "0026 call System.Threading.Thread.MemoryBarrier",
+                                      "0043 call System.Threading.ThreadPool.QueueUserWorkItem",
+                                      "005e call System.Threading.ThreadPool.QueueUserWorkItem",
+                                      "0075 call System.Threading.ThreadPool.QueueUserWorkItem"
+                                  ]
+                    }
+                ]
+}

@@ -1,0 +1,10 @@
+from pathlib import Path
+root=Path('/mnt/e/RealmeX2Pro edk2')
+base=(root/'reference/kernel117/audit-public.py').read_text()
+base=base.replace('for stage in [114,115,117]:','for stage in [114,115,117,118,119,120,121,122]:')
+base=base.replace("'sessions/117-parser-boundaries-and-same-boot-desktop-recovery.md']","'sessions/117-parser-boundaries-and-same-boot-desktop-recovery.md','sessions/118-final-reset-read-build-and-host-space-recovery.md','sessions/119-k118-deployment-and-real-gpu-pixel-failure.md','sessions/120-cci-device-tree-and-camera-pmic-contract.md','sessions/121-pm8008-no-irq-and-native-reset-contract.md','sessions/122-complete-k121-rootfs-and-verified-build-cleanup.md']")
+base=base.replace('range(109,118)','range(109,123)')
+base=base.replace("assert '#115' in hardware and '117' in hardware", "assert '#118' in hardware and '122' in hardware")
+base=base.replace('current_kernel=115,current_same_boot_display_recovery_documented=True,offline_candidate=116,','current_kernel=118,current_gpu_failure_still_open=True,offline_camera_candidate=121,cci_build_and_pmic_gaps_documented=True,graphics_acceptance=False,')
+base=base.replace('reference/kernel117/public-audit.json','reference/kernel122/public-audit.json')
+exec(compile(base,'reused-public-auditor-120','exec'),{})

@@ -1,0 +1,91 @@
+{
+  "date": "2026-10-23",
+  "all_six_static_issue_classes_fixed_in_sources_or_isolated_candidates": true,
+  "priorities": {
+    "P1_fixed": 2,
+    "P2_classes_fixed": 4
+  },
+  "gatt": {
+    "passed": true,
+    "actual_method_cases": 29,
+    "server_sha256": "a1f7c44c8e863bf1fcec9e9e507c4e9d621b0410b17e38b9750f76cae33c9004"
+  },
+  "kernel": {
+    "asan_ubsan": true,
+    "original_uaf_reproduced": true,
+    "serdev_cases": 5,
+    "pm_regressions": 19,
+    "new_failure_cases": 6,
+    "objects_werror_compiled": 2,
+    "object_hashes": {
+      "hci_serdev-static-fixes-k363.o": "2473b122bde4d9e7fa69e2bd982debb9e02d51292cdb6c73165703417baca46a",
+      "hci_qca-static-fixes-k363.o": "7ba3d194b9abc73e8ad389b46e988125221535657a8ace2347ec9f9b72787d3d"
+    },
+    "first_finalization_failure_preserved": true,
+    "owned_generated_headers_synchronized": true,
+    "shared_inputs_and_prior_artifacts_hashes_rechecked": true,
+    "module_or_image_linked": true,
+    "image_linked": false,
+    "complete_module_report": "kernel/converged-module-validation.json",
+    "complete_module_imports": 183,
+    "complete_module_sha256": "d2a4a90363c7b30b2339ef09c01a4c61670534fae836695a9de989e001c319cc",
+    "mutable_link_paths_restored": 58
+  },
+  "radio": {
+    "passed": true,
+    "failure_cases": 8,
+    "success_cache_and_two_radio_locks_passed": true,
+    "candidate_sha256": "33749acb96586d77046f0a47bf1bbf0920e3c6f6fc27f3f627386f60beffd0a7",
+    "old_recipe_helper_unchanged": true,
+    "platform_recipe_delta": "radio/integration/README.md",
+    "actual_package_staging_passed": true,
+    "changed_payloads": [
+      "usr/sbin/samurai-radio-address"
+    ],
+    "unchanged_payloads": 18,
+    "platform_apk_signed": false,
+    "current_complete_platform_baseline_confirmed": false
+  },
+  "host_audio": {
+    "passed": true,
+    "cases": 11,
+    "source_sha256": {
+      "reference/bluetooth-20261023/run-gatt-window.py": "5d31c333629cd591493b9b957a005b3741c818b5bef9bb6646d1c27dfaef3906",
+      "reference/bluetooth-speaker-20261023/low-volume-speaker.py": "b9c6dbcb27e16efdbf4c5edac0385be1ca25f8d76ed4567350b69c8d2d9dc7a1"
+    },
+    "volume_requested_percent": 10,
+    "report": "host/convergence-validation.json",
+    "prior_9_case_report_retained": "host/validation.json",
+    "seconds_constant_shared": true,
+    "pulse_client_context_shared": true
+  },
+  "unchanged_function_sha256_reused_for_existing_evidence": {
+    "runtime_identity": "6bf3dd965f9f2614bc83e263c705e6b91acbb4878437e8d7d7b01b22fc0fa80a",
+    "key_fingerprint": "c9504872a28ea557f59ae5e27db47ea18d0f21ddc70ed573f0845fa595304d0a",
+    "PeerRun.set_adapter": "df2025137c1423f62765dce056c28f30e9f4057204354c2b4513d7e0d3dd6e70",
+    "PeerRun.authorize": "10dbe624b86e83fbec0b773f12f5222a5c603c42a28bdd8dbd6b4fbdba9abc96",
+    "coordinate": "59611904d596972519779272409d65eceeb15357d6ee70bb23617529cdfe8a89",
+    "eligible": "52fa8da377bd59b44d39462ac55fbbdf522f435b13e2b40bb9682270c47d2481",
+    "tone": "09bbf70238d539fdb5e85bb54309f8f6c62dc3690019759ef82e6e37da8e27f5",
+    "volume_safe": "079e1db3ca0902f29b15d962f1917705966dd3ecf16bf7ab2509e269769e9b8f",
+    "Window.target": "a475cfe68fecfb781f34d11b252a3516204ae06ee370c427bf4fd0724f759038",
+    "Window.sink": "64eaee125f925e995065581bf3e228a194d33c59f5d9f3329c690caecc258ba8"
+  },
+  "candidate_integration": {
+    "kernel_and_radio_as_independent_sources_and_patches": true,
+    "new_apk_signed": true,
+    "candidate_installed_or_loaded": false,
+    "shared_kernel_source_or_sdk_written": false,
+    "package": "samurai-bluetooth-k363-0.1.0-r3.apk",
+    "package_sha256": "0e5216fdb3af85125a78bc34888bc253d7044a9de4cd88b71ef03adb9624afcc",
+    "package_bytes": 127346,
+    "independent_signed_builds_byte_identical": true,
+    "offline_r0_to_r3_payload_upgrade_passed": true,
+    "real_r3_install_transaction_or_rollback_tested": false,
+    "platform_helper_only_staging": true,
+    "existing_apk_builder_and_validator_reused": true
+  },
+  "phone_ssh_winrt_bluetooth_or_audio_device_test_run": false,
+  "full_bluetooth_hardware_goal_complete": false,
+  "scope": "six static fixes plus driver package, platform recipe delta, and tool entry point convergence"
+}

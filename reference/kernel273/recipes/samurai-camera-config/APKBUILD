@@ -1,0 +1,31 @@
+# Device configuration only; camera and kernel binaries are packaged separately.
+pkgname=samurai-camera-config
+pkgver=0.1.0
+pkgrel=16
+pkgdesc="Realme X2 Pro libcamera CPU ISP and generic camera heap access"
+url="https://github.com/hmhmdcy/edk2-realme-x2-pro"
+arch="noarch"
+license="LicenseRef-Local-Project"
+depends="libcamera=99990.7.2-r21 libcamera-ipa=99990.7.2-r21 openrc eudev"
+subpackages="samurai-camera-stack:stack"
+options="!check"
+source="configuration.yaml samurai-camera-heaps.conf 70-samurai-camera-heaps.rules"
+
+package() {
+	install -Dm644 "$srcdir"/configuration.yaml "$pkgdir"/etc/libcamera/configuration.yaml
+	install -Dm644 "$srcdir"/samurai-camera-heaps.conf "$pkgdir"/etc/modules-load.d/samurai-camera-heaps.conf
+	install -Dm644 "$srcdir"/70-samurai-camera-heaps.rules "$pkgdir"/etc/udev/rules.d/70-samurai-camera-heaps.rules
+	chmod 755 "$pkgdir"/etc/libcamera
+}
+
+stack() {
+	pkgdesc="Pinned Realme X2 Pro camera framework and device configuration"
+	depends="samurai-camera-config=$pkgver-r$pkgrel libcamera=99990.7.2-r21 libcamera-ipa=99990.7.2-r21 libcamera-tools=99990.7.2-r21 libcamera-gstreamer=99990.7.2-r21 libcamera-v4l2=99990.7.2-r21"
+	mkdir -p "$subpkgdir"
+}
+
+sha512sums="
+695890855f7114b76719fd89d1aae433c2cdfac04aac4f59793cbbe862f3cf3df9ae1b4f32c7692eaec668d6cb82c9abab23ac88928b600cbb3fb3e57d675df7  configuration.yaml
+94ea1c0cba212cc0b0ede1638cb96bf6533395d123984716f9fed25bcfcb97b469b1fb40f7e7e701b74b4e5f417e85f9ae5b4742300ed0791e5e9b441b27ccf5  samurai-camera-heaps.conf
+2d1987abb9bad59b74dd8ef271ee57c49e8058895a85cf1473a25d1e4f11402e0e479c26cd4ab13caf1dd30814a21261243dcdb5782e77b151af61456fffcf5a  70-samurai-camera-heaps.rules
+"

@@ -1,0 +1,4 @@
+from pathlib import Path
+ref=Path(__file__).resolve().parent;s=(ref.parent/'kernel197/run-candidate-tpg-control.py').read_text().replace('k197-baseline','k198-baseline').replace('k197-tpg-candidate','k198-tpg-clock-diagnostic').replace('stage=197','stage=198').replace('k197-modules/qcom-camss.ko','k198-modules/qcom-camss-clock-trace.ko').replace('k197-modules/camss-diagnostic-module-build-validation.json','k198-modules/clock-diagnostic-module-build-validation.json').replace("['insmod',str(candidate)]","['insmod',str(candidate),'clock_trace=1']")
+s=s.replace("print(after[len(before):].decode(errors='replace')[-3000:])","print(after[len(before):].decode(errors='replace')[-16000:])")
+(ref/'run-tpg-clock-diagnostic.py').write_text(s);print('Prepared bounded TPG with read-only per-clock status diagnostics')

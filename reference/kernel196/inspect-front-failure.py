@@ -1,0 +1,5 @@
+from pathlib import Path
+import json,subprocess
+assert Path('/proc/sys/kernel/random/boot_id').read_bytes()==Path('/var/lib/samurai/k196-baseline/boot-id-private.txt').read_bytes()
+p=Path('/var/lib/samurai/k196-front-probe/summary.json');r=json.loads(p.read_text()) if p.exists() else {};mods={n:Path('/sys/module/'+n).exists() for n in ['samurai_front_overlay','imx471','qcom_pm8008','qcom_pm8008_regulator','samurai_vio_phandle','samurai_cci_bringup','i2c_qcom_cci','v4l2_cci']};lines=subprocess.check_output(['dmesg'],text=True).splitlines();selected=[l for l in lines if any(s in l for s in ['imx471','samurai front overlay','OF: overlay','cam-front-','7-0010','PM8008','pm8008'])]
+print(json.dumps(dict(modules=mods,taint=Path('/proc/sys/kernel/tainted').read_text().strip(),report_keys=list(r),attempts=r.get('attempts'),pm_observations=r.get('pm_observations'),gpios_after_restore=r.get('gpios_after_restore'),last_selected_log=selected[-28:],command_logs={p.name:p.read_text() for p in sorted(Path('/var/lib/samurai/k196-front-probe').glob('command-*-private.log'))})))

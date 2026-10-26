@@ -1,0 +1,34 @@
+{
+  "source_view": "/home/cy122/charging-management-20261023/source-view",
+  "private_build": "/home/cy122/charging-management-20261023/kbuild-integrated",
+  "modules": {
+    "samurai-mp2650": {
+      "path": "/home/cy122/charging-management-20261023/kbuild-integrated/drivers/power/supply/samurai-mp2650.ko",
+      "modinfo": "filename:       /home/cy122/charging-management-20261023/kbuild-integrated/drivers/power/supply/samurai-mp2650.ko\nlicense:        GPL\ndescription:    RMX1931 OEM-profile managed MP2650 charging candidate\nalias:          of:N*T*Crealme,samurai-mp2650-managedC*\nalias:          of:N*T*Crealme,samurai-mp2650-managed\nalias:          i2c:mp2650\ndepends:        \nintree:         Y\nname:           samurai_mp2650\nvermagic:       7.3.0-rc6-rmx1931-samurai-k363+ SMP preempt mod_unload aarch64\nparm:           control:Enable managed writes; default is shadow mode (bool)\nparm:           runtime_board:Use the observed RMX1931 board wiring without changing DT (bool)\n",
+      "sha256": "9d9e1cd7fb0e68b741b315c1f8d74caf05288dccc38dc8024c3a64cb8d631016"
+    },
+    "samurai-usb-input": {
+      "path": "/home/cy122/charging-management-20261023/kbuild-integrated/drivers/power/supply/samurai-usb-input.ko",
+      "modinfo": "filename:       /home/cy122/charging-management-20261023/kbuild-integrated/drivers/power/supply/samurai-usb-input.ko\nlicense:        GPL\ndescription:    RMX1931 read-only PM8150B USB input budget observer\nalias:          of:N*T*Crealme,rmx1931-usb-inputC*\nalias:          of:N*T*Crealme,rmx1931-usb-input\ndepends:        \nintree:         Y\nname:           samurai_usb_input\nvermagic:       7.3.0-rc6-rmx1931-samurai-k363+ SMP preempt mod_unload aarch64\nparm:           register_board:Create a PM8150B read-only input device using observed board wiring (bool)\nparm:           native_retained:Native DWC3 reference requires this provider until next boot (bool)\n",
+      "sha256": "c77724ba582f66905ca08d1b185926a540691bd559614d20fa574d4b35492e3e"
+    },
+    "samurai-gauge-protection": {
+      "path": "/home/cy122/charging-management-20261023/kbuild-integrated/drivers/power/supply/samurai-gauge-protection.ko",
+      "modinfo": "filename:       /home/cy122/charging-management-20261023/kbuild-integrated/drivers/power/supply/samurai-gauge-protection.ko\nlicense:        GPL\ndescription:    RMX1931 factory-family gauge protection status, no protection writes\nalias:          of:N*T*Crealme,samurai-gauge-protectionC*\nalias:          of:N*T*Crealme,samurai-gauge-protection\ndepends:        \nintree:         Y\nname:           samurai_gauge_protection\nvermagic:       7.3.0-rc6-rmx1931-samurai-k363+ SMP preempt mod_unload aarch64\nparm:           register_board:Create the RMX1931 observation device without changing DT (bool)\n",
+      "sha256": "75b97e0d6b906ec600171ce68adec6f25a91556758f76bbf3d563cf831e783c7"
+    }
+  },
+  "sources": {
+    "samurai-mp2650.c": "986e16af8289deedcbf2885211c5cd407ca2c0aff2692ca4bc7fdbfa3a6a458e",
+    "mp2650-core.h": "f9ffc2d380967d787d042c9780c5e5968a6e46d902089b7ad1ba511d5ba00af3",
+    "charge-cycle.h": "1ad3e8a4cdb4fa2dabc979c58265ff76efb2074a54dbc54ce811ca2485c42782",
+    "charging-notify.h": "20a03e02c884a8e1c9307373e67f10ca5836cbd75a8507a08c7a18b3d436baba",
+    "oem-profile.h": "14a425065aadcca1cc38efcc75cb112c0c25ac05567195b04feaa2bec21b0729",
+    "gauge-protocol.h": "0903f3fa9740f8645dfc8fb5c16f9a35ded63c4ea06f5c9c93475e37bc375f0f",
+    "gauge-i2c.h": "897a961d765f794af2358205b46998ac4889f4ad9e91db2265d99cd70d701e77",
+    "samurai-usb-input.c": "b712764fbd4ab24475ae1ba030ee4c26c7eb048a6038488a5435b44ef7eb7098",
+    "samurai-usb-input-decode.h": "55a947826821267c4e90d8291ded852ce34dba1658e3d4e8f487f41373fc25b0",
+    "samurai-gauge-protection.c": "5d77236d555f13fae56adf4a5fcbbb719a9fab9745ae04c02aa558edf39a45b6"
+  },
+  "configuration_differences": {}
+}

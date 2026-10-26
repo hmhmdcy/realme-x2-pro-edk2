@@ -1,0 +1,425 @@
+Subject: [PATCH] slimbus: qcom-ngd: preserve PM and DMA lifecycle on failures
+
+Propagate runtime-resume and DMA setup failures to callers, abort transfers
+after failed PM get, and retain DMA when the remote rejects suspension.
+Release coherent queues after termination and keep QMI readiness until
+disconnect. Reset stale runtime-PM state at service-up after SSR.
+
+ASoC: wcd934x: stop hardware initialization after transport or efuse errors
+and defer probing when the SLIM device is down. Allocate Class-H state only
+after the version has been read successfully.
+
+diff --git a/drivers/slimbus/messaging.c b/drivers/slimbus/messaging.c
+index 4e6da8cb6..956453a48 100644
+--- a/drivers/slimbus/messaging.c
++++ b/drivers/slimbus/messaging.c
+@@ -129,6 +129,10 @@ int slim_do_transfer(struct slim_controller *ctrl, struct slim_msg_txn *txn)
+ 
+ 	if (!clk_pause_msg) {
+ 		ret = pm_runtime_get_sync(ctrl->dev);
++		if (ret < 0) {
++			pm_runtime_put_noidle(ctrl->dev);
++			return ret;
++		}
+ 		if (ctrl->sched.clk_state != SLIM_CLK_ACTIVE) {
+ 			dev_err(ctrl->dev, "ctrl wrong state:%d, ret:%d\n",
+ 				ctrl->sched.clk_state, ret);
+diff --git a/drivers/slimbus/qcom-ngd-ctrl.c b/drivers/slimbus/qcom-ngd-ctrl.c
+index 150508787..fe7666446 100644
+--- a/drivers/slimbus/qcom-ngd-ctrl.c
++++ b/drivers/slimbus/qcom-ngd-ctrl.c
+@@ -406,6 +406,8 @@ static int qcom_slim_qmi_send_power_request(struct qcom_slim_ngd_ctrl *ctrl,
+ 
+ 	rc = qmi_txn_init(ctrl->qmi.handle, &txn,
+ 				slimbus_power_resp_msg_v01_ei, &resp);
++	if (rc < 0)
++		return rc;
+ 
+ 	rc = qmi_send_request(ctrl->qmi.handle, NULL, &txn,
+ 				SLIMBUS_QMI_POWER_REQ_V01,
+@@ -504,6 +506,7 @@ static void qcom_slim_qmi_exit(struct qcom_slim_ngd_ctrl *ctrl)
+ 	if (!ctrl->qmi.handle)
+ 		return;
+ 
++	reinit_completion(&ctrl->qmi.qmi_comp);
+ 	qmi_handle_release(ctrl->qmi.handle);
+ 	devm_kfree(ctrl->dev, ctrl->qmi.handle);
+ 	ctrl->qmi.handle = NULL;
+@@ -712,9 +715,12 @@ static int qcom_slim_ngd_init_rx_msgq(struct qcom_slim_ngd_ctrl *ctrl)
+ 	return 0;
+ 
+ rx_post_err:
++	dmaengine_terminate_sync(ctrl->dma_rx_channel);
+ 	dma_free_coherent(dev, size, ctrl->rx_base, ctrl->rx_phys_base);
+ rel_rx:
++	ctrl->rx_base = NULL;
+ 	dma_release_channel(ctrl->dma_rx_channel);
++	ctrl->dma_rx_channel = NULL;
+ 	return ret;
+ }
+ 
+@@ -737,7 +743,7 @@ static int qcom_slim_ngd_init_tx_msgq(struct qcom_slim_ngd_ctrl *ctrl)
+ 	ctrl->tx_base = dma_alloc_coherent(dev, size, &ctrl->tx_phys_base,
+ 					   GFP_KERNEL);
+ 	if (!ctrl->tx_base) {
+-		ret = -EINVAL;
++		ret = -ENOMEM;
+ 		goto rel_tx;
+ 	}
+ 
+@@ -749,9 +755,12 @@ static int qcom_slim_ngd_init_tx_msgq(struct qcom_slim_ngd_ctrl *ctrl)
+ 	return 0;
+ rel_tx:
+ 	dma_release_channel(ctrl->dma_tx_channel);
++	ctrl->dma_tx_channel = NULL;
+ 	return ret;
+ }
+ 
++static int qcom_slim_ngd_exit_dma(struct qcom_slim_ngd_ctrl *ctrl);
++
+ static int qcom_slim_ngd_init_dma(struct qcom_slim_ngd_ctrl *ctrl)
+ {
+ 	int ret = 0;
+@@ -763,8 +772,10 @@ static int qcom_slim_ngd_init_dma(struct qcom_slim_ngd_ctrl *ctrl)
+ 	}
+ 
+ 	ret = qcom_slim_ngd_init_tx_msgq(ctrl);
+-	if (ret)
++	if (ret) {
+ 		dev_err(ctrl->dev, "tx dma init failed\n");
++		qcom_slim_ngd_exit_dma(ctrl);
++	}
+ 
+ 	return ret;
+ }
+@@ -868,6 +879,10 @@ static int qcom_slim_ngd_xfer_msg(struct slim_controller *sctrl,
+ 	}
+ 
+ 	mutex_lock(&ctrl->tx_lock);
++	if (!ctrl->dma_tx_channel || !ctrl->dma_rx_channel) {
++		ret = -EHOSTDOWN;
++		goto err_unlock;
++	}
+ 	pbuf = qcom_slim_ngd_tx_msg_get(ctrl, txn->rl, &tx_sent);
+ 	if (!pbuf) {
+ 		dev_err(ctrl->dev, "Message buffer unavailable\n");
+@@ -1165,17 +1180,33 @@ static int qcom_slim_ngd_exit_dma(struct qcom_slim_ngd_ctrl *ctrl)
+ 	}
+ 
+ 	ctrl->dma_tx_channel = ctrl->dma_rx_channel = NULL;
++	if (ctrl->rx_base) {
++		dma_free_coherent(ctrl->dev,
++				  QCOM_SLIM_NGD_DESC_NUM * SLIM_MSGQ_BUF_LEN,
++				  ctrl->rx_base, ctrl->rx_phys_base);
++		ctrl->rx_base = NULL;
++	}
++	if (ctrl->tx_base) {
++		dma_free_coherent(ctrl->dev,
++				  (QCOM_SLIM_NGD_DESC_NUM + 1) * SLIM_MSGQ_BUF_LEN,
++				  ctrl->tx_base, ctrl->tx_phys_base);
++		ctrl->tx_base = NULL;
++	}
+ 
+ 	return 0;
+ }
+ 
+-static void qcom_slim_ngd_setup(struct qcom_slim_ngd_ctrl *ctrl)
++static int qcom_slim_ngd_setup(struct qcom_slim_ngd_ctrl *ctrl)
+ {
+ 	u32 cfg = readl_relaxed(ctrl->ngd->base);
++	int ret;
+ 
+ 	if (ctrl->state == QCOM_SLIM_NGD_CTRL_DOWN ||
+-		ctrl->state == QCOM_SLIM_NGD_CTRL_ASLEEP)
+-		qcom_slim_ngd_init_dma(ctrl);
++	    ctrl->state == QCOM_SLIM_NGD_CTRL_ASLEEP) {
++		ret = qcom_slim_ngd_init_dma(ctrl);
++		if (ret)
++			return ret;
++	}
+ 
+ 	/* By default enable message queues */
+ 	cfg |= NGD_CFG_RX_MSGQ_EN;
+@@ -1186,6 +1217,8 @@ static void qcom_slim_ngd_setup(struct qcom_slim_ngd_ctrl *ctrl)
+ 		cfg |= NGD_CFG_ENABLE;
+ 
+ 	writel_relaxed(cfg, ctrl->ngd->base);
++
++	return 0;
+ }
+ 
+ static int qcom_slim_ngd_power_up(struct qcom_slim_ngd_ctrl *ctrl)
+@@ -1226,8 +1259,7 @@ static int qcom_slim_ngd_power_up(struct qcom_slim_ngd_ctrl *ctrl)
+ 			dev_info(ctrl->dev, "Subsys restart: ADSP active framer\n");
+ 			return 0;
+ 		}
+-		qcom_slim_ngd_setup(ctrl);
+-		return 0;
++		return qcom_slim_ngd_setup(ctrl);
+ 	}
+ 
+ 	/*
+@@ -1241,7 +1273,9 @@ static int qcom_slim_ngd_power_up(struct qcom_slim_ngd_ctrl *ctrl)
+ 
+ 	writel_relaxed(rx_msgq|SLIM_RX_MSGQ_TIMEOUT_VAL,
+ 				ngd->base + NGD_RX_MSGQ_CFG);
+-	qcom_slim_ngd_setup(ctrl);
++	ret = qcom_slim_ngd_setup(ctrl);
++	if (ret)
++		return ret;
+ 
+ 	time_left = wait_for_completion_timeout(&ctrl->reconf, HZ);
+ 	if (!time_left) {
+@@ -1331,7 +1365,7 @@ static int qcom_slim_ngd_runtime_resume(struct device *dev)
+ 	int ret = 0;
+ 
+ 	if (!ctrl->qmi.handle)
+-		return 0;
++		return -ENOTCONN;
+ 
+ 	if (ctrl->state >= QCOM_SLIM_NGD_CTRL_ASLEEP)
+ 		ret = qcom_slim_ngd_power_up(ctrl);
+@@ -1341,11 +1375,16 @@ static int qcom_slim_ngd_runtime_resume(struct device *dev)
+ 			ctrl->state = QCOM_SLIM_NGD_CTRL_ASLEEP;
+ 		else
+ 			dev_err(ctrl->dev, "HW wakeup attempt during SSR\n");
++		dev_err_ratelimited(ctrl->dev,
++				    "NGD resume failed: ret=%d state=%d tx=%d rx=%d\n",
++				    ret, ctrl->state, !!ctrl->dma_tx_channel,
++				    !!ctrl->dma_rx_channel);
++		qcom_slim_ngd_exit_dma(ctrl);
+ 	} else {
+ 		ctrl->state = QCOM_SLIM_NGD_CTRL_AWAKE;
+ 	}
+ 
+-	return 0;
++	return ret;
+ }
+ 
+ static int qcom_slim_ngd_enable(struct qcom_slim_ngd_ctrl *ctrl, bool enable)
+@@ -1359,12 +1398,21 @@ static int qcom_slim_ngd_enable(struct qcom_slim_ngd_ctrl *ctrl, bool enable)
+ 			return ret;
+ 		}
+ 		/* controller state should be in sync with framework state */
+-		complete(&ctrl->qmi.qmi_comp);
+-		if (!pm_runtime_enabled(ctrl->ctrl.dev) ||
+-			 !pm_runtime_suspended(ctrl->ctrl.dev))
+-			qcom_slim_ngd_runtime_resume(ctrl->ctrl.dev);
+-		else
+-			pm_runtime_resume(ctrl->ctrl.dev);
++		complete_all(&ctrl->qmi.qmi_comp);
++		if (pm_runtime_enabled(ctrl->ctrl.dev)) {
++			/* SSR invalidates both DMA and the old runtime-PM state. */
++			pm_runtime_disable(ctrl->ctrl.dev);
++			if (ctrl->state == QCOM_SLIM_NGD_CTRL_DOWN)
++				ret = pm_runtime_set_suspended(ctrl->ctrl.dev);
++			pm_runtime_enable(ctrl->ctrl.dev);
++			if (ret < 0)
++				return ret;
++			ret = pm_runtime_resume(ctrl->ctrl.dev);
++		} else {
++			ret = qcom_slim_ngd_runtime_resume(ctrl->ctrl.dev);
++		}
++		if (ret < 0)
++			return ret;
+ 
+ 		pm_runtime_mark_last_busy(ctrl->ctrl.dev);
+ 		pm_runtime_put(ctrl->ctrl.dev);
+@@ -1744,9 +1792,10 @@ static int __maybe_unused qcom_slim_ngd_runtime_suspend(struct device *dev)
+ 	struct qcom_slim_ngd_ctrl *ctrl = dev_get_drvdata(dev);
+ 	int ret = 0;
+ 
+-	qcom_slim_ngd_exit_dma(ctrl);
+-	if (!ctrl->qmi.handle)
++	if (!ctrl->qmi.handle) {
++		qcom_slim_ngd_exit_dma(ctrl);
+ 		return 0;
++	}
+ 
+ 	ret = qcom_slim_qmi_power_request(ctrl, false);
+ 	if (ret)
+@@ -1756,8 +1805,10 @@ static int __maybe_unused qcom_slim_ngd_runtime_suspend(struct device *dev)
+ 			      !!ctrl->dma_rx_channel);
+ 	if (ret && ret != -EBUSY)
+ 		dev_info(ctrl->dev, "slim resource not idle:%d\n", ret);
+-	if (!ret || ret == -ETIMEDOUT)
++	if (!ret) {
++		qcom_slim_ngd_exit_dma(ctrl);
+ 		ctrl->state = QCOM_SLIM_NGD_CTRL_ASLEEP;
++	}
+ 
+ 	return ret;
+ }
+diff --git a/sound/soc/codecs/wcd934x.c b/sound/soc/codecs/wcd934x.c
+index 6f3fec95f..69ba07c50 100644
+--- a/sound/soc/codecs/wcd934x.c
++++ b/sound/soc/codecs/wcd934x.c
+@@ -1355,7 +1355,7 @@ static int __wcd934x_cdc_mclk_enable(struct wcd934x_codec *wcd, bool enable)
+ 		}
+ 		ret = wcd934x_enable_ana_bias_and_sysclk(wcd);
+ 	} else {
+-		int val;
++		int val = 0;
+ 
+ 		regmap_read(wcd->regmap, WCD934X_CDC_CLK_RST_CTRL_SWR_CONTROL,
+ 			    &val);
+@@ -1403,8 +1403,12 @@ static int wcd934x_get_version(struct wcd934x_codec *wcd)
+ 	if (ret)
+ 		return ret;
+ 
+-	regmap_read(regmap, WCD934X_CHIP_TIER_CTRL_EFUSE_VAL_OUT14, &val1);
+-	regmap_read(regmap, WCD934X_CHIP_TIER_CTRL_EFUSE_VAL_OUT15, &val2);
++	ret = regmap_read(regmap, WCD934X_CHIP_TIER_CTRL_EFUSE_VAL_OUT14, &val1);
++	if (ret)
++		return ret;
++	ret = regmap_read(regmap, WCD934X_CHIP_TIER_CTRL_EFUSE_VAL_OUT15, &val2);
++	if (ret)
++		return ret;
+ 
+ 	version_mask |= (!!((u8)val1 & 0x80)) << DSD_DISABLED_MASK;
+ 	version_mask |= (!!((u8)val2 & 0x01)) << SLNQ_DISABLED_MASK;
+@@ -1430,34 +1434,45 @@ static int wcd934x_get_version(struct wcd934x_codec *wcd)
+ 	return 0;
+ }
+ 
+-static void wcd934x_enable_efuse_sensing(struct wcd934x_codec *wcd)
++static int wcd934x_enable_efuse_sensing(struct wcd934x_codec *wcd)
+ {
+-	int rc, val;
++	int ret, val;
+ 
+-	__wcd934x_cdc_mclk_enable(wcd, true);
++	ret = __wcd934x_cdc_mclk_enable(wcd, true);
++	if (ret)
++		return ret;
+ 
+-	regmap_update_bits(wcd->regmap,
+-			   WCD934X_CHIP_TIER_CTRL_EFUSE_CTL,
+-			   WCD934X_EFUSE_SENSE_STATE_MASK,
+-			   WCD934X_EFUSE_SENSE_STATE_DEF);
+-	regmap_update_bits(wcd->regmap,
+-			   WCD934X_CHIP_TIER_CTRL_EFUSE_CTL,
+-			   WCD934X_EFUSE_SENSE_EN_MASK,
+-			   WCD934X_EFUSE_SENSE_ENABLE);
++	ret = regmap_update_bits(wcd->regmap,
++				 WCD934X_CHIP_TIER_CTRL_EFUSE_CTL,
++				 WCD934X_EFUSE_SENSE_STATE_MASK,
++				 WCD934X_EFUSE_SENSE_STATE_DEF);
++	if (ret)
++		goto disable_mclk;
++	ret = regmap_update_bits(wcd->regmap,
++				 WCD934X_CHIP_TIER_CTRL_EFUSE_CTL,
++				 WCD934X_EFUSE_SENSE_EN_MASK,
++				 WCD934X_EFUSE_SENSE_ENABLE);
++	if (ret)
++		goto disable_mclk;
+ 	/*
+ 	 * 5ms sleep required after enabling efuse control
+ 	 * before checking the status.
+ 	 */
+ 	usleep_range(5000, 5500);
+-	wcd934x_set_sido_input_src(wcd, SIDO_SOURCE_RCO_BG);
++	ret = wcd934x_set_sido_input_src(wcd, SIDO_SOURCE_RCO_BG);
++	if (ret)
++		goto disable_mclk;
+ 
+-	rc = regmap_read(wcd->regmap,
+-			 WCD934X_CHIP_TIER_CTRL_EFUSE_STATUS, &val);
+-	if (rc || (!(val & 0x01)))
+-		WARN(1, "%s: Efuse sense is not complete val=%x, ret=%d\n",
+-		     __func__, val, rc);
++	ret = regmap_read(wcd->regmap,
++			  WCD934X_CHIP_TIER_CTRL_EFUSE_STATUS, &val);
++	if (!ret && !(val & 0x01)) {
++		dev_err(wcd->dev, "Efuse sense is not complete: val=%x\n", val);
++		ret = -EIO;
++	}
+ 
++disable_mclk:
+ 	__wcd934x_cdc_mclk_enable(wcd, false);
++	return ret;
+ }
+ 
+ static int wcd934x_swrm_clock(struct wcd934x_codec *wcd, bool enable)
+@@ -2198,27 +2213,37 @@ static int wcd934x_init_dmic(struct snd_soc_component *comp)
+ 	return 0;
+ }
+ 
+-static void wcd934x_hw_init(struct wcd934x_codec *wcd)
++static int wcd934x_hw_init(struct wcd934x_codec *wcd)
+ {
+ 	struct regmap *rm = wcd->regmap;
++	int ret;
+ 
+ 	/* set SPKR rate to FS_2P4_3P072 */
+-	regmap_update_bits(rm, WCD934X_CDC_RX7_RX_PATH_CFG1, 0x08, 0x08);
+-	regmap_update_bits(rm, WCD934X_CDC_RX8_RX_PATH_CFG1, 0x08, 0x08);
++	ret = regmap_update_bits(rm, WCD934X_CDC_RX7_RX_PATH_CFG1, 0x08, 0x08);
++	if (ret)
++		return ret;
++	ret = regmap_update_bits(rm, WCD934X_CDC_RX8_RX_PATH_CFG1, 0x08, 0x08);
++	if (ret)
++		return ret;
+ 
+ 	/* Take DMICs out of reset */
+-	regmap_update_bits(rm, WCD934X_CPE_SS_DMIC_CFG, 0x80, 0x00);
++	return regmap_update_bits(rm, WCD934X_CPE_SS_DMIC_CFG, 0x80, 0x00);
+ }
+ 
+ static int wcd934x_comp_init(struct snd_soc_component *component)
+ {
+ 	struct wcd934x_codec *wcd = dev_get_drvdata(component->dev);
+ 
+-	wcd934x_hw_init(wcd);
+-	wcd934x_enable_efuse_sensing(wcd);
+-	wcd934x_get_version(wcd);
++	int ret;
+ 
+-	return 0;
++	ret = wcd934x_hw_init(wcd);
++	if (ret)
++		return ret;
++	ret = wcd934x_enable_efuse_sensing(wcd);
++	if (ret)
++		return ret;
++
++	return wcd934x_get_version(wcd);
+ }
+ 
+ static irqreturn_t wcd934x_slim_irq_handler(int irq, void *data)
+@@ -2991,6 +3016,18 @@ static int wcd934x_comp_probe(struct snd_soc_component *component)
+ 	snd_soc_component_init_regmap(component, wcd->regmap);
+ 	wcd->component = component;
+ 
++	if (READ_ONCE(wcd->sdev->status) != SLIM_DEVICE_STATUS_UP)
++		return -EPROBE_DEFER;
++
++	ret = wcd934x_comp_init(component);
++	if (ret) {
++		if (ret == -EREMOTEIO || ret == -ENOTCONN ||
++		    ret == -EHOSTDOWN || ret == -EAGAIN)
++			ret = -EPROBE_DEFER;
++		return dev_err_probe(component->dev, ret,
++				     "Failed to initialize WCD934x hardware\n");
++	}
++
+ 	/* Class-H Init*/
+ 	wcd->clsh_ctrl = wcd_clsh_ctrl_alloc(component, wcd->version);
+ 	if (IS_ERR(wcd->clsh_ctrl))
+@@ -2999,8 +3036,6 @@ static int wcd934x_comp_probe(struct snd_soc_component *component)
+ 	/* Default HPH Mode to Class-H Low HiFi */
+ 	wcd->hph_mode = CLS_H_LOHIFI;
+ 
+-	wcd934x_comp_init(component);
+-
+ 	for (i = 0; i < NUM_CODEC_DAIS; i++)
+ 		INIT_LIST_HEAD(&wcd->dai[i].slim_ch_list);
+ 
+@@ -3008,6 +3043,7 @@ static int wcd934x_comp_probe(struct snd_soc_component *component)
+ 	ret = wcd934x_init_dmic(component);
+ 	if (ret) {
+ 		dev_err(component->dev, "Failed to Initialize micbias\n");
++		wcd_clsh_ctrl_free(wcd->clsh_ctrl);
+ 		return ret;
+ 	}
+ 

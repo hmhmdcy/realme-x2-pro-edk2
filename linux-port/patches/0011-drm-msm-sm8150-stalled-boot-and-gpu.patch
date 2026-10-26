@@ -1,0 +1,200 @@
+From: hmhmdcy <hmhmdcy@users.noreply.github.com>
+Subject: [PATCH] drm/msm: abort matched stalled SM8150 boot output and enable samurai A640
+
+A boot command frame can remain frozen after firmware exits. Stop its
+TE/trigger and require successful CTL resets covering every stalled INTF
+before attaching the DPU IOMMU. Track private-object initialization so
+hardware-init failure finalizes it once. Enable the existing A640/GMU
+nodes with the signed ZAP path from this handset.
+
+Signed-off-by: hmhmdcy <hmhmdcy@users.noreply.github.com>
+
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.c
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.c
+@@ -402,7 +402,11 @@
+ 
+ static void dpu_kms_global_obj_fini(struct dpu_kms *dpu_kms)
+ {
++	if (!dpu_kms->global_state_initialized)
++		return;
++
+ 	drm_atomic_private_obj_fini(&dpu_kms->global_state);
++	dpu_kms->global_state_initialized = false;
+ }
+ 
+ static int dpu_kms_parse_data_bus_icc_path(struct dpu_kms *dpu_kms)
+@@ -1156,6 +1160,7 @@
+ 
+ 	drm_atomic_private_obj_init(dpu_kms->dev, &dpu_kms->global_state,
+ 				    &dpu_kms_global_state_funcs);
++	dpu_kms->global_state_initialized = true;
+ 
+ 	atomic_set(&dpu_kms->bandwidth_ref, 0);
+ 
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.h b/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.h
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.h
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.h
+@@ -78,6 +78,7 @@
+ 	 * dpu_kms_global_get_state()
+ 	 */
+ 	struct drm_private_obj global_state;
++	bool global_state_initialized;
+ 
+ 	struct dpu_rm rm;
+ 
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_rm.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_rm.c
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_rm.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_rm.c
+@@ -215,6 +215,7 @@
+ int dpu_rm_clear_boot_config(struct dpu_rm *rm, const struct dpu_mdss_cfg *cat)
+ {
+ 	int i, ret;
++	u32 stalled_intfs = 0, cleared_intfs = 0;
+ 
+ 	for (i = 0; i < cat->intf_count; i++) {
+ 		struct dpu_hw_intf *intf;
+@@ -223,7 +224,9 @@
+ 			continue;
+ 		intf = rm->hw_intf[cat->intf[i].id - INTF_0];
+ 		ret = dpu_hw_intf_clear_boot_config(intf);
+-		if (ret)
++		if (ret == -ETIMEDOUT)
++			stalled_intfs |= BIT(intf->idx - INTF_0);
++		else if (ret)
+ 			return ret;
+ 	}
+ 
+@@ -231,10 +234,17 @@
+ 		struct dpu_hw_ctl *ctl;
+ 
+ 		ctl = to_dpu_hw_ctl(rm->ctl_blks[cat->ctl[i].id - CTL_0]);
+-		ret = dpu_hw_ctl_clear_boot_config(ctl);
+-		if (ret)
++		ret = dpu_hw_ctl_clear_boot_config(ctl, &cleared_intfs);
++		if (ret < 0)
+ 			return ret;
+ 	}
++
++	/* Never change domains with a stalled frame and no confirmed CMD reset. */
++	if (stalled_intfs & ~cleared_intfs)
++		return -ETIMEDOUT;
++	if (stalled_intfs)
++		pr_info("boot stalled INTF mask=%#x aborted, CTL outputs=%#x\n",
++			stalled_intfs, cleared_intfs);
+ 
+ 	return 0;
+ }
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_intf.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_intf.c
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_intf.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_intf.c
+@@ -476,13 +476,14 @@
+ 	u32 trigger = DPU_REG_READ(c, INTF_DSI_CMD_MODE_TRIGGER_EN);
+ 	u32 height = DPU_REG_READ(c, INTF_TEAR_VSYNC_INIT_VAL) & 0xffff;
+ 	u32 line;
+-	int ret;
++	int ret = 0;
+ 
+ 	if (!te && !(refresh & BIT(31)) && !trigger)
+ 		return 0;
+ 
+-	pr_info("boot INTF%d: tearcheck=%#x autorefresh=%#x trigger=%#x\n",
+-		intf->idx - INTF_0, te, refresh, trigger);
++	pr_info("boot INTF%d: tearcheck=%#x autorefresh=%#x trigger=%#x height=%u line=%#x\n",
++		intf->idx - INTF_0, te, refresh, trigger, height,
++		DPU_REG_READ(c, INTF_TEAR_LINE_COUNT));
+ 	dpu_hw_intf_connect_external_te(intf, false);
+ 	dpu_hw_intf_setup_autorefresh_config(intf, 0, false);
+ 	/* Keep the identity domain until the inherited frame finishes. */
+@@ -492,8 +493,13 @@
+ 		ret = readl_poll_timeout(c->blk_addr + INTF_TEAR_LINE_COUNT, line,
+ 					 !(line & 0xffff) || (line & 0xffff) >= height,
+ 					 100, 50000);
+-		if (ret)
+-			return ret;
++		if (ret) {
++			pr_info("boot INTF%d frame stalled: line=%#x height=%u out=%#x count=%#x\n",
++			       intf->idx - INTF_0, line, height,
++			       DPU_REG_READ(c, INTF_TEAR_OUT_LINE_COUNT),
++			       DPU_REG_READ(c, INTF_TEAR_INT_COUNT_VAL));
++			/* The caller must abort this inherited frame with CTL reset. */
++		}
+ 	}
+ 	dpu_hw_intf_disable_te(intf);
+ 	DPU_REG_WRITE(c, INTF_DSI_CMD_MODE_TRIGGER_EN, 0);
+@@ -501,7 +507,7 @@
+ 		intf->idx - INTF_0, DPU_REG_READ(c, INTF_TEAR_TEAR_CHECK_EN),
+ 		DPU_REG_READ(c, INTF_TEAR_AUTOREFRESH_CONFIG),
+ 		DPU_REG_READ(c, INTF_DSI_CMD_MODE_TRIGGER_EN));
+-	return 0;
++	return ret;
+ }
+ 
+ static int dpu_hw_intf_get_vsync_info(struct dpu_hw_intf *intf,
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_ctl.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_ctl.c
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_ctl.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_ctl.c
+@@ -481,7 +481,7 @@
+ }
+ 
+ /* Stop inherited command-mode fetches before replacing the IOMMU domain. */
+-int dpu_hw_ctl_clear_boot_config(struct dpu_hw_ctl *ctx)
++int dpu_hw_ctl_clear_boot_config(struct dpu_hw_ctl *ctx, u32 *cleared_intfs)
+ {
+ 	struct dpu_hw_blk_reg_map *c = &ctx->hw;
+ 	u32 top = DPU_REG_READ(c, CTL_TOP);
+@@ -539,6 +539,7 @@
+ 	pr_info("boot CTL%d cleared: layer0=%#x layer1=%#x fetch=%#x\n",
+ 		ctx->idx - CTL_0, DPU_REG_READ(c, CTL_LAYER(LM_0)),
+ 		DPU_REG_READ(c, CTL_LAYER(LM_1)), DPU_REG_READ(c, CTL_FETCH_PIPE_ACTIVE));
++	*cleared_intfs |= intf;
+ 	return 0;
+ }
+ 
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_ctl.h b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_ctl.h
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_ctl.h
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_ctl.h
+@@ -361,9 +361,10 @@
+ /**
+  * dpu_hw_ctl_clear_boot_config() - stop inherited DPU 5 command-mode data paths
+  * @ctx: CTL context, with clocks enabled
++ * @cleared_intfs: accumulates output bits covered by successful CTL resets
+  *
+  * Return: 0 on success or a negative error if CTL reset times out.
+  */
+-int dpu_hw_ctl_clear_boot_config(struct dpu_hw_ctl *ctx);
++int dpu_hw_ctl_clear_boot_config(struct dpu_hw_ctl *ctx, u32 *cleared_intfs);
+ 
+ #endif /*_DPU_HW_CTL_H */
+diff --git a/arch/arm64/boot/dts/qcom/sm8150-samurai.dts b/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
+--- a/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
++++ b/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
+@@ -237,18 +237,20 @@
+ 	};
+ };
+ 
+-/*
+- * Bring-up scope.  None of the below is known to work on mainline yet, and
+- * all of it needs firmware that a RAM-only userspace cannot supply, so keep
+- * it out of the first boots.
+- */
++/* Adreno firmware is supplied by the initramfs from this handset's vendor. */
+ &gmu {
+-	status = "disabled";
++	status = "okay";
+ };
+ 
+ &gpu {
+-	status = "disabled";
+-};
++	status = "okay";
++};
++
++&gpu_zap_shader {
++	firmware-name = "qcom/sm8150/realme/samurai/a640_zap.mbn";
++};
++
++/* Remaining firmware-dependent peripherals are brought up separately. */
+ 
+ &wifi {
+ 	status = "disabled";

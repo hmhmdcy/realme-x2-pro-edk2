@@ -1,0 +1,1114 @@
+{
+  "kernel_head": "e42788eafb0bb9d8dfce319c71ca54c5207b2295",
+  "sources": {
+    "tty-eud": {
+      "origin": "/home/cy122/x2pro-linux/linux/drivers/tty/serial/eud.c",
+      "bytes": 50061,
+      "sha256": "39e464f85b0450a394342b1664a306b2b27caa466b459ef038de2e0ccf6d2ef4",
+      "matches": [
+        {
+          "line": 66,
+          "text": "#define EUD_REG_CSR_EUD_EN     0x1014"
+        },
+        {
+          "line": 574,
+          "text": "\twritel_relaxed(0, up->port.membase + EUD_REG_CSR_EUD_EN);"
+        },
+        {
+          "line": 837,
+          "text": "                        /* Only RX may assert this handler. Do not enable"
+        },
+        {
+          "line": 838,
+          "text": "                         * stuck TX/VBUS/charger levels during this diagnostic."
+        },
+        {
+          "line": 840,
+          "text": "                        writel((u32)EUD_INT_RX,"
+        },
+        {
+          "line": 1227,
+          "text": "        writel_relaxed(1, port->membase + EUD_REG_CSR_EUD_EN);"
+        }
+      ]
+    },
+    "mainline-eud-control": {
+      "origin": "/home/cy122/x2pro-linux/linux/drivers/usb/misc/qcom_eud.c",
+      "bytes": 6103,
+      "sha256": "d198fbc12e8bdb4502eba1620e37f128358ceffbfe02451dafd981201028b3eb",
+      "matches": [
+        {
+          "line": 23,
+          "text": "#define EUD_REG_VBUS_INT_CLR\t0x0080"
+        },
+        {
+          "line": 30,
+          "text": "#define EUD_INT_VBUS\t\tBIT(2)"
+        },
+        {
+          "line": 32,
+          "text": "#define EUD_INT_ALL\t\t(EUD_INT_VBUS | EUD_INT_SAFE_MODE)"
+        },
+        {
+          "line": 36,
+          "text": "\tstruct usb_role_switch\t\t*role_sw;"
+        },
+        {
+          "line": 54,
+          "text": "\twritel(EUD_INT_VBUS | EUD_INT_SAFE_MODE,"
+        },
+        {
+          "line": 57,
+          "text": "\treturn usb_role_switch_set_role(priv->role_sw, USB_ROLE_DEVICE);"
+        },
+        {
+          "line": 154,
+          "text": "\tcase EUD_INT_VBUS:"
+        },
+        {
+          "line": 171,
+          "text": "\t\tret = usb_role_switch_set_role(chip->role_sw, USB_ROLE_DEVICE);"
+        },
+        {
+          "line": 173,
+          "text": "\t\tret = usb_role_switch_set_role(chip->role_sw, USB_ROLE_HOST);"
+        },
+        {
+          "line": 178,
+          "text": "\twritel(BIT(0), chip->base + EUD_REG_VBUS_INT_CLR);"
+        },
+        {
+          "line": 179,
+          "text": "\twritel(0, chip->base + EUD_REG_VBUS_INT_CLR);"
+        },
+        {
+          "line": 188,
+          "text": "\tusb_role_switch_put(chip->role_sw);"
+        },
+        {
+          "line": 203,
+          "text": "\tchip->role_sw = usb_role_switch_get(&pdev->dev);"
+        }
+      ]
+    },
+    "dwc3-qcom-legacy": {
+      "origin": "/home/cy122/x2pro-linux/linux/drivers/usb/dwc3/dwc3-qcom-legacy.c",
+      "bytes": 22722,
+      "sha256": "155d7937357339bf4dc1bcf36f8cf7b47b13c268946412a6f2c077066baa0e41",
+      "matches": [
+        {
+          "line": 15,
+          "text": "#include <linux/extcon.h>"
+        },
+        {
+          "line": 83,
+          "text": "\tstruct extcon_dev\t*edev;"
+        },
+        {
+          "line": 84,
+          "text": "\tstruct extcon_dev\t*host_edev;"
+        },
+        {
+          "line": 119,
+          "text": "static void dwc3_qcom_vbus_override_enable(struct dwc3_qcom *qcom, bool enable)"
+        },
+        {
+          "line": 140,
+          "text": "\tdwc3_qcom_vbus_override_enable(qcom, event);"
+        },
+        {
+          "line": 152,
+          "text": "\tdwc3_qcom_vbus_override_enable(qcom, !event);"
+        },
+        {
+          "line": 158,
+          "text": "static int dwc3_qcom_register_extcon(struct dwc3_qcom *qcom)"
+        },
+        {
+          "line": 161,
+          "text": "\tstruct extcon_dev\t*host_edev;"
+        },
+        {
+          "line": 164,
+          "text": "\tif (!of_property_present(dev->of_node, \"extcon\"))"
+        },
+        {
+          "line": 167,
+          "text": "\tqcom->edev = extcon_get_edev_by_phandle(dev, 0);"
+        },
+        {
+          "line": 170,
+          "text": "\t\t\t\t     \"Failed to get extcon\\n\");"
+        },
+        {
+          "line": 174,
+          "text": "\tqcom->host_edev = extcon_get_edev_by_phandle(dev, 1);"
+        },
+        {
+          "line": 178,
+          "text": "\tret = devm_extcon_register_notifier(dev, qcom->edev, EXTCON_USB,"
+        },
+        {
+          "line": 191,
+          "text": "\tret = devm_extcon_register_notifier(dev, host_edev, EXTCON_USB_HOST,"
+        },
+        {
+          "line": 198,
+          "text": "\t/* Update initial VBUS override based on extcon state */"
+        },
+        {
+          "line": 199,
+          "text": "\tif (extcon_get_state(qcom->edev, EXTCON_USB) ||"
+        },
+        {
+          "line": 200,
+          "text": "\t    !extcon_get_state(host_edev, EXTCON_USB_HOST))"
+        },
+        {
+          "line": 806,
+          "text": "\tqcom->mode = usb_get_dr_mode(&qcom->dwc3->dev);"
+        },
+        {
+          "line": 810,
+          "text": "\t\tdwc3_qcom_vbus_override_enable(qcom, true);"
+        },
+        {
+          "line": 812,
+          "text": "\t/* register extcon to override sw_vbus on Vbus change later */"
+        },
+        {
+          "line": 813,
+          "text": "\tret = dwc3_qcom_register_extcon(qcom);"
+        },
+        {
+          "line": 917,
+          "text": "\t{ .compatible = \"qcom,dwc3\" },"
+        },
+        {
+          "line": 926,
+          "text": "\t\t.name\t= \"dwc3-qcom-legacy\","
+        }
+      ]
+    },
+    "dwc3-qcom-new": {
+      "origin": "/home/cy122/x2pro-linux/linux/drivers/usb/dwc3/dwc3-qcom.c",
+      "bytes": 21018,
+      "sha256": "facf03c8edbe5ca5af5f02df4c780aab2288eb5575b896cf803c32a9d9db9c4d",
+      "matches": [
+        {
+          "line": 686,
+          "text": "\tqcom->mode = usb_get_dr_mode(dev);"
+        },
+        {
+          "line": 842,
+          "text": "\t{ .compatible = \"qcom,snps-dwc3\" },"
+        },
+        {
+          "line": 852,
+          "text": "\t\t.name\t= \"dwc3-qcom\","
+        }
+      ]
+    },
+    "dwc3-makefile": {
+      "origin": "/home/cy122/x2pro-linux/linux/drivers/usb/dwc3/Makefile",
+      "bytes": 1947,
+      "sha256": "97aa5151306df6f9e81f2988843f1548fd0928c99c097e48179892524f99d2cb",
+      "matches": [
+        {
+          "line": 13,
+          "text": "ifneq ($(filter y,$(CONFIG_USB_DWC3_HOST) $(CONFIG_USB_DWC3_DUAL_ROLE)),)"
+        },
+        {
+          "line": 17,
+          "text": "ifneq ($(filter y,$(CONFIG_USB_DWC3_GADGET) $(CONFIG_USB_DWC3_DUAL_ROLE)),)"
+        },
+        {
+          "line": 21,
+          "text": "ifneq ($(CONFIG_USB_DWC3_DUAL_ROLE),)"
+        },
+        {
+          "line": 22,
+          "text": "\tdwc3-y\t\t\t\t+= drd.o"
+        },
+        {
+          "line": 55,
+          "text": "obj-$(CONFIG_USB_DWC3_QCOM)\t\t+= dwc3-qcom.o"
+        },
+        {
+          "line": 56,
+          "text": "obj-$(CONFIG_USB_DWC3_QCOM)\t\t+= dwc3-qcom-legacy.o"
+        }
+      ]
+    },
+    "sm8150": {
+      "origin": "/home/cy122/x2pro-linux/linux/arch/arm64/boot/dts/qcom/sm8150.dtsi",
+      "bytes": 132246,
+      "sha256": "82887c779c9425ca23e49a81fe3ff8d8c7eec4d073edb305e6a9270371f3b7bc",
+      "matches": [
+        {
+          "line": 3621,
+          "text": "\t\tusb_1: usb@a6f8800 {"
+        },
+        {
+          "line": 3622,
+          "text": "\t\t\tcompatible = \"qcom,sm8150-dwc3\", \"qcom,dwc3\";"
+        },
+        {
+          "line": 3666,
+          "text": "\t\t\tusb_1_dwc3: usb@a600000 {"
+        },
+        {
+          "line": 3702,
+          "text": "\t\t\tcompatible = \"qcom,sm8150-dwc3\", \"qcom,dwc3\";"
+        }
+      ]
+    },
+    "sm8150-mtp": {
+      "origin": "/home/cy122/x2pro-linux/linux/arch/arm64/boot/dts/qcom/sm8150-mtp.dts",
+      "bytes": 10378,
+      "sha256": "fa62dd7deb5f2777046384732a8a292a683d9d590ab26afbe6d14f217937276a",
+      "matches": [
+        {
+          "line": 432,
+          "text": "&usb_1_hsphy {"
+        },
+        {
+          "line": 439,
+          "text": "&usb_1_qmpphy {"
+        },
+        {
+          "line": 445,
+          "text": "&usb_1 {"
+        },
+        {
+          "line": 449,
+          "text": "&usb_1_dwc3 {"
+        },
+        {
+          "line": 450,
+          "text": "\tdr_mode = \"peripheral\";"
+        }
+      ]
+    },
+    "samurai": {
+      "origin": "/home/cy122/x2pro-linux/linux/arch/arm64/boot/dts/qcom/sm8150-samurai.dts",
+      "bytes": 9264,
+      "sha256": "8876b1747282a735907a15f90f7b7702b9b3d2de7e63c7fac6898f160a7ccb00",
+      "matches": [
+        {
+          "line": 23,
+          "text": "#include \"sm8150-mtp.dts\""
+        },
+        {
+          "line": 50,
+          "text": "\t\tbootargs = \"earlycon=eud,mmio,0x88e0000 console=tty0 console=eud loglevel=7 ignore_loglevel panic=15 clk_ignore_unused pd_ignore_unused regulator_ignore_unused\";"
+        },
+        {
+          "line": 292,
+          "text": " * (apps_smmu 0x140) are already described by sm8150-mtp.dts / sm8150.dtsi."
+        },
+        {
+          "line": 297,
+          "text": " * qcom,eud driver wants a USB role switch and SCM access to enable secure EUD,"
+        },
+        {
+          "line": 302,
+          "text": "        eud_com: serial@88e0000 {"
+        },
+        {
+          "line": 303,
+          "text": "                compatible = \"qcom,sm8150-eud-com\";"
+        }
+      ]
+    },
+    "kernel-config": {
+      "origin": "/home/cy122/x2pro-linux/linux/.config",
+      "bytes": 204415,
+      "sha256": "439398137656726f4d2abe57011b9e1c42eb21dbc7f1095ddebec2cf23443546",
+      "matches": [
+        {
+          "line": 4494,
+          "text": "CONFIG_USB_DWC3=y"
+        },
+        {
+          "line": 4495,
+          "text": "# CONFIG_USB_DWC3_ULPI is not set"
+        },
+        {
+          "line": 4496,
+          "text": "# CONFIG_USB_DWC3_HOST is not set"
+        },
+        {
+          "line": 4497,
+          "text": "CONFIG_USB_DWC3_GADGET=y"
+        },
+        {
+          "line": 4498,
+          "text": "# CONFIG_USB_DWC3_DUAL_ROLE is not set"
+        },
+        {
+          "line": 4503,
+          "text": "CONFIG_USB_DWC3_OF_SIMPLE=y"
+        },
+        {
+          "line": 4504,
+          "text": "CONFIG_USB_DWC3_QCOM=y"
+        },
+        {
+          "line": 4505,
+          "text": "CONFIG_USB_DWC3_GENERIC_PLAT=y"
+        },
+        {
+          "line": 4506,
+          "text": "# CONFIG_USB_DWC3_GOOGLE is not set"
+        },
+        {
+          "line": 4602,
+          "text": "CONFIG_USB_QCOM_EUD=m"
+        },
+        {
+          "line": 4667,
+          "text": "CONFIG_USB_CONFIGFS=y"
+        },
+        {
+          "line": 4668,
+          "text": "CONFIG_USB_CONFIGFS_SERIAL=y"
+        },
+        {
+          "line": 4669,
+          "text": "CONFIG_USB_CONFIGFS_ACM=y"
+        },
+        {
+          "line": 4670,
+          "text": "CONFIG_USB_CONFIGFS_OBEX=y"
+        },
+        {
+          "line": 4671,
+          "text": "CONFIG_USB_CONFIGFS_NCM=y"
+        },
+        {
+          "line": 4672,
+          "text": "CONFIG_USB_CONFIGFS_ECM=y"
+        },
+        {
+          "line": 4673,
+          "text": "CONFIG_USB_CONFIGFS_ECM_SUBSET=y"
+        },
+        {
+          "line": 4674,
+          "text": "CONFIG_USB_CONFIGFS_RNDIS=y"
+        },
+        {
+          "line": 4675,
+          "text": "CONFIG_USB_CONFIGFS_EEM=y"
+        },
+        {
+          "line": 4676,
+          "text": "CONFIG_USB_CONFIGFS_MASS_STORAGE=y"
+        },
+        {
+          "line": 4677,
+          "text": "# CONFIG_USB_CONFIGFS_F_LB_SS is not set"
+        },
+        {
+          "line": 4678,
+          "text": "CONFIG_USB_CONFIGFS_F_FS=y"
+        },
+        {
+          "line": 4679,
+          "text": "# CONFIG_USB_CONFIGFS_F_HID is not set"
+        },
+        {
+          "line": 4680,
+          "text": "# CONFIG_USB_CONFIGFS_F_PRINTER is not set"
+        },
+        {
+          "line": 4708,
+          "text": "CONFIG_TYPEC_QCOM_PMIC=m"
+        }
+      ]
+    },
+    "actual-init": {
+      "origin": "/home/cy122/x2pro-linux/initramfs/init",
+      "bytes": 2460,
+      "sha256": "e9c7c2da0f93509565a36c182b3b39d928ddcba0317ee9d76469317e6b9135ab",
+      "matches": [
+        {
+          "line": 10,
+          "text": "mount -t configfs configfs /sys/kernel/config 2>/dev/null"
+        },
+        {
+          "line": 44,
+          "text": "# EUD tty test: prove /dev/ttyEUD0 works end to end (the driver writes"
+        },
+        {
+          "line": 46,
+          "text": "if [ -c /dev/ttyEUD0 ]; then"
+        },
+        {
+          "line": 47,
+          "text": "        echo \"[[TTYBANNER-OK]]\" > /dev/ttyEUD0"
+        },
+        {
+          "line": 48,
+          "text": "        echo \"[tty] wrote to /dev/ttyEUD0\" >> /dev/kmsg"
+        },
+        {
+          "line": 51,
+          "text": "        sh -i </dev/ttyEUD0 >/dev/ttyEUD0 2>&1 &"
+        },
+        {
+          "line": 52,
+          "text": "        echo \"[tty] shell started on /dev/ttyEUD0\" >> /dev/kmsg"
+        },
+        {
+          "line": 55,
+          "text": "        echo \"[tty] /dev/ttyEUD0 MISSING\" >> /dev/kmsg"
+        }
+      ]
+    },
+    "stock-eud": {
+      "origin": {
+        "repository": "/mnt/e/Realme X2 Pro移植主线Linux/sources/realme-downstream.git",
+        "commit": "9668fcdc6ec15be7a10d66f7b93c347829e0fdb6",
+        "path": "drivers/soc/qcom/eud.c"
+      },
+      "bytes": 18174,
+      "sha256": "38414f507e2e16af8bc6f1aeb7d10e25fa4c83b9e44669e610bca9ec7385e7b2",
+      "matches": [
+        {
+          "line": 19,
+          "text": "#include <linux/extcon.h>"
+        },
+        {
+          "line": 47,
+          "text": "#define EUD_REG_VBUS_INT_CLR\t0x0080"
+        },
+        {
+          "line": 54,
+          "text": "#define EUD_INT_VBUS\t\tBIT(2)"
+        },
+        {
+          "line": 58,
+          "text": "\t\t\t\tEUD_INT_VBUS | EUD_INT_CHGR | \\"
+        },
+        {
+          "line": 69,
+          "text": "\tunsigned int\t\t\textcon_id;"
+        },
+        {
+          "line": 71,
+          "text": "\tbool\t\t\t\tusb_attach;"
+        },
+        {
+          "line": 74,
+          "text": "\tstruct extcon_dev\t\t*extcon;"
+        },
+        {
+          "line": 84,
+          "text": "static const unsigned int eud_extcon_cable[] = {"
+        },
+        {
+          "line": 131,
+          "text": "\t\twritel_relaxed(EUD_INT_VBUS | EUD_INT_CHGR | EUD_INT_SAFE_MODE,"
+        },
+        {
+          "line": 149,
+          "text": "\t\textcon_set_state_sync(priv->extcon, EXTCON_USB, true);"
+        },
+        {
+          "line": 150,
+          "text": "\t\textcon_set_state_sync(priv->extcon, EXTCON_CHG_USB_SDP, true);"
+        },
+        {
+          "line": 227,
+          "text": "\tif (chip->int_status == EUD_INT_VBUS)"
+        },
+        {
+          "line": 228,
+          "text": "\t\textcon_set_state_sync(chip->extcon, chip->extcon_id,"
+        },
+        {
+          "line": 229,
+          "text": "\t\t\t\t\tchip->usb_attach);"
+        },
+        {
+          "line": 239,
+          "text": "static void usb_attach_detach(struct eud_chip *chip)"
+        },
+        {
+          "line": 243,
+          "text": "\tchip->extcon_id = EXTCON_USB;"
+        },
+        {
+          "line": 247,
+          "text": "\t\tchip->usb_attach = true;"
+        },
+        {
+          "line": 249,
+          "text": "\t\tchip->usb_attach = false;"
+        },
+        {
+          "line": 254,
+          "text": "\twritel_relaxed(BIT(0), chip->eud_reg_base + EUD_REG_VBUS_INT_CLR);"
+        },
+        {
+          "line": 257,
+          "text": "\twritel_relaxed(0, chip->eud_reg_base + EUD_REG_VBUS_INT_CLR);"
+        },
+        {
+          "line": 264,
+          "text": "\tchip->extcon_id = EXTCON_CHG_USB_SDP;"
+        },
+        {
+          "line": 492,
+          "text": "\t} else if (reg & EUD_INT_VBUS) {"
+        },
+        {
+          "line": 494,
+          "text": "\t\tchip->int_status = EUD_INT_VBUS;"
+        },
+        {
+          "line": 495,
+          "text": "\t\tusb_attach_detach(chip);"
+        },
+        {
+          "line": 551,
+          "text": "\tchip->extcon = devm_extcon_dev_allocate(&pdev->dev, eud_extcon_cable);"
+        },
+        {
+          "line": 552,
+          "text": "\tif (IS_ERR(chip->extcon)) {"
+        },
+        {
+          "line": 553,
+          "text": "\t\tdev_err(chip->dev, \"failed to allocate extcon device\\n\");"
+        },
+        {
+          "line": 554,
+          "text": "\t\treturn PTR_ERR(chip->extcon);"
+        },
+        {
+          "line": 557,
+          "text": "\tret = devm_extcon_dev_register(&pdev->dev, chip->extcon);"
+        },
+        {
+          "line": 559,
+          "text": "\t\tdev_err(chip->dev, \"failed to register extcon device\\n\");"
+        }
+      ]
+    },
+    "stock-dwc3-msm": {
+      "origin": {
+        "repository": "/mnt/e/Realme X2 Pro移植主线Linux/sources/realme-downstream.git",
+        "commit": "9668fcdc6ec15be7a10d66f7b93c347829e0fdb6",
+        "path": "drivers/usb/dwc3/dwc3-msm.c"
+      },
+      "bytes": 137557,
+      "sha256": "f9977ba45f7a58be50b4fe6ccdb04a9cdb8f2ee4a9925492850d5e6a9eee713f",
+      "matches": [
+        {
+          "line": 47,
+          "text": "#include <linux/extcon.h>"
+        },
+        {
+          "line": 229,
+          "text": "struct extcon_nb {"
+        },
+        {
+          "line": 230,
+          "text": "\tstruct extcon_dev\t*edev;"
+        },
+        {
+          "line": 300,
+          "text": "\tbool\t\t\tvbus_active;"
+        },
+        {
+          "line": 313,
+          "text": "\tstruct extcon_nb\t*extcon;"
+        },
+        {
+          "line": 1710,
+          "text": "\tif (!mdwc->vbus_active) {"
+        },
+        {
+          "line": 1735,
+          "text": "\tif (mdwc->vbus_active)"
+        },
+        {
+          "line": 1873,
+          "text": "\tunion extcon_property_value val;"
+        },
+        {
+          "line": 1945,
+          "text": "\t\tif (mdwc->extcon &&"
+        },
+        {
+          "line": 1946,
+          "text": "\t\t\t!extcon_get_property(mdwc->extcon[mdwc->ext_idx].edev,"
+        },
+        {
+          "line": 2419,
+          "text": "\tif (!mdwc->vbus_active && (dwc->dr_mode == USB_DR_MODE_OTG) &&"
+        },
+        {
+          "line": 2511,
+          "text": "\tif (!mdwc->in_host_mode && !mdwc->vbus_active) {"
+        },
+        {
+          "line": 2781,
+          "text": "\tif (mdwc->vbus_active && !mdwc->in_restart) {"
+        },
+        {
+          "line": 2816,
+          "text": "\tunion extcon_property_value val;"
+        },
+        {
+          "line": 2817,
+          "text": "\tunsigned int extcon_id;"
+        },
+        {
+          "line": 2818,
+          "text": "\tstruct extcon_dev *edev = NULL;"
+        },
+        {
+          "line": 2823,
+          "text": "\tif (mdwc->extcon && mdwc->vbus_active && !mdwc->in_restart) {"
+        },
+        {
+          "line": 2824,
+          "text": "\t\textcon_id = EXTCON_USB;"
+        },
+        {
+          "line": 2825,
+          "text": "\t\tedev = mdwc->extcon[mdwc->ext_idx].edev;"
+        },
+        {
+          "line": 2826,
+          "text": "\t} else if (mdwc->extcon && mdwc->id_state == DWC3_ID_GROUND) {"
+        },
+        {
+          "line": 2827,
+          "text": "\t\textcon_id = EXTCON_USB_HOST;"
+        },
+        {
+          "line": 2828,
+          "text": "\t\tedev = mdwc->extcon[mdwc->ext_idx].edev;"
+        },
+        {
+          "line": 2832,
+          "text": "\tif (edev && extcon_get_state(edev, extcon_id)) {"
+        },
+        {
+          "line": 2835,
+          "text": "\t\tret = extcon_get_property(edev, extcon_id,"
+        },
+        {
+          "line": 2851,
+          "text": "\t\tret = extcon_get_property(edev, extcon_id,"
+        },
+        {
+          "line": 2861,
+          "text": "\t\tret = extcon_get_property(edev, extcon_id,"
+        },
+        {
+          "line": 3116,
+          "text": "\tstruct extcon_dev *edev = ptr;"
+        },
+        {
+          "line": 3117,
+          "text": "\tstruct extcon_nb *enb = container_of(nb, struct extcon_nb, id_nb);"
+        },
+        {
+          "line": 3126,
+          "text": "\tdbg_event(0xFF, \"extcon idx\", enb->idx);"
+        },
+        {
+          "line": 3151,
+          "text": "\tif (!mdwc->vbus_active)"
+        },
+        {
+          "line": 3164,
+          "text": "\t\tmdwc->vbus_active = 0;"
+        },
+        {
+          "line": 3165,
+          "text": "\t\tdbg_event(0xFF, \"Q RW SPD CHK\", mdwc->vbus_active);"
+        },
+        {
+          "line": 3170,
+          "text": "static int dwc3_msm_vbus_notifier(struct notifier_block *nb,"
+        },
+        {
+          "line": 3174,
+          "text": "\tstruct extcon_dev *edev = ptr;"
+        },
+        {
+          "line": 3175,
+          "text": "\tstruct extcon_nb *enb = container_of(nb, struct extcon_nb, vbus_nb);"
+        },
+        {
+          "line": 3183,
+          "text": "\tdbg_event(0xFF, \"extcon idx\", enb->idx);"
+        },
+        {
+          "line": 3185,
+          "text": "\tif (mdwc->vbus_active == event)"
+        },
+        {
+          "line": 3192,
+          "text": "\tmdwc->vbus_active = event;"
+        },
+        {
+          "line": 3199,
+          "text": "static int dwc3_msm_extcon_register(struct dwc3_msm *mdwc)"
+        },
+        {
+          "line": 3202,
+          "text": "\tstruct extcon_dev *edev;"
+        },
+        {
+          "line": 3203,
+          "text": "\tint idx, extcon_cnt, ret = 0;"
+        },
+        {
+          "line": 3206,
+          "text": "\textcon_cnt = of_count_phandle_with_args(node, \"extcon\", NULL);"
+        },
+        {
+          "line": 3207,
+          "text": "\tif (extcon_cnt < 0) {"
+        },
+        {
+          "line": 3212,
+          "text": "\tmdwc->extcon = devm_kcalloc(mdwc->dev, extcon_cnt,"
+        },
+        {
+          "line": 3213,
+          "text": "\t\t\t\t\tsizeof(*mdwc->extcon), GFP_KERNEL);"
+        },
+        {
+          "line": 3214,
+          "text": "\tif (!mdwc->extcon)"
+        },
+        {
+          "line": 3217,
+          "text": "\tfor (idx = 0; idx < extcon_cnt; idx++) {"
+        },
+        {
+          "line": 3218,
+          "text": "\t\tedev = extcon_get_edev_by_phandle(mdwc->dev, idx);"
+        },
+        {
+          "line": 3228,
+          "text": "\t\tmdwc->extcon[idx].mdwc = mdwc;"
+        },
+        {
+          "line": 3229,
+          "text": "\t\tmdwc->extcon[idx].edev = edev;"
+        },
+        {
+          "line": 3230,
+          "text": "\t\tmdwc->extcon[idx].idx = idx;"
+        },
+        {
+          "line": 3232,
+          "text": "\t\tmdwc->extcon[idx].vbus_nb.notifier_call ="
+        },
+        {
+          "line": 3233,
+          "text": "\t\t\t\t\t\tdwc3_msm_vbus_notifier;"
+        },
+        {
+          "line": 3234,
+          "text": "\t\tret = extcon_register_notifier(edev, EXTCON_USB,"
+        },
+        {
+          "line": 3235,
+          "text": "\t\t\t\t\t\t&mdwc->extcon[idx].vbus_nb);"
+        },
+        {
+          "line": 3239,
+          "text": "\t\tmdwc->extcon[idx].id_nb.notifier_call = dwc3_msm_id_notifier;"
+        },
+        {
+          "line": 3240,
+          "text": "\t\tret = extcon_register_notifier(edev, EXTCON_USB_HOST,"
+        },
+        {
+          "line": 3241,
+          "text": "\t\t\t\t\t\t&mdwc->extcon[idx].id_nb);"
+        },
+        {
+          "line": 3245,
+          "text": "\t\tmdwc->extcon[idx].blocking_sync_nb.notifier_call ="
+        },
+        {
+          "line": 3247,
+          "text": "\t\textcon_register_blocking_notifier(edev, EXTCON_USB_HOST,"
+        },
+        {
+          "line": 3248,
+          "text": "\t\t\t\t\t&mdwc->extcon[idx].blocking_sync_nb);"
+        },
+        {
+          "line": 3251,
+          "text": "\t\tif (check_vbus_state && extcon_get_state(edev, EXTCON_USB))"
+        },
+        {
+          "line": 3252,
+          "text": "\t\t\tdwc3_msm_vbus_notifier(&mdwc->extcon[idx].vbus_nb,"
+        },
+        {
+          "line": 3255,
+          "text": "\t\t\t\textcon_get_state(edev, EXTCON_USB_HOST))"
+        },
+        {
+          "line": 3256,
+          "text": "\t\t\tdwc3_msm_id_notifier(&mdwc->extcon[idx].id_nb,"
+        },
+        {
+          "line": 3261,
+          "text": "\t\tdev_err(mdwc->dev, \"no extcon device found\\n\");"
+        },
+        {
+          "line": 3327,
+          "text": "\tif (mdwc->vbus_active)"
+        },
+        {
+          "line": 3341,
+          "text": "\t\tmdwc->vbus_active = true;"
+        },
+        {
+          "line": 3344,
+          "text": "\t\tmdwc->vbus_active = false;"
+        },
+        {
+          "line": 3347,
+          "text": "\t\tmdwc->vbus_active = false;"
+        },
+        {
+          "line": 3821,
+          "text": "\tif (of_property_read_bool(node, \"extcon\")) {"
+        },
+        {
+          "line": 3822,
+          "text": "\t\tret = dwc3_msm_extcon_register(mdwc);"
+        },
+        {
+          "line": 3840,
+          "text": "\t\tif (!mdwc->vbus_active && mdwc->dpdm_reg &&"
+        },
+        {
+          "line": 3852,
+          "text": "\t\t\tdev_dbg(mdwc->dev, \"%s: no extcon, start peripheral mode\\n\","
+        },
+        {
+          "line": 3854,
+          "text": "\t\t\tmdwc->vbus_active = true;"
+        },
+        {
+          "line": 3856,
+          "text": "\t\t\tdev_dbg(mdwc->dev, \"%s: no extcon, start host mode\\n\","
+        },
+        {
+          "line": 4346,
+          "text": "\tstruct extcon_dev *edev = ptr;"
+        },
+        {
+          "line": 4347,
+          "text": "\tstruct extcon_nb *enb = container_of(nb, struct extcon_nb,"
+        }
+      ]
+    },
+    "stock-usb-dts": {
+      "origin": {
+        "repository": "/mnt/e/Realme X2 Pro移植主线Linux/sources/realme-downstream.git",
+        "commit": "9668fcdc6ec15be7a10d66f7b93c347829e0fdb6",
+        "path": "arch/arm64/boot/dts/qcom/sm8150-usb.dtsi"
+      },
+      "bytes": 22182,
+      "sha256": "62ad19a9681d2df9438a935799f569ae3bed3ed9310eb03199880d55bc2be32f",
+      "matches": [
+        {
+          "line": 105,
+          "text": "\t\t\tdr_mode = \"otg\";"
+        },
+        {
+          "line": 427,
+          "text": "\t\t\tdr_mode = \"otg\";"
+        }
+      ]
+    },
+    "quic-ctl-api": {
+      "origin": {
+        "repository": "https://github.com/quic/eud",
+        "commit": "693741a3b0448690402539ed0e6af067510e386f",
+        "path": "src/ctl_api.cpp"
+      },
+      "bytes": 35323,
+      "sha256": "66934b8b69dfb3cb78006fbc8d8a4dde41517c7c5685aae57129020f4bc744fe",
+      "matches": [
+        {
+          "line": 195,
+          "text": "//   Function: eud_spoof_attach / eud_connect_usb"
+        },
+        {
+          "line": 199,
+          "text": "//                  which should result in MSM USB being attached through"
+        },
+        {
+          "line": 200,
+          "text": "//                  EUD to host PC"
+        },
+        {
+          "line": 213,
+          "text": "EXPORT EUD_ERR_t eud_connect_usb(uint32_t deviceID){"
+        },
+        {
+          "line": 214,
+          "text": "    return eud_spoof_attach(deviceID);"
+        },
+        {
+          "line": 216,
+          "text": "EXPORT EUD_ERR_t eud_spoof_attach(uint32_t deviceID){"
+        },
+        {
+          "line": 225,
+          "text": "    payload = 1 << CTL_VBUS_ATTACH_SHFT;"
+        },
+        {
+          "line": 233,
+          "text": "    payload = 1 << CTL_VBUS_INT_SHFT;"
+        },
+        {
+          "line": 259,
+          "text": "    pollresult = poll_on_ctol_bit(ctl_handle_p, (1 << CTL_VBUS_INT_SHFT), CTL_MAX_VBUS_INT_TMOUT, &err);"
+        },
+        {
+          "line": 284,
+          "text": "//                  which should result in MSM USB disconnection from"
+        },
+        {
+          "line": 311,
+          "text": "    payload = 1 << CTL_VBUS_ATTACH_SHFT;"
+        },
+        {
+          "line": 319,
+          "text": "    payload = 1 << CTL_VBUS_INT_SHFT;"
+        },
+        {
+          "line": 342,
+          "text": "    pollresult = poll_on_ctol_bit(ctl_handle_p, (1 << CTL_VBUS_INT_SHFT), CTL_MAX_VBUS_INT_TMOUT, &err);"
+        }
+      ]
+    },
+    "installed-eudtool-source": {
+      "origin": "E:/eud-host/eudtool.cpp",
+      "bytes": 12521,
+      "sha256": "1652804d318cce415843342246789fcfdb5f60393c465a58155c8b50200255c7",
+      "matches": [
+        {
+          "line": 13,
+          "text": " *   com-up / com-off     COM_PERIPH_EN (verified path)"
+        },
+        {
+          "line": 47,
+          "text": "static const unsigned int B_VBUS_ATTACH    = 1u << 12;"
+        },
+        {
+          "line": 48,
+          "text": "static const unsigned int B_VBUS_INT       = 1u << 13;"
+        },
+        {
+          "line": 114,
+          "text": "        {\"VBUS_ATTACH\", B_VBUS_ATTACH}, {\"VBUS_INT\", B_VBUS_INT}, {\"CHGR_EN\", B_CHGR_EN},"
+        },
+        {
+          "line": 148,
+          "text": "static void vbusAttach(Dev* d) {"
+        },
+        {
+          "line": 149,
+          "text": "    ctlout(d, 0x07, B_VBUS_ATTACH);"
+        },
+        {
+          "line": 150,
+          "text": "    ctlout(d, 0x07, B_VBUS_INT);"
+        },
+        {
+          "line": 152,
+          "text": "    ctlout(d, 0x08, B_VBUS_INT);"
+        },
+        {
+          "line": 175,
+          "text": "    vbusAttach(d);"
+        },
+        {
+          "line": 182,
+          "text": "    vbusAttach(d);"
+        },
+        {
+          "line": 204,
+          "text": "    else if (strcmp(cmd, \"attach\") == 0) { vbusAttach(&d); }"
+        },
+        {
+          "line": 206,
+          "text": "        ctlout(&d, 0x08, B_VBUS_ATTACH);"
+        },
+        {
+          "line": 207,
+          "text": "        ctlout(&d, 0x07, B_VBUS_INT);"
+        },
+        {
+          "line": 209,
+          "text": "        ctlout(&d, 0x08, B_VBUS_INT);"
+        },
+        {
+          "line": 211,
+          "text": "    else if (strcmp(cmd, \"com-up\") == 0) {"
+        },
+        {
+          "line": 214,
+          "text": "        vbusAttach(&d);"
+        },
+        {
+          "line": 215,
+          "text": "        printf(\"com-up done (COM_EN + VBUS attach + VBUS int)\\n\");"
+        },
+        {
+          "line": 235,
+          "text": "    else printf(\"usage: eudtool [list|dump|probe|ctlin|ctlout|attach|detach|com-up|com-off|swd-up|swd-gpio|swd-off|jtag-up|jtag-off|dbg-up|dbg-off|raw HEX...]\\n\");"
+        }
+      ]
+    }
+  },
+  "findings": {
+    "no_intrinsic_exclusivity_claim": true,
+    "quic_describes_msm_usb_through_eud": true,
+    "tty_eud_vbus_notification_forwarding": false,
+    "mainline_control_is_module_without_runtime_module": true,
+    "dt_matches_legacy_glue": true,
+    "legacy_peripheral_sets_vbus_override": true,
+    "gadget_function_directory_empty_verified": true,
+    "coexistence_hardware_tested": false,
+    "missing_vbus_forwarding_is_proven_root_cause": false,
+    "android_exclusivity": "User observation; Android is not currently booted or retested.",
+    "native_usb_or_control_changes_this_session": false
+  },
+  "primary_sources": [
+    "https://github.com/quic/eud/blob/693741a3b0448690402539ed0e6af067510e386f/src/ctl_api.cpp",
+    "https://android.googlesource.com/kernel/msm/+/f382bd87e7398d1d55b1b84211de3d44ae88cf11/Documentation/devicetree/bindings/soc/qcom/qcom,msm-eud.txt",
+    "https://android.googlesource.com/kernel/common/+/aa2d7f4e5b5f104324e9671a102420087f0afba4/drivers/usb/misc/qcom_eud.c",
+    "https://docs.kernel.org/usb/gadget_configfs.html",
+    "https://postmarketos.org/edge/2025/12/28/USB-framework-rework/",
+    "https://gitlab.com/postmarketOS/pmaports/-/merge_requests/3819"
+  ],
+  "lookup_limits": [
+    "Local kernel HEAD e42788e is a project EUD-console commit, not a public torvalds commit. Its raw GitHub URL returned 404.",
+    "lore.kernel.org patch-series page returned 403; pending newer platform patches are not used as deployed-code evidence.",
+    "Initial multi-file BusyBox readlink invocation was invalid; its validated output is retained and separate single-path queries are used.",
+    "Initially read dwc3-qcom.c; corrected actual matching path to dwc3-qcom-legacy.c before any change.",
+    "USB_Network and SSH wiki pages redirected to wiki.nura.eco and were denied by site protection; no bypass attempted. The official USB rework notice was readable."
+  ]
+}

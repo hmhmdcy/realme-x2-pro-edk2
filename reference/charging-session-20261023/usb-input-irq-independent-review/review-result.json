@@ -1,0 +1,65 @@
+{
+  "verdict": "no_new_blocker_in_reviewed_scope",
+  "author_delivery_sha256": "392ba7974a8ed76151e4a320d0a1cb226c300612ef5e01ca7ff983a60d539c5d",
+  "source_sha256": "0fdafb8b3924e431efd67a888cbb88b8f5fe6de22dc400b009bf64cba34b7be5",
+  "baseline_sha256": "b712764fbd4ab24475ae1ba030ee4c26c7eb048a6038488a5435b44ef7eb7098",
+  "decoder_sha256": "a17caa2cbeb2352da249474e0265fa96745f544d96a29d0ebe8f14c656d548fd",
+  "test_receipt_sha256": "57c001f1ceabb8bd0dd750acc0a9f20a619545f21d2afb41afd8f1a11714a386",
+  "build_receipt_sha256": "004c2824cb48b5e35bae7e19cd5d3c0720741445b38229aeffb5297290860ea3",
+  "relocation_sha256": "22f8cd8c7b7711b3ff36ce0e237fac0694ee7db8caceb4fd7f42d9b7e39deed2",
+  "native_DTB_sha256": "9271d9cc33b3701ad0675c6345d43e9a5c404aa6c192126edc3eb715b0914358",
+  "native_PMIC_interrupt_parent_and_cells_absent": true,
+  "native_PMIC_address_cells": 1,
+  "native_PMIC_size_cells": 0,
+  "native_existing_custom_input_count": 0,
+  "oem_source_sha256": "970787a485e8822baa7ef42816a23d4d24707119514e7b8293bcaa17b9a8fafe",
+  "oem_IRQ_mapping": {
+    "usbin-plugin": [
+      "0x2",
+      "0x13",
+      "0x4",
+      "IRQ_TYPE_EDGE_BOTH"
+    ],
+    "usbin-src-change": [
+      "0x2",
+      "0x13",
+      "0x6",
+      "IRQ_TYPE_EDGE_RISING"
+    ]
+  },
+  "unchanged_functions": {
+    "samurai_usb_read_status": "7e92bc6ba79f15e275392fec2ef96074ca7171fe470b3d33fdcf9486f43c7027",
+    "samurai_usb_get_budget": "44aeb5193e4c599cd38e02ec9371620e47c77ab5e38ca3c5a6ebae24f88e9101",
+    "samurai_usb_type": "3c7b77861fb41b1cdfcbf8cf5cdc88f16fc587e2567b6f7fc83c3e9f115cc03a",
+    "samurai_usb_get_property": "98f1f22bc62398cc1fec4f148f398c27b97ac538d4f0724f2bede686f8186afe",
+    "samurai_usb_set_property": "3f5f14010da693f7a48d590af98b478c584e974b341b256dfb1a00047e432eab",
+    "samurai_usb_poll": "df9fe43c8be410da5ef8c8e00daa9281d2c62f4c751c11978a208cd9ffabcc66",
+    "samurai_usb_stop": "1d60c09eddda0cd16e88d575e487e23c099005436babfd2c62944dff3d4ac1f3",
+    "samurai_usb_suspend": "d9c52f0c7a22bd29e3c95267e565bcd2fdc240c609e2ef150385fc0b918e474c",
+    "samurai_usb_resume": "87c6cafcde340f0a2d394e5a9063ce2af8e2d5d8a01f925d614629c1c112c492",
+    "samurai_usb_retain_for_native_consumer": "44d7b1a0f423eaf5ff9b868a855c1d49fc6bee1dfe06b04a4b672661a8513e4c",
+    "samurai_usb_parent_match": "063204a78916cd7abd9cd4188869438ff61a5433428f06cebf1343ea18415d7a",
+    "samurai_usb_exit": "c3b780a0eb555b366a6cec7fdb476b366929c85b6946b844377a1895ae6155fb"
+  },
+  "author_test_scope": "16 cases, four actual functions, pthread/fake IRQ and work boundaries; no rerun",
+  "author_build_scope": "one AArch64 W1/Werror object, receipt and retained source bindings verified; not rebuilt",
+  "lifecycle": "paused before IRQ request; supply/action before unpause; locked event check+queue; stop unlocks before join; shutdown calls same stop; stop action before supply/IRQ/input devres",
+  "fallback_1s_unchanged": true,
+  "active_single_DT_node_suppresses_software_provider": true,
+  "normal_IRQ_controller_programming_not_charger_APSD_policy_write": true,
+  "limits": [
+    "Fragment not compiled/applied; no actual IRQ allocation/delivery or latency acceptance.",
+    "Optional platform lookup can collapse non-defer discovery errors to ENXIO; fallback is not IRQ success.",
+    "Duplicate suppression is for the intended single matching enabled board node.",
+    "OS IRQ/work/devres full implementation and physical PM/shutdown concurrency are not fixture evidence."
+  ],
+  "actions": {
+    "author_files_modified": false,
+    "tests_run": false,
+    "build_run": false,
+    "device_accessed": false,
+    "SDK_invoked": false,
+    "storage_guard_or_mount_used": false
+  },
+  "reviewer_source_sha256": "6e01f040cec09c7433adc22b8c969571a0738b9a6658ea3da8fd1a93e3f2b39d"
+}

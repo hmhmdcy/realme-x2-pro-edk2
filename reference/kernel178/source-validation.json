@@ -1,0 +1,37 @@
+{
+  "stage": 178,
+  "deployed_kernel_build": 176,
+  "kernel_sources_unchanged_from176": true,
+  "source_sha256": {
+    "arch/arm64/boot/dts/qcom/sm8150-samurai.dts": "5c9df33c5af70eee13f924457d31f62e3df3453dc8d4c5481dfc1b3790aa8fc4",
+    "drivers/mfd/wcd934x.c": "b858f4d42504f1c548706566ae0fb6ac6d04b9bb1701a8be1f72b7ac6aaa3921",
+    "drivers/slimbus/core.c": "48d9c23d7aa493a95a3629123ea53b5fa7f1d6432c9f51571c060a6c3af63941",
+    "drivers/slimbus/messaging.c": "527095ab1fc2cb21edc0217e3330d8edc75639e47ecf830a8e8dbd7ef58eb130",
+    "drivers/slimbus/qcom-ngd-ctrl.c": "c3b7c81d435abf61eb40207276779e043d2825170f8fe435ece1cdb5e105b997",
+    "drivers/slimbus/slimbus.h": "89975355e9495da3bf3588acdecdb1c916a5b711cb8213c0816b46245bcb50a0",
+    "include/linux/slimbus.h": "90356850a1cadf9e04c051aab4a65783cdfc06e1c707637e9aeda2ada48adabc",
+    "sound/soc/codecs/wcd-mbhc-v2.c": "5da4cf37f108c87104cebe4bb2453c10bd6a0c0dde4d63cc1c72e08efd31dff9",
+    "sound/soc/codecs/wcd934x.c": "49a79fcc6e3489ab7ef284d7ced7c99ef30b67f9344e4589282db8d6ab3f185d",
+    "sound/soc/qcom/samurai-audio.c": "cae1ecff5a438abb97f56af8601179f93358729082c510c3aee5bd965e2f50da"
+  },
+  "investigated_source_sha256": {
+    "drivers/remoteproc/remoteproc_core.c": "be0ed0eb9b789c5c24b90a3d1a497a2815cda7bc8d5b94e5d4e7229aef79beb9",
+    "drivers/remoteproc/remoteproc_sysfs.c": "cd7d42735363ee2fbe5c8dfd039dd2c5d1d4226726c802ba2470ab61d5cfdd72",
+    "drivers/remoteproc/qcom_common.c": "59691a7bb2f24c88fd499f230f8fed9ed6dfee653a50025646e706a06adcee73",
+    "drivers/soc/qcom/pdr_interface.c": "da13d7f202fbfe201b56d2a05fe6987e818110042485332da4808751d6e8c813",
+    "drivers/soc/qcom/qmi_interface.c": "e49925a0be07b2f021b148e8bea729ab031b02ae7613c0efbec97e62a95da234",
+    "include/linux/mfd/wcd934x/wcd934x.h": "e298425d4ea17bb19c936e2f230009723bee7cc0cf9421adcb96b8c85ead10bc"
+  },
+  "relevant_config": [
+    "CONFIG_MFD_WCD934X=y",
+    "CONFIG_SND_SOC_WCD934X=y",
+    "CONFIG_QCOM_PDR_HELPERS=y",
+    "CONFIG_QCOM_QMI_HELPERS=y"
+  ],
+  "pdr_notifier_waits_under_list_lock": true,
+  "stale_down_after_new_up_is_hypothesis_not_proven": true,
+  "host_concurrency_reproduction_and_fix_not_yet_completed": true,
+  "no_kernel_build_or_flash": true,
+  "remoteproc_documentation": "https://docs.kernel.org/staging/remoteproc.html",
+  "ngd_lock_discussion": "https://lists.openwall.net/linux-kernel/2026/03/31/2370"
+}

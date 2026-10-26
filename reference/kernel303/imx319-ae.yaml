@@ -1,0 +1,32 @@
+%YAML 1.1
+---
+# Experimental policy; OEM BLS reference is not unit-specific calibration.
+version: 1
+sensor_model: imx319
+residual_black_subtraction: 3840
+range_normalization: 1.06201171875
+sensor_controls:
+  width: 1632
+  height: 1224
+  pixel_rate: 209066666
+  line_length: 2080
+  frame_length: 3350
+  exposure_delay: 2
+  gain_delay: 2
+agc:
+  relativeLuminanceTarget: 0.16
+  AeConstraintMode:
+    ConstraintNormal:
+      lower:
+        qLo: 0.98
+        qHi: 1.0
+        yTarget: 0.16
+      upper:
+        qLo: 0.98
+        qHi: 1.0
+        yTarget: 0.85
+  AeExposureMode:
+    ExposureNormal:
+      exposureTime: [100, 30000, 33200]
+      gain: [1.0, 1.0, 16.0]
+...

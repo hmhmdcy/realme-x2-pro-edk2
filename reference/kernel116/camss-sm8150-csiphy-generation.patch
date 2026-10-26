@@ -1,0 +1,61 @@
+--- a/drivers/media/platform/qcom/camss/camss.h
++++ b/drivers/media/platform/qcom/camss/camss.h
+@@ -93,6 +93,7 @@
+ 	CAMSS_8280XP,
+ 	CAMSS_8300,
+ 	CAMSS_845,
++	CAMSS_8150,
+ 	CAMSS_8550,
+ 	CAMSS_8650,
+ 	CAMSS_8775P,
+--- a/drivers/media/platform/qcom/camss/camss-csiphy-3ph-1-0.c
++++ b/drivers/media/platform/qcom/camss/camss-csiphy-3ph-1-0.c
+@@ -1137,6 +1137,7 @@
+ 	case CAMSS_8280XP:
+ 	case CAMSS_8300:
+ 	case CAMSS_845:
++	case CAMSS_8150:
+ 	case CAMSS_8550:
+ 	case CAMSS_8650:
+ 	case CAMSS_8775P:
+@@ -1220,6 +1221,11 @@
+ 	case CAMSS_845:
+ 		regs->lane_regs = &lane_regs_sdm845[0];
+ 		regs->lane_array_size = ARRAY_SIZE(lane_regs_sdm845);
++		break;
++	/* Own SM8150 DT declares v1.1; use the reference v1.1 lane table. */
++	case CAMSS_8150:
++		regs->lane_regs = &lane_regs_sc8280xp[0];
++		regs->lane_array_size = ARRAY_SIZE(lane_regs_sc8280xp);
+ 		break;
+ 	case CAMSS_2290:
+ 	case CAMSS_6150:
+--- a/drivers/media/platform/qcom/camss/camss-vfe.c
++++ b/drivers/media/platform/qcom/camss/camss-vfe.c
+@@ -350,6 +350,7 @@
+ 	case CAMSS_8280XP:
+ 	case CAMSS_8300:
+ 	case CAMSS_845:
++	case CAMSS_8150:
+ 	case CAMSS_8550:
+ 	case CAMSS_8650:
+ 	case CAMSS_8775P:
+@@ -2010,6 +2011,7 @@
+ 	case CAMSS_8280XP:
+ 	case CAMSS_8300:
+ 	case CAMSS_845:
++	case CAMSS_8150:
+ 	case CAMSS_8550:
+ 	case CAMSS_8650:
+ 	case CAMSS_8775P:
+--- a/drivers/media/platform/qcom/camss/camss.c
++++ b/drivers/media/platform/qcom/camss/camss.c
+@@ -5866,7 +5866,7 @@
+ };
+ 
+ static const struct camss_resources sm8150_resources = {
+-	.version = CAMSS_845,
++	.version = CAMSS_8150,
+ 	.pd_name = "top",
+ 	.csiphy_res = csiphy_res_8150,
+ 	.csid_res = csid_res_8150,

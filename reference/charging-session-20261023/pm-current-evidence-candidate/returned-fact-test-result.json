@@ -1,0 +1,20 @@
+{
+  "passed": true,
+  "new_test_methods": 1,
+  "cases": [
+    "actual primitive RTC-cleanup-failed terminal preserves mem return and duration",
+    "mem not returned remains false",
+    "returned outcome retains strict operation gate"
+  ],
+  "tested_files": {
+    "worker.py": "ac9436c6a1fd0f6c4e17aeb4d09c8f8b9bd8a3bc658a0852b1b8a972da59a738",
+    "test-returned-fact.py": "497f059f07e0451607c8eb4bff63185ae55c7fbffd2425334405768be490e851",
+    "test-new-boundaries.py": "3c8730d24b36ee08e26bd5da515dd93a7a7551235d79d6ac19a26da17989cdef"
+  },
+  "only_worker_delta": {
+    "old_expression": "functional = {'returned': checks['primitive_returned'],",
+    "new_expression": "functional = {'returned': primitive.get('mem_returned') is True,"
+  },
+  "prior10_27_29_126_rerun": false,
+  "device_trace_PM_build_SDK_Git": false
+}

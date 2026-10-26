@@ -1,0 +1,20 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+/* Wiring only: preserve the existing connector PDOs and charge limits. */
+#include <dt-bindings/iio/qcom,spmi-vadc.h>
+
+&{/soc@0/spmi@c440000/pmic@2/adc@3100} {
+	channel@8 {
+		reg = <ADC5_USB_IN_V_16>;
+		qcom,pre-scaling = <1 16>;
+		label = "usb_in_v_div_16";
+	};
+};
+
+&{/soc@0/spmi@c440000/pmic@2/typec@1500} {
+	io-channels = <&{/soc@0/spmi@c440000/pmic@2/adc@3100} ADC5_USB_IN_V_16>;
+	io-channel-names = "vbus";
+};
+
+&{/soc@0/geniqup@8c0000/i2c@884000/charger@5c} {
+	typec-supply = <&{/soc@0/spmi@c440000/pmic@2/typec@1500}>;
+};

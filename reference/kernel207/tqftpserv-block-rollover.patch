@@ -1,0 +1,120 @@
+--- a/tqftpserv.c
++++ b/tqftpserv.c
+@@ -76,7 +76,7 @@
+ 	uint8_t *rw_buf;
+ 	size_t rw_buf_size;
+ 	size_t blk_offset;
+-	uint16_t blk_expected;
++	size_t blk_expected;
+ 	bool read_eof;
+ };
+ 
+@@ -212,6 +212,7 @@
+ 		send_len = p - buf;
+ 	}
+ 	client->read_eof = send_len < client->blksize + 4;
++	client->block = block;
+ 
+ 	log_debug("Sending %zd bytes of DATA to %d:%d\n", send_len, client->sq.sq_node, client->sq.sq_port);
+ 	return send(client->sock, buf, send_len, 0);
+@@ -752,7 +753,6 @@
+ static int handle_reader(struct tftp_client *client)
+ {
+ 	struct sockaddr_qrtr sq;
+-	uint16_t block;
+ 	uint16_t last;
+ 	char buf[129];
+ 	socklen_t sl;
+@@ -796,30 +796,20 @@
+ 	}
+ 
+ 	last = buf[2] << 8 | buf[3];
+-	log_debug("Got ack for %d from %d:%d\n", last, sq.sq_node, sq.sq_port);
+-
+-	/* We've sent enough data for rsize already */
++	/* Wire numbers wrap; file offsets and window progress must not. */
++	if (last != (uint16_t)client->block)
++		return 1;
+ 	if (client->read_eof)
+ 		return 0;
+ 
+-	for (block = last; block < last + client->wsize; block++) {
+-		size_t offset = client->seek + block * client->blksize;
+-		size_t response_size = 0;
+-		/* Check if need to limit response size based for requested rsize */
+-		if (client->rsize && (block + 1) * client->blksize > client->rsize)
+-			response_size = client->rsize % client->blksize;
+-
+-		n = tftp_send_data(client, block + 1,
+-				   offset, response_size);
+-		if (n < 0) {
+-			log_err("Sent block %d failed: %zd\n", block + 1, n);
+-			break;
+-		}
+-		log_debug("Sent block %d of %zd to %d:%d\n", block + 1, n, sq.sq_node, sq.sq_port);
++	size_t acknowledged = client->block;
++	for (size_t i = 0; i < client->wsize; i++) {
++		size_t absolute = acknowledged + i + 1;
++		size_t offset = client->seek + (absolute - 1) * client->blksize;
++		n = tftp_send_data(client, absolute, offset, 0);
++		if (n < 0)
++			return -1;
+ 		if (client->read_eof)
+-			break;
+-		/* We've sent enough data for rsize already */
+-		if (client->rsize && (block + 1) * client->blksize > client->rsize)
+ 			break;
+ 	}
+ 
+@@ -864,26 +854,17 @@
+ 	payload = len - 4;
+ 	buf += 4;
+ 
+-	/* Check if we recieved expected block */
+-	if (block != client->blk_expected) {
+-		uint16_t blk_expected = client->blk_expected;
+-
+-		log_err("Block number out of sequence: %d (expected %d)\n", block, blk_expected);
++	if (block != (uint16_t)client->blk_expected) {
++		/* A repeated DATA block must never be appended a second time. */
++		if (block == (uint16_t)(client->blk_expected - 1)) {
++			if (client->block == client->blk_expected - 1)
++				tftp_send_ack(client->sock, block);
++			return 1;
++		}
+ 		tftp_send_error(client->sock, TFTP_ERROR_EBADOP, "Block number out of sequence");
+-
+-		/* Set blk_expected to beginning of current window */
+-		if ((blk_expected % client->wsize) == 0)
+-			blk_expected -= client->wsize + 1;
+-		else
+-			blk_expected -= (blk_expected % client->wsize) - 1;
+-
+-		client->blk_expected = blk_expected;
+-		client->blk_offset = 0;
+-
+ 		return -1;
+ 	}
+-
+-	client->blk_expected++;
++	size_t absolute = client->blk_expected++;
+ 
+ 	if (payload > client->rw_buf_size - client->blk_offset) return -1;
+ 	/* Copy the data to the destination buffer */
+@@ -892,7 +873,7 @@
+ 
+ 	/* Write to file if all the wsize blocks are recieved
+ 	 * or received buffer that is less than blksize */
+-	if ((block % client->wsize == 0) || (payload < client->blksize)) {
++	if ((absolute % client->wsize == 0) || (payload < client->blksize)) {
+ 		off_t pos = lseek(client->fd, 0, SEEK_CUR);
+ 		if (pos < 0 || pos > 8388608 || client->blk_offset > 8388608 - (size_t)pos) {
+ 			tftp_send_error(client->sock, TFTP_ERROR_ENOSPACE, "RAM work-file limit");
+@@ -906,6 +887,7 @@
+ 		}
+ 
+ 		client->blk_offset = 0;
++		client->block = absolute;
+ 		tftp_send_ack(client->sock, block);
+ 	}
+ 

@@ -1,0 +1,228 @@
+350: 
+351: /**
+352:  * geni_se_init() - Initialize the GENI serial engine
+353:  * @se:		Pointer to the concerned serial engine.
+354:  * @rx_wm:	Receive watermark, in units of FIFO words.
+355:  * @rx_rfr:	Ready-for-receive watermark, in units of FIFO words.
+356:  *
+357:  * This function is used to initialize the GENI serial engine, configure
+358:  * receive watermark and ready-for-receive watermarks.
+359:  */
+360: void geni_se_init(struct geni_se *se, u32 rx_wm, u32 rx_rfr)
+361: {
+362: 	u32 val;
+363: 
+364: 	geni_se_irq_clear(se);
+365: 	geni_se_io_init(se->base);
+366: 	geni_se_io_set_mode(se->base);
+367: 
+368: 	writel_relaxed(rx_wm, se->base + SE_GENI_RX_WATERMARK_REG);
+369: 	writel_relaxed(rx_rfr, se->base + SE_GENI_RX_RFR_WATERMARK_REG);
+370: 
+371: 	val = readl_relaxed(se->base + SE_GENI_M_IRQ_EN);
+372: 	val |= M_COMMON_GENI_M_IRQ_EN;
+373: 	writel_relaxed(val, se->base + SE_GENI_M_IRQ_EN);
+374: 
+375: 	val = readl_relaxed(se->base + SE_GENI_S_IRQ_EN);
+376: 	val |= S_COMMON_GENI_S_IRQ_EN;
+377: 	writel_relaxed(val, se->base + SE_GENI_S_IRQ_EN);
+378: }
+379: EXPORT_SYMBOL_GPL(geni_se_init);
+380: 
+381: static void geni_se_select_fifo_mode(struct geni_se *se)
+382: {
+383: 	u32 proto = geni_se_read_proto(se);
+384: 	u32 val, val_old;
+385: 
+386: 	geni_se_irq_clear(se);
+387: 
+388: 	/* UART driver manages enabling / disabling interrupts internally */
+389: 	if (proto != GENI_SE_UART) {
+390: 		/* Non-UART use only primary sequencer so dont bother about S_IRQ */
+391: 		val_old = val = readl_relaxed(se->base + SE_GENI_M_IRQ_EN);
+392: 		val |= M_CMD_DONE_EN | M_TX_FIFO_WATERMARK_EN;
+393: 		val |= M_RX_FIFO_WATERMARK_EN | M_RX_FIFO_LAST_EN;
+394: 		if (val != val_old)
+395: 			writel_relaxed(val, se->base + SE_GENI_M_IRQ_EN);
+396: 	}
+397: 
+398: 	val_old = val = readl_relaxed(se->base + SE_GENI_DMA_MODE_EN);
+399: 	val &= ~GENI_DMA_MODE_EN;
+400: 	if (val != val_old)
+446: 
+447: /**
+448:  * geni_se_select_mode() - Select the serial engine transfer mode
+449:  * @se:		Pointer to the concerned serial engine.
+450:  * @mode:	Transfer mode to be selected.
+451:  */
+452: void geni_se_select_mode(struct geni_se *se, enum geni_se_xfer_mode mode)
+453: {
+454: 	WARN_ON(mode != GENI_SE_FIFO && mode != GENI_SE_DMA && mode != GENI_GPI_DMA);
+455: 
+456: 	switch (mode) {
+457: 	case GENI_SE_FIFO:
+458: 		geni_se_select_fifo_mode(se);
+459: 		break;
+460: 	case GENI_SE_DMA:
+461: 		geni_se_select_dma_mode(se);
+462: 		break;
+463: 	case GENI_GPI_DMA:
+464: 		geni_se_select_gpi_mode(se);
+465: 		break;
+466: 	case GENI_SE_INVALID:
+467: 	default:
+468: 		break;
+469: 	}
+470: }
+471: EXPORT_SYMBOL_GPL(geni_se_select_mode);
+472: 
+473: /**
+474:  * DOC: Overview
+475:  *
+476:  * GENI FIFO packing is highly configurable. TX/RX packing/unpacking consist
+477:  * of up to 4 operations, each operation represented by 4 configuration vectors
+478:  * of 10 bits programmed in GENI_TX_PACKING_CFG0 and GENI_TX_PACKING_CFG1 for
+479:  * TX FIFO and in GENI_RX_PACKING_CFG0 and GENI_RX_PACKING_CFG1 for RX FIFO.
+480:  * Refer to below examples for detailed bit-field description.
+481:  *
+482:  * Example 1: word_size = 7, packing_mode = 4 x 8, msb_to_lsb = 1
+483:  *
+484:  *        +-----------+-------+-------+-------+-------+
+485:  *        |           | vec_0 | vec_1 | vec_2 | vec_3 |
+486:  *        +-----------+-------+-------+-------+-------+
+487:  *        | start     | 0x6   | 0xe   | 0x16  | 0x1e  |
+488:  *        | direction | 1     | 1     | 1     | 1     |
+489:  *        | length    | 6     | 6     | 6     | 6     |
+490:  *        | stop      | 0     | 0     | 0     | 1     |
+491:  *        +-----------+-------+-------+-------+-------+
+492:  *
+522: #define PACKING_VECTOR_SHIFT 10
+523: /**
+524:  * geni_se_config_packing() - Packing configuration of the serial engine
+525:  * @se:		Pointer to the concerned serial engine
+526:  * @bpw:	Bits of data per transfer word.
+527:  * @pack_words:	Number of words per fifo element.
+528:  * @msb_to_lsb:	Transfer from MSB to LSB or vice-versa.
+529:  * @tx_cfg:	Flag to configure the TX Packing.
+530:  * @rx_cfg:	Flag to configure the RX Packing.
+531:  *
+532:  * This function is used to configure the packing rules for the current
+533:  * transfer.
+534:  */
+535: void geni_se_config_packing(struct geni_se *se, int bpw, int pack_words,
+536: 			    bool msb_to_lsb, bool tx_cfg, bool rx_cfg)
+537: {
+538: 	u32 cfg0, cfg1, cfg[NUM_PACKING_VECTORS] = {0};
+539: 	int len;
+540: 	int temp_bpw = bpw;
+541: 	int idx_start = msb_to_lsb ? bpw - 1 : 0;
+542: 	int idx = idx_start;
+543: 	int idx_delta = msb_to_lsb ? -BITS_PER_BYTE : BITS_PER_BYTE;
+544: 	int ceil_bpw = ALIGN(bpw, BITS_PER_BYTE);
+545: 	int iter = (ceil_bpw * pack_words) / BITS_PER_BYTE;
+546: 	int i;
+547: 
+548: 	if (iter <= 0 || iter > NUM_PACKING_VECTORS)
+549: 		return;
+550: 
+551: 	for (i = 0; i < iter; i++) {
+552: 		len = min_t(int, temp_bpw, BITS_PER_BYTE) - 1;
+553: 		cfg[i] = idx << PACKING_START_SHIFT;
+554: 		cfg[i] |= msb_to_lsb << PACKING_DIR_SHIFT;
+555: 		cfg[i] |= len << PACKING_LEN_SHIFT;
+556: 
+586: 		writel_relaxed(bpw / 16, se->base + SE_GENI_BYTE_GRAN);
+587: }
+588: EXPORT_SYMBOL_GPL(geni_se_config_packing);
+589: 
+590: static void geni_se_clks_off(struct geni_se *se)
+591: {
+592: 	struct geni_wrapper *wrapper = se->wrapper;
+593: 
+594: 	clk_disable_unprepare(se->clk);
+595: 	clk_bulk_disable_unprepare(wrapper->num_clks, wrapper->clks);
+596: 	clk_disable_unprepare(se->core_clk);
+597: }
+598: 
+599: /**
+600:  * geni_se_resources_off() - Turn off resources associated with the serial
+601:  *                           engine
+602:  * @se:	Pointer to the concerned serial engine.
+603:  *
+604:  * Return: 0 on success, standard Linux error codes on failure/error.
+605:  */
+606: int geni_se_resources_off(struct geni_se *se)
+607: {
+608: 	int ret;
+609: 
+647: 
+648: /**
+649:  * geni_se_resources_on() - Turn on resources associated with the serial
+650:  *                          engine
+651:  * @se:	Pointer to the concerned serial engine.
+652:  *
+653:  * Return: 0 on success, standard Linux error codes on failure/error.
+654:  */
+655: int geni_se_resources_on(struct geni_se *se)
+656: {
+657: 	int ret;
+658: 
+659: 	if (has_acpi_companion(se->dev))
+660: 		return 0;
+661: 
+662: 	ret = geni_se_clks_on(se);
+663: 	if (ret)
+664: 		return ret;
+665: 
+666: 	ret = pinctrl_pm_select_default_state(se->dev);
+667: 	if (ret)
+668: 		geni_se_clks_off(se);
+669: 
+670: 	return ret;
+671: }
+672: EXPORT_SYMBOL_GPL(geni_se_resources_on);
+673: 
+674: /**
+675:  * geni_se_clk_tbl_get() - Get the clock table to program DFS
+676:  * @se:		Pointer to the concerned serial engine.
+677:  * @tbl:	Table in which the output is returned.
+678:  *
+679:  * This function is called by the protocol drivers to determine the different
+680:  * clock frequencies supported by serial engine core clock. The protocol
+681:  * drivers use the output to determine the clock frequency index to be
+682:  * programmed into DFS.
+683:  *
+684:  * Return: number of valid performance levels in the table on success,
+685:  *	   standard Linux error codes on failure.
+686:  */
+687: int geni_se_clk_tbl_get(struct geni_se *se, unsigned long **tbl)
+688: {
+689: 	long freq = 0;
+690: 	int i;
+691: 
+692: 	if (se->clk_perf_tbl) {
+693: 		*tbl = se->clk_perf_tbl;
+1451: 		return ret;
+1452: 
+1453: 	ret = geni_se_resources_on(se);
+1454: 	if (ret)
+1455: 		goto out_icc_disable;
+1456: 
+1457: 	/*
+1458: 	 * Disable high-priority interrupts until all currently executing
+1459: 	 * low-priority interrupts have been fully handled.
+1460: 	 */
+1461: 	geni_setbits32(se->wrapper->base + QUPV3_COMMON_CFG, FAST_SWITCH_TO_HIGH_DISABLE);
+1462: 
+1463: 	/* Set AHB_M_CLK_CGC_ON to indicate hardware controls se-wrapper cgc clock. */
+1464: 	geni_setbits32(se->wrapper->base + QUPV3_SE_AHB_M_CFG, AHB_M_CLK_CGC_ON);
+1465: 
+1466: 	/* Let hardware to control common cgc. */
+1467: 	geni_setbits32(se->wrapper->base + QUPV3_COMMON_CGC_CTRL, COMMON_CSR_SLV_CLK_CGC_ON);
+1468: 
+1469: 	/*
+1470: 	 * Setting individual bits in GENI_OUTPUT_CTRL activates corresponding output lines,
+1471: 	 * allowing the hardware to drive data as configured.
+1472: 	 */
+1473: 	writel(0x0, se->base + GENI_OUTPUT_CTRL);
+1474: 

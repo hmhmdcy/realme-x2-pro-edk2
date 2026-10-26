@@ -1,0 +1,121 @@
+{
+  "stage": 387,
+  "attempts": [
+    {
+      "run": "r1",
+      "reason": "DeviceMatch used model rather than driver. Twelve legacy IFE frames, zero IPE jobs; integration rejected.",
+      "passed_captures": {},
+      "jobs": 0,
+      "completed": 0,
+      "failed": 0,
+      "cancelled": null,
+      "cleaned": true,
+      "services_restored": true,
+      "collector_timed_out": false
+    },
+    {
+      "run": "r2",
+      "reason": "IPE discovered; CAPTURE S_FMT attempted after OUTPUT REQBUFS. EBUSY, zero IPE jobs. Negotiate both formats before allocation.",
+      "passed_captures": {},
+      "jobs": 0,
+      "completed": 0,
+      "failed": 0,
+      "cancelled": null,
+      "cleaned": true,
+      "services_restored": true,
+      "collector_timed_out": false
+    },
+    {
+      "run": "r3",
+      "reason": "All four GStreamer captures delivered twelve frames via IPE. Harness rejected jobs49/completed48/failed1. Historical failed counter mixed ECANCELED with errors; exact return code of that job not recorded. Separate future cancellation accounting; do not retrospectively relabel this job.",
+      "passed_captures": {
+        "imx471": {
+          "frames": 12,
+          "ipe_completed": 12,
+          "starts": 1,
+          "passed": true
+        },
+        "imx319": {
+          "frames": 12,
+          "ipe_completed": 12,
+          "starts": 1,
+          "passed": true
+        },
+        "s5k3m5": {
+          "frames": 12,
+          "ipe_completed": 12,
+          "starts": 1,
+          "passed": true
+        }
+      },
+      "jobs": 49,
+      "completed": 48,
+      "failed": 1,
+      "cancelled": null,
+      "cleaned": true,
+      "services_restored": true,
+      "collector_timed_out": true
+    },
+    {
+      "run": "r4",
+      "reason": "Four processed captures plus dual/RAW-only passed; forced isolated IPA could not locate installed proxy from private library path. Add explicit installed IPA/proxy paths. Final wrapper additionally owns its job timer and rejects reopening after failed STREAMOFF.",
+      "passed_captures": {
+        "imx471": {
+          "frames": 12,
+          "ipe_completed": 12,
+          "ipe_cancelled": 0,
+          "starts": 1,
+          "passed": true
+        },
+        "imx319": {
+          "frames": 12,
+          "ipe_completed": 12,
+          "ipe_cancelled": 0,
+          "starts": 1,
+          "passed": true
+        },
+        "s5k3m5": {
+          "frames": 12,
+          "ipe_completed": 12,
+          "ipe_cancelled": 0,
+          "starts": 1,
+          "passed": true
+        },
+        "s5kgw1": {
+          "frames": 12,
+          "ipe_completed": 12,
+          "ipe_cancelled": 0,
+          "starts": 1,
+          "passed": true
+        },
+        "raw-dual": {
+          "processed_frames": 6,
+          "raw_pairs": 6,
+          "ipe_completed": 6,
+          "ipe_cancelled": 0,
+          "original_sensor_timestamps_verified": true,
+          "passed": true
+        },
+        "raw-raw": {
+          "processed_frames": 0,
+          "raw_pairs": 6,
+          "ipe_completed": 0,
+          "ipe_cancelled": 0,
+          "passed": true,
+          "raw_pair_sof_verified": true
+        }
+      },
+      "jobs": 54,
+      "completed": 54,
+      "failed": 0,
+      "cancelled": 0,
+      "cleaned": true,
+      "services_restored": true,
+      "collector_timed_out": false
+    }
+  ],
+  "failed_attempts_retained": true,
+  "all_terminal_and_cleaned": true,
+  "r3_old_failed_count_not_relabelled": true,
+  "passed": true
+}

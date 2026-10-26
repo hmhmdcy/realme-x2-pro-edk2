@@ -1,0 +1,129 @@
+{
+  "stage": 183,
+  "kernel_build": 181,
+  "same_boot": true,
+  "taint": 0,
+  "synthetic_crash_report_count": 1,
+  "capture_and_playback_running_at_injection": true,
+  "original_clients_automatically_reconnected": true,
+  "original_paplay_returncode": 0,
+  "original_parecord_returncode": 130,
+  "old_debugfs_errno": {
+    "217:250:0:0": 5,
+    "217:250:1:0": 5
+  },
+  "injection_to_duplex_running_seconds": 3.569151391000105,
+  "timeline_nominal_poll_interval_seconds": 0.025,
+  "jobs": [
+    {
+      "case": "right-before-and-during-crash",
+      "speaker": "right",
+      "started_at": 3114.336233093,
+      "raw_position_seconds": 0.31997916666666665,
+      "input_frame_position": 12480,
+      "done_at": 3120.353744051
+    },
+    {
+      "case": "left-after-recovery",
+      "speaker": "left",
+      "started_at": 3120.374001676,
+      "raw_position_seconds": 6.2608125,
+      "input_frame_position": 204480,
+      "done_at": 3124.418758837
+    },
+    {
+      "case": "right-after-recovery",
+      "speaker": "right",
+      "started_at": 3124.438934742,
+      "raw_position_seconds": 10.3208125,
+      "input_frame_position": 396480,
+      "done_at": 3128.483643934
+    }
+  ],
+  "recorded_frames": 741159,
+  "fault_counts": {
+    "warning": 0,
+    "oops": 0,
+    "asoc": 3,
+    "dma_prepare": 0,
+    "tx_timeout": 0,
+    "queue_full": 0,
+    "resume": 0,
+    "irq_read": 0,
+    "irq_config": 0,
+    "irq_mask": 0,
+    "pdr_listener": 0,
+    "pdr_missing_state": 0,
+    "bringup": 0,
+    "underflow": 0,
+    "overflow": 0,
+    "ngd_interrupt": 0,
+    "transfer_timeout": 0,
+    "qmi_wait": 0
+  },
+  "expected_recovery_log_counts": {
+    "report": 1,
+    "handler": 1,
+    "recovery": 1
+  },
+  "stimulus_hashes": {
+    "left": "eff9bf7b21f6f860a0198bbaff2d1fbcfa31b9153e9550c7c9ed9f3d719e3604",
+    "right": "602c732c03990ebfc4e793ed6bb4d8609af9a7d5e38ab6ef3099f340905c94ad"
+  },
+  "source_sink_volume_and_mute_unchanged": true,
+  "mixer_restored": true,
+  "amplifiers_off_muted": true,
+  "pcms_closed": true,
+  "monitor_errors": [],
+  "writer_errors": [],
+  "no_manual_restart_rebind_or_replacement_client": true,
+  "actual_dsp_firmware_watchdog_not_injected": true,
+  "acoustic_analysis_pending": false,
+  "acoustic_results": [
+    {
+      "case": "left-after-recovery",
+      "speaker": "left",
+      "frequency_hz": 997,
+      "target_speaker_enabled": true,
+      "best_code_energy_correlation": 0.9774585885005337,
+      "code_start_seconds": 7.2,
+      "expected_code_start_seconds": 6.7608125,
+      "code_on_band_rms_pcm_counts": 0.714658369318601,
+      "code_off_band_rms_pcm_counts": 0.07043741116375674,
+      "on_to_off_band_power_db": 20.125901968335068,
+      "capture_rms_after_half_second": 139.49177738548855,
+      "clipped_samples_after_half_second": 0,
+      "active_to_same_boot_native_amp_disabled_db": -3.2495085392438128,
+      "detected": false
+    },
+    {
+      "case": "right-after-recovery",
+      "speaker": "right",
+      "frequency_hz": 1511,
+      "target_speaker_enabled": true,
+      "best_code_energy_correlation": 0.9975602496985309,
+      "code_start_seconds": 11.200000000000001,
+      "expected_code_start_seconds": 10.8208125,
+      "code_on_band_rms_pcm_counts": 7.075468064677617,
+      "code_off_band_rms_pcm_counts": 0.06462072967203902,
+      "on_to_off_band_power_db": 40.7876663502517,
+      "capture_rms_after_half_second": 139.49177738548855,
+      "clipped_samples_after_half_second": 0,
+      "active_to_same_boot_native_amp_disabled_db": 20.328951173906805,
+      "detected": true
+    }
+  ],
+  "acoustic_channels_passed": false,
+  "driver_fault_free_pass": false,
+  "known_failure": "WCD934x STOP -ENOTCONN plus three ASoC errors during transport loss",
+  "archive_sha256": "100381dd54cf93b51a6188496a71a9f8ae33c5255fef8e3d6c05ea5b06286e60",
+  "detector_identical_to181": true,
+  "thresholds": {
+    "correlation": 0.75,
+    "on_off_db": 6,
+    "amp_off_reference_db": 8
+  },
+  "native_amp_off_reference_in_same_boot": true,
+  "independent_desktop_amp_off_control": false,
+  "no_lossless_crash_continuity_or_human_quality_claim": true
+}

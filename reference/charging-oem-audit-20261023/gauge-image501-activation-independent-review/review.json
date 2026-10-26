@@ -1,0 +1,123 @@
+{
+  "status": "accepted-within-static-review-scope",
+  "blockers": [],
+  "reviewed_delivery_sha256": "c7983040c0bc5a58976acc4973ea5a2bfd793a62c2a3410cfeb7fb3c0a240a46",
+  "frozen_files": {
+    "check-local-result.json": {
+      "sha256": "fafd8d29f18b2f60a5f0ce15a8491a19295737e7445e132f0732b6336b00f2cb",
+      "bytes": 244
+    },
+    "context-scope.json": {
+      "sha256": "3a1f289782e9ed5e74aaf53b4915f202dba089fe58e70e9cac706a96f0141037",
+      "bytes": 535
+    },
+    "controller.py": {
+      "sha256": "bff36b8596d80d737be195d471b37c169673e4e50b9692cc8921344b4e02bbf7",
+      "bytes": 23367
+    },
+    "controller.py.patch": {
+      "sha256": "3e8866ae85545f4f63f73c1752863a3d26380d4281c11fe8f78c9ed1b4720fa0",
+      "bytes": 9367
+    },
+    "eud-quiesce.py": {
+      "sha256": "3830ffd16173b24b9ee859818e3c5a64f9144e4a0f36417af14fd7a5a2d733e9",
+      "bytes": 16280
+    },
+    "eud-restart.py": {
+      "sha256": "5b9f309417342d297684e0e66766b0ba59e30dd68dfabd74c411a84875df727d",
+      "bytes": 11655
+    },
+    "eud-restart.py.patch": {
+      "sha256": "79dd8d9ed3cb000202741dfdbf8efa3d802f2756d97b32b72ef57b119fd85169",
+      "bytes": 9998
+    },
+    "guard-fragment.py": {
+      "sha256": "8837af79bdbbceecbf7a253f57c6e4cb1bab9b8764f4deb72b042d533b450432",
+      "bytes": 8485
+    },
+    "guard-fragment.py.patch": {
+      "sha256": "b4b9f33c51a78194e2e8a7fa6fc62a73aa9ca6d1b9f278bbbee337d9df75535c",
+      "bytes": 5340
+    },
+    "input-pins.json": {
+      "sha256": "d63da9cbb8bf42c5e2fca45ab642d04f145b37a72aa34d73f89482d4e9d47814",
+      "bytes": 3652
+    },
+    "prepare-contract.json": {
+      "sha256": "d43d8f3bac53525ab55ca7b2a88d508c7689c6b194aeaf4e5e98aec2416727f1",
+      "bytes": 6643
+    },
+    "README.md": {
+      "sha256": "cfeecbbc3ce5a416eb640d9fad8e685d1391b44e6d52904d71c6ca54d32d63c3",
+      "bytes": 3260
+    },
+    "remote.py": {
+      "sha256": "ba0a070fc88777e548a4ae93479f47b621cfb5392b4f9b9f088a840d23001a8a",
+      "bytes": 7812
+    },
+    "remote.py.patch": {
+      "sha256": "43f0eb1708476c8c3462b3b2a6e889b5061632b961e4f0e2b4fd2844870e20f2",
+      "bytes": 952
+    },
+    "source-provenance.json": {
+      "sha256": "867f18fb37882b61ce9e5b56e96e1063ca76dc67eb68e292c8d4543cc00b66a8",
+      "bytes": 1237
+    },
+    "test-delta.py": {
+      "sha256": "5bb24c90c2ce55a9a0ec529910611b3eb403b1ee945598ecd5712cd27769e0b7",
+      "bytes": 9439
+    },
+    "test-result.json": {
+      "sha256": "3af696a5512b77da6c9ea8eaa985a92798b540d4938937eec3364914895e922d",
+      "bytes": 5186
+    }
+  },
+  "independently_confirmed": {
+    "all_delivery_and_test_source_pins_match_final_raw_bytes": true,
+    "base_provenance_raw_hashes_match": true,
+    "supervisor_same_child_unknown_functions_ast_unchanged": [
+      "create",
+      "save",
+      "process_identity",
+      "process_status",
+      "ssh_worker",
+      "start_job",
+      "terminal_job",
+      "require_known",
+      "reconcile",
+      "fetch_reconcile",
+      "retain_fetch",
+      "copy_exact",
+      "host_jobs"
+    ],
+    "export_context_actual_final_ast_only_schema_literal_changed": true,
+    "remote_only_owner_and_transaction_regex_changed": true,
+    "quiesce_hardware_suffix_unchanged_except_work_label": true,
+    "guard_fragment_exact_text_in_both_workers": true,
+    "no_restart_MMIO_single_syscall_durable_claim_order": true,
+    "context_scope_raw_and_LF_hashes_distinguished": {
+      "raw_controller_sha256": "bff36b8596d80d737be195d471b37c169673e4e50b9692cc8921344b4e02bbf7",
+      "LF_normalized_controller_sha256": "6150a3d87be2e720b7e2f41ebfafe6202744ddc0c9a86b5e187dc09fb9d027b2",
+      "addendum_sha256": "0fafcffe54f32d66b8eea91c20a60ad2e3b1ec03fa115b3f08d01555e101860d"
+    }
+  },
+  "reused_author_tests": {
+    "receipt_sha256": "3af696a5512b77da6c9ea8eaa985a92798b540d4938937eec3364914895e922d",
+    "groups": 4,
+    "actual_guard_cases": 10,
+    "actual_restart_tail_cases": 7,
+    "independent_reexecution": false
+  },
+  "scope": [
+    "New profile/guard bindings and removal of EUD controls; transport-independent single restart tail.",
+    "Original SSH child identity/terminal reconciliation; persistent mutation intent and fetch-only unknown outcome.",
+    "Seven-raw context export distinguishes dispatch/armed intent from syscall, bootloader and new-boot success."
+  ],
+  "limits": [
+    "Static review plus hash/AST comparisons; no worker, controller entry, transport, syscall, old test suite, device, SDK, build or Git operation executed.",
+    "Root/UI independently own candidate/rollback carrier pair, fastboot tool, live handoff and postboot verification.",
+    "SSH loss, filesystem_frozen_restart2_armed and terminal SSH return do not prove reboot; fresh fastboot identity and a separately validated new boot remain required.",
+    "No requirement to fetch vanished /run logs after reboot; available phase logs are evidence of intent only."
+  ],
+  "review_program_sha256": "a320ca5ab32c5f1ce48175f2513cabf9e8422f0779e6a917b355eab6174012ae"
+}

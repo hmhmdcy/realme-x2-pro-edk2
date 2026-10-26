@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/power/supply/realme,rmx1931-usb-input.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Realme RMX1931 PM8150B USB input status monitor
+
+# Local port binding; this placeholder is not an upstream maintainer assignment.
+maintainers:
+  - Samurai Linux port maintainers <samurai-linux@example.com>
+
+description: |
+  Read-only USB input source observation for the Realme X2 Pro. The monitor
+  uses the PM8150B USBIN and Type-C status registers. It does not change USB
+  roles, negotiate PD, run charger detection, or configure charging limits.
+
+allOf:
+  - $ref: power-supply.yaml#
+
+properties:
+  compatible:
+    const: realme,rmx1931-usb-input
+
+  reg:
+    items:
+      - items:
+          - const: 0x1300
+
+required:
+  - compatible
+  - reg
+
+unevaluatedProperties: false
+
+examples:
+  - |
+    pmic {
+        #address-cells = <1>;
+        #size-cells = <0>;
+        usb-input@1300 {
+            compatible = "realme,rmx1931-usb-input";
+            reg = <0x1300>;
+        };
+    };

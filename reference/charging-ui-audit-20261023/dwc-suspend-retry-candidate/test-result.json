@@ -1,0 +1,71 @@
+{
+  "passed": true,
+  "summary": {
+    "passed": true,
+    "cases": 15,
+    "old_two_attempt_failure_reproduced": true,
+    "new_retry_miss_no_repeated_DMA_or_reset": true,
+    "late_halt_allows_existing_path": true,
+    "post_snapshot_producer_lifetime_not_serialized": true,
+    "full_resume_unwind_complete": false
+  },
+  "phases": [
+    {
+      "phase": "compile",
+      "argv": [
+        "gcc",
+        "-std=c11",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-Wno-unused-function",
+        "-Wno-unused-parameter",
+        "-g",
+        "-O1",
+        "-fsanitize=address,undefined",
+        "-fno-omit-frame-pointer",
+        "-fno-pie",
+        "-no-pie",
+        "/mnt/e/RealmeX2Pro edk2/reference/charging-ui-audit-20261023/dwc-suspend-retry-candidate/test-retry.c",
+        "-o",
+        "/home/cy122/charging-management-20261023/dwc-suspend-retry-test-01/test-retry"
+      ],
+      "pid": 744,
+      "terminal": true,
+      "returncode": 0,
+      "seconds": 0.9891093620000007,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "phase": "run",
+      "argv": [
+        "/home/cy122/charging-management-20261023/dwc-suspend-retry-test-01/test-retry"
+      ],
+      "pid": 806,
+      "terminal": true,
+      "returncode": 0,
+      "seconds": 0.02157147199999976,
+      "stdout_sha256": "cdb5fdb1253f82bb91e3a98094745727e5a2b7b5b8cb84e6341bbe7c4b07373b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "files": {
+    "prepare.py": "4b27e5e4ab59e4f875185576293b838e51430159d502ac647f0129c673f8f57e",
+    "gadget.c": "1f47ecbd54f931ccd1068b23c4e171864966f652cdf85986f89e151f386cf354",
+    "suspend-retry.patch": "70ede8a7914a043ae34867b66433af75ccf69503747ae3afb5d05573d04e3f97",
+    "source-result.json": "0375a874028727424f535879a800b85ac74aa1b9c646a62f73fd3cd2fe3e3d52",
+    "prepare-test.py": "8e654c8ff58058635f583177fb6cbe567d26d5cf3fd92adb51794ad8fb61e398",
+    "test-retry.c": "abc1fbe64dcf0c7734d61defe2d9ecdadb0a5c6742a36a17be530717f0902615",
+    "test-retry.py": "7d4217c29f0c536f53deb2d36d36be841fa3b0d7195eba74df2e12819ef217b7",
+    "tested-functions.inc": "200f5d91550d832b71991a2873d48ea917983120e7f3189209c7750b55ec74fe",
+    "previous-functions.inc": "896c0f1b5fe331d5d403799b100d027ae44b60dbe79e4a4eecf86ccb8a27f350",
+    "fixture-source-reuse.json": "3df01be1fe1671fbd72c9242facf347a2068da30db23542a49593dc9fb101f69"
+  },
+  "private_output": "/home/cy122/charging-management-20261023/dwc-suspend-retry-test-01",
+  "old_13_24_20_126_suites_rerun": false,
+  "MMIO_DMA_request_IRQ_PM_and_reconnect_boundaries_fake": true,
+  "post_snapshot_producer_control_not_a_safety_pass": true,
+  "full_resume_unwind_complete": false,
+  "device_storage_helper_SDK_Git_used": false
+}

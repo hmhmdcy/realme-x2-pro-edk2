@@ -1,0 +1,20 @@
+--- a/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
++++ b/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
+@@ -695,8 +695,15 @@
+  if (d->rawEnabled_) {ret=d->raw_->importBuffers(d->rawStream_.configuration().bufferCount);if(ret)goto error;}
+  ret = d->params_->allocateBuffers(1, &d->paramsBuffers_);
+  if (ret < 1) { ret = ret < 0 ? ret : -ENOMEM; goto error; }
+- ret = d->stats_->allocateBuffers(4, &d->statsBuffers_);
+- if (ret < 3) { ret = ret < 0 ? ret : -ENOMEM; goto error; }
++ {
++ /* Isolated IPA calls and the first IPE firmware boot may hold the
++  * camera event loop while FULL requests remain queued. Keep the same
++  * bounded backlog as PD10 instead of exhausting a four-frame stats pool. */
++ const unsigned int statsCount = d->processedEnabled_ && d->ipe_ ?
++     d->stream_.configuration().bufferCount + 4 : 4;
++ ret = d->stats_->allocateBuffers(statsCount, &d->statsBuffers_);
++ if (ret < int(statsCount)) { ret = ret < 0 ? ret : -ENOMEM; goto error; }
++ }
+  {
+   std::vector<IPABuffer> parameters, statistics;
+   auto append = [](FrameBuffer *buffer, uint32_t id, std::vector<IPABuffer> &buffers) {

@@ -1,0 +1,39 @@
+{
+  "stage": 453,
+  "scope": "exact kernel v4l2_subdev_release C host counterexample, not kernel execution",
+  "source_path": "drivers/media/v4l2-core/v4l2-device.c",
+  "source_sha256": "3cb62dc7339cdf3d8140e30b9b1dddcbab102c85dec2d11dac979fe9ff3875e7",
+  "original_function_verbatim": true,
+  "runs": {
+    "original": {
+      "compile_exit": 0,
+      "run_exit": 1,
+      "heap_use_after_free": true,
+      "function_sha256": "54d1b986ca2829c7c9dd3a6ee34ddc4971271533ab06bdf489f6de7ee931c50a",
+      "compile_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "compile_log_bytes": 0,
+      "run_log_sha256": "c63491d39efd02e6c744fd6d4f24354e8f06b5a0a8d3d8d1c0cedd72c449fbc6",
+      "run_log_bytes": 3798
+    },
+    "candidate": {
+      "compile_exit": 0,
+      "run_exit": 0,
+      "heap_use_after_free": false,
+      "function_sha256": "344a493872273dd213381c7c230acd8a3b8d15d66d538c639321759c279a3b99",
+      "compile_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "compile_log_bytes": 0,
+      "run_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "run_log_bytes": 0
+    }
+  },
+  "confirmed_callback_can_free_sd_before_framework_devnode_write": true,
+  "private_patch_moves_devnode_clear_before_callback": true,
+  "private_patch_kernel_compiled": false,
+  "actual_kernel_runtime_or_hardware_tested": false,
+  "public_driver_or_shared_source_modified": false,
+  "sdk_or_phone_accessed": false,
+  "passed": true,
+  "public_patch": "0064-media-v4l2-core-clear-devnode-before-subdev-release.patch",
+  "public_patch_sha256": "91026115da36f037016c6f7b00de47d2d2898f284d9ac750f790a78d9677fb18",
+  "built_in_core_or_image_updated": false
+}

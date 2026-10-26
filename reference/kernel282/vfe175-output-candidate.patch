@@ -1,0 +1,382 @@
+diff --git a/drivers/media/platform/qcom/camss/Makefile b/drivers/media/platform/qcom/camss/Makefile
+index 337e171a9..3b0a94d0e 100644
+--- a/drivers/media/platform/qcom/camss/Makefile
++++ b/drivers/media/platform/qcom/camss/Makefile
+@@ -24,6 +24,7 @@ qcom-camss-objs += \
+ 		camss-vfe-4-8.o \
+ 		camss-vfe-17x.o \
+ 		camss-vfe-175-camif.o \
++		camss-vfe-175-output.o \
+ 		camss-vfe-340.o \
+ 		camss-vfe-480.o \
+ 		camss-vfe-680.o \
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe-175-output.c b/drivers/media/platform/qcom/camss/camss-vfe-175-output.c
+new file mode 100644
+index 000000000..e4fde01b5
+--- /dev/null
++++ b/drivers/media/platform/qcom/camss/camss-vfe-175-output.c
+@@ -0,0 +1,152 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/* Qualcomm VFE175 single-IFE FULL NV12 write-master transport. */
++
++#include <linux/io.h>
++#include <linux/limits.h>
++
++#include "camss.h"
++#include "camss-vfe.h"
++#include "camss-vfe-175-output.h"
++
++#define VFE_175_FULL_MAX_WIDTH               4096
++#define VFE_175_FULL_MAX_HEIGHT              4096
++#define VFE_175_FULL_Y                       3
++#define VFE_175_FULL_C                       4
++#define VFE_175_FULL_MASK                    (BIT(3) | BIT(4))
++#define VFE_175_BUS_CGC_OVERRIDE             0x200c
++#define VFE_175_BUS_COMP_MASK                0x2010
++#define VFE_175_BUS_ADDR_NO_SYNC             0x2084
++#define VFE_175_WM_CFG(n)                    (0x2208 + (n) * 0x100)
++#define VFE_175_WM_IMAGE_ADDR(n)             (0x2214 + (n) * 0x100)
++#define VFE_175_WM_IMAGE_OFFSET(n)           (0x2218 + (n) * 0x100)
++#define VFE_175_WM_WIDTH(n)                  (0x221c + (n) * 0x100)
++#define VFE_175_WM_HEIGHT(n)                 (0x2220 + (n) * 0x100)
++#define VFE_175_WM_PACKER(n)                 (0x2224 + (n) * 0x100)
++#define VFE_175_WM_STRIDE(n)                 (0x2228 + (n) * 0x100)
++#define VFE_175_WM_UBWC_MODE(n)              (0x2244 + (n) * 0x100)
++#define VFE_175_WM_IRQ_PERIOD(n)             (0x2248 + (n) * 0x100)
++#define VFE_175_WM_IRQ_PATTERN(n)            (0x224c + (n) * 0x100)
++#define VFE_175_WM_DROP_PERIOD(n)            (0x2250 + (n) * 0x100)
++#define VFE_175_WM_DROP_PATTERN(n)           (0x2254 + (n) * 0x100)
++#define VFE_175_WM_FRAME_INC(n)              (0x2258 + (n) * 0x100)
++#define VFE_175_WM_BURST_LIMIT(n)            (0x225c + (n) * 0x100)
++#define VFE_175_PACKER_NV12                  0xe
++
++int vfe_175_validate_output(const struct vfe_output *output)
++{
++	const struct v4l2_pix_format_mplane *pix = &output->video_out.active_fmt.fmt.pix_mp;
++	u32 stride = pix->plane_fmt[0].bytesperline;
++	u64 required;
++
++	/* One single-IFE FULL image, fixed Y/C clients and composite group zero. */
++	if (!output->line->is_pix || output->pad != MSM_VFE_PAD_SRC ||
++	    output != &output->line->output[0] || output->wm_num != 2 ||
++	    output->comp_group != 0 || output->line->num_outputs != 1 ||
++	    output->wm[0].bus_client != VFE_175_FULL_Y || output->wm[0].plane != 0 ||
++	    output->wm[1].bus_client != VFE_175_FULL_C || output->wm[1].plane != 1)
++		return -EINVAL;
++	if (pix->pixelformat != V4L2_PIX_FMT_NV12 || pix->num_planes != 1 ||
++	    !pix->width || !pix->height || (pix->width & 1) || (pix->height & 1) ||
++	    pix->width > VFE_175_FULL_MAX_WIDTH ||
++	    pix->height > VFE_175_FULL_MAX_HEIGHT ||
++	    stride < pix->width || !IS_ALIGNED(stride, 16) || stride > U16_MAX)
++		return -EINVAL;
++
++	required = (u64)stride * pix->height * 3 / 2;
++	if (required > pix->plane_fmt[0].sizeimage)
++		return -EINVAL;
++
++	return 0;
++}
++
++int vfe_175_validate_buffer(const struct vfe_output *output,
++			    const struct camss_buffer *buf)
++{
++	const struct v4l2_pix_format_mplane *pix = &output->video_out.active_fmt.fmt.pix_mp;
++	u64 luma = (u64)pix->plane_fmt[0].bytesperline * pix->height;
++	u64 size = luma * 3 / 2;
++	u64 address = buf->addr[0];
++	int ret;
++
++	ret = vfe_175_validate_output(output);
++	if (ret)
++		return ret;
++	if (address > U32_MAX || size - 1 > U32_MAX - address)
++		return -ERANGE;
++	if (!IS_ALIGNED(address, 16) || buf->addr[1] != address + luma)
++		return -EINVAL;
++
++	return 0;
++}
++
++/* Called only after line format and capture DMA preparation succeeded. */
++void vfe_175_full_start(struct vfe_device *vfe, struct vfe_output *output)
++{
++	const struct v4l2_pix_format_mplane *pix = &output->video_out.active_fmt.fmt.pix_mp;
++	u32 stride = pix->plane_fmt[0].bytesperline;
++	u32 value;
++	unsigned int i;
++
++	value = readl_relaxed(vfe->base + VFE_175_BUS_CGC_OVERRIDE);
++	writel_relaxed(value | VFE_175_FULL_MASK, vfe->base + VFE_175_BUS_CGC_OVERRIDE);
++	/* Single IFE: no cross-core address synchronization. */
++	value = readl_relaxed(vfe->base + VFE_175_BUS_ADDR_NO_SYNC);
++	writel_relaxed(value | VFE_175_FULL_MASK, vfe->base + VFE_175_BUS_ADDR_NO_SYNC);
++	value = readl_relaxed(vfe->base + VFE_175_BUS_COMP_MASK);
++	writel_relaxed(value | VFE_175_FULL_MASK, vfe->base + VFE_175_BUS_COMP_MASK);
++
++	for (i = 0; i < output->wm_num; i++) {
++		u8 wm = output->wm[i].bus_client;
++		u32 height = pix->height >> output->wm[i].plane;
++
++		writel_relaxed(0, vfe->base + VFE_175_WM_IMAGE_OFFSET(wm));
++		writel_relaxed(pix->width, vfe->base + VFE_175_WM_WIDTH(wm));
++		writel_relaxed(height, vfe->base + VFE_175_WM_HEIGHT(wm));
++		writel_relaxed(VFE_175_PACKER_NV12, vfe->base + VFE_175_WM_PACKER(wm));
++		writel_relaxed(stride, vfe->base + VFE_175_WM_STRIDE(wm));
++		writel_relaxed(stride * height, vfe->base + VFE_175_WM_FRAME_INC(wm));
++		writel_relaxed(0xf, vfe->base + VFE_175_WM_BURST_LIMIT(wm));
++		writel_relaxed(0, vfe->base + VFE_175_WM_IRQ_PERIOD(wm));
++		writel_relaxed(1, vfe->base + VFE_175_WM_IRQ_PATTERN(wm));
++		writel_relaxed(0, vfe->base + VFE_175_WM_DROP_PERIOD(wm));
++		writel_relaxed(1, vfe->base + VFE_175_WM_DROP_PATTERN(wm));
++		value = readl_relaxed(vfe->base + VFE_175_WM_UBWC_MODE(wm));
++		writel_relaxed(value & ~BIT(0), vfe->base + VFE_175_WM_UBWC_MODE(wm));
++		writel_relaxed(1, vfe->base + VFE_175_WM_CFG(wm));
++	}
++}
++
++void vfe_175_full_update(struct vfe_device *vfe, struct vfe_output *output,
++			 const struct camss_buffer *buf)
++{
++	unsigned int i;
++
++	/* 175 uses byte addresses; newer IFE address>>8 programming is different. */
++	for (i = 0; i < output->wm_num; i++)
++		writel_relaxed(buf->addr[output->wm[i].plane],
++			       vfe->base + VFE_175_WM_IMAGE_ADDR(output->wm[i].bus_client));
++}
++
++void vfe_175_full_stop(struct vfe_device *vfe, struct vfe_output *output)
++{
++	u32 value;
++	unsigned int i;
++
++	for (i = 0; i < output->wm_num; i++)
++		writel_relaxed(0, vfe->base + VFE_175_WM_CFG(output->wm[i].bus_client));
++	value = readl_relaxed(vfe->base + VFE_175_BUS_COMP_MASK);
++	writel_relaxed(value & ~VFE_175_FULL_MASK, vfe->base + VFE_175_BUS_COMP_MASK);
++}
++
++void vfe_175_comp_done(struct vfe_device *vfe, u8 comp)
++{
++	struct camss_buf_done_info info = { };
++
++	if (comp >= 6 || vfe->res->line_num <= VFE_LINE_PIX ||
++	    !vfe->line[VFE_LINE_PIX].is_pix)
++		return;
++
++	info.status = BIT(comp);
++	/* One image completion for the group, never one per Y/C client. */
++	vfe_buf_done(vfe, VFE_LINE_PIX, &info);
++}
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe-175-output.h b/drivers/media/platform/qcom/camss/camss-vfe-175-output.h
+new file mode 100644
+index 000000000..3f0314b2f
+--- /dev/null
++++ b/drivers/media/platform/qcom/camss/camss-vfe-175-output.h
+@@ -0,0 +1,20 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++#ifndef CAMSS_VFE_175_OUTPUT_H
++#define CAMSS_VFE_175_OUTPUT_H
++
++#include <linux/types.h>
++
++struct vfe_device;
++struct vfe_output;
++struct camss_buffer;
++
++int vfe_175_validate_output(const struct vfe_output *output);
++int vfe_175_validate_buffer(const struct vfe_output *output,
++			    const struct camss_buffer *buf);
++void vfe_175_full_start(struct vfe_device *vfe, struct vfe_output *output);
++void vfe_175_full_stop(struct vfe_device *vfe, struct vfe_output *output);
++void vfe_175_full_update(struct vfe_device *vfe, struct vfe_output *output,
++			 const struct camss_buffer *buf);
++void vfe_175_comp_done(struct vfe_device *vfe, u8 comp);
++
++#endif /* CAMSS_VFE_175_OUTPUT_H */
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe-17x.c b/drivers/media/platform/qcom/camss/camss-vfe-17x.c
+index c4ce12172..6940f2b63 100644
+--- a/drivers/media/platform/qcom/camss/camss-vfe-17x.c
++++ b/drivers/media/platform/qcom/camss/camss-vfe-17x.c
+@@ -16,6 +16,7 @@
+ #include "camss.h"
+ #include "camss-vfe.h"
+ #include "camss-vfe-175-camif.h"
++#include "camss-vfe-175-output.h"
+ 
+ #define VFE_GLOBAL_RESET_CMD			(0x018)
+ #define		GLOBAL_RESET_CMD_CORE		BIT(0)
+@@ -99,6 +100,8 @@
+ #define VFE_REG_UPDATE_CMD			(0x4ac)
+ #define		REG_UPDATE_RDI(n)		BIT(1 + (n))
+ 
++#define VFE_17X_COMPOSITE_IRQ_NUM		6
++
+ #define VFE_BUS_IRQ_MASK(n)		(0x2044 + (n) * 4)
+ #define VFE_BUS_IRQ_CLEAR(n)		(0x2050 + (n) * 4)
+ #define VFE_BUS_IRQ_STATUS(n)		(0x205c + (n) * 4)
+@@ -373,12 +376,14 @@ static irqreturn_t vfe_isr(int irq, void *dev)
+ 			vfe->isr_ops.sof(vfe, i);
+ 	}
+ 
+-	for (i = 0; i < MSM_VFE_COMPOSITE_IRQ_NUM; i++)
++	for (i = 0; i < VFE_17X_COMPOSITE_IRQ_NUM; i++)
+ 		if (vfe_bus_status[0] & STATUS0_COMP_BUF_DONE(i))
+ 			vfe->isr_ops.comp_done(vfe, i);
+ 
+-	for (wm = 0; wm < MSM_VFE_IMAGE_MASTERS_NUM; wm++)
+-		if (vfe_bus_status[1] & STATUS1_WM_CLIENT_BUF_DONE(wm))
++	/* PIX planes complete together through their composite group above. */
++	for (wm = 0; wm < vfe->res->line_num; wm++)
++		if (!vfe->line[wm].is_pix &&
++		    (vfe_bus_status[1] & STATUS1_WM_CLIENT_BUF_DONE(wm)))
+ 			vfe->isr_ops.wm_done(vfe, wm);
+ 
+ 	return IRQ_HANDLED;
+@@ -614,9 +619,75 @@ const struct vfe_hw_ops vfe_ops_170 = {
+ 	.vfe_wm_update = vfe_wm_update,
+ };
+ 
+-/* SM8150 full IFE: shared RDI transport, matched CAMIF preparation. */
++static int vfe_prepare_dma_175(struct camss_video *video,
++			       struct camss_buffer *buf)
++{
++	struct vfe_output *output = container_of(video, struct vfe_output, video_out);
++
++	if (!output->line->is_pix)
++		return 0;
++
++	return vfe_175_validate_buffer(output, buf);
++}
++
++static const struct camss_video_ops vfe_video_ops_175 = {
++	.queue_buffer = vfe_queue_buffer_v2,
++	.flush_buffers = vfe_flush_buffers,
++	.prepare_dma_buffer = vfe_prepare_dma_175,
++};
++
++static void vfe_subdev_init_175(struct device *dev, struct vfe_device *vfe)
++{
++	vfe_subdev_init(dev, vfe);
++	vfe->video_ops = vfe_video_ops_175;
++	vfe->isr_ops.comp_done = vfe_175_comp_done;
++}
++
++static int vfe_line_prepare_175(struct vfe_line *line)
++{
++	int ret;
++
++	if (line->is_pix) {
++		ret = vfe_175_validate_output(&line->output[0]);
++		if (ret)
++			return ret;
++	}
++
++	return vfe_175_camif_prepare(line);
++}
++
++static void vfe_output_start_175(struct vfe_device *vfe,
++				 struct vfe_output *output)
++{
++	if (output->line->is_pix)
++		vfe_175_full_start(vfe, output);
++	else
++		vfe_wm_start(vfe, output->wm[0].bus_client, output->line);
++}
++
++static void vfe_output_stop_175(struct vfe_device *vfe,
++				struct vfe_output *output)
++{
++	if (output->line->is_pix)
++		vfe_175_full_stop(vfe, output);
++	else
++		vfe_wm_stop(vfe, output->wm[0].bus_client, output->line);
++}
++
++static void vfe_output_update_175(struct vfe_device *vfe,
++				  struct vfe_output *output,
++				  struct camss_buffer *buf)
++{
++	if (output->line->is_pix)
++		vfe_175_full_update(vfe, output, buf);
++	else
++		vfe_wm_update(vfe, output->wm[0].bus_client, buf->addr[0],
++			      output->line);
++}
++
++/* SM8150 full IFE: shared RDI transport, matched CAMIF and FULL DMA. */
+ const struct vfe_hw_ops vfe_ops_175 = {
+-	.vfe_line_prepare = vfe_175_camif_prepare,
++	.vfe_line_prepare = vfe_line_prepare_175,
+ 	.global_reset = vfe_global_reset,
+ 	.hw_version = vfe_hw_version,
+ 	.isr_read = vfe_isr_read,
+@@ -625,12 +696,12 @@ const struct vfe_hw_ops vfe_ops_175 = {
+ 	.pm_domain_on = vfe_pm_domain_on,
+ 	.reg_update_clear = vfe_reg_update_clear,
+ 	.reg_update = vfe_reg_update,
+-	.subdev_init = vfe_subdev_init,
++	.subdev_init = vfe_subdev_init_175,
+ 	.vfe_disable = vfe_disable,
+ 	.vfe_enable = vfe_enable,
+ 	.vfe_halt = vfe_halt,
+ 	.violation_read = vfe_violation_read,
+-	.vfe_wm_start = vfe_wm_start,
+-	.vfe_wm_stop = vfe_wm_stop,
+-	.vfe_wm_update = vfe_wm_update,
++	.vfe_output_start = vfe_output_start_175,
++	.vfe_output_stop = vfe_output_stop_175,
++	.vfe_output_update = vfe_output_update_175,
+ };
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe.c b/drivers/media/platform/qcom/camss/camss-vfe.c
+index f1fe412c6..02c71c9db 100644
+--- a/drivers/media/platform/qcom/camss/camss-vfe.c
++++ b/drivers/media/platform/qcom/camss/camss-vfe.c
+@@ -2575,7 +2575,7 @@ static int vfe_bpl_align_rdi(struct vfe_device *vfe)
+  *
+  * A line-based video node caps its buffer at CAMSS_FRAME_MAX_HEIGHT_PIX lines,
+  * counting every plane's lines together. That fits the VFE 4.x and TFE pixel
+- * outputs. The SM8650 IFE writes luma and chroma through separate write
++ * outputs. The SM8150 and SM8650 IFEs write luma and chroma through separate write
+  * masters, each programmed with its own height, so the cap does not apply.
+  *
+  * Return true if the pixel path's video node is line based
+@@ -2583,6 +2583,7 @@ static int vfe_bpl_align_rdi(struct vfe_device *vfe)
+ static bool vfe_pix_line_based(struct vfe_device *vfe)
+ {
+ 	switch (vfe->camss->res->version) {
++	case CAMSS_8150:
+ 	case CAMSS_8650:
+ 		return false;
+ 	default:
+diff --git a/drivers/media/platform/qcom/camss/camss-video.c b/drivers/media/platform/qcom/camss/camss-video.c
+index 467421f29..520f244ca 100644
+--- a/drivers/media/platform/qcom/camss/camss-video.c
++++ b/drivers/media/platform/qcom/camss/camss-video.c
+@@ -237,6 +237,13 @@ static int video_buf_prepare(struct vb2_buffer *vb)
+ 		vb2_set_plane_payload(vb, i, format->plane_fmt[i].sizeimage);
+ 	}
+ 
++	if (video->ops->prepare_dma_buffer) {
++		ret = video->ops->prepare_dma_buffer(video,
++				container_of(vbuf, struct camss_buffer, vb));
++		if (ret)
++			return ret;
++	}
++
+ 	vbuf->field = V4L2_FIELD_NONE;
+ 
+ 	return 0;
+diff --git a/drivers/media/platform/qcom/camss/camss-video.h b/drivers/media/platform/qcom/camss/camss-video.h
+index 98f0859e7..011ceba18 100644
+--- a/drivers/media/platform/qcom/camss/camss-video.h
++++ b/drivers/media/platform/qcom/camss/camss-video.h
+@@ -40,6 +40,8 @@ struct camss_video_ops {
+ 	 * buffer, buf->meta, when it is prepared
+ 	 */
+ 	int (*prepare_buffer)(struct camss_video *vid, struct camss_buffer *buf);
++	/* Optional: validate capture DMA layout after its SG mappings are checked. */
++	int (*prepare_dma_buffer)(struct camss_video *vid, struct camss_buffer *buf);
+ };
+ 
+ struct camss_video {

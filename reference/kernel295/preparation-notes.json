@@ -1,0 +1,30 @@
+{
+  "stages": [
+    294,
+    295
+  ],
+  "failures_preserved": [
+    {
+      "operation": "Initial BHIST register interpretation and k294 content test",
+      "failure": "Missing independent port enumeration caused RS bit5 to be mistaken for BHIST bit4; all 90 statistics payloads contained zero bins.",
+      "resolution": "Preserve original source, source-fact interpretation, physical failed counts and read-only readback; pin public port enumeration and original HAL packing; fix SoC driver and retest independently on k295."
+    },
+    {
+      "operation": "Early k294 SSC inspection",
+      "failure": "state.json did not exist while default OpenRC startup was still in progress.",
+      "resolution": "Retain private FileNotFoundError receipt; subsequent default SSC, SensorProxy and desktop became ready without service retry or nodeps restore."
+    },
+    {
+      "operation": "Corrected-bit host negative-control preparation",
+      "failure": "Generated Python had a compound if after a semicolon, producing SyntaxError before tests or kernel changes.",
+      "resolution": "Split the statement; the actual k294 code then failed the pinned bit4 contract, while the corrected driver passed ASan/UBSan and restart/unwind tests."
+    },
+    {
+      "operation": "Preserved build directory label",
+      "failure": "k295 preparation initially labelled the verified k294 R2 backup as r1.",
+      "resolution": "Verify all six artifact hashes against the actual R2 receipt and rename within the same private directory to completed-boot294-r2; no data discarded."
+    }
+  ],
+  "transitions": "One k293 to k294 normal transition completed; planned k294 to k295 is separately guarded. Only logdump is flashed.",
+  "private_raw_logs_retained": true
+}

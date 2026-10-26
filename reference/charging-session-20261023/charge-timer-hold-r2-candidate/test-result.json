@@ -1,0 +1,72 @@
+{
+  "passed": true,
+  "scope": "old/new actual sm_step_locked, actual policy/core/full/cycle with modeled collection/register/time boundaries",
+  "tests": {
+    "baseline": {
+      "pid": 836,
+      "terminal": true,
+      "returncode": 0,
+      "result": {
+        "baseline_noncharging_timeout_reproduced": true,
+        "assertions": 6
+      },
+      "stderr": "",
+      "actual_step_sha256": "38260035062e08b868eaf0ca13d46f74137dcca99ffd8bfd350deb674d4d3551",
+      "command": [
+        "cc",
+        "-std=c11",
+        "-g",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-fsanitize=address,undefined",
+        "-fno-omit-frame-pointer",
+        "-DBASELINE=1",
+        "-I/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/charge-timer-hold-r2-candidate",
+        "-I/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/charger-reattach-observation-candidate",
+        "-I/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/r8-source-integration/kernel-sources/drivers/power/supply",
+        "/home/cy122/charging-management-20261023/charge-timer-hold-tests-04/test.c",
+        "-o",
+        "/home/cy122/charging-management-20261023/charge-timer-hold-tests-04/baseline"
+      ]
+    },
+    "candidate": {
+      "pid": 848,
+      "terminal": true,
+      "returncode": 0,
+      "result": {
+        "actual_step_sequences": 9,
+        "assertions": 76
+      },
+      "stderr": "",
+      "actual_step_sha256": "fcc67effc08daa6671a73274a220a91a39b08037c7c224c5a5502b57880971a0",
+      "command": [
+        "cc",
+        "-std=c11",
+        "-g",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-fsanitize=address,undefined",
+        "-fno-omit-frame-pointer",
+        "-DBASELINE=0",
+        "-I/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/charge-timer-hold-r2-candidate",
+        "-I/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/charger-reattach-observation-candidate",
+        "-I/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/r8-source-integration/kernel-sources/drivers/power/supply",
+        "/home/cy122/charging-management-20261023/charge-timer-hold-tests-04/test.c",
+        "-o",
+        "/home/cy122/charging-management-20261023/charge-timer-hold-tests-04/candidate"
+      ]
+    }
+  },
+  "sources": {
+    "samurai-mp2650.c": "32fa5840d28fd5cbe7366e8d0951e9cd20b87dff6263d49d3386cd3a3e486ed6",
+    "charge-cycle-hold.h": "1a303aca0b93ba645fba209f0e19ae8bd28cb65dc81a519512219c06d729b609",
+    "test-step.inc": "3fd539b7806762d0f9e815f5f971000f66b95344017ae01dd366b6b20a179573",
+    "test.py": "a3ed6769b072245f5d5907434ede55e3657c85cc6498b26931ad7a91ebd5ae29"
+  },
+  "installed": false,
+  "phone_accessed": false,
+  "ten_hour_real_cycle_accepted": false,
+  "TCA_semantic_compatibility_accepted": false
+}

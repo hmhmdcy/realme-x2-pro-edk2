@@ -1,0 +1,141 @@
+--- a/drivers/usb/dwc3/core.h
++++ b/drivers/usb/dwc3/core.h
+@@ -32,6 +32,7 @@
+ #include <linux/phy/phy.h>
+ 
+ #include <linux/power_supply.h>
++#include "samurai-apsd-owner.h"
+ 
+ /*
+  * DWC3 Multiport controllers support up to 15 High-Speed PHYs
+--- a/drivers/usb/dwc3/core.c
++++ b/drivers/usb/dwc3/core.c
+@@ -993,6 +993,7 @@
+ 
+ void dwc3_core_exit(struct dwc3 *dwc)
+ {
++	dwc3_apsd_owner_core_exit(dwc);
+ 	dwc3_event_buffers_cleanup(dwc);
+ 	dwc3_phy_power_off(dwc);
+ 	dwc3_phy_exit(dwc);
+@@ -2572,9 +2573,14 @@
+ 	int i;
+ 	int ret;
+ 
+-	ret = dwc3_gadget_window_pm_enter(dwc);
++	ret = dwc3_apsd_owner_pause(dwc, DWC3_APSD_RUNTIME);
+ 	if (ret)
+ 		return ret;
++	ret = dwc3_gadget_window_pm_enter(dwc);
++	if (ret) {
++		dwc3_apsd_owner_resume(dwc, DWC3_APSD_RUNTIME);
++		return ret;
++	}
+ 
+ 	if (!pm_runtime_suspended(dwc->dev) && !PMSG_IS_AUTO(msg)) {
+ 		dwc->susphy_state = (dwc3_readl(dwc, DWC3_GUSB2PHYCFG(0)) &
+@@ -2648,6 +2654,8 @@
+ 	ret = 0;
+ out:
+ 	dwc3_gadget_window_pm_exit(dwc);
++	if (ret)
++		dwc3_apsd_owner_resume(dwc, DWC3_APSD_RUNTIME);
+ 	return ret;
+ }
+ 
+@@ -2657,6 +2665,9 @@
+ 	u32		reg;
+ 	int		i;
+ 
++	ret = dwc3_apsd_owner_pause(dwc, DWC3_APSD_RUNTIME);
++	if (ret)
++		return ret;
+ 	ret = dwc3_gadget_window_pm_enter(dwc);
+ 	if (ret)
+ 		return ret;
+@@ -2728,6 +2739,8 @@
+ 	ret = 0;
+ out:
+ 	dwc3_gadget_window_pm_exit(dwc);
++	if (!ret)
++		dwc3_apsd_owner_resume(dwc, DWC3_APSD_RUNTIME | DWC3_APSD_CORE);
+ 	return ret;
+ }
+ 
+@@ -2875,6 +2888,7 @@
+ 	spin_lock_irqsave(&dwc->lock, flags);
+ 	dwc->detect_system_blocked = false;
+ 	spin_unlock_irqrestore(&dwc->lock, flags);
++	dwc3_apsd_owner_resume(dwc, DWC3_APSD_SYSTEM);
+ 
+ 	if (dwc->current_dr_role == DWC3_GCTL_PRTCAP_HOST &&
+ 			dwc->dis_split_quirk) {
+@@ -2891,14 +2905,19 @@
+ 	unsigned long flags;
+ 	int ret = 0;
+ 
++	ret = dwc3_apsd_owner_pause(dwc, DWC3_APSD_SYSTEM);
++	if (ret)
++		return ret;
+ 	spin_lock_irqsave(&dwc->lock, flags);
+ 	if (dwc3_gadget_window_busy(dwc) || dwc->detect_pm_busy)
+ 		ret = -EBUSY;
+ 	else
+ 		dwc->detect_system_blocked = true;
+ 	spin_unlock_irqrestore(&dwc->lock, flags);
+-	if (ret)
++	if (ret) {
++		dwc3_apsd_owner_resume(dwc, DWC3_APSD_SYSTEM);
+ 		return ret;
++	}
+ 
+ 	/*
+ 	 * Indicate to the PM core that it may safely leave the device in
+--- a/drivers/usb/dwc3/gadget.c
++++ b/drivers/usb/dwc3/gadget.c
+@@ -3344,6 +3344,7 @@
+ 	if (dwc->sys_wakeup)
+ 		device_wakeup_enable(dwc->sysdev);
+ 
++	dwc3_apsd_owner_resume(dwc, DWC3_APSD_UDC | DWC3_APSD_CORE);
+ 	return 0;
+ }
+ 
+@@ -3359,6 +3360,7 @@
+ 	struct dwc3		*dwc = gadget_to_dwc(g);
+ 	unsigned long		flags;
+ 
++	dwc3_apsd_owner_stop_pre(dwc);
+ 	dwc3_gadget_window_shutdown(dwc);
+ 
+ 	if (dwc->sys_wakeup)
+@@ -3370,6 +3372,7 @@
+ 	spin_unlock_irqrestore(&dwc->lock, flags);
+ 
+ 	free_irq(dwc->irq_gadget, dwc->ev_buf);
++	dwc3_apsd_owner_stop_post(dwc);
+ 
+ 	return 0;
+ }
+@@ -5231,6 +5234,7 @@
+ 	if (dwc->sys_wakeup)
+ 		device_wakeup_disable(dwc->sysdev);
+ 
++	dwc3_apsd_owner_bind(dwc);
+ 	return 0;
+ 
+ err5:
+@@ -5261,10 +5265,13 @@
+ 	if (!dwc->gadget)
+ 		return;
+ 
++	dwc3_apsd_owner_stop_pre(dwc);
+ 	dwc3_gadget_window_shutdown(dwc);
++	dwc3_apsd_owner_stop_post(dwc);
+ 	dwc3_enable_susphy(dwc, true);
+ 	usb_del_gadget(dwc->gadget);
+ 	cancel_work_sync(&dwc->err_recovery_work);
++	dwc3_apsd_owner_unbind(dwc);
+ 	mutex_destroy(&dwc->connect_mutex);
+ 	dwc3_gadget_free_endpoints(dwc);
+ 	usb_put_gadget(dwc->gadget);

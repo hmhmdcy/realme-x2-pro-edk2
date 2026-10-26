@@ -1,0 +1,89 @@
+{
+  "stage": 478,
+  "diagnosis_completed": true,
+  "original_transaction_passed": false,
+  "original_failure": "zero-IPE completed-count assertion",
+  "original_476_unchanged": true,
+  "initial_478_review_preserved_sha256": "4eed9804a94c084cdd2abd45c77b6c34348efdd231b1f04e3984863850dcaa41",
+  "incorrect_prior_inference": "profile pd10=false and no dynamic IPE tone was wrongly treated as absence of default processed-output IPE",
+  "corrected_fact": "available IPE media creates ipe_; all processed output uses it independent of profile pd10",
+  "actual_capture": {
+    "application_frames": 240,
+    "paired_sofs": 240,
+    "sof_range": [
+      0,
+      239
+    ],
+    "stepper_sofs": 233,
+    "steps": 9,
+    "application_result": 0,
+    "fixture_restoration_result": 0
+  },
+  "actual_ipe": {
+    "queues": 240,
+    "success_receipts": 240,
+    "kernel_completions": 240,
+    "queue_sofs": [
+      0,
+      239
+    ],
+    "revision": 0,
+    "fresh": false,
+    "tone_bytes": 0,
+    "pd10": false,
+    "queue_result": 0,
+    "final_pending": 0
+  },
+  "control_protocol": {
+    "mode_guards": 2,
+    "delayed_controls": 0,
+    "write_ret_errors": 0,
+    "pending_at_writes": 0,
+    "writes_crossing_next_sof": 0,
+    "start_after_sof_us_range": [
+      48.958,
+      267.709
+    ],
+    "write_duration_us_range": [
+      530.731,
+      822.554
+    ],
+    "per_write_readback": "472 executes G_CTRL check; only initial readback values explicitly printed"
+  },
+  "stats": {
+    "source": "VFE statistics AEC_BHIST parser, upstream of IPE queue",
+    "population": 2491136,
+    "isp_revision": 0,
+    "gamma": false,
+    "uses_live_sensor_metadata_for_delay": false,
+    "ipe_does_not_rewrite_the_paired_histogram": true,
+    "added_IPE_load_and_backpressure_present": true,
+    "zero_IPE_isolation_requirement_met": false
+  },
+  "restoration": {
+    "passed": true,
+    "external_health_passed": true,
+    "new_faults": 0,
+    "taint_before": 0,
+    "taint_after": 0
+  },
+  "minimal_actions": [
+    "Keep476 transaction failed and frozen; analyse existing physical write/BHIST data under actual default single-pass IPE",
+    "No control-delay driver/runtime fix is justified by this assertion alone",
+    "For a future strict no-IPE run, explicit pipeline opt-out before IPE media acquisition or creation is required; profile cannot provide it. No build or rerun performed."
+  ],
+  "source_hashes": {
+    "src/libcamera/pipeline/camss-vfe/camss_vfe.cpp": "befec1da3743545652adc669cc649860d6840738e38a3798305d213b2e874b40",
+    "src/ipa/camss-vfe/camss.cpp": "d963f91d55b52b7693b73c6a05ad0ad282de47335592fb5c02821ddc9cb7520c",
+    "src/libcamera/pipeline/camss-vfe/camss_ipe.cpp": "238c5ccd447a1383abca08fb4a407140346bfe850e311b9f5e44e986060cfbb7",
+    "src/ipa/camss-vfe/statistics.h": "2b91c65ba4e1a5457136ee757f7158a44a0e072a6bf3fbdf1693549fd2bb722d"
+  },
+  "private_evidence_sha256": "30f10f227cbe4824a34cfcb50adca0d0654b3234507a149e1b57edf6919159d8",
+  "capture_log_sha256": "2d95c040cc0ecc716dd0a8d272659f8fb598d632bdff7b0dde622f473bd7c48a",
+  "no_ssh": true,
+  "no_sdk": true,
+  "no_build": true,
+  "no_upload": true,
+  "no_target_execution": true,
+  "no_recapture": true
+}

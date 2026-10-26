@@ -1,0 +1,42 @@
+{
+  "passed": true,
+  "result": {
+    "passed": true,
+    "cases": 8,
+    "raw8670_processed": 9000000,
+    "unit": "uV"
+  },
+  "command": [
+    "cc",
+    "-std=c11",
+    "-g",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-Wno-unused-parameter",
+    "-fsanitize=address,undefined",
+    "/home/cy122/charging-management-20261023/tcpm-adc5-unit-tests-02/test.c",
+    "-o",
+    "/home/cy122/charging-management-20261023/tcpm-adc5-unit-tests-02/test"
+  ],
+  "actual_functions": [
+    "qcom_vadc_scale_code_voltage_factor",
+    "qcom_vadc_scale_hw_calib_volt",
+    "adc_read_raw_common"
+  ],
+  "sources": {
+    "drivers/iio/adc/qcom-vadc-common.c": "45925ae172504d62783374fbb37a13e0eb1fb9fc099dacfe9590c35b91de1910",
+    "drivers/iio/adc/qcom-spmi-adc5.c": "f46db0b8602220a8ad2b3551247c5a00c00a6ab65ef3dedc768284aabcf6ed3f",
+    "include/dt-bindings/iio/qcom,spmi-vadc.h": "de30a5f7f117824e1fc290c4b140f7ca36cbaea1b2bbb20eefd8bb5bd68846ed"
+  },
+  "test_source_sha256": "da33626c0426519f9b6eb425af86824857af2051f9b1d0be1d1869bca85b9fb1",
+  "ADC_channel": 8,
+  "prescale": [
+    1,
+    16
+  ],
+  "processed_unit": "uV",
+  "processed_scale_1000_would_be_wrong": true,
+  "phone_accessed": false,
+  "physical_accuracy_verified": false
+}

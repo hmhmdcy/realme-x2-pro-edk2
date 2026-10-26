@@ -1,0 +1,54 @@
+SDM845 register index only; not a SM8150 programming specification.
+The source gives access class/bit width, not COM read side effects.
+These entries do not authorize new register writes on the phone.
+
+line 643609: PERIPH_SS_EUD_COM_TX_ID address=0x088e0000 access=Read/Write
+line 643616: PERIPH_SS_EUD_COM_TX_LEN address=0x088e0004 access=Read/Write
+line 643623: PERIPH_SS_EUD_COM_TX_DAT address=0x088e0008 access=Read/Write
+line 643630: PERIPH_SS_EUD_COM_RX_ID address=0x088e000c access=Read
+line 643637: PERIPH_SS_EUD_COM_RX_LEN address=0x088e0010 access=Read
+line 643644: PERIPH_SS_EUD_COM_RX_DATA address=0x088e0014 access=Read
+line 643651: PERIPH_SS_EUD_INT0_EN_MASK address=0x088e0020 access=Read/Write
+line 643658: PERIPH_SS_EUD_INT1_EN_MASK address=0x088e0024 access=Read/Write
+line 643665: PERIPH_SS_EUD_INT2_EN_MASK address=0x088e0028 access=Read/Write
+line 643672: PERIPH_SS_EUD_INT3_EN_MASK address=0x088e002c access=Read/Write
+line 643679: PERIPH_SS_EUD_INT4_EN_MASK address=0x088e0030 access=Read/Write
+line 643686: PERIPH_SS_EUD_INT5_EN_MASK address=0x088e0034 access=Read/Write
+line 643693: PERIPH_SS_EUD_INT6_EN_MASK address=0x088e0038 access=Read/Write
+line 643700: PERIPH_SS_EUD_INT7_EN_MASK address=0x088e003c access=Read/Write
+line 643707: PERIPH_SS_EUD_INT_STATUS_0 address=0x088e0040 access=Read
+line 643714: PERIPH_SS_EUD_INT_STATUS_1 address=0x088e0044 access=Read
+line 643721: PERIPH_SS_EUD_FLAG_IN_WR address=0x088e0050 access=Read/Write
+line 643728: PERIPH_SS_EUD_FLAG_IN_SET address=0x088e0054 access=Write
+line 643735: PERIPH_SS_EUD_FLAG_IN_CLR address=0x088e0058 access=Write
+line 643742: PERIPH_SS_EUD_FLAG_OUT address=0x088e005c access=Read
+line 643749: PERIPH_SS_EUD_CTL_IN_0 address=0x088e0060 access=Read
+line 643756: PERIPH_SS_EUD_CTL_IN_1 address=0x088e0064 access=Read
+line 643763: PERIPH_SS_EUD_CTL_IN_2 address=0x088e0068 access=Read
+line 643770: PERIPH_SS_EUD_CTL_IN_3 address=0x088e006c access=Read
+line 643777: PERIPH_SS_EUD_CTL_OUT_0 address=0x088e0070 access=Read
+line 643784: PERIPH_SS_EUD_CTL_OUT_1 address=0x088e0074 access=Read
+line 643791: PERIPH_SS_EUD_CTL_OUT_2 address=0x088e0078 access=Read
+line 643798: PERIPH_SS_EUD_CTL_OUT_3 address=0x088e007c access=Read
+line 643805: PERIPH_SS_EUD_VBUS_INT_CLR address=0x088e0080 access=Write
+line 643812: PERIPH_SS_EUD_CHGR_INT_CLR address=0x088e0084 access=Write
+line 643819: PERIPH_SS_EUD_COM_EUD_VER0 address=0x088e0200 access=Read
+line 643826: PERIPH_SS_EUD_COM_EUD_VER1 address=0x088e0204 access=Read
+line 643833: PERIPH_SS_EUD_COM_EUD_VER2 address=0x088e0208 access=Read
+line 643840: PERIPH_SS_EUD_COM_EUD_VER3 address=0x088e020c access=Read
+line 643847: PERIPH_SS_EUD_DBG_MUX_SEL address=0x088e0214 access=Read/Write
+line 643854: PERIPH_SS_EUD_TIE_HIGH_TIE_LOW address=0x088e0218 access=Read
+
+AHB2PHY TOP_CFG line 625469: 0x088ee010 in this SDM845 map.
+Do not infer the same address or a usable setting on SM8150.
+
+Stock RMX1931 UsbConfigDxe static findings (PE ImageBase=0):
+RVA 0xf174..0xf1b0: reads 0x088e1014, returns low bit, references usb_eud_is_active.
+RVA 0x753c: calls that query; RVA 0x757c skips a write helper at 0x758c when enabled.
+Skipped helper receives address 0x00112000 and mask 1.
+RVA 0x78c0/0x78c8: another enabled-state branch skips the reset operation.
+Local gcc-sm8150.c: GCC_QUSB2PHY_PRIM_BCR has offset 0x12000 (GCC base 0x00100000).
+RVA 0x7b04..0x7b98: direct SW_ATTACH_DET (0x088e1018) operations.
+No COM RX advance semantics were obtained from this partial static audit.
+Missing literal hits do not exclude indirect/computed register access.
+No downloaded firmware was executed, flashed, or copied into the working build.

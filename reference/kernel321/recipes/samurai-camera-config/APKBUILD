@@ -1,0 +1,40 @@
+# Device configuration only; camera and kernel binaries are packaged separately.
+pkgname=samurai-camera-config
+pkgver=0.1.0
+pkgrel=21
+pkgdesc="Realme X2 Pro CAMSS hardware tuning, software fallback and camera heap access"
+url="https://github.com/hmhmdcy/edk2-realme-x2-pro"
+arch="noarch"
+license="LicenseRef-Local-Project"
+depends="libcamera=99990.7.2-r26 libcamera-ipa=99990.7.2-r26 openrc eudev"
+subpackages="samurai-camera-stack:stack"
+options="!check"
+source="configuration.yaml samurai-camera-heaps.conf 70-samurai-camera-heaps.rules s5kgw1.yaml camss-s5kgw1.yaml camss-imx471.yaml camss-imx319.yaml camss-s5k3m5.yaml"
+
+package() {
+	for model in s5kgw1 imx471 imx319 s5k3m5; do
+		install -Dm644 "$srcdir"/camss-$model.yaml "$pkgdir"/usr/share/libcamera/ipa/camss-vfe/$model.yaml
+	done
+	install -Dm644 "$srcdir"/s5kgw1.yaml "$pkgdir"/usr/share/libcamera/ipa/simple/s5kgw1.yaml
+	install -Dm644 "$srcdir"/configuration.yaml "$pkgdir"/etc/libcamera/configuration.yaml
+	install -Dm644 "$srcdir"/samurai-camera-heaps.conf "$pkgdir"/etc/modules-load.d/samurai-camera-heaps.conf
+	install -Dm644 "$srcdir"/70-samurai-camera-heaps.rules "$pkgdir"/etc/udev/rules.d/70-samurai-camera-heaps.rules
+	chmod 755 "$pkgdir"/etc/libcamera
+}
+
+stack() {
+	pkgdesc="Pinned Realme X2 Pro camera framework and device configuration"
+	depends="samurai-camera-config=$pkgver-r$pkgrel libcamera=99990.7.2-r26 libcamera-ipa=99990.7.2-r26 libcamera-tools=99990.7.2-r26 libcamera-gstreamer=99990.7.2-r26 libcamera-v4l2=99990.7.2-r26"
+	mkdir -p "$subpkgdir"
+}
+
+sha512sums="
+695890855f7114b76719fd89d1aae433c2cdfac04aac4f59793cbbe862f3cf3df9ae1b4f32c7692eaec668d6cb82c9abab23ac88928b600cbb3fb3e57d675df7  configuration.yaml
+94ea1c0cba212cc0b0ede1638cb96bf6533395d123984716f9fed25bcfcb97b469b1fb40f7e7e701b74b4e5f417e85f9ae5b4742300ed0791e5e9b441b27ccf5  samurai-camera-heaps.conf
+2d1987abb9bad59b74dd8ef271ee57c49e8058895a85cf1473a25d1e4f11402e0e479c26cd4ab13caf1dd30814a21261243dcdb5782e77b151af61456fffcf5a  70-samurai-camera-heaps.rules
+4b07ee6777d131e07c804c11943c3d197e56ceb26ee6e478cc0e484293958008ecadde2f40d05d120c3a34278121370dd22b9fe93e562a8934081454aa9b921b  s5kgw1.yaml
+e02ddc2e6f7037b2ab59f2ad1111eb5e2c36a89aa90411f9c958e76932e39aa9681b863529adfd8e7727ca092a127107d199354b091708b03fa054954aabebd8  camss-s5kgw1.yaml
+7970664e99ed721860402bbdc0f1a8e14f612abd1580c6bcb8f6e1640fa6bbe7402781c6fc3aabd295f1ebd68e30c11a96d78c314fef9f06a24c76a51ebc56fb  camss-imx471.yaml
+9cdbf15b1e42011649c764478e61e95571a77896e6ca46bdc87393aed546f1594854a499de0087b5a99a0b09461da4214882f40f5bc04309fabc37cea306eda2  camss-imx319.yaml
+32b6d700ac43c751b16ad9ed66783150fec6b359890b500ca99aa00a501bfcb11e72b1dad53e2f5e288567b4a21610be20d04847ba5a67f184d155c4b1f0e441  camss-s5k3m5.yaml
+"

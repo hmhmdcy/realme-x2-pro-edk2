@@ -1,0 +1,23 @@
+Subject: [PATCH] mfd: wcd934x: isolate offline IRQ cleanup from SLIMbus
+
+After stopping the parent IRQ, use the existing cache for software
+teardown of an absent codec. Destroy the map without replaying it.
+
+---
+--- a/drivers/mfd/wcd934x.c
++++ b/drivers/mfd/wcd934x.c
+@@ -248,6 +248,14 @@
+ 	/* Stop and synchronize the parent thread before child teardown can sleep. */
+ 	disable_irq(ddata->irq);
+ 
++	/*
++	 * The transport is already gone on DOWN. IRQ frees must only update
++	 * software state; this map is discarded, never synced back to hardware.
++	 * An ordinary driver removal while UP still performs real register I/O.
++	 */
++	if (sdev->status == SLIM_DEVICE_STATUS_DOWN)
++		regcache_cache_only(ddata->regmap, true);
++
+ 	/* Children must release their virtual IRQs before the domain is freed. */
+ 	mfd_remove_devices(&sdev->dev);
+ 	regmap_del_irq_chip(ddata->irq, ddata->irq_data);

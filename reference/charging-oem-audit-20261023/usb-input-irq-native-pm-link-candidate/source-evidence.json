@@ -1,0 +1,49 @@
+{
+  "schema": "samurai-current-IRQ-native-system-PM-source-evidence-v1",
+  "source_only": true,
+  "current_root_readonly_inventory": {
+    "path": "E:\\edk2-samurai-out\\charging-management-20261023\\native-usb-pm-current-readonly-01-private\\stdout-private.json",
+    "sha256": "89d3769623700bf10b535634209f643ee51a71cd8fd69c79394a722254444622",
+    "before_after_markers_equal": true,
+    "manifest_sha256": "18e8a1049a2c497fbc47ace50f8319aefccd63a9cd1ce5a7e9ef06916773b4e5",
+    "controller_node": "/sys/firmware/devicetree/base/soc@0/usb@a6f8800/usb@a600000",
+    "compatible": "snps,dwc3",
+    "usb_psy_name": "samurai-usb-input",
+    "power": {
+      "control": "on",
+      "runtime_status": "active",
+      "runtime_suspended_time": "0"
+    },
+    "supplier_count": 5,
+    "has_current_input_supplier": false,
+    "provider_links": [
+      {
+        "name": "supplier:platform:c440000.spmi",
+        "runtime_pm": "1",
+        "sync_state_only": "0"
+      },
+      {
+        "name": "consumer:i2c:0-005c",
+        "runtime_pm": "0",
+        "sync_state_only": "0"
+      }
+    ],
+    "bus_access_performed": false,
+    "PM_or_control_write_performed": false,
+    "observation_performed_by_root_not_this_subtask": true
+  },
+  "fixed_driver_core_and_system_PM_evidence_reused": {
+    "path": "reference\\charging-oem-audit-20261023\\usb-input-native-pm-link-candidate\\source-evidence.json",
+    "sha256": "5a84e092fc68524a1332d11e9d1bfc667b8a4782dccb253ab465db1de5eba0d0"
+  },
+  "new_link_flags": "DL_FLAG_STATELESS only",
+  "raw_link_pointer_retained": false,
+  "default_budget_setter_PM_IRQ_policy_changed": false,
+  "limitations": [
+    "system PM callback ordering only; async DWC budget work is not joined",
+    "device_is_registered is not mutual exclusion with concurrent platform device_del",
+    "existing post-PSY stop-action allocation failure remains",
+    "no dynamic platform recreation or new flat retention support",
+    "actual PM and runtime loading unverified"
+  ]
+}

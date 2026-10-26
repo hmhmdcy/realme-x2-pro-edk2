@@ -1,0 +1,85 @@
+{
+  "stage": 454,
+  "inspection_receipt_sha256": "9d0f6f63c64dee994e7adf17ff416afaaffbc246c1ce2282d1673e4e75c09598",
+  "anchors": [
+    {
+      "path": "drivers/media/i2c/imx471.c",
+      "line": 1144,
+      "needle": "GPIOD_OUT_HIGH"
+    },
+    {
+      "path": "drivers/media/i2c/imx471.c",
+      "line": 819,
+      "needle": "pinctrl_pm_select_sleep_state(dev)"
+    },
+    {
+      "path": "drivers/reset/core.c",
+      "line": 1174,
+      "needle": "fwnode_property_get_reference_args(fwnode, \"reset-gpios\""
+    },
+    {
+      "path": "drivers/reset/core.c",
+      "line": 1062,
+      "needle": "fwnode_reference_args_equal(args, &rgpio_dev->ref_args)"
+    },
+    {
+      "path": "drivers/reset/core.c",
+      "line": 519,
+      "needle": "atomic_dec_return(&rstc->deassert_count)"
+    },
+    {
+      "path": "drivers/reset/reset-gpio.c",
+      "line": 64,
+      "needle": "devm_gpiod_get(dev, \"reset\", GPIOD_OUT_HIGH)"
+    },
+    {
+      "path": "drivers/mux/core.c",
+      "line": 440,
+      "needle": "if (down_trylock(&mux->lock))"
+    },
+    {
+      "path": "drivers/mux/core.c",
+      "line": 484,
+      "needle": "even if an error occurs, the"
+    },
+    {
+      "path": "drivers/media/platform/qcom/camss/camss.c",
+      "line": 5454,
+      "needle": "csiphy->cfg.csi2 = &csd->interface.csi2;"
+    },
+    {
+      "path": "drivers/media/platform/qcom/camss/camss.c",
+      "line": 5490,
+      "needle": "MEDIA_LNK_FL_IMMUTABLE | MEDIA_LNK_FL_ENABLED"
+    },
+    {
+      "path": "drivers/media/platform/video-mux.c",
+      "line": 86,
+      "needle": "mux_control_try_select(vmux->mux, local->index)"
+    },
+    {
+      "path": "drivers/media/platform/video-mux.c",
+      "line": 204,
+      "needle": "MEDIA_BUS_FMT_Y10_1X10"
+    },
+    {
+      "path": "drivers/media/platform/qcom/camss/camss-csiphy.c",
+      "line": 44,
+      "needle": "MEDIA_BUS_FMT_Y10_1X10"
+    }
+  ],
+  "reset_gpio_fallback_and_reference_dedup_present": true,
+  "shared_reset_assert_requires_balanced_deassert": true,
+  "mux_try_select_is_exclusive_and_busy_is_error": true,
+  "mux_deselect_unlocks_even_if_idle_transition_fails": true,
+  "per_sensor_probe_reset_and_sleep_route_must_be_replaced": true,
+  "camss_lane_configuration_is_bound_once_not_selected_per_sensor": true,
+  "camss_external_links_currently_immutable_enabled": true,
+  "video_mux_not_in_image363": true,
+  "video_mux_does_not_supply_dynamic_csi_lane_configuration": true,
+  "libcamera_bayer_only_mode_selection_requires_monochrome_work": true,
+  "driver_or_topology_modified": false,
+  "actual_resources_or_streams_verified": false,
+  "no_phone_sdk": true,
+  "passed": true
+}

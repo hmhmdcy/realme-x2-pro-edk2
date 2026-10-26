@@ -1,0 +1,134 @@
+{
+  "passed": true,
+  "actual_guard_cases": [
+    {
+      "label": "current R8 and formal481, a30 boot",
+      "accepted": true
+    },
+    {
+      "label": "safe controlled INHIBIT is allowed before restart",
+      "accepted": true
+    },
+    {
+      "label": "old R7 schema rejected",
+      "accepted": false
+    },
+    {
+      "label": "old transaction rejected",
+      "accepted": false
+    },
+    {
+      "label": "bad token rejected",
+      "accepted": false
+    },
+    {
+      "label": "wrong old boot rejected",
+      "accepted": false
+    },
+    {
+      "label": "SoC mismatch rejected",
+      "accepted": false
+    },
+    {
+      "label": "candidate mismatch rejected",
+      "accepted": false
+    },
+    {
+      "label": "wrong partition rejected",
+      "accepted": false
+    },
+    {
+      "label": "actual boot mismatch rejected",
+      "accepted": false
+    },
+    {
+      "label": "actual logdump mismatch rejected",
+      "accepted": false
+    },
+    {
+      "label": "old R6 loaded note rejected",
+      "accepted": false
+    },
+    {
+      "label": "old camera library rejected",
+      "accepted": false
+    },
+    {
+      "label": "468 sensor note mismatch rejected",
+      "accepted": false
+    },
+    {
+      "label": "old440 wrapper rejected",
+      "accepted": false
+    },
+    {
+      "label": "old timeout rejected",
+      "accepted": false
+    },
+    {
+      "label": "stale sample rejected",
+      "accepted": false
+    },
+    {
+      "label": "prior claim rejects repeated restart before mutation",
+      "accepted": false
+    }
+  ],
+  "actual_restart_tail_cases": [
+    {
+      "label": "whole 0 accepted",
+      "calls": 1,
+      "unbound": true,
+      "outcome": "transferred"
+    },
+    {
+      "label": "whole 1 accepted",
+      "calls": 1,
+      "unbound": true,
+      "outcome": "transferred"
+    },
+    {
+      "label": "actual replicated word accepted",
+      "calls": 1,
+      "unbound": true,
+      "outcome": "transferred"
+    },
+    {
+      "label": "unknown low-byte-1 word rejected",
+      "calls": 0,
+      "unbound": false,
+      "outcome": "AssertionError"
+    },
+    {
+      "label": "whole nonzero low-byte0 readback rejected",
+      "calls": 0,
+      "unbound": true,
+      "outcome": "AssertionError"
+    },
+    {
+      "label": "existing claim prevents repeat mutation",
+      "calls": 0,
+      "unbound": false,
+      "outcome": "FileExistsError"
+    },
+    {
+      "label": "claim fsync failure blocks mutation",
+      "calls": 0,
+      "unbound": false,
+      "outcome": "OSError"
+    }
+  ],
+  "unchanged_quiesce_hardware_suffix": true,
+  "guard_crypto_OS_boundaries": "fake finite files/digests and block IO; no claim of SHA algorithm testing",
+  "reused_old_hardware_guard_cases": 17,
+  "reused_old_transport_tail_cases": 8,
+  "old_suites_rerun": false,
+  "device_access": false,
+  "native_syscall_executed": false,
+  "files": {
+    "guard-fragment.py": "80c25f129fc6319aff189368a527e0a912868ba7d0d1823054d75188502a18a6",
+    "eud-quiesce.py": "311e416bc2c91a053c334b025327e79df24d7a68e82ce4ee393311284b34bc0c",
+    "eud-restart.py": "0fb0948b49f7b15ca04015991d771056f1f5357539d7e9a834d4536928956ddf",
+    "test-boundaries.py": "8e0bf9368939e480b29e4f110b5591fe0cde57018bda21d04ba084a61cfccf99"
+  }
+}

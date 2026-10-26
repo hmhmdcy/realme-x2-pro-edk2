@@ -1,0 +1,79 @@
+--- a/drivers/bluetooth/hci_qca.c
++++ b/drivers/bluetooth/hci_qca.c
+@@ -2718,6 +2718,7 @@
+ 	struct qca_data *qca = hu->priv;
+ 	unsigned long flags;
+ 	bool tx_pending = false;
++	bool ibs_quiesced = false;
+ 	int ret = 0;
+ 	u8 cmd;
+ 	unsigned long wait_timeout = 0;
+@@ -2760,6 +2761,7 @@
+ 
+ 	cancel_work_sync(&qca->ws_awake_device);
+ 	cancel_work_sync(&qca->ws_awake_rx);
++	ibs_quiesced = true;
+ 
+ 	spin_lock_irqsave_nested(&qca->hci_ibs_lock,
+ 				 flags, SINGLE_DEPTH_NESTING);
+@@ -2775,8 +2777,10 @@
+ 		cmd = HCI_IBS_SLEEP_IND;
+ 		ret = serdev_device_write_buf(hu->serdev, &cmd, sizeof(cmd));
+ 
+-		if (ret < 0) {
++		if (ret != sizeof(cmd)) {
+ 			BT_ERR("Failed to send SLEEP to device");
++			if (ret >= 0)
++				ret = -EIO;
+ 			break;
+ 		}
+ 
+@@ -2811,15 +2815,46 @@
+ 	ret = wait_event_interruptible_timeout(qca->suspend_wait_q,
+ 			qca->rx_ibs_state == HCI_IBS_RX_ASLEEP,
+ 			IBS_BTSOC_TX_IDLE_TIMEOUT);
+-	if (ret == 0) {
+-		ret = -ETIMEDOUT;
++	if (ret <= 0) {
++		if (!ret)
++			ret = -ETIMEDOUT;
+ 		goto error;
+ 	}
+ 
+ 	return 0;
+ 
+ error:
++	spin_lock_irqsave_nested(&qca->hci_ibs_lock,
++				 flags, SINGLE_DEPTH_NESTING);
+ 	clear_bit(QCA_SUSPENDING, &qca->flags);
++
++	/* A failed suspend will not get a matching resume callback. Restore
++	 * only IBS activity stopped above, using the current protocol state.
++	 */
++	if (ibs_quiesced &&
++	    !test_bit(QCA_IBS_DISABLED, &qca->flags) &&
++	    !test_bit(QCA_SSR_TRIGGERED, &qca->flags) &&
++	    !test_bit(QCA_BT_OFF, &qca->flags)) {
++		switch (qca->tx_ibs_state) {
++		case HCI_IBS_TX_ASLEEP:
++			if (skb_queue_empty(&qca->tx_wait_q))
++				break;
++			qca->tx_ibs_state = HCI_IBS_TX_WAKING;
++			fallthrough;
++		case HCI_IBS_TX_WAKING:
++			serial_clock_vote(HCI_IBS_TX_VOTE_CLOCK_ON, hu);
++			mod_timer(&qca->wake_retrans_timer, jiffies +
++				  msecs_to_jiffies(qca->wake_retrans));
++			break;
++		case HCI_IBS_TX_AWAKE:
++			mod_timer(&qca->tx_idle_timer, jiffies +
++				  msecs_to_jiffies(qca->tx_idle_delay));
++			break;
++		default:
++			break;
++		}
++	}
++	spin_unlock_irqrestore(&qca->hci_ibs_lock, flags);
+ 
+ 	return ret;
+ }

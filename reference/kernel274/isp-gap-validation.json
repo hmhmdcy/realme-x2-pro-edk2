@@ -1,0 +1,59 @@
+{
+  "stage": 274,
+  "sources": {
+    "maintained-camss-vfe-17x.c": {
+      "source": "maintained",
+      "path": "drivers/media/platform/qcom/camss/camss-vfe-17x.c",
+      "commit": "3184c56b7f206ab000ab79bc99eb83d35c3e1d65",
+      "sha256": "01ace81cff5e867d88ec87833a62e14883bd8075e3814e88679161ac0f34c40d",
+      "lines": 633
+    },
+    "maintained-camss.c": {
+      "source": "maintained",
+      "path": "drivers/media/platform/qcom/camss/camss.c",
+      "commit": "3184c56b7f206ab000ab79bc99eb83d35c3e1d65",
+      "sha256": "d0e19fd6dc6cfd2c6667bb37b2e341f89423ca42d485afacac257e1cd6b20305",
+      "lines": 6109
+    },
+    "oem-cam_vfe170.h": {
+      "source": "oem",
+      "path": "drivers/media/platform/msm/camera/cam_isp/isp_hw_mgr/isp_hw/vfe_hw/vfe17x/cam_vfe170.h",
+      "commit": "9668fcdc6ec15be7a10d66f7b93c347829e0fdb6",
+      "sha256": "e006330052031ebc552cc58de58ae9202ac866f14087bcb2fed71073d03de166",
+      "lines": 856
+    }
+  },
+  "oem_vfe170_bus_clients": 20,
+  "oem_vfe170_outputs": [
+    "CAM_VFE_BUS_VER2_VFE_OUT_RDI0",
+    "CAM_VFE_BUS_VER2_VFE_OUT_RDI1",
+    "CAM_VFE_BUS_VER2_VFE_OUT_RDI2",
+    "CAM_VFE_BUS_VER2_VFE_OUT_FULL",
+    "CAM_VFE_BUS_VER2_VFE_OUT_DS4",
+    "CAM_VFE_BUS_VER2_VFE_OUT_DS16",
+    "CAM_VFE_BUS_VER2_VFE_OUT_RAW_DUMP",
+    "CAM_VFE_BUS_VER2_VFE_OUT_FD",
+    "CAM_VFE_BUS_VER2_VFE_OUT_PDAF",
+    "CAM_VFE_BUS_VER2_VFE_OUT_STATS_HDR_BE",
+    "CAM_VFE_BUS_VER2_VFE_OUT_STATS_HDR_BHIST",
+    "CAM_VFE_BUS_VER2_VFE_OUT_STATS_TL_BG",
+    "CAM_VFE_BUS_VER2_VFE_OUT_STATS_BF",
+    "CAM_VFE_BUS_VER2_VFE_OUT_STATS_AWB_BG",
+    "CAM_VFE_BUS_VER2_VFE_OUT_STATS_BHIST",
+    "CAM_VFE_BUS_VER2_VFE_OUT_STATS_RS",
+    "CAM_VFE_BUS_VER2_VFE_OUT_STATS_CS",
+    "CAM_VFE_BUS_VER2_VFE_OUT_STATS_IHIST"
+  ],
+  "maintained_vfe170_writer_is_mipi_raw": true,
+  "processed_pixel_and_statistics_paths_not_connected": true,
+  "resource_formats_pix_name_does_not_prove_processing": true,
+  "current_runtime_uses_cpu_software_isp": true,
+  "no_spectra_registers_written_by_this_audit": true,
+  "no_new_isp_driver_implemented": true,
+  "required_layers": {
+    "soc": "VFE170 CAMIF/PIX modules, output DMA and statistics, IRQ/reset/PM",
+    "board": "Existing SM8150 clocks, domains, CSI routing and memory constraints; no image-processing policy",
+    "kernel_uapi": "Reviewed V4L2 media/request/parameter/statistics interfaces rather than unrestricted register writes",
+    "userspace": "Pipeline handler, matching IPA algorithms and per-module calibration/tuning"
+  }
+}

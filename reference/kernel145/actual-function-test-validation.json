@@ -1,0 +1,53 @@
+{
+  "stage": 145,
+  "actual_driver_functions_extracted": [
+    "dsi_err_worker",
+    "dsi_ack_err_status",
+    "dsi_timeout_status",
+    "dsi_dln0_phy_err",
+    "dsi_fifo_status",
+    "dsi_status",
+    "dsi_clk_status",
+    "dsi_error",
+    "dsi_host_irq"
+  ],
+  "candidate_cases": 24,
+  "results": {
+    "baseline144-plain": {
+      "cases": 24,
+      "returncode": 0,
+      "compiler_diagnostics_empty": true,
+      "sanitizer_diagnostics_empty": true
+    },
+    "baseline144-asan-ubsan": {
+      "cases": 24,
+      "returncode": 0,
+      "compiler_diagnostics_empty": true,
+      "sanitizer_diagnostics_empty": true
+    },
+    "candidate145-plain": {
+      "cases": 24,
+      "returncode": 0,
+      "compiler_diagnostics_empty": true,
+      "sanitizer_diagnostics_empty": true
+    },
+    "candidate145-asan-ubsan": {
+      "cases": 24,
+      "returncode": 0,
+      "compiler_diagnostics_empty": true,
+      "sanitizer_diagnostics_empty": true
+    }
+  },
+  "baseline_candidate_hardware_effect_signatures_identical": true,
+  "existing_reads_writes_clear_reset_irq_and_completion_order_preserved": true,
+  "raw_ack_captured_even_with_legacy_zero_aggregate_flag": true,
+  "raw_status_zero_and_mixed_unknown_bits_checked": true,
+  "worker_start_and_end_bracket_reset_and_irq_restore": true,
+  "disabled_tracing_and_no_error_irq_checked": true,
+  "actual_functions_tested": true,
+  "build_tree_modified": false,
+  "deployed": false,
+  "limits": "Host MMIO and worker models; unchanged reset/intr-control callees are stubs. Real traces, timing, loss and display acceptance still required.",
+  "candidate_source_sha256": "50d3ff181271d5fb7bc43f7138050446e95bccb12e80fd2c513622215ddd72d3",
+  "goal_complete": false
+}

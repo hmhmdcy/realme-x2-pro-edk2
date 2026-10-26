@@ -1,0 +1,133 @@
+{
+  "scope": "read-only hardware reset authority and exact combined-driver migration feasibility",
+  "native_DTB": {
+    "path": "E:\\edk2-samurai-out\\charging-management-20261023\\eud-boot-policy-private\\samurai-eud-off-policy-private.dtb",
+    "sha256": "9271d9cc33b3701ad0675c6345d43e9a5c404aa6c192126edc3eb715b0914358",
+    "nodes": 965,
+    "properties": 3965,
+    "decoder_path": "reference\\charging-ui-audit-20261023\\usb-input-irq-board-candidate\\inspect-dtb.py",
+    "decoder_sha256": "5280e01c3c662408d6dc60b65317208e76ed765dc86f64f1ac8698146ff9e5fd",
+    "wrapper": "/soc@0/usb@a6f8800",
+    "child": "/soc@0/usb@a6f8800/usb@a600000",
+    "wrapper_or_child_phandle_present": {
+      "/soc@0/usb@a6f8800": false,
+      "/soc@0/usb@a6f8800/usb@a600000": false
+    },
+    "all_old_subtree_phandles": {
+      "/soc@0/usb@a6f8800/usb@a600000/ports/port@1/endpoint": 194
+    },
+    "all_matching_remote_endpoint_references": [
+      {
+        "node": "/soc@0/phy@88e8000/ports/port@1/endpoint",
+        "property": "remote-endpoint",
+        "value": "000000c2",
+        "target": "/soc@0/usb@a6f8800/usb@a600000/ports/port@1/endpoint"
+      }
+    ],
+    "all_DT_string_references_to_old_wrapper_path": [],
+    "USB_aliases": {},
+    "controller_raw_properties": {
+      "/soc@0/usb@a6f8800": {
+        "compatible": "71636f6d2c736d383135302d647763330071636f6d2c6477633300",
+        "reg": "000000000a6f88000000000000000400",
+        "status": "6f6b617900",
+        "#address-cells": "00000002",
+        "#size-cells": "00000002",
+        "ranges": "",
+        "dma-ranges": "",
+        "clocks": "0000002e0000000c0000002e000000ac0000002e000000050000002e000000b00000002e000000ae0000002e000000bb",
+        "clock-names": "6366675f6e6f6300636f726500696661636500736c656570006d6f636b5f75746d6900786f00",
+        "assigned-clocks": "0000002e000000ae0000002e000000ac",
+        "assigned-clock-rates": "0124f8000bebc200",
+        "interrupts-extended": "00000001000000000000008200000004000000010000000000000083000000040000008d00000009000000030000008d00000008000000030000008d0000000600000004",
+        "interrupt-names": "7077725f6576656e740068735f7068795f6972710064705f68735f7068795f69727100646d5f68735f7068795f6972710073735f7068795f69727100",
+        "power-domains": "0000002e00000004",
+        "resets": "0000002e0000001a",
+        "interconnects": "000000c90000000400000000000000060000000100000000000000050000000000000000000000760000003000000000",
+        "interconnect-names": "7573622d64647200617070732d75736200"
+      },
+      "/soc@0/usb@a6f8800/usb@a600000": {
+        "usb-psy-name": "73616d757261692d7573622d696e70757400",
+        "compatible": "736e70732c6477633300",
+        "reg": "000000000a600000000000000000cd00",
+        "interrupts": "000000000000008500000004",
+        "iommus": "0000002d0000014000000000",
+        "snps,dis_u2_susphy_quirk": "",
+        "snps,dis_u3_susphy_quirk": "",
+        "snps,dis_enblslpm_quirk": "",
+        "snps,dis-u1-entry-quirk": "",
+        "snps,dis-u2-entry-quirk": "",
+        "phys": "000000ca000000cb00000000",
+        "phy-names": "757362322d70687900757362332d70687900",
+        "dr_mode": "7065726970686572616c00"
+      }
+    },
+    "controller_GPIO_pinctrl_keys": {
+      "/soc@0/usb@a6f8800": [],
+      "/soc@0/usb@a6f8800/usb@a600000": []
+    }
+  },
+  "cached_sources": {
+    "reference/charging-session-20261023/dwc-resume-error-independent-review/source--drivers--usb--dwc3--dwc3-qcom.c": "facf03c8edbe5ca5af5f02df4c780aab2288eb5575b896cf803c32a9d9db9c4d",
+    "reference/charging-session-20261023/dwc-resume-error-independent-review/source--drivers--usb--dwc3--dwc3-qcom-legacy.c": "155d7937357339bf4dc1bcf36f8cf7b47b13c268946412a6f2c077066baa0e41",
+    "reference/charging-ui-audit-20261023/dwc-pm-error-unwind-candidate/core.c": "5331ae946cde894e2da484df5b8fbc6d386d117a60ad0e3dac5a1ebaaec6a17f",
+    "reference/charging-oem-audit-20261023/apsd-lifecycle/oem/drivers--usb--dwc3--dwc3-msm.c": "f9977ba45f7a58be50b4fe6ccdb04a9cdb8f2ee4a9925492850d5e6a9eee713f",
+    "reference/charging-oem-audit-20261023/apsd-lifecycle/oem/arch--arm64--boot--dts--19781--sm8150-usb.dtsi": "7a0cfb877e91bce2118b0a650acc2bde3377bc7e410e9ad0c2147735691d8dab",
+    "reference/charging-management-20261023/samurai-usb-input.c": "b712764fbd4ab24475ae1ba030ee4c26c7eb048a6038488a5435b44ef7eb7098",
+    "reference/charging-management-20261023/samurai-usb-input-decode.h": "55a947826821267c4e90d8291ded852ce34dba1658e3d4e8f487f41373fc25b0",
+    "reference/charging-oem-audit-20261023/apsd-integration/current-r7/snapshots/drivers--phy--phy-core.c": "2535dc20688c48082b30f2498a05931897dc7b5db902bb02c5f5322d31c80117",
+    "reference/charging-oem-audit-20261023/apsd-integration/current-r7/snapshots/drivers--phy--qualcomm--phy-qcom-snps-femto-v2.c": "019dd4759be4955dfae6d92192c2fceb085a4e6945607e4942fb746cf2ab65a9"
+  },
+  "read_only_fixed_503_source_root": "/home/cy122/charging-management-20261023/dwc-image503-start-recovery-01/source354",
+  "fixed_503_source_sha256_read_in_this_investigation": {
+    "drivers/clk/qcom/gcc-sm8150.c": "52b508814784de89c68c8da5eb8ca91d274406cb83f5122cc88bb3c81dc4abbc",
+    "drivers/clk/qcom/reset.c": "434e63a159118f20a49114f5b184f405739e5ba4cda4148f4e101bf6b36326e8",
+    "drivers/clk/qcom/reset.h": "ee4ae7a90e5e3544ffa5335ad96511cee659bad16f09f1fa9fc28f1d10db06a3",
+    "include/dt-bindings/clock/qcom,gcc-sm8150.h": "4b00988daf3aea1604a6dd63be42e9f2cc86158710ba8f5461c8ef218541785e",
+    "drivers/reset/core.c": "bb8683f8973883979481512a4f6e21deac741776dfb3370591bc611988c49762",
+    "drivers/usb/dwc3/Makefile": "97aa5151306df6f9e81f2988843f1548fd0928c99c097e48179892524f99d2cb",
+    "drivers/usb/dwc3/Kconfig": "93dceb4a5a614feecbdeadac352dd80f51f8774b7d384fffe8947e24a15bd6fa",
+    "Documentation/devicetree/bindings/usb/qcom,snps-dwc3.yaml": "d6f619e153675f5bc5e66f7e142d14e4f570c839ca9d23f3a9649a6a165b727b",
+    "Documentation/devicetree/bindings/usb/qcom,dwc3.yaml": "f4d3fd4dd00800c7406a31afef810106d8a9bdaf957c44066a14f7ddf0341c8a",
+    "arch/arm64/boot/dts/qcom/sm8150.dtsi": "22f992e7d8935f489ed099801f801b1a6122ef1f22705ead62089fbd702dc995"
+  },
+  "parent_reset": {
+    "owner": "dwc3-qcom-legacy /soc@0/usb@a6f8800",
+    "exclusive_array": true,
+    "GCC_id": 26,
+    "register_offset": "0xf000",
+    "bit": 0,
+    "callback_ignores_regmap_errors_and_read_value": true,
+    "reset_status_supported": false,
+    "DMA_drained_proved": false
+  },
+  "combined_driver": {
+    "already_built_under_same_QCOM_config": true,
+    "same_device_embedded_core_reset_clocks_PM": true,
+    "binding_explicitly_supports_SM8150": true,
+    "binding_validated_flat_SM8150_example_in_current_tree_found": false,
+    "binding_example_is_SDM845_not_handset_proof": true,
+    "failure_unwind_solved": false
+  },
+  "native_budget": {
+    "usb_psy_name": "samurai-usb-input",
+    "retainer_old_DT_path_hardcoded": true,
+    "descriptor_or_BCR_not_USB_allowance": true,
+    "reset_path_writes_PMIC_or_grants_native_allowance": false,
+    "physical_source_still_requires_fresh_read": true
+  },
+  "next_step": "decide actual adopted cohort; separately prepare flat DT plus minimal USBinput native-retain path compatibility; then binding/diff/module checks before hardware window",
+  "code_or_DT_candidate_generated": false,
+  "tests_or_build_run": false,
+  "device_SSH_USB_PM_storage_helper_SDK_Git_used": false,
+  "official_sources": [
+    {
+      "url": "https://www.kernel.org/doc/html/latest/driver-api/reset.html",
+      "scope": "exclusive/shared reset API, not SoC DMA-drain guarantee"
+    },
+    {
+      "url": "https://git.zx2c4.com/linux-rng/commit/?id=2f8cf2c3f3e3f7ef61bd19abb4b0bb797ad50aaf",
+      "scope": "parent-provided primary commit; write-completion purpose, not DMA proof"
+    }
+  ]
+}

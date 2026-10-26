@@ -1,0 +1,34 @@
+{
+  "schema": "eud-boot-known-whole-word-r2",
+  "observation_receipt": "charging-management-20261023/eud-csr-r8-result.json",
+  "observation_receipt_sha256": "a8f5a8c5664220ea86bd74c85c6eabafe655c325ac696ae312075b0afed411b0",
+  "executed_readonly_source_sha256": "810e220c03fab3f00fd88f2ddb742ee2c78ea5b7de09a84bf32997ef71bba6d8",
+  "observed_address": "0x088e1014",
+  "observed_width_bits": 32,
+  "observed_full_words": [
+    16843009,
+    16843009
+  ],
+  "observed_existing_rx_polls_advanced": true,
+  "observation_hardware_writes": 0,
+  "source": "eud-boot-policy/drivers--tty--serial--eud.c",
+  "source_sha256": "16670a85501bf1bb1d8ae5bd856d991a73ac199028e33275f34f1774991c7bfd",
+  "functions": {
+    "eud_probe": {
+      "sha256": "f0b6682734f9751f9908a34efbd06fd7622f7af44fe8017afcd93439b44828ec",
+      "line": 1295
+    },
+    "eud_reboot_cmd": {
+      "sha256": "3f580f6d5f9e37a296ce2bee9a8c8959fe6a64e0b6992854086cb5599810b4cd",
+      "line": 651
+    }
+  },
+  "supports": "existing Linux code uses literal1 to enable and literal0 plus read to retire under its own producer-stop/restart sequence",
+  "does_not_prove": [
+    "datasheet replication or alias semantics",
+    "online CSR write safety",
+    "CSR zero achieved",
+    "post-EBS producers/route state",
+    "USB hub or SDP500 causality"
+  ]
+}

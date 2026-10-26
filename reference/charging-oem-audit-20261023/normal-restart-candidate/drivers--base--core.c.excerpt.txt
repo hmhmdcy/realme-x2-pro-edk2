@@ -1,0 +1,70 @@
+Actual source354 / drivers/base/core.c
+
+4875: void device_shutdown(void)
+4876: {
+4877: 	struct device *dev, *parent;
+4878: 
+4879: 	wait_for_device_probe();
+4880: 	device_block_probing();
+4881: 
+4882: 	cpufreq_suspend();
+4883: 
+4884: 	spin_lock(&devices_kset->list_lock);
+4885: 	/*
+4886: 	 * Walk the devices list backward, shutting down each in turn.
+4887: 	 * Beware that device unplug events may also start pulling
+4888: 	 * devices offline, even as the system is shutting down.
+4889: 	 */
+4890: 	while (!list_empty(&devices_kset->list)) {
+4891: 		dev = list_entry(devices_kset->list.prev, struct device,
+4892: 				kobj.entry);
+4893: 
+4894: 		/*
+4895: 		 * hold reference count of device's parent to
+4896: 		 * prevent it from being freed because parent's
+4897: 		 * lock is to be held
+4898: 		 */
+4899: 		parent = get_device(dev->parent);
+4900: 		get_device(dev);
+4901: 		/*
+4902: 		 * Make sure the device is off the kset list, in the
+4903: 		 * event that dev->*->shutdown() doesn't remove it.
+4904: 		 */
+4905: 		list_del_init(&dev->kobj.entry);
+4906: 		spin_unlock(&devices_kset->list_lock);
+4907: 
+4908: 		/* hold lock to avoid race with probe/release */
+4909: 		if (parent)
+4910: 			device_lock(parent);
+4911: 		device_lock(dev);
+4912: 
+4913: 		/* Don't allow any more runtime suspends */
+4914: 		pm_runtime_get_noresume(dev);
+4915: 		pm_runtime_barrier(dev);
+4916: 
+4917: 		if (dev->class && dev->class->shutdown_pre) {
+4918: 			if (initcall_debug)
+4919: 				dev_info(dev, "shutdown_pre\n");
+4920: 			dev->class->shutdown_pre(dev);
+4921: 		}
+4922: 		if (dev->bus && dev->bus->shutdown) {
+4923: 			if (initcall_debug)
+4924: 				dev_info(dev, "shutdown\n");
+4925: 			dev->bus->shutdown(dev);
+4926: 		} else if (dev->driver && dev->driver->shutdown) {
+4927: 			if (initcall_debug)
+4928: 				dev_info(dev, "shutdown\n");
+4929: 			dev->driver->shutdown(dev);
+4930: 		}
+4931: 
+4932: 		device_unlock(dev);
+4933: 		if (parent)
+4934: 			device_unlock(parent);
+4935: 
+4936: 		put_device(dev);
+4937: 		put_device(parent);
+4938: 
+4939: 		spin_lock(&devices_kset->list_lock);
+4940: 	}
+4941: 	spin_unlock(&devices_kset->list_lock);
+4942: }

@@ -1,0 +1,32 @@
+{
+  "stage": 393,
+  "core_source_unchanged_between_attempts": true,
+  "build_r1_failed_missing_modpost_dependency_targets": true,
+  "build_r2_passed": true,
+  "adapter_provider_first_compile_name_collision_fixed": true,
+  "r1": {
+    "passed": false,
+    "reason": "Wrongly required static platform device to disappear after driver unload",
+    "files_not_replaced": true,
+    "explicit_recovery": "r1-recovery-validation.json"
+  },
+  "r2": {
+    "passed": false,
+    "reason": "Probe transient owner reference did not immediately reach zero",
+    "automatic_pair_rollback": true
+  },
+  "r3": {
+    "passed": false,
+    "reason": "Client reused offset16 without exporter extra rows; QBUF rejected exact-size backing",
+    "two_peer_frames_and_local_rejection_observed": true,
+    "automatic_pair_rollback": true
+  },
+  "r4": {
+    "passed": true,
+    "probe_owner_bounded_wait": true,
+    "exact_size_dmabuf_uses_offset_zero": true,
+    "new_pair_kept": true
+  },
+  "all_workers_collectors_clients_terminal": true,
+  "passed": true
+}

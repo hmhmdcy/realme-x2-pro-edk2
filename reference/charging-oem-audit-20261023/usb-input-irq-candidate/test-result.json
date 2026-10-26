@@ -1,0 +1,35 @@
+{
+  "passed": true,
+  "actual_function_result": {
+    "passed": true,
+    "actual_function_cases": 16,
+    "pthread_lock_outside_cancel_and_join": true
+  },
+  "asan_ubsan": true,
+  "compiler_command": [
+    "gcc",
+    "-std=c11",
+    "-g",
+    "-O1",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-Wno-unused-parameter",
+    "-Wno-sign-compare",
+    "-pthread",
+    "-fsanitize=address,undefined",
+    "-fno-omit-frame-pointer",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/usb-input-irq-candidate/test-events.c",
+    "-o",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/usb-input-irq-candidate/test-events"
+  ],
+  "source_sha256": "0fdafb8b3924e431efd67a888cbb88b8f5fe6de22dc400b009bf64cba34b7be5",
+  "test_source_sha256": "2be63e63ebac31c39e0041498dfc43b6246a4a4b06efc6ae14355432cbb2114d",
+  "actual_extracted_functions_sha256": "56e0c33b0643df9dbab405b3d518a6b564ab49f53ae7790846da3ea0144e07d5",
+  "runner_sha256": "7b21634b284834644b00097caddb9417912cf99ef534ce1f92f7f8fc329d197a",
+  "static_probe_order_verified": true,
+  "legacy_stop_function_unchanged": true,
+  "scope": "actual event/request/stop/shutdown bodies with fake IRQ/platform/work boundary; not full probe or hardware concurrency proof",
+  "old_float_decode_tests_rerun": false,
+  "phone_SSH_USB_SDK_Git_used": false
+}

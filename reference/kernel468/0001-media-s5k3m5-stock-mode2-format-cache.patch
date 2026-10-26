@@ -1,0 +1,135 @@
+--- a/drivers/media/i2c/s5k3m5.c
++++ b/drivers/media/i2c/s5k3m5.c
+@@ -117,6 +117,7 @@
+ 	bool clock_enabled;
+ 	bool power_fault;
+ 	bool streaming;
++	bool updating_format;
+ 	bool removing;
+ 	struct regmap *regmap;
+ 	struct clk *mclk;
+@@ -742,6 +743,10 @@
+ 	{ .width = 2104, .height = 1560, .hts = 9648, .vts = 1663, .exposure = 256,
+ 	  .analogue_crop = { 0, 0, 4208, 3120 },
+ 	  .reg_list = { s5k3m5_clock19_mode3_regs, ARRAY_SIZE(s5k3m5_clock19_mode3_regs) } },
++	/* Retained RMX1931 OEM mode2: HFR label, declared 30fps, no binning. */
++	{ .width = 4208, .height = 2368, .hts = 4848, .vts = 3312, .exposure = 256,
++	  .analogue_crop = { 0, 376, 4208, 2368 },
++	  .reg_list = { s5k3m5_clock19_mode2_regs, ARRAY_SIZE(s5k3m5_clock19_mode2_regs) } },
+ };
+ static const s64 s5k3m5_clock19_link_freqs[] = { 723200000 };
+ static const struct s5k3m5_profile s5k3m5_default_profile = {
+@@ -752,7 +757,7 @@
+ static const struct s5k3m5_profile s5k3m5_clock19_profile = {
+ 	.modes = s5k3m5_clock19_modes, .num_modes = ARRAY_SIZE(s5k3m5_clock19_modes),
+ 	.link_freqs = s5k3m5_clock19_link_freqs, .num_link_freqs = ARRAY_SIZE(s5k3m5_clock19_link_freqs),
+-	/* OEM mode3 timing metadata; native SOF/line timing validation pending. */
++	/* OEM mode2/3 control timing metadata; distinct from CSI pixel throughput. */
+ 	.pixel_rate = 481930000, .mclk_rate = 19200000, .clock19_sequence = true,
+ };
+ 
+@@ -763,6 +768,11 @@
+ 	const struct s5k3m5_mode *mode = s5k3m5->mode;
+ 	s64 exposure_max;
+ 	int ret;
++
++	/* These describe the selected mode and never program sensor registers. */
++	if (ctrl->id == V4L2_CID_LINK_FREQ || ctrl->id == V4L2_CID_PIXEL_RATE ||
++	    ctrl->id == V4L2_CID_HBLANK)
++		return 0;
+ 
+ 	/* Propagate change of current control to all related controls */
+ 	switch (ctrl->id) {
+@@ -773,13 +783,22 @@
+ 	case V4L2_CID_VBLANK:
+ 		/* Update max exposure while meeting expected vblanking */
+ 		exposure_max = mode->height + ctrl->val - S5K3M5_EXPOSURE_MARGIN;
+-		__v4l2_ctrl_modify_range(s5k3m5->exposure,
++		ret = __v4l2_ctrl_modify_range(s5k3m5->exposure,
+ 					 s5k3m5->exposure->minimum,
+ 					 exposure_max,
+ 					 s5k3m5->exposure->step,
+ 					 s5k3m5->exposure->default_value);
++		if (ret)
++			return ret;
+ 		break;
+ 	}
++
++	/* ACTIVE S_FMT changes a stopped mode's cache under the shared lock.
++	 * The mode table plus handler_setup apply it together at stream-on,
++	 * including when S_FMT is called while runtime-powered but idle.
++	 */
++	if (s5k3m5->updating_format)
++		return 0;
+ 
+ 	/* V4L2 controls are applied, when sensor is powered up for streaming */
+ 	if (s5k3m5->profile->clock19_sequence && (s5k3m5->removing || s5k3m5->power_fault))
+@@ -1081,6 +1100,7 @@
+ 	struct s5k3m5 *s5k3m5 = to_s5k3m5(sd);
+ 	s64 hblank, vblank, exposure_max;
+ 	const struct s5k3m5_mode *mode;
++	int ret;
+ 
+ 	if (fmt->which == V4L2_SUBDEV_FORMAT_ACTIVE && s5k3m5->streaming)
+ 		return -EBUSY;
+@@ -1091,33 +1111,45 @@
+ 
+ 	s5k3m5_update_pad_format(s5k3m5, mode, &fmt->format);
+ 
+-	/* Format code could be updated with respect to flip controls */
+ 	if (fmt->which == V4L2_SUBDEV_FORMAT_TRY || s5k3m5->mode == mode)
+ 		goto set_format;
+ 
+-	/* Update limits and set FPS and exposure to default values */
++	/* state_lock == ctrl_handler->lock: no control callback can interleave.
++	 * Publish the desired mode and state before propagating its control cache.
++	 * No I2C or PM operation is issued until the existing stream-on setup.
++	 */
++	s5k3m5->mode = mode;
++	*v4l2_subdev_state_get_format(state, 0) = fmt->format;
++	s5k3m5->updating_format = true;
++
+ 	hblank = mode->hts - mode->width;
+-	__v4l2_ctrl_modify_range(s5k3m5->hblank, hblank, hblank, 1, hblank);
++	ret = __v4l2_ctrl_modify_range(s5k3m5->hblank, hblank, hblank, 1, hblank);
++	if (ret)
++		goto format_done;
+ 
+ 	vblank = mode->vts - mode->height;
+-	__v4l2_ctrl_modify_range(s5k3m5->vblank, vblank,
++	ret = __v4l2_ctrl_modify_range(s5k3m5->vblank, vblank,
+ 				 S5K3M5_VTS_MAX - mode->height, 1, vblank);
+-	__v4l2_ctrl_s_ctrl(s5k3m5->vblank, vblank);
++	if (ret)
++		goto format_done;
++	ret = __v4l2_ctrl_s_ctrl(s5k3m5->vblank, vblank);
++	if (ret)
++		goto format_done;
+ 
+ 	exposure_max = mode->vts - S5K3M5_EXPOSURE_MARGIN;
+-	__v4l2_ctrl_modify_range(s5k3m5->exposure, s5k3m5->profile->clock19_sequence ? 1 : S5K3M5_EXPOSURE_MIN,
+-				 exposure_max, S5K3M5_EXPOSURE_STEP,
+-				 mode->exposure);
+-	__v4l2_ctrl_s_ctrl(s5k3m5->exposure, mode->exposure);
+-
+-	if (s5k3m5->sd.ctrl_handler->error)
+-		return s5k3m5->sd.ctrl_handler->error;
+-
+-	s5k3m5->mode = mode;
++	ret = __v4l2_ctrl_modify_range(s5k3m5->exposure,
++				 s5k3m5->profile->clock19_sequence ? 1 : S5K3M5_EXPOSURE_MIN,
++				 exposure_max, S5K3M5_EXPOSURE_STEP, mode->exposure);
++	if (ret)
++		goto format_done;
++	ret = __v4l2_ctrl_s_ctrl(s5k3m5->exposure, mode->exposure);
++
++format_done:
++	s5k3m5->updating_format = false;
++	return ret;
+ 
+ set_format:
+ 	*v4l2_subdev_state_get_format(state, 0) = fmt->format;
+-
+ 	return 0;
+ }
+ 

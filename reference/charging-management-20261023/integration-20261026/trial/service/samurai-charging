@@ -1,0 +1,22 @@
+#!/sbin/openrc-run
+description="Samurai managed charging with the #509 rollback guard"
+depend() {
+    need localmount
+    after udev samurai-usb
+}
+start_pre() {
+    /usr/bin/python3 -B /usr/lib/samurai-charging/trial_guard.py prestart
+}
+start() {
+    ebegin "Starting Samurai managed charging"
+    /usr/sbin/samurai-charging start
+    eend $?
+}
+stop() {
+    ebegin "Inhibiting Samurai managed charging"
+    /usr/sbin/samurai-charging stop
+    eend $?
+}
+status() {
+    /usr/sbin/samurai-charging status
+}

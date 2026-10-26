@@ -1,0 +1,76 @@
+{
+  "stock_live_dt": {
+    "compatible": "qcom,pil-tz-generic",
+    "clock_names": "xo",
+    "proxy_clock_names": "xo",
+    "proxy_regulator_names": "vdd_cx vdd_mss",
+    "pas_id": 4,
+    "proxy_timeout_ms": 10000,
+    "clock_provider_compatible": "qcom,rpmh-clk-sm8150",
+    "clock_selector": 0
+  },
+  "oem_reference_xo_nominal_hz": 19200000,
+  "linux_parent_nominal_hz": 38400000,
+  "linux_cxo_divider": 2,
+  "linux_resulting_nominal_hz": 19200000,
+  "observed_linux242_nominal_clock_snapshots": {
+    "before": {
+      "xo_board": 38400000,
+      "bi_tcxo_ao": 19200000,
+      "bi_tcxo": 19200000
+    },
+    "active-5": {
+      "xo_board": 38400000,
+      "bi_tcxo_ao": 19200000,
+      "bi_tcxo": 19200000
+    },
+    "active-30": {
+      "xo_board": 38400000,
+      "bi_tcxo_ao": 19200000,
+      "bi_tcxo": 19200000
+    },
+    "active-75": {
+      "xo_board": 38400000,
+      "bi_tcxo_ao": 19200000,
+      "bi_tcxo": 19200000
+    },
+    "after": {
+      "xo_board": 38400000,
+      "bi_tcxo_ao": 19200000,
+      "bi_tcxo": 19200000
+    }
+  },
+  "linux_clock_source_matches_242_audited_hash": true,
+  "both_bootstrap_paths_have_xo_and_cx_mss_proxy_resources": true,
+  "linux_prepare_enable_and_handover_disable_present": true,
+  "oem_generic_proxy_unvote_interrupt_path_present": true,
+  "no_factor_two_mismatch_identified": true,
+  "primary_oem_reference_sources": [
+    {
+      "path": "drivers/clk/qcom/clk-rpmh.c",
+      "url": "https://raw.githubusercontent.com/realme-kernel-opensource/realmeX2pro-X3-AndroidR-kernel-source/23172a1571bd91156032cc9fef16284a82b63d2c/drivers/clk/qcom/clk-rpmh.c",
+      "bytes": 19217,
+      "sha256": "9f9ebd25c01d725c871e032af0340773938452a679ffa6ad106bb76a7df98781"
+    },
+    {
+      "path": "include/dt-bindings/clock/qcom,rpmh.h",
+      "url": "https://raw.githubusercontent.com/realme-kernel-opensource/realmeX2pro-X3-AndroidR-kernel-source/23172a1571bd91156032cc9fef16284a82b63d2c/include/dt-bindings/clock/qcom,rpmh.h",
+      "bytes": 1099,
+      "sha256": "433d22c2a5f3bc4ad5800fa93f66dfeb1b840e974edc3df993aedd33400b705c"
+    },
+    {
+      "path": "drivers/soc/qcom/peripheral-loader.c",
+      "url": "https://raw.githubusercontent.com/realme-kernel-opensource/realmeX2pro-X3-AndroidR-kernel-source/23172a1571bd91156032cc9fef16284a82b63d2c/drivers/soc/qcom/peripheral-loader.c",
+      "bytes": 50686,
+      "sha256": "80390938b9ed8e1aabbd258f57cd51b9b1ae972278e237f98f7d9a411c7ef8d0"
+    }
+  ],
+  "linux_source_sha256": {
+    "drivers/clk/qcom/clk-rpmh.c": "c65c5f4bbfb77256e2ded8110e565be8f5d09665c8a74115724b8487475f7559",
+    "drivers/remoteproc/qcom_q6v5_pas.c": "36ec577c3976118f0c8150348903cf47d761d221fd595223bab861e7201e8eec",
+    "arch/arm64/boot/dts/qcom/sm8150.dtsi": "82887c779c9425ca23e49a81fe3ff8d8c7eec4d073edb305e6a9270371f3b7bc"
+  },
+  "source_audit_not_physical_clock_or_rf_measurement": true,
+  "oem_public_source_not_claimed_byte_identical_to_f16_kernel_binary": true,
+  "source_does_not_prove_modem_owned_rffe_lna_or_memory_initialization_equal": true
+}

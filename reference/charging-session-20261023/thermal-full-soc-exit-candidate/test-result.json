@@ -1,0 +1,77 @@
+{
+  "passed": true,
+  "device_accessed": false,
+  "SDK_accessed": false,
+  "kernel_built": false,
+  "old_suites_rerun": false,
+  "private_output": "/mnt/e/edk2-samurai-out/charging-session-20261023/thermal-full-soc-exit-tests-private-01",
+  "inputs": {
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/thermal-full-soc-exit-candidate/samurai-mp2650.c": "a53c058e72a59805a7eeb47c44f388497443d3787c5e4a748159f6e069df3a08",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/thermal-full-soc-exit-candidate/mp2650-core.h": "a041bf557fcf04085a49e5da03b71b13bfe9f72d8817c75fbe1e73d3178f3dd8",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/thermal-full-soc-exit-candidate/oem-full-cycle.h": "f59793fa29be553f5479b13986d0fba538e2d04673a104a32ad4241e5b9eaba1",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/thermal-full-soc-exit-candidate/actual-functions.inc": "5d0a65e2a5621e75bdbcd2cd8c90bd77b6ef0c0602ed68e3f6c9c09b84a97bc7",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/thermal-full-soc-exit-candidate/test-exit.c": "2c32d5bb65fac359a2f65bb60ebdf35fda09a8625b25399887353d48e264acaa",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/thermal-full-soc-exit-candidate/run-tests.py": "c6f8411d4fdea9a1388c7fbc84d37512fa33b8a6f5c5577c262c79b430e92efa",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/r8-source-integration/kernel-sources/drivers/power/supply/oem-profile.h": "14a425065aadcca1cc38efcc75cb112c0c25ac05567195b04feaa2bec21b0729",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/r8-source-integration/kernel-sources/drivers/power/supply/thermal-bands.h": "a06962f52e570b2b418c9e03354f634a1b356ed86c234cf598489a9f02f09112",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/r8-source-integration/kernel-sources/drivers/power/supply/charge-cycle.h": "717e7ae2579cbf970f3802a21dcfa0fe0124e7fd236588661c613fcd3903e07b",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/r8-source-integration/kernel-sources/drivers/power/supply/gauge-protocol.h": "0903f3fa9740f8645dfc8fb5c16f9a35ded63c4ea06f5c9c93475e37bc375f0f",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/charger-reattach-observation-candidate/reattach-observation.h": "49cb61042d431492d91ccad917f197cbbe2fff58bc53e378aeb92c573e9666c1",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/thermal-bands-candidate/oracle-fixture.h": "43aaead9f2af26efb8f0d617c9eb575b7251529beb4e9ec7a2087776786cf4c4",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/thermal-bands-candidate/oracle-functions.inc": "058f4ecf8c575fb88e3205da5ce7bf2e12dd51a9cbe7a9017a317397a4ed918a",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/thermal-bands-candidate/oracle-limit-fields.inc": "41a2dab8792363830bb52542ace1b105bc0e56974524927f2452f79eed6560c0",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/thermal-bands-candidate/oracle-limits.inc": "a3314cef61e0de3fdb2eb319d30124d8e2cdcbdd0c8fa48921f1742b1a2aab7f",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/thermal-bands-candidate/oracle-result.json": "64ec4d1c6c5c75d6c346c2e1aad884e29890f6b71d3df39bbde9a55335e7bf84"
+  },
+  "actual_functions": {
+    "sm_gauge_sample": {
+      "sha256_lf": "64f459a1db2c7b6f25a4f4e06cd8fd8b42eca21d28113f0ca9798189a35356fb",
+      "first_line": 71
+    },
+    "sm_step_locked": {
+      "sha256_lf": "6cd89405d60baaafedb50fd2b9a8262dbc2c2b592f46a3f6f848ded56e7d98b6",
+      "first_line": 181
+    }
+  },
+  "compile": {
+    "pid": 970,
+    "argv": [
+      "gcc",
+      "-std=c11",
+      "-g",
+      "-Wall",
+      "-Wextra",
+      "-Werror",
+      "-fsanitize=address,undefined",
+      "-fno-omit-frame-pointer",
+      "-I/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/thermal-full-soc-exit-candidate",
+      "-I/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/r8-source-integration/kernel-sources/drivers/power/supply",
+      "-I/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/charger-reattach-observation-candidate",
+      "-I/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/thermal-bands-candidate",
+      "/mnt/e/RealmeX2Pro edk2/reference/charging-session-20261023/thermal-full-soc-exit-candidate/test-exit.c",
+      "-o",
+      "/mnt/e/edk2-samurai-out/charging-session-20261023/thermal-full-soc-exit-tests-private-01/test-exit"
+    ],
+    "terminal": true,
+    "returncode": 0,
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "run": {
+    "pid": 983,
+    "argv": [
+      "/mnt/e/edk2-samurai-out/charging-session-20261023/thermal-full-soc-exit-tests-private-01/test-exit"
+    ],
+    "terminal": true,
+    "returncode": 0,
+    "stdout_sha256": "06a8c14885873b649b5e28f98257fabba2759c00e5919bb5ca7b90fe9e74cdab",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "summary": {
+    "passed": true,
+    "groups": 11,
+    "assertions": 91,
+    "old_matrix_rerun": false
+  },
+  "inputs_unchanged": true
+}

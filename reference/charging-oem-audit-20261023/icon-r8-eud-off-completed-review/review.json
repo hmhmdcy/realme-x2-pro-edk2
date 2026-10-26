@@ -1,0 +1,69 @@
+{
+  "schema": "charging-icon-r8-eud-off-completed-independent-review-v1",
+  "conclusion": "no_blocking_issue_in_report_scope",
+  "report_sha256": "98cd125790c9e5d0741fbc4432d14eca9892e979799bcefdb304a379cf456ed0",
+  "report_generator_sha256": "37627084684a6ecdd3742b9ae0a5e8d54fb57d186ace8c2de07cbf34d0be1358",
+  "raw_sha256": "57d98e04d5a987d4598e552779133fb4b5f492bedfe7042860517c71a79abe5e",
+  "fetch_receipt_sha256": "41c143fc724c157cd3a067f4379b32a87ecd45858eaaab8348c813491cd48f83",
+  "fetched_files_checked": 18,
+  "sample_count": 267,
+  "duration_seconds": 295.8559501535001,
+  "DBus_Device_PropertiesChanged_count": 60,
+  "DBus_all_PropertiesChanged_count": 62,
+  "on_samples": 83,
+  "on_observed_seconds": 93.046008626,
+  "stable_samples": 81,
+  "stable_observed_seconds": 90.99960138400002,
+  "native_source_hardware500_all_on_samples": true,
+  "report_combined_predicate_all_on_samples": false,
+  "report_combined_predicate_all_stable_samples": true,
+  "stable_instant_current_ua_range": [
+    77000,
+    131000
+  ],
+  "stable_positive_instant_samples": 81,
+  "edges": [
+    {
+      "edge": "detach",
+      "target_state": 2,
+      "source_uevent_t": 191.8893528564995,
+      "display_estimated_t": 195.61973715670285,
+      "estimated_interval_seconds": 3.7303843002033545
+    },
+    {
+      "edge": "attach",
+      "target_state": 1,
+      "source_uevent_t": 201.92167678949954,
+      "display_estimated_t": 204.99774728310587,
+      "estimated_interval_seconds": 3.0760704936063235
+    }
+  ],
+  "first_reconnect": {
+    "t": 202.76767629749975,
+    "source_native_hardware500": true,
+    "telemetry_valid": 0,
+    "telemetry_budget_ua": 0,
+    "telemetry_error": -61,
+    "Battery": "Discharging"
+  },
+  "second_reconnect": {
+    "t": 203.78955293750005,
+    "instant_current_ua": -124000,
+    "Battery": "Discharging"
+  },
+  "screenshot_sha256": "6724d94fe5cb0d645ea15c944c7f23add687042cc5a616c2dc499ad23e94d064",
+  "screenshot_charging_lightning_visually_present": true,
+  "scope_notes": [
+    "The false all-reconnect compound result also requires fresh charger telemetry budget500, not only native/source/hardware500. It must not be read as evidence of late host authorization.",
+    "Source online attach uevent precedes confirmed effective500; event timing uses this source-online reference, not a budget500 event.",
+    "Stable charging is supported at observed samples; sequential sysfs reads and sampled telemetry do not prove an atomic or uninterrupted analogue current trace.",
+    "Endpoint-mapped State2/State1 intervals are notification observations, not plug-edge or screen-frame latency.",
+    "Later screenshot and qualitative human feedback support visible improvement, not a measured pixel latency SLA.",
+    "No cold-boot, PM, complete charging-mode or causal isolation acceptance is inferred."
+  ],
+  "tests_rerun": false,
+  "collector_executed": false,
+  "device_accessed": false,
+  "build_invoked": false,
+  "Git_invoked": false
+}

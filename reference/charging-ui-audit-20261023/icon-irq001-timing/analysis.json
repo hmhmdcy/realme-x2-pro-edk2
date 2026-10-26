@@ -1,0 +1,453 @@
+{
+  "schema": "samurai-icon-irq001-relative-timing-analysis-v1",
+  "scope": "retained IRQ001 raw only; offline pure audit/source inspection; no new device action",
+  "redaction": "relative seconds and source digests only; no device UUID, peer, token or realtime anchors",
+  "originals": {
+    "capture-private.json": {
+      "sha256": "5f6ae62347a9253dbad32fa7b11a1e1ee1577b11cc107d71804c504483d10d96",
+      "bytes": 465709
+    },
+    "samples-private.jsonl": {
+      "sha256": "f7f9077939a501d19dc7eea334af497079b85ba2e02ef72e3a43e69802ca02c6",
+      "bytes": 299406
+    },
+    "kernel-events-private.jsonl": {
+      "sha256": "cbac7dd4e9014fff454d71fd4292d5ef7a2dcc9fac2f3133ad4d96eae1badd6c",
+      "bytes": 65762
+    },
+    "upower-dbus-private.log": {
+      "sha256": "fe6574ba7daca6b73f29f32c742a5f6ec28c6f82d8c717def40a09e165912e20",
+      "bytes": 94794
+    },
+    "result.json": {
+      "sha256": "32705e58ec8c65e881d393910f14c8acf220d296c0df677f32cb82e2571de9ab",
+      "bytes": 67007
+    },
+    "clock-start.json": {
+      "sha256": "930961e3dfea756ad675547b360caf949cd68621d8d74fc597b037fb70a93d02",
+      "bytes": 96
+    },
+    "clock-end.json": {
+      "sha256": "6b36bcfe03eb662d2e224b182b3649029845aad91f14933b9729a9dca4ba9757",
+      "bytes": 96
+    },
+    "config.json": {
+      "sha256": "c7c4080410e84664718b546466878b13154dc43692f5bb0731bbdcceaa0de92b",
+      "bytes": 315
+    },
+    "status.json": {
+      "sha256": "345c166988ba08290c50fa42c324ff70bad0b2aacb01c92a5e7edb4e65745f96",
+      "bytes": 223
+    }
+  },
+  "audit_source_sha256": "7a7c5342fcdef85b5d941d7d9cb351a240d561b9d219817790f63c4825a7a287",
+  "complete_physical_cycle_passed": false,
+  "screen_pixels_or_latency_proved": false,
+  "terminal_reason": "deadline",
+  "duration_seconds": 300.8083409385001,
+  "samples": 274,
+  "kernel_events": 84,
+  "identity_unchanged": true,
+  "capture_exception": null,
+  "capture_errors": [],
+  "monitor": {
+    "started": true,
+    "errors": [],
+    "dbus_returncode": -15
+  },
+  "event_read_errors": [],
+  "dbus_parse_errors": [],
+  "clock_mapping": {
+    "endpoints_consistent": true,
+    "endpoint_offset_change_seconds": 9.5367431640625e-07,
+    "anchor_bracket_seconds": 8.228999831771944e-06,
+    "quality": "endpoint-based estimates; no proof against cancelling clock steps inside the interval"
+  },
+  "sample_gap_indices": [],
+  "off_confirmation_rule": {
+    "consecutive_samples_at_least": 3,
+    "first_to_last_end_span_at_least_seconds": 2
+  },
+  "off_sample_segments": [
+    {
+      "first_sample_index": 130,
+      "last_sample_index": 130,
+      "first_sample_interval_seconds": [
+        145.3947244110002,
+        145.41839745700008
+      ],
+      "last_sample_interval_seconds": [
+        145.3947244110002,
+        145.41839745700008
+      ],
+      "sample_count": 1,
+      "first_to_last_sample_end_span_seconds": 0.0
+    },
+    {
+      "first_sample_index": 134,
+      "last_sample_index": 135,
+      "first_sample_interval_seconds": [
+        149.48996989900024,
+        149.50467905200026
+      ],
+      "last_sample_interval_seconds": [
+        150.51082839700007,
+        150.52682479500004
+      ],
+      "sample_count": 2,
+      "first_to_last_sample_end_span_seconds": 1.0221457429997827
+    },
+    {
+      "first_sample_index": 140,
+      "last_sample_index": 141,
+      "first_sample_interval_seconds": [
+        155.6485728460002,
+        155.67245942500017
+      ],
+      "last_sample_interval_seconds": [
+        156.6796278480001,
+        156.69755063300022
+      ],
+      "sample_count": 2,
+      "first_to_last_sample_end_span_seconds": 1.025091208000049
+    }
+  ],
+  "digital_pair_counts": {
+    "both_online": 269,
+    "both_offline": 5,
+    "None_in_either": 0
+  },
+  "last_ACOK_off_on_uevent_interval_seconds": [
+    154.79183692100014,
+    156.99703458500016
+  ],
+  "last_ACOK_off_on_received_duration_seconds": 2.205197664000025,
+  "last_both_line_power_Offline_DBus_overlap_estimated_seconds": [
+    154.815135,
+    157.005282
+  ],
+  "off_interpretation": "No qualifying sample run. This is not proof that no physical unplug happened, nor that physical off lasted only the sampled 1.025 seconds. Short event intervals are not a 10-second physical-off proof.",
+  "source_read_errors": [
+    {
+      "sample_index": 130,
+      "field": "source.input_current_limit_ua",
+      "errno": 61,
+      "error": "OSError"
+    },
+    {
+      "sample_index": 131,
+      "field": "source.current_max_ua",
+      "errno": 61,
+      "error": "OSError"
+    },
+    {
+      "sample_index": 134,
+      "field": "source.input_current_limit_ua",
+      "errno": 61,
+      "error": "OSError"
+    },
+    {
+      "sample_index": 135,
+      "field": "source.input_current_limit_ua",
+      "errno": 61,
+      "error": "OSError"
+    },
+    {
+      "sample_index": 136,
+      "field": "source.current_max_ua",
+      "errno": 61,
+      "error": "OSError"
+    },
+    {
+      "sample_index": 140,
+      "field": "source.input_current_limit_ua",
+      "errno": 61,
+      "error": "OSError"
+    },
+    {
+      "sample_index": 141,
+      "field": "source.input_current_limit_ua",
+      "errno": 61,
+      "error": "OSError"
+    },
+    {
+      "sample_index": 142,
+      "field": "source.current_max_ua",
+      "errno": 61,
+      "error": "OSError"
+    }
+  ],
+  "telemetry_error_counts": {
+    "0": 268,
+    "-61": 6
+  },
+  "fault_values": [
+    0
+  ],
+  "latched_values": [
+    0
+  ],
+  "stop_error_values": [
+    0
+  ],
+  "hardware_input_sample_values_ua": [
+    500000
+  ],
+  "reattach_timelines": [
+    {
+      "source_online_uevent_received_seconds": 146.2830724160001,
+      "ACOK_online_uevent_received_seconds": 146.18805680900005,
+      "native500_uevent_received_seconds": 146.38759595800025,
+      "SDP_budget500_uevent_received_seconds": 147.01477288800015,
+      "converter_Charging_first_sample_interval_seconds": [
+        147.44711982000013,
+        147.46209599400004
+      ],
+      "battery_during_that_sample": {
+        "status": "Discharging",
+        "current_now_ua": -88000,
+        "current_avg_ua": -19000
+      },
+      "converter_Charging_uevent_received_seconds": 148.37361216700015,
+      "battery_Charging_uevent_received_seconds": 148.3933705630002,
+      "battery_at_Charging_uevent": {
+        "current_now_ua": 33000,
+        "current_avg_ua": -21000
+      },
+      "battery_Charging_first_sample_interval_seconds": [
+        148.46841522900013,
+        148.48330812500012
+      ],
+      "Battery_DBus_State1_estimated_seconds": 148.37890120631886,
+      "Display_DBus_State1_estimated_seconds": 148.38456412439007,
+      "Display_IconName": "battery-full-charging-symbolic",
+      "source_online_to_Display_State1_seconds_estimated": 2.101491708389972,
+      "source_online_to_SDP_budget_seconds": 0.7317004720000568
+    },
+    {
+      "source_online_uevent_received_seconds": 151.50107019600023,
+      "ACOK_online_uevent_received_seconds": 151.39659889100017,
+      "native500_uevent_received_seconds": 151.6029963850001,
+      "SDP_budget500_uevent_received_seconds": 152.23305430400023,
+      "converter_Charging_first_sample_interval_seconds": [
+        152.55882089300007,
+        152.5819526560001
+      ],
+      "battery_during_that_sample": {
+        "status": "Discharging",
+        "current_now_ua": -126000,
+        "current_avg_ua": -30000
+      },
+      "converter_Charging_uevent_received_seconds": 153.58010750100016,
+      "battery_Charging_uevent_received_seconds": 153.60883265400025,
+      "battery_at_Charging_uevent": {
+        "current_now_ua": 44000,
+        "current_avg_ua": -34000
+      },
+      "battery_Charging_first_sample_interval_seconds": [
+        153.58918175400004,
+        153.6186239640001
+      ],
+      "Battery_DBus_State1_estimated_seconds": 153.59838814007557,
+      "Display_DBus_State1_estimated_seconds": 153.6009492324434,
+      "Display_IconName": "battery-full-charging-symbolic",
+      "source_online_to_Display_State1_seconds_estimated": 2.099879036443184,
+      "source_online_to_SDP_budget_seconds": 0.731984108000006
+    },
+    {
+      "source_online_uevent_received_seconds": 157.09922566000023,
+      "ACOK_online_uevent_received_seconds": 156.99703458500016,
+      "native500_uevent_received_seconds": 157.20798889200023,
+      "SDP_budget500_uevent_received_seconds": 157.83848799300017,
+      "converter_Charging_first_sample_interval_seconds": [
+        158.73653663400023,
+        158.7620980480001
+      ],
+      "battery_during_that_sample": {
+        "status": "Discharging",
+        "current_now_ua": -16000,
+        "current_avg_ua": -41000
+      },
+      "converter_Charging_uevent_received_seconds": 159.14298383200025,
+      "battery_Charging_uevent_received_seconds": 159.17263103500022,
+      "battery_at_Charging_uevent": {
+        "current_now_ua": 23000,
+        "current_avg_ua": -41000
+      },
+      "battery_Charging_first_sample_interval_seconds": [
+        159.76902517800022,
+        159.78862102800008
+      ],
+      "Battery_DBus_State1_estimated_seconds": 159.17831818781872,
+      "Display_DBus_State1_estimated_seconds": 159.18367020806386,
+      "Display_IconName": "battery-full-charging-symbolic",
+      "source_online_to_Display_State1_seconds_estimated": 2.0844445480636296,
+      "source_online_to_SDP_budget_seconds": 0.7392623329999424
+    }
+  ],
+  "first_positive_current_avg_after_final_reattach_sample_interval_seconds": [
+    168.21699908100004,
+    168.23325057400007
+  ],
+  "time_semantics": {
+    "uevent": "receiver-thread MONOTONIC receive time relative to collector start; not the electrical transition/IRQ assertion timestamp",
+    "sample": "sequential sysfs read bracket, not simultaneous values or exact enable timestamp",
+    "DBus": "endpoint REALTIME-to-MONOTONIC estimate; target State1 and charging IconName explicitly selected, never an arbitrary first State",
+    "causality": "No proof of screen presentation or per-stage causal delay; queue scheduling can reorder receiver timestamps at millisecond scale"
+  },
+  "installed_source_bindings": {
+    "BQ502_source": {
+      "path": "reference/charging-ui-audit-20261023/gauge-notify-immediate-candidate/bq27xxx_battery.c",
+      "sha256": "0014077792948460fc2a2e9581225dc684cba4d5bff95c3e88767d661ce5439b",
+      "relevant_lines": [
+        1920,
+        1982,
+        2188,
+        2289
+      ]
+    },
+    "BQ502_build": {
+      "path": "reference/charging-ui-audit-20261023/gauge-image502-notify-candidate/build-result.json",
+      "sha256": "feb6fd2e8ef8ca380f48a6f8f88b131646a874fa1d8660c3bde83a38ec8940e6",
+      "relevant_lines": []
+    },
+    "R8_charger_source": {
+      "path": "reference/charging-session-20261023/thermal-bands-candidate/samurai-mp2650.c",
+      "sha256": "ed2e1d4d96ea4f2d55b514288b0e8da1d731864d385944d02a105d41b03a144c",
+      "relevant_lines": [
+        74,
+        112,
+        167,
+        289,
+        330,
+        347
+      ]
+    },
+    "R8_core": {
+      "path": "reference/charging-session-20261023/thermal-bands-candidate/mp2650-core.h",
+      "sha256": "df9caed5c3678551b84e04d416c53caafd2b51036f2244b26974a87aa1ced4e8",
+      "relevant_lines": [
+        221
+      ]
+    },
+    "R8_build_binding": {
+      "path": "reference/charging-management-20261023/thermal-bands-build-result.json",
+      "sha256": "bc4350fa1ba40ae9eb42acdeab3d8e55419db7943f99b3d3c8fbd2df7e6efe56",
+      "relevant_lines": []
+    },
+    "current_cohort_manifest": {
+      "path": "reference/charging-ui-audit-20261023/usb-irq-protection-cohort-candidate/manifest.json",
+      "sha256": "5fca8e5a0795325bd780b7965579068c7edc35fa7da12bac357bb30bbde69417",
+      "relevant_lines": []
+    },
+    "USB_IRQ_source": {
+      "path": "reference/charging-oem-audit-20261023/usb-input-irq-candidate/samurai-usb-input.c",
+      "sha256": "0fdafb8b3924e431efd67a888cbb88b8f5fe6de22dc400b009bf64cba34b7be5",
+      "relevant_lines": [
+        64,
+        176,
+        251
+      ]
+    },
+    "USB_decoder": {
+      "path": "reference/charging-oem-audit-20261023/usb-input-irq-candidate/samurai-usb-input-decode.h",
+      "sha256": "a17caa2cbeb2352da249474e0265fa96745f544d96a29d0ebe8f14c656d548fd",
+      "relevant_lines": [
+        30
+      ]
+    },
+    "protection_source": {
+      "path": "reference/charging-oem-audit-20261023/protection-query-observer-candidate/samurai-gauge-protection.c",
+      "sha256": "3e1e81a341a5df072cde2c57ec7505096c192e7b873cfbb2720375ae7f9b8f6d",
+      "relevant_lines": [
+        47,
+        162
+      ]
+    },
+    "protection_I2C": {
+      "path": "reference/charging-oem-audit-20261023/protection-query-observer-candidate/gauge-i2c.h",
+      "sha256": "8846d20648dc0b137a2608be9a7ed479ecd692b17db6875a2a18a2d046d7c8b2",
+      "relevant_lines": [
+        53,
+        61
+      ]
+    },
+    "protection_module_binding": {
+      "path": "reference/charging-oem-audit-20261023/protection-query-observer-module-candidate/ko-result.json",
+      "sha256": "9626534ca5d7c91d2e4aad87ef462f76bf193899fd903c36be80950cbd796437",
+      "relevant_lines": []
+    },
+    "five_second_gate": {
+      "path": "reference/charging-session-20261023/thermal-bands-candidate/oem-full-cycle.h",
+      "sha256": "91554031a1ea454e1a70fa8bae89316bd8770686c19c5a33ec6a1dbb06bdfba4",
+      "relevant_lines": [
+        189
+      ]
+    },
+    "timeout_gate": {
+      "path": "reference/charging-session-20261023/thermal-bands-candidate/charge-cycle.h",
+      "sha256": "717e7ae2579cbf970f3802a21dcfa0fe0124e7fd236588661c613fcd3903e07b",
+      "relevant_lines": [
+        75
+      ]
+    },
+    "prior_exact_R8_source_audit": {
+      "path": "reference/charging-oem-audit-20261023/mp2650-attach-sequencing-r8/result.json",
+      "sha256": "13211e45916c000021e36e8fdcdfe94e01f1796f8ad3c769fd79b073bdb9623a",
+      "relevant_lines": []
+    }
+  },
+  "TI_reference": {
+    "document": "BQ28Z610 SLUUA65E, revised June2023",
+    "cached_text_sha256": "c5cfb494ed5dad0311a13f134702be09cd137ed2c4478b10143eab0c760327fc",
+    "PDF_sha256_from_existing_source_receipt": "f62ec12bb5aa23631759e59a378f36d254f9b0e2b5b6b8523a0dd081a13e4139",
+    "location": "section12.1 Table12-1, cached text lines2701-2729",
+    "fact": "Current0x0c and AverageCurrent0x14 update every1s; no measured custom2719 update phase or delay guarantee inferred"
+  },
+  "source_findings": {
+    "native_BQ_external_power_callback_delay_ms": 0,
+    "legacy_other_profile_delay_ms": 500,
+    "native_STATUS_current_register": "0x0c signed net current; FC precedence",
+    "CURRENT_AVG_register": "0x14; does not control native STATUS",
+    "charger_regular_observation_ms": 1000,
+    "input_and_protection_notifier_requeue_ms": 0,
+    "safe_collect_apply_then_REG13_and_battery_notify_same_work": true,
+    "explicit_sleep_between_enable_and_Charging_notification_found": false,
+    "USB_pending_APSD_or_invalid_budget_does_not_authorize_enable": true
+  },
+  "bounded_observation_review": {
+    "recommendation": "A250ms, approximately3-second absolute observation candidate triggered only by real agreed offline-to-online is justified for controlled evaluation, not proved latency removal. No implementation in this analysis leaf.",
+    "evidence_strength": "Three repeats support systematic source-to-targetState timing. The capture cannot separate gauge1s data refresh, hardware settling and normal1s discovery delay.",
+    "potential_gain": "Only remaining observation wait may decrease, at most approximately0.75s vs a1s observer; actual gain not measured. The approximately0.74s source classification stage and gauge refresh cannot be skipped.",
+    "prefer_250_over_200_ms": "4Hz vs5Hz;50ms extra resolution has no demonstrated benefit here.",
+    "full_healthy_step_MAC_commands": 11,
+    "derivation": "Two fresh protection properties each run5MAC; gauge cell sample adds1MAC. Other word/register transfers and asynchronous readers are additional.",
+    "MAC_sleep_requested_us_each": [
+      1000,
+      1500
+    ],
+    "MAC_commands_per_second_baseline": 11,
+    "MAC_commands_per_second_at_250ms": 44,
+    "requested_MAC_sleep_ms_per_second_at_250ms": [
+      44,
+      66
+    ],
+    "three_second_extra_full_steps_vs_1s": 9,
+    "three_second_extra_MAC_commands": 99,
+    "three_second_extra_requested_MAC_sleep_ms": [
+      99,
+      148.5
+    ],
+    "load_limits": "Requested bus-segment-held sleeps only, not measured throughput/CPU duty or hard upper bounds. Real transfers/scheduling increase occupancy. Unknown/off may short-circuit before full MAC reads.",
+    "required_constraints": [
+      "Initial online never triggers; unknown does not invent offline; repeated notifiers and within-window flaps cannot extend the original deadline",
+      "Absolute short-window cap; fallback to1000ms; preserve paused/suspend/remove handling",
+      "Run the entire existing safety/apply/notification path; no early enable or fake Battery Charging",
+      "Do not cache Good to cut protection checks or alter OEM MAC delay",
+      "Keep BOOTTIME5s Full/recharge gate and BOOTTIME timeout; do not count polls as seconds",
+      "Judge next bounded trial using age/read-error/stop and source-to-targetState evidence before adoption"
+    ]
+  },
+  "no_source_or_frozen_candidate_change": true,
+  "no_new_tests_build_or_device_access": true
+}

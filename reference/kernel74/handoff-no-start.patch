@@ -1,0 +1,145 @@
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.c
+@@ -1178,12 +1178,6 @@
+ 	 * Now we need to read the HW catalog and initialize resources such as
+ 	 * clocks, regulators, GDSC/MMAGIC, ioremap the register ranges etc
+ 	 */
+-	rc = _dpu_kms_mmu_init(dpu_kms);
+-	if (rc) {
+-		DPU_ERROR("dpu_kms_mmu_init failed: %d\n", rc);
+-		goto err_pm_put;
+-	}
+-
+ 	dpu_kms->mdss = qcom_ubwc_config_get_data();
+ 	if (IS_ERR(dpu_kms->mdss)) {
+ 		rc = PTR_ERR(dpu_kms->mdss);
+@@ -1200,6 +1194,21 @@
+ 	rc = dpu_rm_init(dev, &dpu_kms->rm, dpu_kms->catalog, dpu_kms->mdss, dpu_kms->mmio);
+ 	if (rc) {
+ 		DPU_ERROR("rm init failed: %d\n", rc);
++		goto err_pm_put;
++	}
++
++	/* The boot framebuffer uses physical addresses in the identity domain. */
++	if (of_device_is_compatible(dev->dev->of_node, "qcom,sm8150-dpu")) {
++		rc = dpu_rm_clear_boot_config(&dpu_kms->rm, dpu_kms->catalog);
++		if (rc) {
++			DPU_ERROR("boot CTL shutdown failed: %d\n", rc);
++			goto err_pm_put;
++		}
++	}
++
++	rc = _dpu_kms_mmu_init(dpu_kms);
++	if (rc) {
++		DPU_ERROR("dpu_kms_mmu_init failed: %d\n", rc);
+ 		goto err_pm_put;
+ 	}
+ 
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_rm.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_rm.c
+@@ -210,6 +210,22 @@
+ 
+ fail:
+ 	return rc ? rc : -EFAULT;
++}
++
++int dpu_rm_clear_boot_config(struct dpu_rm *rm, const struct dpu_mdss_cfg *cat)
++{
++	int i, ret;
++
++	for (i = 0; i < cat->ctl_count; i++) {
++		struct dpu_hw_ctl *ctl;
++
++		ctl = to_dpu_hw_ctl(rm->ctl_blks[cat->ctl[i].id - CTL_0]);
++		ret = dpu_hw_ctl_clear_boot_config(ctl);
++		if (ret)
++			return ret;
++	}
++
++	return 0;
+ }
+ 
+ static bool _dpu_rm_needs_split_display(const struct msm_display_topology *top)
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_rm.h
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_rm.h
+@@ -125,5 +125,14 @@
+ 	return rm->hw_sspp[sspp_idx - SSPP_NONE];
+ }
+ 
++/**
++ * dpu_rm_clear_boot_config() - quiesce inherited command-mode CTLs on SM8150
++ * @rm: Initialized resource manager
++ * @cat: SM8150 hardware catalog
++ *
++ * Return: 0 on success or a negative reset error.
++ */
++int dpu_rm_clear_boot_config(struct dpu_rm *rm, const struct dpu_mdss_cfg *cat);
++
+ #endif /* __DPU_RM_H__ */
+ 
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_ctl.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_ctl.c
+@@ -480,6 +480,48 @@
+ 	DPU_REG_WRITE(c, CTL_FETCH_PIPE_ACTIVE, 0);
+ }
+ 
++/* Stop inherited command-mode fetches before replacing the IOMMU domain. */
++int dpu_hw_ctl_clear_boot_config(struct dpu_hw_ctl *ctx)
++{
++	struct dpu_hw_blk_reg_map *c = &ctx->hw;
++	u32 top = DPU_REG_READ(c, CTL_TOP);
++	u32 fetch = DPU_REG_READ(c, CTL_FETCH_PIPE_ACTIVE);
++	u32 layers = 0;
++	int i, ret;
++
++	for (i = 0; i < ctx->mixer_count; i++) {
++		enum dpu_lm lm = ctx->mixer_hw_caps[i].id;
++
++		layers |= DPU_REG_READ(c, CTL_LAYER(lm));
++		layers |= DPU_REG_READ(c, CTL_LAYER_EXT(lm));
++		layers |= DPU_REG_READ(c, CTL_LAYER_EXT2(lm));
++		layers |= DPU_REG_READ(c, CTL_LAYER_EXT3(lm));
++	}
++
++	/* Video-mode shutdown requires stopping the INTF timing engine. */
++	if (!(top & BIT(17)) || (!layers && !fetch))
++		return 0;
++
++	pr_info("boot CTL%d: top=%#x layers=%#x fetch=%#x\n",
++		ctx->idx - CTL_0, top, layers, fetch);
++	ret = dpu_hw_ctl_reset_control(ctx);
++	if (ret)
++		return ret;
++
++	dpu_hw_ctl_clear_all_blendstages(ctx);
++	for (i = 0; i < ctx->mixer_count; i++)
++		dpu_hw_ctl_update_pending_flush_mixer(ctx, ctx->mixer_hw_caps[i].id);
++	ctx->pending_flush_mask |= CTL_FLUSH_MASK_CTL;
++	dpu_hw_ctl_trigger_flush_v1(ctx);
++	/* Reset stopped the transfer; do not start an empty DSI frame. */
++	dpu_hw_ctl_clear_pending_flush(ctx);
++
++	pr_info("boot CTL%d cleared: layer0=%#x layer1=%#x fetch=%#x\n",
++		ctx->idx - CTL_0, DPU_REG_READ(c, CTL_LAYER(LM_0)),
++		DPU_REG_READ(c, CTL_LAYER(LM_1)), DPU_REG_READ(c, CTL_FETCH_PIPE_ACTIVE));
++	return 0;
++}
++
+ struct ctl_blend_config {
+ 	int idx, shift, ext_shift;
+ };
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_ctl.h
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_ctl.h
+@@ -358,4 +358,12 @@
+ 				   u32 mixer_count,
+ 				   const struct dpu_lm_cfg *mixer);
+ 
++/**
++ * dpu_hw_ctl_clear_boot_config() - stop inherited DPU 5 command-mode data paths
++ * @ctx: CTL context, with clocks enabled
++ *
++ * Return: 0 on success or a negative error if CTL reset times out.
++ */
++int dpu_hw_ctl_clear_boot_config(struct dpu_hw_ctl *ctx);
++
+ #endif /*_DPU_HW_CTL_H */

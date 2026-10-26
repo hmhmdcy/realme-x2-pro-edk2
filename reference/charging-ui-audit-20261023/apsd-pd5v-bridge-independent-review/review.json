@@ -1,0 +1,64 @@
+{
+  "scope": "narrow bridge metadata/first-off/lease/sink and lifetime review, not full APSD authorization",
+  "no_new_blocker_found": true,
+  "delivery_sha256": "670d3a1084180f0fc4e0b1dc02c0c21d9b560ca0ed651b51e7cdcaacd6249e52",
+  "owner_sha256": "d05d4f81f8427cfbe7cd37c458b538d0ee60a2e9422c243cdf13fa6ba246d979",
+  "metadata_source_sha256": "b3b9a18e8c581a99f57083eeeadc9af9783c0e03b28cf60f1e796fd6d1558d52",
+  "patch_sha256": "30b9e07f49dc68e15a7734fc27544bd92d09f9f688862629f04184145602d543",
+  "reviewed": [
+    "default-n plus explicit OF properties; current TYPEC_QCOM_PMIC=m refused",
+    "metadata verifies exact bound typec and source parent/regmap; binding serial nonzero/nonreused/overflow refused",
+    "metadata initialized is not lease or PD/route permission",
+    "present-at-start waits first off; retained R2 fresh stable off/vSafe0 acquisition precedes sink eligibility",
+    "binding rechecked after acquire; replacement cannot inherit prior prepared state",
+    "sticky provider I/O errors remain FAILED; known blocked/no-error cancellation is distinguished",
+    "real primary owner kref, PD quiesce extra pin, callback outside PD lock, registry-serialized join/release",
+    "worker never takes owner registry; failed restore retains lease/tokens; late callback cannot access removed DWC",
+    "once attempted history survives PM/UDC/provider rebind until actual detach",
+    "unconditional EOPNOTSUPP still prevents analog windows and 1341 transfer"
+  ],
+  "unchanged_PD_R2_functions_byte_equal": [
+    "pd5v_now_ms",
+    "pd5v_read",
+    "pd5v_policy",
+    "pd5v_off",
+    "pd5v_same_status",
+    "pd5v_disabled",
+    "pd5v_disable_off",
+    "pd5v_verify",
+    "samurai_pd5v_acquire",
+    "samurai_pd5v_validate",
+    "pd5v_free",
+    "pd5v_unpublish_if_retired",
+    "samurai_pd5v_release",
+    "qcom_pmic_typec_5v_acquire",
+    "samurai_pd5v_quiesce",
+    "samurai_pd5v_complete",
+    "samurai_pd5v_destroy"
+  ],
+  "unchanged_DWC_files_byte_equal": [
+    "core.c",
+    "core.h",
+    "gadget.c"
+  ],
+  "validation": {
+    "test_receipt_sha256": "1223cfea88519c311212213eeeda820a4f1730b601e48dff7cd4ef786892506f",
+    "groups": 14,
+    "full_actual_owner_and_PD_bodies_in_retained_fixture": true,
+    "ASan_UBSan_Werror_receipt_bound": true,
+    "tests_rerun": false,
+    "build_receipt_sha256": "3dbc29b980ac8a3f2b64b7ef7bd3a9b57d11696f27c723ed041702c6be253b6b",
+    "two_final_owner_object_views_exit0_no_diagnostics": true,
+    "unchanged_metadata_object_original_receipt_bound": true,
+    "objects_not_recompiled_or_independently_read_here": true
+  },
+  "metadata_IO_scope": "no direct bus/power operation; a last temporary reference concurrent with retirement can run existing pd5v_free/regulator_disable cleanup",
+  "limits": [
+    "deterministic fake boundaries do not prove every kernel interleaving",
+    "no route/EUD/PHY withdrawal/final transfer permission; no native current or charging permission",
+    "future builtin preprocessor object is not a linked or adopted configuration"
+  ],
+  "device_SDK_build_mount_Git_used": false,
+  "source_or_Image501_modified": false,
+  "candidate_deployed_or_physical_acceptance": false
+}

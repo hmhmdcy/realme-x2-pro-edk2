@@ -1,0 +1,59 @@
+--- a/samurai-mp2650.c
++++ b/samurai-mp2650.c
+@@ -210,7 +210,10 @@
+ 		.cell_target_uv = !validation ? validation_target.cell_uv : 0,
+ 		.gauge_flags = c->sample.gauge_flags,
+ 	};
+-	c->full_result = sm_oem_full_step(&c->full_state, now, &full_sample);
++	if (c->auto_requested)
++		c->full_result = sm_oem_full_step(&c->full_state, now, &full_sample);
++	else
++		c->full_result = sm_oem_full_skip(&c->full_state);
+ 	/* Physical detach is a normal stop/reset, never a new telemetry fault. */
+ 	if (c->full_result.stop_all && !validation && !c->latched && source != 0) {
+ 		ret = -ENODATA;
+--- a/oem-full-cycle.h
++++ b/oem-full-cycle.h
+@@ -68,6 +68,16 @@
+ {
+ 	s->sw_count = s->voltage_count = s->recharge_count = 0;
+ 	s->have_tick = 0;
++}
++
++/* Explicit operator INHIBIT is neither bad telemetry nor physical detach.
++ * Keep an established Full fact/cause, discard all incomplete evidence and
++ * produce no new Full/recharge/hold request. Real safety checks still run.
++ */
++static inline struct sm_oem_full_result sm_oem_full_skip(struct sm_oem_full_state *s)
++{
++	sm_oem_full_clear_streak(s);
++	return (struct sm_oem_full_result){ .full = s->full, .cause = s->cause };
+ }
+ static inline int sm_oem_full_band(int temp)
+ {
+--- a/charge-cycle.h
++++ b/charge-cycle.h
+@@ -26,8 +26,9 @@
+ 	*c = (struct sm_charge_cycle){ .last_ns = now };
+ }
+ 
+-/* Run the actual charger policy with the timer field temporarily zeroed first:
+- * only a wholly valid, in-range sample can establish a Full-period boundary.
++/* Run actual policy with timer zeroed unless an old timeout already exists:
++ * only a wholly valid, in-range sample can establish a healthy hardware or
++ * validated software Full-period boundary (or a normal recharge start).
+  * This helper never clears the charger's independent IO/electrical latch.
+  */
+ static inline int sm_cycle_full_allowed(int hardware_full, int fault_latched,
+@@ -38,8 +39,9 @@
+ 
+ /* source=-1: unknown/error; 0: independently agreed physical detach;
+  * 1: independently agreed attachment. Unknown never clears any cycle state.
+- * full_good is allowed only after fresh complete telemetry and policy checks,
+- * confirmed MP2650 REG13 CHG_STAT==3, and no existing fault latch. SOC100,
++ * full_good is allowed only after fresh complete telemetry/policy checks,
++ * confirmed MP2650 REG13 CHG_STAT==3 or accepted software-Full/recharge state,
++ * and no existing fault latch/timeout. SOC100,
+  * zero net current, or an unvalidated cached Full flag is not sufficient.
+  * Full resets the current charge period (OEM full_action); subsequent recharge
+  * gets a fresh period without requiring a physical unplug. A timeout already

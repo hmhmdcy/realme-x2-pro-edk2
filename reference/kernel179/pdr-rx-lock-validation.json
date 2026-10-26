@@ -1,0 +1,82 @@
+{
+  "stage": 179,
+  "kernel_source_modified": false,
+  "kernel_build_or_deployment_performed": false,
+  "actual_functions": {
+    "pdr_register_listener": "c95be7ad64faf79ecfa1bcc8dc71611cffd20dd976c843e521e92fda40043e5a",
+    "pdr_notifier_work": "d8506be0e02994b7f17fb26e3a1ab9e8b816594a00bceaddddf14ce067407d73",
+    "pdr_notifier_new_server": "d598461b440e8074f0fda9d0c9b233726a25f52d73344a42bd21efc38c592a25",
+    "pdr_notifier_del_server": "bd0e3199208ac8a9219e8a3950f4ebd97ccd807b8e5da13a738229bf0a45ded1",
+    "qmi_txn_wait": "8ea2cfaaa54cccfc445bff3a8de6fb1c7142dfc049035b464c4a2701d620b77b",
+    "qmi_txn_cancel": "05eadd49fe7a8f57208a8e0b545f5fd7354f51919831939fb74dd3ec42e49f30",
+    "qmi_data_ready_work": "208bb03366475dbc95df7184c4ff47e1761188b14af57fba773ca4850623f805"
+  },
+  "source_files": {
+    "drivers/soc/qcom/pdr_interface.c": "da13d7f202fbfe201b56d2a05fe6987e818110042485332da4808751d6e8c813",
+    "drivers/soc/qcom/qmi_interface.c": "e49925a0be07b2f021b148e8bea729ab031b02ae7613c0efbec97e62a95da234"
+  },
+  "compiler": "gcc with AddressSanitizer and UndefinedBehaviorSanitizer",
+  "mock_wait_ms": 200,
+  "kernel_wait_seconds": 5,
+  "scenarios": [
+    {
+      "scenario": 0,
+      "register_timed_out": false,
+      "callback_state": 1,
+      "rx_blocked_on_list_lock": 0,
+      "late_reply_dropped": 0,
+      "variant": "baseline"
+    },
+    {
+      "scenario": 1,
+      "register_timed_out": true,
+      "callback_state": 0,
+      "rx_blocked_on_list_lock": 1,
+      "late_reply_dropped": 1,
+      "variant": "baseline"
+    },
+    {
+      "scenario": 2,
+      "register_timed_out": true,
+      "callback_state": 0,
+      "rx_blocked_on_list_lock": 1,
+      "late_reply_dropped": 1,
+      "variant": "baseline"
+    },
+    {
+      "scenario": 3,
+      "register_timed_out": true,
+      "callback_state": 0,
+      "rx_blocked_on_list_lock": 1,
+      "late_reply_dropped": 1,
+      "variant": "baseline"
+    },
+    {
+      "scenario": 0,
+      "register_timed_out": false,
+      "callback_state": 1,
+      "rx_blocked_on_list_lock": 0,
+      "late_reply_dropped": 0,
+      "variant": "unlock-causal-control"
+    },
+    {
+      "scenario": 1,
+      "register_timed_out": false,
+      "callback_state": 1,
+      "rx_blocked_on_list_lock": 0,
+      "late_reply_dropped": 0,
+      "variant": "unlock-causal-control"
+    },
+    {
+      "scenario": 2,
+      "register_timed_out": false,
+      "callback_state": 1,
+      "rx_blocked_on_list_lock": 0,
+      "late_reply_dropped": 0,
+      "variant": "unlock-causal-control"
+    }
+  ],
+  "causal_control_is_not_a_deployable_fix": true,
+  "phone_failure_causality_not_directly_measured": true,
+  "conclusion": "Actual RX/PDR functions reproduce list_lock blocking control handling before a valid response; releasing the wait-side lock removes the unrelated-control timeout."
+}

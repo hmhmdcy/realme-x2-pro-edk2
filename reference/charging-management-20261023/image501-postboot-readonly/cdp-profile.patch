@@ -1,0 +1,23 @@
+--- c490/device.py
++++ be1b/device.py
+@@ -329,11 +329,16 @@
+  check_file(r['startup'],'2a364e12d72229ef7b0ddfd7620d5ff434b97eaf93eb60899fd24a03b5b9a54a')
+  assert int(r['config_max_power_ma'])==500
+  assert r['udc']['a600000.usb']['state']=='configured'
+- assert active(r['source']['usb_type'])=='SDP'
+- assert int(r['source']['current_max'])==int(r['source']['input_current_limit'])==500000
+- assert int(r['charger']['input_current_limit'])==500000
++ kind=active(r['source']['usb_type'])
++ assert int(r['source']['input_current_limit'])==500000
++ budget=int(r['source']['current_max']);hardware=int(r['charger']['input_current_limit'])
++ if kind=='SDP':assert budget==hardware==500000
++ elif kind=='CDP':assert budget==1500000 and 50000<=hardware<=900000 and hardware%50000==0
++ else:raise AssertionError('this startup profile requires actual SDP or CDP')
+  return {'flag_Y_and_exact_cmdline':True,'CURRENT_NOW_instant_CURRENT_AVG_separate':True,
+-         'startup500_native_and_hardware500_preserved':True,'pixel_or_physical_latency_accepted':False}
++         'startup500_descriptor_and_native500_preserved':True,
++         'source_type':kind,'source_budget_ua':budget,'hardware_input_ua':hardware,
++         'SDP_hardware500_observed':kind=='SDP','pixel_or_physical_latency_accepted':False}
+ 
+ 
+ def audit(r,request):

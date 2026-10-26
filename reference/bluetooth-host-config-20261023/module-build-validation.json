@@ -1,0 +1,84 @@
+{
+  "execute": true,
+  "source_view": "/mnt/samurai-full282/bluetooth-transport-20261023/source-view",
+  "output": "/mnt/samurai-full282/bluetooth-transport-20261023/O",
+  "no_new_big_output_tree": true,
+  "parallel_jobs": 1,
+  "targets": [
+    "net/bluetooth/bnep/bnep.ko",
+    "drivers/hid/uhid.ko"
+  ],
+  "configuration_delta": {
+    "CONFIG_BT_BNEP": [
+      "n",
+      "m"
+    ],
+    "CONFIG_UHID": [
+      "n",
+      "m"
+    ]
+  },
+  "image_or_sdk_or_device": false,
+  "resource_handoff_required": true,
+  "terminal": true,
+  "exit": 0,
+  "restore_private_config_exit": 0,
+  "phases": [
+    {
+      "target": [
+        "olddefconfig"
+      ],
+      "exit": 0,
+      "seconds": 8.593
+    },
+    {
+      "target": [
+        "modules_prepare"
+      ],
+      "exit": 0,
+      "seconds": 8.646
+    },
+    {
+      "target": [
+        "net/bluetooth/bnep/bnep.ko",
+        "drivers/hid/uhid.ko"
+      ],
+      "exit": 0,
+      "seconds": 6.8
+    }
+  ],
+  "seconds": 30.435,
+  "diagnostics": [],
+  "modules": [
+    {
+      "name": "bnep",
+      "path": "/mnt/e/edk2-samurai-out/bluetooth-host-config-20261023/bnep-k363-intree.ko",
+      "bytes": 26696,
+      "sha256": "b5ad9a3f3aed3ed97cf20ec656ee997550270f3ee37f4131b655020a0be5f909",
+      "intree": "Y",
+      "vermagic": "7.3.0-rc6-rmx1931-samurai-k363+ SMP preempt mod_unload aarch64",
+      "depends": "",
+      "imported_symbols": 77,
+      "imports_in_original363": true
+    },
+    {
+      "name": "uhid",
+      "path": "/mnt/e/edk2-samurai-out/bluetooth-host-config-20261023/uhid-k363-intree.ko",
+      "bytes": 18240,
+      "sha256": "90694197207607ebb036157aaeab03bee5023fa68c0ccae5dd3f6de22b9cd78e",
+      "intree": "Y",
+      "vermagic": "7.3.0-rc6-rmx1931-samurai-k363+ SMP preempt mod_unload aarch64",
+      "depends": "",
+      "imported_symbols": 38,
+      "imports_in_original363": true
+    }
+  ],
+  "failure": null,
+  "passed": true,
+  "original363_config_and_symvers_verified": true,
+  "only_two_semantic_config_changes": true,
+  "private_qca_config_restored": true,
+  "shared_inputs_and_pm_modules_unchanged": true,
+  "image_built": false,
+  "installed_or_loaded": false
+}

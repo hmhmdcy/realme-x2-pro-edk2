@@ -1,0 +1,189 @@
+{
+  "passed": true,
+  "actual_cpython_pipe": {
+    "type": "BrokenPipeError",
+    "errno": 32,
+    "is_exception": true,
+    "sigpipe_ignored": true
+  },
+  "interpreter": "3.14.4 (main, Aug 20 2026, 10:41:58) [GCC 15.2.0]",
+  "actual_worker_ast_boundary_cases": [
+    {
+      "unbound": true,
+      "syscalls": 1,
+      "thaws": 0,
+      "outcome": "simulated nonreturn",
+      "csr_low_byte": 0,
+      "events": [
+        "claim",
+        "sync",
+        "freeze",
+        "phase_before_retirement",
+        "print_before_retirement",
+        "sleep",
+        "unbind",
+        "phase_after_retirement",
+        "print_after_retirement",
+        "mmap_close",
+        "sleep",
+        "syscall142",
+        "close_fd",
+        "close_fd"
+      ],
+      "label": "old normal"
+    },
+    {
+      "unbound": true,
+      "syscalls": 0,
+      "thaws": 1,
+      "outcome": "BrokenPipeError",
+      "csr_low_byte": 0,
+      "events": [
+        "claim",
+        "sync",
+        "freeze",
+        "phase_before_retirement",
+        "print_before_retirement",
+        "sleep",
+        "unbind",
+        "phase_after_retirement",
+        "print_after_retirement",
+        "mmap_close",
+        "thaw",
+        "close_fd",
+        "close_fd"
+      ],
+      "label": "old post-CSR EPIPE prevents syscall"
+    },
+    {
+      "unbound": true,
+      "syscalls": 0,
+      "thaws": 1,
+      "outcome": "OSError",
+      "csr_low_byte": 0,
+      "events": [
+        "claim",
+        "sync",
+        "freeze",
+        "phase_before_retirement",
+        "print_before_retirement",
+        "sleep",
+        "unbind",
+        "phase_after_retirement",
+        "mmap_close",
+        "thaw",
+        "close_fd",
+        "close_fd"
+      ],
+      "label": "old post-CSR phase ENOSPC prevents syscall"
+    },
+    {
+      "unbound": true,
+      "syscalls": 1,
+      "thaws": 0,
+      "outcome": "simulated nonreturn",
+      "csr_low_byte": 0,
+      "events": [
+        "claim",
+        "sync",
+        "freeze",
+        "phase_before_retirement",
+        "print_before_retirement",
+        "sleep",
+        "unbind",
+        "syscall142",
+        "mmap_close",
+        "close_fd",
+        "close_fd"
+      ],
+      "label": "new post-CSR stdout cannot prevent syscall"
+    },
+    {
+      "unbound": true,
+      "syscalls": 1,
+      "thaws": 0,
+      "outcome": "simulated nonreturn",
+      "csr_low_byte": 0,
+      "events": [
+        "claim",
+        "sync",
+        "freeze",
+        "phase_before_retirement",
+        "print_before_retirement",
+        "sleep",
+        "unbind",
+        "syscall142",
+        "mmap_close",
+        "close_fd",
+        "close_fd"
+      ],
+      "label": "new post-CSR phase write eliminated"
+    },
+    {
+      "unbound": false,
+      "syscalls": 0,
+      "thaws": 1,
+      "outcome": "BrokenPipeError",
+      "csr_low_byte": 1,
+      "events": [
+        "claim",
+        "sync",
+        "freeze",
+        "phase_before_retirement",
+        "print_before_retirement",
+        "mmap_close",
+        "thaw",
+        "close_fd",
+        "close_fd"
+      ],
+      "label": "new pre-retirement EPIPE aborts before unbind"
+    },
+    {
+      "unbound": true,
+      "syscalls": 0,
+      "thaws": 1,
+      "outcome": "AssertionError",
+      "csr_low_byte": 1,
+      "events": [
+        "claim",
+        "sync",
+        "freeze",
+        "phase_before_retirement",
+        "print_before_retirement",
+        "sleep",
+        "unbind",
+        "mmap_close",
+        "thaw",
+        "close_fd",
+        "close_fd"
+      ],
+      "label": "new failed CSR readback still blocks reboot"
+    },
+    {
+      "unbound": true,
+      "syscalls": 1,
+      "thaws": 1,
+      "outcome": "RuntimeError",
+      "csr_low_byte": 0,
+      "events": [
+        "claim",
+        "sync",
+        "freeze",
+        "phase_before_retirement",
+        "print_before_retirement",
+        "sleep",
+        "unbind",
+        "syscall142",
+        "mmap_close",
+        "thaw",
+        "close_fd",
+        "close_fd"
+      ],
+      "label": "new returned syscall still thaws and fails"
+    }
+  ],
+  "candidate_sha256": "f7cfc985b0caf5694b59d24af3c5100942faa48c9a8b783e02a102abf87dc615",
+  "device_access": false,
+  "actual_reboot": false,
+  "current_incident_root_cause_proven": false
+}

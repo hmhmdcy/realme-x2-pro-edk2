@@ -1,0 +1,371 @@
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe-175-gamma.c b/drivers/media/platform/qcom/camss/camss-vfe-175-gamma.c
+index a64ffa991..46851bff2 100644
+--- a/drivers/media/platform/qcom/camss/camss-vfe-175-gamma.c
++++ b/drivers/media/platform/qcom/camss/camss-vfe-175-gamma.c
+@@ -3,6 +3,7 @@
+ 
+ #include <linux/bitfield.h>
+ #include <linux/io.h>
++#include <linux/qcom-camss-config.h>
+ #include <linux/videodev2.h>
+ 
+ #include "camss.h"
+@@ -108,14 +109,59 @@ static int vfe_175_gamma_pack(const struct vfe_175_gamma_config *config,
+ 	return 0;
+ }
+ 
+-int vfe_175_gamma_configure(struct vfe_device *vfe,
+-			   const struct vfe_175_gamma_config *config)
++static void vfe_175_gamma_enable(struct vfe_device *vfe, bool enable)
++{
++	u32 value = readl_relaxed(vfe->base + VFE_175_COLOR_ENABLE);
++
++	value &= ~VFE_175_COLOR_GAMMA;
++	if (enable)
++		value |= VFE_175_COLOR_GAMMA;
++	writel_relaxed(value, vfe->base + VFE_175_COLOR_ENABLE);
++}
++
++static void vfe_175_gamma_upload(struct vfe_device *vfe,
++				 const u32 packed[3][VFE_175_GAMMA_ENTRIES])
+ {
+ 	/* LUT_CFG banks are R/G/B; DMI memory selectors are R30/G26/B28. */
+ 	static const u8 selectors[3] = { 30, 26, 28 };
+-	u32 packed[3][VFE_175_GAMMA_ENTRIES];
+-	u32 lut_cfg, dmi_cfg, dmi_addr, cgc_override, value;
++	u32 lut_cfg, dmi_cfg, dmi_addr, cgc_override;
+ 	unsigned int ch, i;
++
++	lut_cfg = readl_relaxed(vfe->base + VFE_175_RGB_LUT_CFG);
++	dmi_cfg = readl_relaxed(vfe->base + VFE_175_DMI_CFG);
++	dmi_addr = readl_relaxed(vfe->base + VFE_175_DMI_ADDR);
++	/* SRAM access also needs the clock when no pixels are arriving yet. */
++	cgc_override = readl_relaxed(vfe->base + VFE_175_COLOR_CGC_OVERRIDE);
++	writel(cgc_override | VFE_175_COLOR_GAMMA,
++	       vfe->base + VFE_175_COLOR_CGC_OVERRIDE);
++	for (ch = 0; ch < 3; ch++) {
++		u32 bank = !(lut_cfg & BIT(ch));
++		u32 select = selectors[ch] + bank;
++
++		/* Pre-stream setup or output_lock owns this shared DMI transaction. */
++		writel((dmi_cfg & ~VFE_175_DMI_SELECT) | select,
++		       vfe->base + VFE_175_DMI_CFG);
++		for (i = 0; i < VFE_175_GAMMA_ENTRIES; i++) {
++			/* Explicit indices avoid depending on the auto-increment mode. */
++			writel(i, vfe->base + VFE_175_DMI_ADDR);
++			writel(packed[ch][i], vfe->base + VFE_175_DMI_DATA_LO);
++		}
++	}
++	/* Restore shared DMI state before publishing the newly filled banks. */
++	writel(dmi_cfg, vfe->base + VFE_175_DMI_CFG);
++	writel(dmi_addr, vfe->base + VFE_175_DMI_ADDR);
++	/* Complete all LUT writes before changing the bank selection. */
++	wmb();
++	writel_relaxed(lut_cfg ^ VFE_175_RGB_LUT_BANKS,
++		       vfe->base + VFE_175_RGB_LUT_CFG);
++	/* Complete the bank switch before returning to the saved clock policy. */
++	writel(cgc_override, vfe->base + VFE_175_COLOR_CGC_OVERRIDE);
++}
++
++int vfe_175_gamma_configure(struct vfe_device *vfe,
++			   const struct vfe_175_gamma_config *config)
++{
++	u32 packed[3][VFE_175_GAMMA_ENTRIES];
+ 	int ret;
+ 
+ 	if (!vfe_175_gamma_supported(vfe))
+@@ -123,55 +169,75 @@ int vfe_175_gamma_configure(struct vfe_device *vfe,
+ 	ret = vfe_175_gamma_pack(config, packed);
+ 	if (ret)
+ 		return ret;
+-	if (config->enabled) {
+-		lut_cfg = readl_relaxed(vfe->base + VFE_175_RGB_LUT_CFG);
+-		dmi_cfg = readl_relaxed(vfe->base + VFE_175_DMI_CFG);
+-		dmi_addr = readl_relaxed(vfe->base + VFE_175_DMI_ADDR);
+-		/* SRAM access also needs the clock when no pixels are arriving yet. */
+-		cgc_override = readl_relaxed(vfe->base + VFE_175_COLOR_CGC_OVERRIDE);
+-		writel(cgc_override | VFE_175_COLOR_GAMMA,
+-		       vfe->base + VFE_175_COLOR_CGC_OVERRIDE);
+-		for (ch = 0; ch < 3; ch++) {
+-			u32 bank = !(lut_cfg & BIT(ch));
+-			u32 select = selectors[ch] + bank;
+-
+-			/* Caller owns pre-stream setup; no concurrent DMI consumer yet. */
+-			writel((dmi_cfg & ~VFE_175_DMI_SELECT) | select,
+-			       vfe->base + VFE_175_DMI_CFG);
+-			for (i = 0; i < VFE_175_GAMMA_ENTRIES; i++) {
+-				/* Explicit indices avoid depending on the auto-increment mode. */
+-				writel(i, vfe->base + VFE_175_DMI_ADDR);
+-				writel(packed[ch][i], vfe->base + VFE_175_DMI_DATA_LO);
+-			}
+-		}
+-		/* Restore shared DMI state before publishing the newly filled banks. */
+-		writel(dmi_cfg, vfe->base + VFE_175_DMI_CFG);
+-		writel(dmi_addr, vfe->base + VFE_175_DMI_ADDR);
+-		/* Complete all LUT writes before changing the bank selection. */
+-		wmb();
+-		writel_relaxed(lut_cfg ^ VFE_175_RGB_LUT_BANKS,
+-			       vfe->base + VFE_175_RGB_LUT_CFG);
+-		/* Complete the bank switch before returning to the saved clock policy. */
+-		writel(cgc_override, vfe->base + VFE_175_COLOR_CGC_OVERRIDE);
+-	}
++	if (config->enabled)
++		vfe_175_gamma_upload(vfe, packed);
+ 	/* Publish the bank/configuration before enabling Gamma; no PIX RUP. */
+ 	wmb();
+-	value = readl_relaxed(vfe->base + VFE_175_COLOR_ENABLE);
+-	value &= ~VFE_175_COLOR_GAMMA;
+-	if (config->enabled)
+-		value |= VFE_175_COLOR_GAMMA;
+-	writel_relaxed(value, vfe->base + VFE_175_COLOR_ENABLE);
++	vfe->pixel175.gamma_enabled = config->enabled;
++	vfe_175_gamma_enable(vfe, config->enabled);
++	return 0;
++}
++
++int vfe_175_gamma_validate(struct device *dev,
++			   const struct v4l2_isp_block_header *block)
++{
++	const struct camss_params_ife_gamma *gamma;
++	unsigned int ch, i;
+ 
++	if (block->flags & ~(V4L2_ISP_PARAMS_FL_BLOCK_ENABLE |
++			     V4L2_ISP_PARAMS_FL_BLOCK_DISABLE) ||
++	    block->flags == (V4L2_ISP_PARAMS_FL_BLOCK_ENABLE |
++			     V4L2_ISP_PARAMS_FL_BLOCK_DISABLE))
++		return -EINVAL;
++	if (block->flags & V4L2_ISP_PARAMS_FL_BLOCK_DISABLE)
++		return 0;
++	gamma = container_of(block, struct camss_params_ife_gamma, header);
++	for (ch = 0; ch < CAMSS_IFE_GAMMA_CHANNELS; ch++)
++		for (i = 0; i < CAMSS_IFE_GAMMA_SEGMENTS; i++) {
++			const struct camss_ife_gamma_segment *segment =
++				&gamma->segments[ch][i];
++
++			if (segment->base > 1023 || segment->delta < -512 ||
++			    segment->delta > 511)
++				return -EINVAL;
++		}
+ 	return 0;
+ }
+ 
+-void vfe_175_gamma_stop(struct vfe_device *vfe)
++void vfe_175_gamma_params(struct vfe_device *vfe,
++			  const struct v4l2_isp_block_header *block)
+ {
+-	u32 value;
++	const struct camss_params_ife_gamma *gamma;
++	u32 packed[3][VFE_175_GAMMA_ENTRIES];
++	unsigned int ch, i;
++
++	if (block->flags & V4L2_ISP_PARAMS_FL_BLOCK_DISABLE) {
++		vfe->pixel175.gamma_enabled = false;
++		vfe_175_gamma_enable(vfe, false);
++		return;
++	}
++	gamma = container_of(block, struct camss_params_ife_gamma, header);
++	for (ch = 0; ch < CAMSS_IFE_GAMMA_CHANNELS; ch++)
++		for (i = 0; i < CAMSS_IFE_GAMMA_SEGMENTS; i++) {
++			const struct camss_ife_gamma_segment *segment =
++				&gamma->segments[ch][i];
++
++			packed[ch][i] = segment->base |
++				((u32)segment->delta & 0x3ff) << 10;
++		}
++	/* The normal parameter queue serializes this with LSC and issues PIX RUP. */
++	vfe_175_gamma_upload(vfe, packed);
++	if (block->flags & V4L2_ISP_PARAMS_FL_BLOCK_ENABLE)
++		vfe->pixel175.gamma_enabled = true;
++	/* Publish the completed LUT bank before its enable state. */
++	wmb();
++	vfe_175_gamma_enable(vfe, vfe->pixel175.gamma_enabled);
++}
+ 
++void vfe_175_gamma_stop(struct vfe_device *vfe)
++{
+ 	if (!vfe_175_gamma_supported(vfe))
+ 		return;
+-	value = readl_relaxed(vfe->base + VFE_175_COLOR_ENABLE);
+-	writel_relaxed(value & ~VFE_175_COLOR_GAMMA,
+-		       vfe->base + VFE_175_COLOR_ENABLE);
++	vfe->pixel175.gamma_enabled = false;
++	vfe_175_gamma_enable(vfe, false);
+ }
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe-175-gamma.h b/drivers/media/platform/qcom/camss/camss-vfe-175-gamma.h
+index 7e09a763d..ab91bc6f2 100644
+--- a/drivers/media/platform/qcom/camss/camss-vfe-175-gamma.h
++++ b/drivers/media/platform/qcom/camss/camss-vfe-175-gamma.h
+@@ -7,6 +7,8 @@
+ #define VFE_175_GAMMA_ENTRIES 64
+ #define VFE_175_GAMMA_POINTS (VFE_175_GAMMA_ENTRIES + 1)
+ 
++struct device;
++struct v4l2_isp_block_header;
+ struct vfe_device;
+ struct v4l2_pix_format_mplane;
+ 
+@@ -20,6 +22,10 @@ int vfe_175_gamma_from_format(const struct v4l2_pix_format_mplane *pix,
+ 			      struct vfe_175_gamma_config *config);
+ int vfe_175_gamma_configure(struct vfe_device *vfe,
+ 			   const struct vfe_175_gamma_config *config);
++int vfe_175_gamma_validate(struct device *dev,
++			   const struct v4l2_isp_block_header *block);
++void vfe_175_gamma_params(struct vfe_device *vfe,
++			  const struct v4l2_isp_block_header *block);
+ void vfe_175_gamma_stop(struct vfe_device *vfe);
+ 
+ #endif /* CAMSS_VFE_175_GAMMA_H */
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe-175-lsc.c b/drivers/media/platform/qcom/camss/camss-vfe-175-lsc.c
+index 8bf29c88c..33018ea3d 100644
+--- a/drivers/media/platform/qcom/camss/camss-vfe-175-lsc.c
++++ b/drivers/media/platform/qcom/camss/camss-vfe-175-lsc.c
+@@ -141,7 +141,7 @@ void vfe_175_lsc_params(struct vfe_device *vfe,
+ 	dmi_addr = readl_relaxed(vfe->base + DMI_ADDR);
+ 	cgc = readl_relaxed(vfe->base + LENS_CGC_OVERRIDE);
+ 	writel(cgc | LSC_ENABLE, vfe->base + LENS_CGC_OVERRIDE);
+-	/* output_lock serializes parameters; Gamma only uses DMI before PIX starts. */
++	/* output_lock serializes this shared DMI transaction with Gamma. */
+ 	for (table = 0; table < 2; table++) {
+ 		u32 selector = (bank ? 18 : 14) + table;
+ 
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe-175-pixel.c b/drivers/media/platform/qcom/camss/camss-vfe-175-pixel.c
+index ba6a2e52c..730d1199b 100644
+--- a/drivers/media/platform/qcom/camss/camss-vfe-175-pixel.c
++++ b/drivers/media/platform/qcom/camss/camss-vfe-175-pixel.c
+@@ -145,7 +145,7 @@ static int vfe_175_params_unsupported(struct device *dev,
+ 	return -EINVAL;
+ }
+ 
+-const struct v4l2_isp_params_block_type_info vfe_175_params_info[7] = {
++const struct v4l2_isp_params_block_type_info vfe_175_params_info[8] = {
+ 	[0] = {
+ 		.size = sizeof(struct v4l2_isp_block_header),
+ 		.block_validate = vfe_175_params_unsupported,
+@@ -166,6 +166,10 @@ const struct v4l2_isp_params_block_type_info vfe_175_params_info[7] = {
+ 		.size = sizeof(struct camss_params_gamma),
+ 		.block_validate = vfe_175_params_unsupported,
+ 	},
++	[CAMSS_PARAMS_IFE_GAMMA] = {
++		.size = sizeof(struct camss_params_ife_gamma),
++		.block_validate = vfe_175_gamma_validate,
++	},
+ 	[CAMSS_PARAMS_LSC] = {
+ 		.size = sizeof(struct camss_params_lsc),
+ 		.block_validate = vfe_175_lsc_validate,
+@@ -226,6 +230,7 @@ int vfe_175_pixel_prepare(struct vfe_line *line)
+ 		.b_gain = 1024,
+ 		.r_gain = 1024,
+ 		.wb_enabled = true,
++		.gamma_enabled = true,
+ 	};
+ 	vfe_175_wb_write(vfe);
+ 	vfe_175_lsc_init(vfe);
+@@ -267,6 +272,11 @@ void vfe_175_params_apply(struct vfe_device *vfe, struct vfe_line *line,
+ 			(const void *)&params->data[offset];
+ 		const struct camss_params_wb_gain *wb;
+ 
++		if (block->type == CAMSS_PARAMS_IFE_GAMMA) {
++			vfe_175_gamma_params(vfe, block);
++			offset += block->size;
++			continue;
++		}
+ 		if (block->type == CAMSS_PARAMS_COLOR_CORRECT) {
+ 			vfe_175_ccm_params(vfe, block);
+ 			offset += block->size;
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe-175-pixel.h b/drivers/media/platform/qcom/camss/camss-vfe-175-pixel.h
+index 6caac6177..2c01fb4f7 100644
+--- a/drivers/media/platform/qcom/camss/camss-vfe-175-pixel.h
++++ b/drivers/media/platform/qcom/camss/camss-vfe-175-pixel.h
+@@ -18,12 +18,13 @@ struct vfe_175_pixel_state {
+ 	u16 r_gain;
+ 	u16 black_level;
+ 	bool wb_enabled;
++	bool gamma_enabled;
+ 	bool lsc_enabled;
+ 	u8 lsc_bank;
+ 	struct vfe_175_stats_state stats;
+ };
+ 
+-extern const struct v4l2_isp_params_block_type_info vfe_175_params_info[7];
++extern const struct v4l2_isp_params_block_type_info vfe_175_params_info[8];
+ int vfe_175_pixel_prepare(struct vfe_line *line);
+ void vfe_175_pixel_stop(struct vfe_device *vfe);
+ void vfe_175_params_apply(struct vfe_device *vfe, struct vfe_line *line,
+diff --git a/drivers/media/platform/qcom/camss/camss-vfe-17x.c b/drivers/media/platform/qcom/camss/camss-vfe-17x.c
+index a92ca6583..e7ffc13a6 100644
+--- a/drivers/media/platform/qcom/camss/camss-vfe-17x.c
++++ b/drivers/media/platform/qcom/camss/camss-vfe-17x.c
+@@ -743,7 +743,7 @@ static void vfe_output_update_175(struct vfe_device *vfe,
+ /* SM8150 full IFE: shared RDI transport, matched CAMIF and FULL DMA. */
+ const struct vfe_hw_ops vfe_ops_175 = {
+ 	.vfe_stats_fill = vfe_175_stats_fill,
+-	.params_max_payload = CAMSS_PARAMS_IFE_COLOR_MAX_PAYLOAD,
++	.params_max_payload = CAMSS_PARAMS_IFE_GAMMA_MAX_PAYLOAD,
+ 	.params_validate = vfe_175_params_validate_line,
+ 	.params_info = vfe_175_params_info,
+ 	.params_num_types = ARRAY_SIZE(vfe_175_params_info),
+diff --git a/include/uapi/linux/qcom-camss-config.h b/include/uapi/linux/qcom-camss-config.h
+index f783d5314..0a8cf16ad 100644
+--- a/include/uapi/linux/qcom-camss-config.h
++++ b/include/uapi/linux/qcom-camss-config.h
+@@ -26,6 +26,8 @@
+  * @CAMSS_PARAMS_GAMMA: per-channel gamma correction curves (CLC_GLUT),
+  *	&struct camss_params_gamma
+  * @CAMSS_PARAMS_LSC: regular lens shading mesh, &struct camss_params_lsc
++ * @CAMSS_PARAMS_IFE_GAMMA: segmented IFE RGB gamma,
++ *	&struct camss_params_ife_gamma
+  * @CAMSS_PARAMS_AEC_BHIST: region of the AEC Bayer histogram statistics,
+  *	&struct camss_params_aec_bhist
+  */
+@@ -36,6 +38,7 @@ enum camss_params_block_type {
+ 	CAMSS_PARAMS_GAMMA = 4,
+ 	CAMSS_PARAMS_AEC_BHIST = 5,
+ 	CAMSS_PARAMS_LSC = 6,
++	CAMSS_PARAMS_IFE_GAMMA = 7,
+ };
+ 
+ /* Number of entries in each gamma channel LUT. */
+@@ -281,6 +284,43 @@ struct camss_params_lsc {
+ #define CAMSS_PARAMS_IFE_COLOR_MAX_PAYLOAD \
+ 	(CAMSS_PARAMS_IFE_LSC_MAX_PAYLOAD + sizeof(struct camss_params_color_correct))
+ 
++/* IFE Gamma uses uniformly spaced segments, unlike the OPE direct LUT. */
++#define CAMSS_IFE_GAMMA_CHANNELS 3
++#define CAMSS_IFE_GAMMA_SEGMENTS 64
++
++/**
++ * struct camss_ife_gamma_segment - one linear segment in a 10-bit output domain
++ * @base: output at the segment's lower endpoint, 0 through 1023
++ * @delta: signed output change over the segment, -512 through 511
++ *
++ * Each segment covers 1/64 of the full input range. The last delta describes
++ * the change toward the full-scale endpoint, which may reach 1024. Segments
++ * are independent: no continuity or monotonicity is imposed by this ABI.
++ */
++struct camss_ife_gamma_segment {
++	__u16 base;
++	__s16 delta;
++};
++
++/**
++ * struct camss_params_ife_gamma - segmented RGB gamma curves for IFE
++ * @header: block header; type is CAMSS_PARAMS_IFE_GAMMA
++ * @segments: 64 segments per channel, in R, G, B channel order
++ *
++ * ENABLE uploads and enables. With neither flag, upload retains the current
++ * enable state. DISABLE accepts a header-only block and leaves stored curves
++ * intact. Reopening a stream restores its format's initial transfer curve.
++ */
++struct camss_params_ife_gamma {
++	struct v4l2_isp_params_block_header header;
++	struct camss_ife_gamma_segment
++		segments[CAMSS_IFE_GAMMA_CHANNELS][CAMSS_IFE_GAMMA_SEGMENTS];
++} __attribute__((aligned(8)));
++
++#define CAMSS_PARAMS_IFE_GAMMA_MAX_PAYLOAD \
++	(CAMSS_PARAMS_IFE_COLOR_MAX_PAYLOAD + sizeof(struct camss_params_ife_gamma))
++
++
+ /**
+  * enum camss_stats_block_type - CAMSS ISP statistics block identifiers
+  *

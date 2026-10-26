@@ -1,0 +1,30 @@
+--- a/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
++++ b/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
+@@ -100,6 +100,7 @@
+  std::map<uint32_t, uint64_t> pixStarts_, rawStarts_;
+  uint64_t framePeriod_ = 0, previousPixStart_ = 0;
+  bool rawEnabled_ = false, processedEnabled_ = true;
++ bool requiresPd10() const { return processedEnabled_ && sensorConfiguration_.pd10; }
+  std::unique_ptr<CamssIpe> ipe_;
+  Size output_;
+  unsigned int outputStride_ = 0;
+@@ -592,8 +593,8 @@
+  d->ipaProfilePath_ = profile ? profile : d->ipa_->configurationFile(d->sensor_->model()+".yaml");
+  ret = configureIPA(d);
+  if (ret) { d->restoreLinks(); return ret; }
+- if(d->sensorConfiguration_.pd10) {
+-  if(!d->coarse_ || !d->ipe_ || !d->processedEnabled_ || d->output_!=Size(640,480)){d->restoreLinks();return -ENOTSUP;}
++ if(d->requiresPd10()) {
++  if(!d->coarse_ || !d->ipe_ || d->output_!=Size(640,480)){d->restoreLinks();return -ENOTSUP;}
+   d->coarseRequested_=true;ret=d->configurePath(cfg->sensorFormat_,d->output_);
+   if(ret){d->restoreLinks();return ret;}
+  }
+@@ -664,7 +665,7 @@
+  ret = configureIPA(d);
+  if (ret) goto error;
+  d->toneTraceSaved_=false;
+- if(d->sensorConfiguration_.pd10!=d->coarseEnabled_){ret=-ENOTSUP;goto error;}
++ if(d->requiresPd10()!=d->coarseEnabled_){ret=-ENOTSUP;goto error;}
+ 
+  d->requests_.clear();d->ipeActive_=nullptr;d->internalRequests_.clear();d->pixStarts_.clear();d->rawStarts_.clear();
+  d->framePeriod_=d->previousPixStart_=0;

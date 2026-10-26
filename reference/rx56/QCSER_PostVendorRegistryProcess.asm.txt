@@ -1,0 +1,146 @@
+00018cc0 48 89 5c 24 08           mov      qword ptr [rsp + 8], rbx
+00018cc5 48 89 74 24 10           mov      qword ptr [rsp + 0x10], rsi
+00018cca 55                       push     rbp
+00018ccb 57                       push     rdi
+00018ccc 41 56                    push     r14
+00018cce 48 8b ec                 mov      rbp, rsp
+00018cd1 48 83 ec 40              sub      rsp, 0x40
+00018cd5 49 8b 58 40              mov      rbx, qword ptr [r8 + 0x40]
+00018cd9 4c 8d 4d 38              lea      r9, [rbp + 0x38]
+00018cdd 33 f6                    xor      esi, esi
+00018cdf 48 8b ca                 mov      rcx, rdx
+00018ce2 48 89 75 38              mov      qword ptr [rbp + 0x38], rsi
+00018ce6 41 b8 3f 00 0f 00        mov      r8d, 0xf003f
+00018cec 89 75 30                 mov      dword ptr [rbp + 0x30], esi
+00018cef 48 8d bb c0 0d 00 00     lea      rdi, [rbx + 0xdc0]
+00018cf6 40 88 b3 d0 0d 00 00     mov      byte ptr [rbx + 0xdd0], sil
+00018cfd 8d 56 02                 lea      edx, [rsi + 2]
+00018d00 66 89 37                 mov      word ptr [rdi], si
+00018d03 48 89 b3 c8 0d 00 00     mov      qword ptr [rbx + 0xdc8], rsi
+00018d0a 66 89 b3 c2 0d 00 00     mov      word ptr [rbx + 0xdc2], si
+00018d11 ff 15 b9 f4 01 00        call     qword ptr [rip + 0x1f4b9]
+00018d17 85 c0                    test     eax, eax
+00018d19 0f 88 e0 01 00 00        js       0x18eff
+00018d1f 44 8d 76 01              lea      r14d, [rsi + 1]
+00018d23 66 44 01 35 a5 13 02 00  add      word ptr [rip + 0x213a5], r14w
+00018d2b 48 8d 15 4e e0 01 00     lea      rdx, [rip + 0x1e04e]
+00018d32 48 8d 4d f0              lea      rcx, [rbp - 0x10]
+00018d36 ff 15 c4 f5 01 00        call     qword ptr [rip + 0x1f5c4]
+00018d3c 48 8b 55 f8              mov      rdx, qword ptr [rbp - 8]
+00018d40 4c 8b c7                 mov      r8, rdi
+00018d43 48 8b 4d 38              mov      rcx, qword ptr [rbp + 0x38]
+00018d47 e8 90 7b 01 00           call     0x308dc ; getRegValueEntryData
+00018d4c 85 c0                    test     eax, eax
+00018d4e 75 07                    jne      0x18d57
+00018d50 44 88 b3 d0 0d 00 00     mov      byte ptr [rbx + 0xdd0], r14b
+00018d57 48 8d 15 62 e0 01 00     lea      rdx, [rip + 0x1e062]
+00018d5e 48 8d 4d f0              lea      rcx, [rbp - 0x10]
+00018d62 ff 15 98 f5 01 00        call     qword ptr [rip + 0x1f598]
+00018d68 0f b7 83 b8 03 00 00     movzx    eax, word ptr [rbx + 0x3b8]
+00018d6f 48 8d 55 f0              lea      rdx, [rbp - 0x10]
+00018d73 48 8b 4d 38              mov      rcx, qword ptr [rbp + 0x38]
+00018d77 83 c0 02                 add      eax, 2
+00018d7a 89 44 24 28              mov      dword ptr [rsp + 0x28], eax
+00018d7e 45 8b ce                 mov      r9d, r14d
+00018d81 48 8b 83 c0 03 00 00     mov      rax, qword ptr [rbx + 0x3c0]
+00018d88 45 33 c0                 xor      r8d, r8d
+00018d8b 48 89 44 24 20           mov      qword ptr [rsp + 0x20], rax
+00018d90 ff 15 5a f4 01 00        call     qword ptr [rip + 0x1f45a]
+00018d96 48 8d 15 53 e0 01 00     lea      rdx, [rip + 0x1e053]
+00018d9d 48 8d 4d f0              lea      rcx, [rbp - 0x10]
+00018da1 ff 15 59 f5 01 00        call     qword ptr [rip + 0x1f559]
+00018da7 48 8b 55 f8              mov      rdx, qword ptr [rbp - 8]
+00018dab 4c 8d 45 30              lea      r8, [rbp + 0x30]
+00018daf 48 8b 4d 38              mov      rcx, qword ptr [rbp + 0x38]
+00018db3 e8 d8 7a 01 00           call     0x30890 ; getRegDwValueEntryData
+00018db8 83 8b 04 02 00 00 ff     or       dword ptr [rbx + 0x204], 0xffffffff
+00018dbf 48 8d 15 5a e0 01 00     lea      rdx, [rip + 0x1e05a]
+00018dc6 8b 8b 04 02 00 00        mov      ecx, dword ptr [rbx + 0x204]
+00018dcc 85 c0                    test     eax, eax
+00018dce 0f 44 4d 30              cmove    ecx, dword ptr [rbp + 0x30]
+00018dd2 89 8b 04 02 00 00        mov      dword ptr [rbx + 0x204], ecx
+00018dd8 48 8d 4d f0              lea      rcx, [rbp - 0x10]
+00018ddc ff 15 1e f5 01 00        call     qword ptr [rip + 0x1f51e]
+00018de2 48 8b 55 f8              mov      rdx, qword ptr [rbp - 8]
+00018de6 48 8d bb 98 10 00 00     lea      rdi, [rbx + 0x1098]
+00018ded 48 8b 4d 38              mov      rcx, qword ptr [rbp + 0x38]
+00018df1 4c 8b c7                 mov      r8, rdi
+00018df4 e8 97 7a 01 00           call     0x30890 ; getRegDwValueEntryData
+00018df9 85 c0                    test     eax, eax
+00018dfb 75 05                    jne      0x18e02
+00018dfd 44 39 37                 cmp      dword ptr [rdi], r14d
+00018e00 74 02                    je       0x18e04
+00018e02 89 37                    mov      dword ptr [rdi], esi
+00018e04 48 8d 15 55 e0 01 00     lea      rdx, [rip + 0x1e055]
+00018e0b 48 8d 4d f0              lea      rcx, [rbp - 0x10]
+00018e0f ff 15 eb f4 01 00        call     qword ptr [rip + 0x1f4eb]
+00018e15 48 8b 55 f8              mov      rdx, qword ptr [rbp - 8]
+00018e19 48 8d bb 98 11 00 00     lea      rdi, [rbx + 0x1198]
+00018e20 48 8b 4d 38              mov      rcx, qword ptr [rbp + 0x38]
+00018e24 4c 8b c7                 mov      r8, rdi
+00018e27 e8 64 7a 01 00           call     0x30890 ; getRegDwValueEntryData
+00018e2c 85 c0                    test     eax, eax
+00018e2e 74 08                    je       0x18e38
+00018e30 c7 07 d0 07 00 00        mov      dword ptr [rdi], 0x7d0
+00018e36 eb 16                    jmp      0x18e4e
+00018e38 b8 88 13 00 00           mov      eax, 0x1388
+00018e3d 39 07                    cmp      dword ptr [rdi], eax
+00018e3f 76 02                    jbe      0x18e43
+00018e41 89 07                    mov      dword ptr [rdi], eax
+00018e43 b8 e8 03 00 00           mov      eax, 0x3e8
+00018e48 39 07                    cmp      dword ptr [rdi], eax
+00018e4a 73 02                    jae      0x18e4e
+00018e4c 89 07                    mov      dword ptr [rdi], eax
+00018e4e 48 8d 15 3b e0 01 00     lea      rdx, [rip + 0x1e03b]
+00018e55 48 8d 4d f0              lea      rcx, [rbp - 0x10]
+00018e59 ff 15 a1 f4 01 00        call     qword ptr [rip + 0x1f4a1]
+00018e5f 48 8b 55 f8              mov      rdx, qword ptr [rbp - 8]
+00018e63 48 8d bb ec 10 00 00     lea      rdi, [rbx + 0x10ec]
+00018e6a 48 8b 4d 38              mov      rcx, qword ptr [rbp + 0x38]
+00018e6e 4c 8b c7                 mov      r8, rdi
+00018e71 e8 1a 7a 01 00           call     0x30890 ; getRegDwValueEntryData
+00018e76 85 c0                    test     eax, eax
+00018e78 74 08                    je       0x18e82
+00018e7a c7 07 00 50 00 00        mov      dword ptr [rdi], 0x5000
+00018e80 eb 16                    jmp      0x18e98
+00018e82 b8 00 78 00 00           mov      eax, 0x7800
+00018e87 39 07                    cmp      dword ptr [rdi], eax
+00018e89 76 02                    jbe      0x18e8d
+00018e8b 89 07                    mov      dword ptr [rdi], eax
+00018e8d b8 00 10 00 00           mov      eax, 0x1000
+00018e92 39 07                    cmp      dword ptr [rdi], eax
+00018e94 73 02                    jae      0x18e98
+00018e96 89 07                    mov      dword ptr [rdi], eax
+00018e98 48 8d 15 21 e0 01 00     lea      rdx, [rip + 0x1e021]
+00018e9f 48 8d 4d f0              lea      rcx, [rbp - 0x10]
+00018ea3 ff 15 57 f4 01 00        call     qword ptr [rip + 0x1f457]
+00018ea9 48 8b 55 f8              mov      rdx, qword ptr [rbp - 8]
+00018ead 48 81 c3 a0 11 00 00     add      rbx, 0x11a0
+00018eb4 48 8b 4d 38              mov      rcx, qword ptr [rbp + 0x38]
+00018eb8 4c 8b c3                 mov      r8, rbx
+00018ebb e8 d0 79 01 00           call     0x30890 ; getRegDwValueEntryData
+00018ec0 85 c0                    test     eax, eax
+00018ec2 75 10                    jne      0x18ed4
+00018ec4 83 3b 05                 cmp      dword ptr [rbx], 5
+00018ec7 76 06                    jbe      0x18ecf
+00018ec9 c7 03 05 00 00 00        mov      dword ptr [rbx], 5
+00018ecf 44 39 33                 cmp      dword ptr [rbx], r14d
+00018ed2 77 03                    ja       0x18ed7
+00018ed4 44 89 33                 mov      dword ptr [rbx], r14d
+00018ed7 48 39 75 38              cmp      qword ptr [rbp + 0x38], rsi
+00018edb 74 20                    je       0x18efd
+00018edd ff 15 ad f1 01 00        call     qword ptr [rip + 0x1f1ad]
+00018ee3 48 8b 4d 38              mov      rcx, qword ptr [rbp + 0x38]
+00018ee7 ff 15 03 f2 01 00        call     qword ptr [rip + 0x1f203]
+00018eed 85 c0                    test     eax, eax
+00018eef 75 0c                    jne      0x18efd
+00018ef1 b8 ff ff 00 00           mov      eax, 0xffff
+00018ef6 66 01 05 d3 11 02 00     add      word ptr [rip + 0x211d3], ax
+00018efd 33 c0                    xor      eax, eax
+00018eff 48 8b 5c 24 60           mov      rbx, qword ptr [rsp + 0x60]
+00018f04 48 8b 74 24 68           mov      rsi, qword ptr [rsp + 0x68]
+00018f09 48 83 c4 40              add      rsp, 0x40
+00018f0d 41 5e                    pop      r14
+00018f0f 5f                       pop      rdi
+00018f10 5d                       pop      rbp
+00018f11 c3                       ret

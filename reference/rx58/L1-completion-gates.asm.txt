@@ -1,0 +1,17 @@
+0000d216 4c 63 9e 48 0e 00 00     movsxd   r11, dword ptr [rsi + 0xe48]
+0000d21d 48 8b 96 20 0e 00 00     mov      rdx, qword ptr [rsi + 0xe20]
+0000d224 49 69 cb f8 00 00 00     imul     rcx, r11, 0xf8
+0000d22b 40 38 7c 11 25           cmp      byte ptr [rcx + rdx + 0x25], dil
+0000d230 0f 84 8a 00 00 00        je       0xd2c0
+0000d236 39 7c 11 10              cmp      dword ptr [rcx + rdx + 0x10], edi
+0000d23a 7d 05                    jge      0xd241
+0000d23c 4d 85 f6                 test     r14, r14
+0000d23f 74 7f                    je       0xd2c0
+0000d241 8a 86 90 03 00 00        mov      al, byte ptr [rsi + 0x390]
+0000d247 24 05                    and      al, 5
+0000d249 3c 05                    cmp      al, 5
+0000d24b 75 73                    jne      0xd2c0
+0000d24d 44 8b 84 11 d8 00 00 00  mov      r8d, dword ptr [rcx + rdx + 0xd8]
+0000d255 41 83 f8 02              cmp      r8d, 2
+0000d259 0f 84 91 02 00 00        je       0xd4f0
+0000d25f 39 be dc 11 00 00        cmp      dword ptr [rsi + 0x11dc], edi

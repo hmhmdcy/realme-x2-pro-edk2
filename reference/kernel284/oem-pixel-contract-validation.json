@@ -1,0 +1,168 @@
+{
+  "stage": 284,
+  "hal_sha256": "e2b1b9b6379507052464d9f9573c2a5a1b1cf37c43947b53645ddc8948a70dde",
+  "static_only": true,
+  "selected_demosaic": "Demosaic36",
+  "platform_mask": 2,
+  "descriptor_masks": {
+    "Demosaic36": 3,
+    "Demosaic37": 4
+  },
+  "selection_trace": "Titan175 0x10705 -> root+0xa9ec mask2 -> descriptor +8 AND mask -> Demosaic36 Create",
+  "adjacent_1920_word_not_used_as_line_width": true,
+  "demosaic_registers": {
+    "config": "0x6f8",
+    "interpolation": "0x71c",
+    "classifier": "0x720",
+    "enable": "0x40 bit10"
+  },
+  "demosaic_fields": {
+    "config_owned_mask": "0xb13",
+    "lambda_g": "15:8",
+    "lambda_rb": "31:24",
+    "classifier_w": "9:0 signed",
+    "classifier_a": "31:20; matching algorithm bounds0..400"
+  },
+  "demosaic_initial_profile": {
+    "config": "0x100",
+    "interpolation": "0x8000",
+    "classifier": "0x08000066"
+  },
+  "profile_is_uncalibrated_bringup_default": true,
+  "cst_facts": {
+    "base": "0xf30",
+    "words": 12,
+    "coefficient": "signed13 Q10",
+    "offset_fields": "11 bits",
+    "clamp_fields": "10 bits",
+    "enable": "0x4c bit0",
+    "implementation_pending": true
+  },
+  "cst_enable_pointer_trace": "calc+968 at0x2a9008 -> x26 -> write0x4c at0x2a98d0-0x2a98e0",
+  "gamma_enable_pointer_trace": "calc+964 at0x2a9070 -> x27 -> write0x48 at0x2a98b8-0x2a98c8; Gamma sets bit3",
+  "demosaic_schema_order": [
+    "edge_det_weight",
+    "edge_det_noise_offset",
+    "dis_directional_g",
+    "dis_directional_rb",
+    "lambda_g",
+    "lambda_rb",
+    "en_dyna_clamp_g",
+    "en_dyna_clamp_rb"
+  ],
+  "demosaic_schema_sha256": "f67f36c60016604a29c4f7f1f94c0c710234ccb3db8d072a534f5282e2e12610",
+  "checked_instruction_addresses": [
+    "0x2c7a78",
+    "0x2c7a80",
+    "0x2c7ac4",
+    "0x2c7ac8",
+    "0x2c7ad0",
+    "0x2c7b0c",
+    "0x2c7b14",
+    "0x29302c",
+    "0x293038",
+    "0x293408",
+    "0x29340c",
+    "0x293410",
+    "0x31a354",
+    "0x37834c",
+    "0x378368",
+    "0x378378",
+    "0x37838c",
+    "0x3783b0",
+    "0x37b5b4",
+    "0x37b734",
+    "0x37b738",
+    "0x37b73c",
+    "0x2a9008",
+    "0x2a98d0",
+    "0x2a98dc",
+    "0x2a9070",
+    "0x2a98b8",
+    "0x2a98c4",
+    "0x318a94",
+    "0x31f1c0",
+    "0x378274",
+    "0x378284",
+    "0x37835c",
+    "0x378360"
+  ],
+  "external_layout_references": [
+    {
+      "path": "camx/src/core/camxhwcontext.h",
+      "url": "https://raw.githubusercontent.com/bjzhou/CamxChi/9f17f1b568626b393e785b369c5dc94543774d7a/camx/src/core/camxhwcontext.h",
+      "sha256": "f2c1516c9a8035e146e8b7a8b088ceae8cad354a8893df992d3ab2e92fee04a3",
+      "bytes": 18077
+    },
+    {
+      "path": "camx/src/core/camxhwenvironment.h",
+      "url": "https://raw.githubusercontent.com/bjzhou/CamxChi/9f17f1b568626b393e785b369c5dc94543774d7a/camx/src/core/camxhwenvironment.h",
+      "sha256": "976aacec8adf2e5e147d9f164def177a04f064152b10ed58af38e68f62b0942b",
+      "bytes": 50143
+    },
+    {
+      "path": "camx/src/hwl/titan17x/camxtitan17xdefs.h",
+      "url": "https://raw.githubusercontent.com/bjzhou/CamxChi/9f17f1b568626b393e785b369c5dc94543774d7a/camx/src/hwl/titan17x/camxtitan17xdefs.h",
+      "sha256": "3dcef9354cc7842cc60839cd6df398b54ca8a075d7054e1bcc6f4cb6345fae51",
+      "bytes": 31415
+    },
+    {
+      "path": "camx/src/hwl/ispiqmodule/camxispiqmodule.h",
+      "url": "https://raw.githubusercontent.com/bjzhou/CamxChi/9f17f1b568626b393e785b369c5dc94543774d7a/camx/src/hwl/ispiqmodule/camxispiqmodule.h",
+      "sha256": "0433ebdb72ebad19d5352e3a3aff6be370a449b47018c0204f9ff749cd62ecf0",
+      "bytes": 94868
+    },
+    {
+      "path": "camx/src/core/camxstaticcaps.h",
+      "url": "https://raw.githubusercontent.com/bjzhou/CamxChi/9f17f1b568626b393e785b369c5dc94543774d7a/camx/src/core/camxstaticcaps.h",
+      "sha256": "4998c6a03eddea3783a0283f368bf951b0a0f0b0852b30b47b7cd6434e794455",
+      "bytes": 50034
+    },
+    {
+      "path": "camx/src/hwl/titan17x/camxtitan17xcontext.cpp",
+      "url": "https://raw.githubusercontent.com/bjzhou/CamxChi/9f17f1b568626b393e785b369c5dc94543774d7a/camx/src/hwl/titan17x/camxtitan17xcontext.cpp",
+      "sha256": "b347507f4fe416263139840a33a90a840a8c6f729d7e63e06f798a2b4d08ba24",
+      "bytes": 125992
+    },
+    {
+      "path": "camx/src/hwl/isphwsetting/titan17x/camxifecst12titan17x.cpp",
+      "url": "https://raw.githubusercontent.com/bjzhou/CamxChi/9f17f1b568626b393e785b369c5dc94543774d7a/camx/src/hwl/isphwsetting/titan17x/camxifecst12titan17x.cpp",
+      "sha256": "89c3e1ecaab7e2c2f87bc0bf10a28c6330fdb7f3e835718709e828cabbb8bb3f",
+      "bytes": 9312
+    },
+    {
+      "path": "camx/src/hwl/isphwsetting/titan17x/camxifedemosaic36titan17x.cpp",
+      "url": "https://raw.githubusercontent.com/bjzhou/CamxChi/9f17f1b568626b393e785b369c5dc94543774d7a/camx/src/hwl/isphwsetting/titan17x/camxifedemosaic36titan17x.cpp",
+      "sha256": "f371066c3c9080072767a229ac71dce04c90bee309be3803d3fb130ae1d0cd4d",
+      "bytes": 8002
+    },
+    {
+      "path": "camx/src/hwl/iqsetting/demosaic36setting.h",
+      "url": "https://raw.githubusercontent.com/bjzhou/CamxChi/9f17f1b568626b393e785b369c5dc94543774d7a/camx/src/hwl/iqsetting/demosaic36setting.h",
+      "sha256": "2bd4bf8990c85547a7283edd4d3607df2eec3207642868742d5902021af6d60c",
+      "bytes": 4279
+    },
+    {
+      "path": "camx/src/hwl/isphwsetting/titan17x/camxifedemosaic36titan17x.h",
+      "url": "https://raw.githubusercontent.com/bjzhou/CamxChi/9f17f1b568626b393e785b369c5dc94543774d7a/camx/src/hwl/isphwsetting/titan17x/camxifedemosaic36titan17x.h",
+      "sha256": "cd3fa73fcd76fd2d0524071739ab447e1f6804b85b24cea3fbc807e5dd58959a",
+      "bytes": 6244
+    },
+    {
+      "path": "camx/src/hwl/iqsetting/demosaic36setting.cpp",
+      "url": "https://raw.githubusercontent.com/bjzhou/CamxChi/9f17f1b568626b393e785b369c5dc94543774d7a/camx/src/hwl/iqsetting/demosaic36setting.cpp",
+      "sha256": "c9440f64c45dc6fb56176aee1b50ab2ea47627f7e21cd3ee3a6edb94ab6c8d99",
+      "bytes": 4974
+    },
+    {
+      "path": "chi-cdk/api/chromatix/XSD/isp/demosaic_3_6_0.xsd",
+      "url": "https://raw.githubusercontent.com/bjzhou/CamxChi/9f17f1b568626b393e785b369c5dc94543774d7a/chi-cdk/api/chromatix/XSD/isp/demosaic_3_6_0.xsd",
+      "sha256": "f67f36c60016604a29c4f7f1f94c0c710234ccb3db8d072a534f5282e2e12610",
+      "bytes": 14082
+    }
+  ],
+  "external_sources_only_crosschecks": true,
+  "original_implementation_not_copied": true,
+  "private_binary_and_reference_text_not_published": true,
+  "not_hardware_validated": true
+}

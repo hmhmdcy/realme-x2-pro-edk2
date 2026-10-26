@@ -1,0 +1,30 @@
+{
+  "stage": 288,
+  "init_sha256": "05ad4de277d622fef485200de5dee216cc4e62c8b24fb3b1a339c1272f1c1336",
+  "selected_boot_operations": [
+    "mount -t proc     proc /proc 2>/dev/null",
+    "mount -t sysfs   sysfs /sys  2>/dev/null",
+    "mount -t devtmpfs dev  /dev  2>/dev/null",
+    "mount -t configfs configfs /sys/kernel/config 2>/dev/null"
+  ],
+  "embedded_modules": [
+    {
+      "path": "lib/modules/samurai/btbcm.ko",
+      "bytes": 27512,
+      "vermagic": "7.3.0-rc6-rmx1931-samurai-k132+ SMP preempt mod_unload aarch64"
+    },
+    {
+      "path": "lib/modules/samurai/hci_uart.ko",
+      "bytes": 138952,
+      "vermagic": "7.3.0-rc6-rmx1931-samurai-k132+ SMP preempt mod_unload aarch64"
+    },
+    {
+      "path": "lib/modules/samurai/btqca.ko",
+      "bytes": 25128,
+      "vermagic": "7.3.0-rc6-rmx1931-samurai-k132+ SMP preempt mod_unload aarch64"
+    }
+  ],
+  "bootable_build_needs_initramfs": true,
+  "compile_only_image_has_no_initramfs": true,
+  "credentials_and_full_input_not_exported": true
+}

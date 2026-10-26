@@ -1,0 +1,239 @@
+{
+  "audit": "PASS",
+  "kind": "offline pinned source and archived DT comparison",
+  "human_context": "Previous Android 16 third-party ROM used cyborgdc2000 kernel and device tree; user confirms both it and Realme UI2.0 use Android11 vendor base.",
+  "kernel_versions": {
+    "cyborgdc2000/kernel_realme_sm8150": "4.14.356-openela-rc1",
+    "realme-kernel-opensource/realmeX2pro-X3-AndroidR-kernel-source": "4.14.190"
+  },
+  "source_files_verified": 54,
+  "archive_sha256": "e3329db4f3568252286489abd2ae27b9cbd0c711a2c5d790ebfba80fffc5b56b",
+  "archived_nodes": [
+    {
+      "path": "soc/i2c@0xc94000/oplus_short-ic@58",
+      "compatible": "oppo,oplus_short-ic",
+      "reg_cells": [
+        88
+      ]
+    },
+    {
+      "path": "soc/i2c@0xc94000/bq27541-battery@55",
+      "compatible": "oppo,bq27541-battery",
+      "reg_cells": [
+        85
+      ]
+    },
+    {
+      "path": "soc/i2c@884000/mp2650-charger@5c",
+      "compatible": "oppo,mp2650-charger",
+      "reg_cells": [
+        92,
+        0
+      ]
+    }
+  ],
+  "boards": [
+    {
+      "repo": "cyborgdc2000/kernel_realme_sm8150",
+      "directory": "arch/arm64/boot/dts/qcom/",
+      "overlay_project": 19781,
+      "nodes": [
+        {
+          "bus": "qupv3_se1_i2c",
+          "node": "mp2650-charger@5c",
+          "compatible": "oppo,mp2650-charger",
+          "reg_cells": [
+            92,
+            0
+          ],
+          "batt_bq28z610": false
+        },
+        {
+          "bus": "qupv3_se15_i2c",
+          "node": "bq27541-battery@55",
+          "compatible": "oppo,bq27541-battery",
+          "reg_cells": [
+            85
+          ],
+          "batt_bq28z610": true
+        },
+        {
+          "bus": "qupv3_se15_i2c",
+          "node": "oplus_short-ic@58",
+          "compatible": "oppo,oplus_short-ic",
+          "reg_cells": [
+            88
+          ],
+          "batt_bq28z610": false
+        }
+      ],
+      "policy_raw": {
+        "removed_bat_decidegc": 190,
+        "cold_bat_decidegc": 20,
+        "little_cold_bat_decidegc": 0,
+        "cool_bat_decidegc": 50,
+        "little_cool_bat_decidegc": 120,
+        "normal_bat_decidegc": 160,
+        "warm_bat_decidegc": 440,
+        "hot_bat_decidegc": 530,
+        "vbatt_num": 2,
+        "max_chg_time_sec": 36000,
+        "input_current_usb_ma": 500,
+        "temp_normal_vfloat_mv": 4400,
+        "normal_vfloat_over_sw_limit": 4410,
+        "vbatt_hv_thr": 4600
+      },
+      "normal_temperature_decidegrees_C": {
+        "removed_bat_decidegc": -190,
+        "cold_bat_decidegc": -20,
+        "little_cold_bat_decidegc": 0,
+        "cool_bat_decidegc": 50,
+        "little_cool_bat_decidegc": 120,
+        "normal_bat_decidegc": 160,
+        "warm_bat_decidegc": 440,
+        "hot_bat_decidegc": 530
+      }
+    },
+    {
+      "repo": "realme-kernel-opensource/realmeX2pro-X3-AndroidR-kernel-source",
+      "directory": "arch/arm64/boot/dts/19781/",
+      "overlay_project": 19781,
+      "nodes": [
+        {
+          "bus": "qupv3_se1_i2c",
+          "node": "mp2650-charger@5c",
+          "compatible": "oplus,mp2650-charger",
+          "reg_cells": [
+            92,
+            0
+          ],
+          "batt_bq28z610": false
+        },
+        {
+          "bus": "qupv3_se15_i2c",
+          "node": "bq27541-battery@55",
+          "compatible": "oplus,bq27541-battery",
+          "reg_cells": [
+            85
+          ],
+          "batt_bq28z610": true
+        },
+        {
+          "bus": "qupv3_se15_i2c",
+          "node": "oplus_short-ic@58",
+          "compatible": "oplus,oplus_short-ic",
+          "reg_cells": [
+            88
+          ],
+          "batt_bq28z610": false
+        }
+      ],
+      "policy_raw": {
+        "removed_bat_decidegc": 190,
+        "cold_bat_decidegc": 20,
+        "little_cold_bat_decidegc": 0,
+        "cool_bat_decidegc": 50,
+        "little_cool_bat_decidegc": 120,
+        "normal_bat_decidegc": 160,
+        "warm_bat_decidegc": 440,
+        "hot_bat_decidegc": 530,
+        "vbatt_num": 2,
+        "max_chg_time_sec": 36000,
+        "input_current_usb_ma": 500,
+        "temp_normal_vfloat_mv": 4400,
+        "normal_vfloat_over_sw_limit": 4410,
+        "vbatt_hv_thr": 4600
+      },
+      "normal_temperature_decidegrees_C": {
+        "removed_bat_decidegc": -190,
+        "cold_bat_decidegc": -20,
+        "little_cold_bat_decidegc": 0,
+        "cool_bat_decidegc": 50,
+        "little_cool_bat_decidegc": 120,
+        "normal_bat_decidegc": 160,
+        "warm_bat_decidegc": 440,
+        "hot_bat_decidegc": 530
+      }
+    }
+  ],
+  "identical_sources": [
+    {
+      "path": "drivers/power/oppo/charger_ic/oplus_short_ic.c",
+      "sha256": "fea6f381755e0491ce4f3667cca427ec2b03ab1b1e817f294cdbb2906d72fadf"
+    },
+    {
+      "path": "drivers/power/oppo/charger_ic/oplus_short_ic.h",
+      "sha256": "df285543973486c5a7e4e72614453f854b0d02690477ad8e95b7390acb783141"
+    },
+    {
+      "path": "drivers/power/oppo/gauge_ic/oplus_bq27541.c",
+      "sha256": "0c4640c85570f1a83ea8db3e82a63d75d9fc2650c71fbbb8c247e471c10b7a87"
+    }
+  ],
+  "mp2650_hardware_init": {
+    "cyborgdc2000/kernel_realme_sm8150": {
+      "source_sha256": "18663aa2c512339246aae56d4a3390742b9bb69b6db71b5f9e731d25ce3f977e",
+      "init_resets_charger": true,
+      "init_disables_safety_timer": true,
+      "WPC_default_calls_present": []
+    },
+    "realme-kernel-opensource/realmeX2pro-X3-AndroidR-kernel-source": {
+      "source_sha256": "b6313a6592732597eee41c7171ca210a45f0ce05685447c3cb354a8df79d123e",
+      "init_resets_charger": true,
+      "init_disables_safety_timer": true,
+      "WPC_default_calls_present": [
+        "mp2650_float_voltage_write(WPC_TERMINATION_VOLTAGE);",
+        "mp2650_set_prechg_current(WPC_PRECHARGE_CURRENT);",
+        "mp2650_charging_current_write_fast(WPC_CHARGE_CURRENT_DEFAULT);",
+        "mp2650_set_termchg_current(WPC_TERMINATION_CURRENT);",
+        "mp2650_set_rechg_voltage(WPC_RECHARGE_VOLTAGE_OFFSET);"
+      ]
+    }
+  },
+  "config_flags": {
+    "CONFIG_OPLUS_SM8150R_CHARGER": "y",
+    "CONFIG_OPLUS_SHORT_C_BATT_CHECK": "y",
+    "CONFIG_OPLUS_SHORT_HW_CHECK": "y",
+    "CONFIG_OPLUS_SHORT_IC_CHECK": "y",
+    "CONFIG_OPLUS_SHORT_USERSPACE": "y"
+  },
+  "config_selection": "cyborg unconditional msm8150Q/MP2650 objects; official CONFIG_OPLUS_SM8150R_CHARGER branch selects these objects",
+  "matching": [
+    {
+      "node": "bq27541-battery@55",
+      "cyborg_DT_compatible": "oppo,bq27541-battery",
+      "driver_OF_compatibles": [
+        "oplus,bq27541-battery"
+      ],
+      "exact_OF_match": false,
+      "I2C_id_suffix_match": true,
+      "binding_observed_on_installed_Android": false
+    },
+    {
+      "node": "oplus_short-ic@58",
+      "cyborg_DT_compatible": "oppo,oplus_short-ic",
+      "driver_OF_compatibles": [
+        "oplus,oplus_short-ic"
+      ],
+      "exact_OF_match": false,
+      "I2C_id_suffix_match": true,
+      "binding_observed_on_installed_Android": false
+    },
+    {
+      "node": "mp2650-charger@5c",
+      "cyborg_DT_compatible": "oppo,mp2650-charger",
+      "driver_OF_compatibles": [
+        "oplus,mp2650-charger"
+      ],
+      "exact_OF_match": false,
+      "I2C_id_suffix_match": true,
+      "binding_observed_on_installed_Android": false
+    }
+  ],
+  "normal_branch_only": true,
+  "exact_backup_build_commit_verified": false,
+  "hardware_identity_verified": false,
+  "charge_control_verified": false,
+  "device_interactions_this_session": false,
+  "limitation": "Source values and matches do not establish runtime initialization, independent safety, temperature calibration or negotiated input budget."
+}

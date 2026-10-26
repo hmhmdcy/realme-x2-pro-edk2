@@ -1,0 +1,622 @@
+{
+  "commit": "ba61a62293e0f6bc5838c06f2e85e033e3d702a8",
+  "files": {
+    "net/bluetooth/Makefile": {
+      "git_blob": "ff466ea97436a0d6237bf95a2fa468e3eed630bd",
+      "sha256": "a247fb9e369bd98966b51032619b1230891c51d4c286a66214b5be6597dcc2f3",
+      "excerpts": [
+        {
+          "first": 1,
+          "last": 26,
+          "lines": [
+            "1:# SPDX-License-Identifier: GPL-2.0",
+            "2:#",
+            "3:# Makefile for the Linux Bluetooth subsystem.",
+            "4:#",
+            "5:",
+            "6:obj-$(CONFIG_BT)\t+= bluetooth.o",
+            "7:obj-$(CONFIG_BT_RFCOMM)\t+= rfcomm/",
+            "8:obj-$(CONFIG_BT_BNEP)\t+= bnep/",
+            "9:obj-$(CONFIG_BT_HIDP)\t+= hidp/",
+            "10:obj-$(CONFIG_BT_6LOWPAN) += bluetooth_6lowpan.o",
+            "11:",
+            "12:bluetooth_6lowpan-y := 6lowpan.o",
+            "13:",
+            "14:bluetooth-y := af_bluetooth.o hci_core.o hci_conn.o hci_event.o mgmt.o \\",
+            "15:\thci_sock.o hci_sysfs.o l2cap_core.o l2cap_sock.o smp.o lib.o \\",
+            "16:\tecdh_helper.o mgmt_util.o mgmt_config.o hci_codec.o eir.o hci_sync.o \\",
+            "17:\thci_drv.o",
+            "18:",
+            "19:bluetooth-$(CONFIG_DEV_COREDUMP) += coredump.o",
+            "20:",
+            "21:bluetooth-$(CONFIG_BT_BREDR) += sco.o",
+            "22:bluetooth-$(CONFIG_BT_LE) += iso.o",
+            "23:bluetooth-$(CONFIG_BT_LEDS) += leds.o",
+            "24:bluetooth-$(CONFIG_BT_MSFTEXT) += msft.o",
+            "25:bluetooth-$(CONFIG_BT_AOSPEXT) += aosp.o",
+            "26:bluetooth-$(CONFIG_BT_DEBUGFS) += hci_debugfs.o"
+          ]
+        }
+      ]
+    },
+    "net/bluetooth/Kconfig": {
+      "git_blob": "1cda01614efec4ab53aa1e3cc0dfab19e9ddb813",
+      "sha256": "cf49b6becb0a34174f5dcec2e69893e0438d29d7261d78f0e334e4b2004993ac",
+      "excerpts": [
+        {
+          "first": 1,
+          "last": 82,
+          "lines": [
+            "1:# SPDX-License-Identifier: GPL-2.0-only",
+            "2:#",
+            "3:# Bluetooth subsystem configuration",
+            "4:#",
+            "5:",
+            "6:menuconfig BT",
+            "7:\ttristate \"Bluetooth subsystem support\"",
+            "8:\tdepends on !S390",
+            "9:\tdepends on RFKILL || !RFKILL",
+            "10:\tselect CRC16",
+            "11:\tselect CRYPTO",
+            "12:\tselect CRYPTO_LIB_AES",
+            "13:\tselect CRYPTO_LIB_AES_CBC_MACS",
+            "14:\tselect CRYPTO_ECDH",
+            "15:\thelp",
+            "16:\t  Bluetooth is low-cost, low-power, short-range wireless technology.",
+            "17:\t  It was designed as a replacement for cables and other short-range",
+            "18:\t  technologies like IrDA.  Bluetooth operates in personal area range",
+            "19:\t  that typically extends up to 10 meters.  More information about",
+            "20:\t  Bluetooth can be found at <https://www.bluetooth.com/>.",
+            "21:",
+            "22:\t  Linux Bluetooth subsystem consist of several layers:",
+            "23:\t     Bluetooth Core",
+            "24:\t\tHCI device and connection manager, scheduler",
+            "25:\t\tSCO audio links",
+            "26:\t\tL2CAP (Logical Link Control and Adaptation Protocol)",
+            "27:\t\tSMP (Security Manager Protocol) on LE (Low Energy) links",
+            "28:\t\tISO isochronous links",
+            "29:\t     HCI Device drivers (Interface to the hardware)",
+            "30:\t     RFCOMM Module (RFCOMM Protocol)  ",
+            "31:\t     BNEP Module (Bluetooth Network Encapsulation Protocol)",
+            "32:\t     HIDP Module (Human Interface Device Protocol)",
+            "33:",
+            "34:\t  Say Y here to compile Bluetooth support into the kernel or say M to",
+            "35:\t  compile it as module (bluetooth).",
+            "36:",
+            "37:\t  To use Linux Bluetooth subsystem, you will need several user-space",
+            "38:\t  utilities like hciconfig and bluetoothd.  These utilities and updates",
+            "39:\t  to Bluetooth kernel modules are provided in the BlueZ packages.  For",
+            "40:\t  more information, see <http://www.bluez.org/>.",
+            "41:",
+            "42:config BT_BREDR",
+            "43:\tbool \"Bluetooth Classic (BR/EDR) features\"",
+            "44:\tdepends on BT",
+            "45:\tdefault y",
+            "46:\thelp",
+            "47:\t  Bluetooth Classic includes support for Basic Rate (BR)",
+            "48:\t  available with Bluetooth version 1.0b or later and support",
+            "49:\t  for Enhanced Data Rate (EDR) available with Bluetooth",
+            "50:\t  version 2.0 or later.",
+            "51:",
+            "52:source \"net/bluetooth/rfcomm/Kconfig\"",
+            "53:",
+            "54:source \"net/bluetooth/bnep/Kconfig\"",
+            "55:",
+            "56:source \"net/bluetooth/hidp/Kconfig\"",
+            "57:",
+            "58:config BT_LE",
+            "59:\tbool \"Bluetooth Low Energy (LE) features\"",
+            "60:\tdepends on BT",
+            "61:\tdefault y",
+            "62:\thelp",
+            "63:\t  Bluetooth Low Energy includes support low-energy physical",
+            "64:\t  layer available with Bluetooth version 4.0 or later.",
+            "65:",
+            "66:config BT_LE_L2CAP_ECRED",
+            "67:\tbool \"Bluetooth L2CAP Enhanced Credit Flow Control\"",
+            "68:\tdepends on BT_LE",
+            "69:\tdefault y",
+            "70:\thelp",
+            "71:\t  Bluetooth Low Energy L2CAP Enhanced Credit Flow Control available with",
+            "72:\t  Bluetooth version 5.2 or later.",
+            "73:",
+            "74:\t  This can be overridden by passing bluetooth.enable_ecred=[1|0]",
+            "75:\t  on the kernel commandline.",
+            "76:",
+            "77:config BT_6LOWPAN",
+            "78:\ttristate \"Bluetooth 6LoWPAN support\"",
+            "79:\tdepends on BT && BT_LE && 6LOWPAN",
+            "80:\thelp",
+            "81:\t  IPv6 compression over Bluetooth Low Energy.",
+            "82:"
+          ]
+        }
+      ]
+    },
+    "net/bluetooth/mgmt.c": {
+      "git_blob": "41956cdde982f6e5cffdfd157e207f0cd8e37c77",
+      "sha256": "1917095e6bd68c107f6510d3d6220c8dab2fee50b1a4275785aa9565930b89cc",
+      "excerpts": [
+        {
+          "first": 1523,
+          "last": 1531,
+          "lines": [
+            "1523:static u8 mgmt_le_support(struct hci_dev *hdev)",
+            "1524:{",
+            "1525:\tif (!lmp_le_capable(hdev))",
+            "1526:\t\treturn MGMT_STATUS_NOT_SUPPORTED;",
+            "1527:\telse if (!hci_dev_test_flag(hdev, HCI_LE_ENABLED))",
+            "1528:\t\treturn MGMT_STATUS_REJECTED;",
+            "1529:\telse",
+            "1530:\t\treturn MGMT_STATUS_SUCCESS;",
+            "1531:}"
+          ]
+        },
+        {
+          "first": 2555,
+          "last": 2582,
+          "lines": [
+            "2555:done:",
+            "2556:\thci_dev_unlock(hdev);",
+            "2557:\treturn err;",
+            "2558:}",
+            "2559:",
+            "2560:static int set_le(struct sock *sk, struct hci_dev *hdev, void *data, u16 len)",
+            "2561:{",
+            "2562:\tstruct mgmt_mode *cp = data;",
+            "2563:\tstruct mgmt_pending_cmd *cmd;",
+            "2564:\tint err;",
+            "2565:\tu8 val, enabled;",
+            "2566:",
+            "2567:\tbt_dev_dbg(hdev, \"sock %p\", sk);",
+            "2568:",
+            "2569:\tif (!lmp_le_capable(hdev))",
+            "2570:\t\treturn mgmt_cmd_status(sk, hdev->id, MGMT_OP_SET_LE,",
+            "2571:\t\t\t\t       MGMT_STATUS_NOT_SUPPORTED);",
+            "2572:",
+            "2573:\tif (cp->val != 0x00 && cp->val != 0x01)",
+            "2574:\t\treturn mgmt_cmd_status(sk, hdev->id, MGMT_OP_SET_LE,",
+            "2575:\t\t\t\t       MGMT_STATUS_INVALID_PARAMS);",
+            "2576:",
+            "2577:\t/* Bluetooth single mode LE only controllers or dual-mode",
+            "2578:\t * controllers configured as LE only devices, do not allow",
+            "2579:\t * switching LE off. These have either LE enabled explicitly",
+            "2580:\t * or BR/EDR has been previously switched off.",
+            "2581:\t *",
+            "2582:\t * When trying to enable an already enabled LE, then gracefully"
+          ]
+        },
+        {
+          "first": 4703,
+          "last": 4708,
+          "lines": [
+            "4703:\tif (IS_ENABLED(CONFIG_BT_LE)) {",
+            "4704:\t\tflags = iso_inited() ? BIT(0) : 0;",
+            "4705:\t\tmemcpy(rp->features[idx].uuid, iso_socket_uuid, 16);",
+            "4706:\t\trp->features[idx].flags = cpu_to_le32(flags);",
+            "4707:\t\tidx++;",
+            "4708:\t}"
+          ]
+        },
+        {
+          "first": 5071,
+          "last": 5075,
+          "lines": [
+            "5071:#ifdef CONFIG_BT_LE",
+            "5072:static int set_iso_socket_func(struct sock *sk, struct hci_dev *hdev,",
+            "5073:\t\t\t       struct mgmt_cp_set_exp_feature *cp, u16 data_len)",
+            "5074:{",
+            "5075:\tstruct mgmt_rp_set_exp_feature rp;"
+          ]
+        },
+        {
+          "first": 5133,
+          "last": 5138,
+          "lines": [
+            "5133:\tEXP_FEAT(offload_codecs_uuid, set_offload_codec_func),",
+            "5134:\tEXP_FEAT(le_simultaneous_roles_uuid, set_le_simultaneous_roles_func),",
+            "5135:#ifdef CONFIG_BT_LE",
+            "5136:\tEXP_FEAT(iso_socket_uuid, set_iso_socket_func),",
+            "5137:#endif",
+            "5138:"
+          ]
+        }
+      ]
+    },
+    "include/net/bluetooth/hci_core.h": {
+      "git_blob": "fa2a367731b5e2eb63db57ec14eb60ca15aaff6d",
+      "sha256": "e0fa868c1bb776f94fedfb501efd38c0ef2b49f4f99feb71ffb31df3fe2591e9",
+      "excerpts": [
+        {
+          "first": 900,
+          "last": 917,
+          "lines": [
+            "900:#if IS_ENABLED(CONFIG_BT_LE)",
+            "901:int iso_connect_ind(struct hci_dev *hdev, bdaddr_t *bdaddr, __u8 *flags);",
+            "902:int iso_recv(struct hci_dev *hdev, u16 handle, struct sk_buff *skb,",
+            "903:\t     u16 flags);",
+            "904:#else",
+            "905:static inline int iso_connect_ind(struct hci_dev *hdev, bdaddr_t *bdaddr,",
+            "906:\t\t\t\t  __u8 *flags)",
+            "907:{",
+            "908:\treturn 0;",
+            "909:}",
+            "910:",
+            "911:static inline int iso_recv(struct hci_dev *hdev, u16 handle,",
+            "912:\t\t\t   struct sk_buff *skb, u16 flags)",
+            "913:{",
+            "914:\tkfree_skb(skb);",
+            "915:\treturn -ENOENT;",
+            "916:}",
+            "917:#endif"
+          ]
+        },
+        {
+          "first": 1958,
+          "last": 1960,
+          "lines": [
+            "1958:#define lmp_bredr_capable(dev)     (!((dev)->features[0][4] & LMP_NO_BREDR))",
+            "1959:#define lmp_le_capable(dev)        ((dev)->features[0][4] & LMP_LE)",
+            "1960:#define lmp_sniffsubr_capable(dev) ((dev)->features[0][5] & LMP_SNIFF_SUBR)"
+          ]
+        },
+        {
+          "first": 1998,
+          "last": 1999,
+          "lines": [
+            "1998:#define le_enabled(dev)        (lmp_le_capable(dev) && \\",
+            "1999:\t\t\t\thci_dev_test_flag(dev, HCI_LE_ENABLED))"
+          ]
+        }
+      ]
+    },
+    "include/net/bluetooth/bluetooth.h": {
+      "git_blob": "b624da5026f50c6756ce74ebc1c0b7b2d4d64929",
+      "sha256": "086427eb1be596e9d8510edddcf2049a965a21debb58048d6ab658dd0fe5f1d3",
+      "excerpts": [
+        {
+          "first": 655,
+          "last": 674,
+          "lines": [
+            "655:#if IS_ENABLED(CONFIG_BT_LE)",
+            "656:int iso_init(void);",
+            "657:int iso_exit(void);",
+            "658:bool iso_inited(void);",
+            "659:#else",
+            "660:static inline int iso_init(void)",
+            "661:{",
+            "662:\treturn 0;",
+            "663:}",
+            "664:",
+            "665:static inline int iso_exit(void)",
+            "666:{",
+            "667:\treturn 0;",
+            "668:}",
+            "669:",
+            "670:static inline bool iso_inited(void)",
+            "671:{",
+            "672:\treturn false;",
+            "673:}",
+            "674:#endif"
+          ]
+        }
+      ]
+    },
+    "net/bluetooth/l2cap_sock.c": {
+      "git_blob": "1194c37e466f18e701916f182c8312c8060e8de2",
+      "sha256": "455b77b486ab8c023c7db882c7d58424577000ef2cf51255da4e7df1bc1483f7",
+      "excerpts": [
+        {
+          "first": 102,
+          "last": 110,
+          "lines": [
+            "102:\tif (!bdaddr_type_is_valid(la.l2_bdaddr_type))",
+            "103:\t\treturn -EINVAL;",
+            "104:",
+            "105:\tif (bdaddr_type_is_le(la.l2_bdaddr_type)) {",
+            "106:\t\t/* We only allow ATT user space socket */",
+            "107:\t\tif (la.l2_cid &&",
+            "108:\t\t    la.l2_cid != cpu_to_le16(L2CAP_CID_ATT))",
+            "109:\t\t\treturn -EINVAL;",
+            "110:\t}"
+          ]
+        }
+      ]
+    },
+    "net/bluetooth/l2cap_core.c": {
+      "git_blob": "aaa2a1cd489a5344bde26af3d17dfe3b18d2557d",
+      "sha256": "c894368af71ab7ec3dd6736d8614778343385d18560fcb5f20979993ae51467f",
+      "excerpts": [
+        {
+          "first": 40,
+          "last": 44,
+          "lines": [
+            "40:#define LE_FLOWCTL_MAX_CREDITS 65535",
+            "41:",
+            "42:bool disable_ertm;",
+            "43:bool enable_ecred = IS_ENABLED(CONFIG_BT_LE_L2CAP_ECRED);",
+            "44:"
+          ]
+        },
+        {
+          "first": 8040,
+          "last": 8044,
+          "lines": [
+            "8040:module_param(disable_ertm, bool, 0644);",
+            "8041:MODULE_PARM_DESC(disable_ertm, \"Disable enhanced retransmission mode\");",
+            "8042:",
+            "8043:module_param(enable_ecred, bool, 0644);",
+            "8044:MODULE_PARM_DESC(enable_ecred, \"Enable enhanced credit flow control mode\");"
+          ]
+        }
+      ]
+    },
+    "net/bluetooth/smp.c": {
+      "git_blob": "2df303f6a38fa0df6b614d7ead301ab78c295a5e",
+      "sha256": "9a97d83d32c80dd836d39236a39210f9a66e1d1edc935d5c4cd7bd9d4eecc0ca",
+      "excerpts": [
+        {
+          "first": 3370,
+          "last": 3392,
+          "lines": [
+            "3370:int smp_register(struct hci_dev *hdev)",
+            "3371:{",
+            "3372:\tstruct l2cap_chan *chan;",
+            "3373:",
+            "3374:\tbt_dev_dbg(hdev, \"\");",
+            "3375:",
+            "3376:\t/* If the controller does not support Low Energy operation, then",
+            "3377:\t * there is also no need to register any SMP channel.",
+            "3378:\t */",
+            "3379:\tif (!lmp_le_capable(hdev))",
+            "3380:\t\treturn 0;",
+            "3381:",
+            "3382:\tif (WARN_ON(hdev->smp_data)) {",
+            "3383:\t\tchan = hdev->smp_data;",
+            "3384:\t\thdev->smp_data = NULL;",
+            "3385:\t\tsmp_del_chan(chan);",
+            "3386:\t}",
+            "3387:",
+            "3388:\tchan = smp_add_cid(hdev, L2CAP_CID_SMP);",
+            "3389:\tif (IS_ERR(chan))",
+            "3390:\t\treturn PTR_ERR(chan);",
+            "3391:",
+            "3392:\thdev->smp_data = chan;"
+          ]
+        }
+      ]
+    },
+    "net/bluetooth/hci_sync.c": {
+      "git_blob": "c01c8b58d9e88a2d9d3c3d4e000aee70b9f1198f",
+      "sha256": "4eae4158420617a49817654499c9e57f207b62f705e809255750bfc307ebcbdc",
+      "excerpts": [
+        {
+          "first": 4211,
+          "last": 4218,
+          "lines": [
+            "4211:\tif (lmp_le_capable(hdev)) {",
+            "4212:\t\terr = hci_init_stage_sync(hdev, le_init2);",
+            "4213:\t\tif (err)",
+            "4214:\t\t\treturn err;",
+            "4215:\t\t/* LE-only controllers have LE implicitly enabled */",
+            "4216:\t\tif (!lmp_bredr_capable(hdev))",
+            "4217:\t\t\thci_dev_set_flag(hdev, HCI_LE_ENABLED);",
+            "4218:\t}"
+          ]
+        }
+      ]
+    },
+    "net/bluetooth/bnep/Kconfig": {
+      "git_blob": "f8087e2d2c00e9869b0b4367d0ceaea8dd4328c6",
+      "sha256": "4fcce9d8e6dc80ceccd9d9d706c2cdd28f90ccf9bdb6727b39c818ff29f3b8eb",
+      "excerpts": [
+        {
+          "first": 1,
+          "last": 25,
+          "lines": [
+            "1:# SPDX-License-Identifier: GPL-2.0-only",
+            "2:config BT_BNEP",
+            "3:\ttristate \"BNEP protocol support\"",
+            "4:\tdepends on BT && BT_BREDR",
+            "5:\tselect CRC32",
+            "6:\thelp",
+            "7:\t  BNEP (Bluetooth Network Encapsulation Protocol) is Ethernet",
+            "8:\t  emulation layer on top of Bluetooth.  BNEP is required for",
+            "9:\t  Bluetooth PAN (Personal Area Network).",
+            "10:",
+            "11:\t  Say Y here to compile BNEP support into the kernel or say M to",
+            "12:\t  compile it as module (bnep).",
+            "13:",
+            "14:config BT_BNEP_MC_FILTER",
+            "15:\tbool \"Multicast filter support\"",
+            "16:\tdepends on BT_BNEP",
+            "17:\thelp",
+            "18:\t  This option enables the multicast filter support for BNEP.",
+            "19:",
+            "20:config BT_BNEP_PROTO_FILTER",
+            "21:\tbool \"Protocol filter support\"",
+            "22:\tdepends on BT_BNEP",
+            "23:\thelp",
+            "24:\t  This option enables the protocol filter support for BNEP.",
+            "25:"
+          ]
+        }
+      ]
+    },
+    "net/bluetooth/bnep/Makefile": {
+      "git_blob": "f42015cc324515cace92026f8e3c61376f7c6020",
+      "sha256": "e596ee9fa708a165018a0eea274e16068f5bf912791f2e6d3d3b82d359ff4ed5",
+      "excerpts": [
+        {
+          "first": 1,
+          "last": 10,
+          "lines": [
+            "1:# SPDX-License-Identifier: GPL-2.0-only",
+            "2:#",
+            "3:# Makefile for the Linux Bluetooth BNEP layer.",
+            "4:#",
+            "5:",
+            "6:obj-$(CONFIG_BT_BNEP) += bnep.o",
+            "7:",
+            "8:bnep-objs := core.o sock.o netdev.o",
+            "9:",
+            "10:CONTEXT_ANALYSIS := y"
+          ]
+        }
+      ]
+    },
+    "net/bluetooth/hidp/Kconfig": {
+      "git_blob": "ba52c7296f18f038f82bf5dd781e20cc21962059",
+      "sha256": "2a6d343c0e84fbb35d5296317a37de2f675169d227068e6b094ff5ba758db17f",
+      "excerpts": [
+        {
+          "first": 1,
+          "last": 12,
+          "lines": [
+            "1:# SPDX-License-Identifier: GPL-2.0-only",
+            "2:config BT_HIDP",
+            "3:\ttristate \"HIDP protocol support\"",
+            "4:\tdepends on BT && BT_BREDR && HID",
+            "5:\thelp",
+            "6:\t  HIDP (Human Interface Device Protocol) is a transport layer",
+            "7:\t  for HID reports.  HIDP is required for the Bluetooth Human",
+            "8:\t  Interface Device Profile.",
+            "9:",
+            "10:\t  Say Y here to compile HIDP support into the kernel or say M to",
+            "11:\t  compile it as module (hidp).",
+            "12:"
+          ]
+        }
+      ]
+    },
+    "drivers/hid/Kconfig": {
+      "git_blob": "c43e824428f02ec0b05ed365e7b83b45e8955e5d",
+      "sha256": "30c55695a476b95a021d065a5a85f7acfa6e814600807b62b74c00a7e537842d",
+      "excerpts": [
+        {
+          "first": 1,
+          "last": 26,
+          "lines": [
+            "1:# SPDX-License-Identifier: GPL-2.0-only",
+            "2:#",
+            "3:# HID driver configuration",
+            "4:#",
+            "5:menuconfig HID_SUPPORT",
+            "6:\tbool \"HID bus support\"",
+            "7:\tdefault y",
+            "8:\tdepends on INPUT",
+            "9:\thelp",
+            "10:\t  This option adds core support for human interface device (HID).",
+            "11:\t  You will also need drivers from the following menu to make use of it.",
+            "12:",
+            "13:if HID_SUPPORT",
+            "14:",
+            "15:config HID",
+            "16:\ttristate \"HID bus core support\"",
+            "17:\tdefault y",
+            "18:\tdepends on INPUT",
+            "19:\thelp",
+            "20:\t  A human interface device (HID) is a type of computer device that",
+            "21:\t  interacts directly with and takes input from humans. The term \"HID\"",
+            "22:\t  most commonly used to refer to the USB-HID specification, but other",
+            "23:\t  devices (such as, but not strictly limited to, Bluetooth) are",
+            "24:\t  designed using HID specification (this involves certain keyboards,",
+            "25:\t  mice, tablets, etc). This option adds the HID bus to the kernel,",
+            "26:\t  together with generic HID layer code. The HID devices are added and"
+          ]
+        },
+        {
+          "first": 63,
+          "last": 81,
+          "lines": [
+            "63:config UHID",
+            "64:\ttristate \"User-space I/O driver support for HID subsystem\"",
+            "65:\tdefault n",
+            "66:\thelp",
+            "67:\tSay Y here if you want to provide HID I/O Drivers from user-space.",
+            "68:\tThis allows to write I/O drivers in user-space and feed the data from",
+            "69:\tthe device into the kernel. The kernel parses the HID reports, loads the",
+            "70:\tcorresponding HID Device Driver or provides input devices on top of your",
+            "71:\tuser-space device.",
+            "72:",
+            "73:\tThis driver cannot be used to parse HID-reports in user-space and write",
+            "74:\tspecial HID-drivers. You should use hidraw for that.",
+            "75:\tInstead, this driver allows to write the transport-layer driver in",
+            "76:\tuser-space like USB-HID and Bluetooth-HID do in kernel-space.",
+            "77:",
+            "78:\tIf unsure, say N.",
+            "79:",
+            "80:\tTo compile this driver as a module, choose M here: the",
+            "81:\tmodule will be called uhid."
+          ]
+        }
+      ]
+    },
+    "drivers/hid/Makefile": {
+      "git_blob": "48a863b245eed3db2da475dd41dead6333e8c481",
+      "sha256": "8156782486fd1bd5756cc94a2ddc16c2969ec3b85c03d716cd94987d8c626e18",
+      "excerpts": [
+        {
+          "first": 8,
+          "last": 14,
+          "lines": [
+            "8:",
+            "9:obj-$(CONFIG_HID_BPF)\t\t+= bpf/",
+            "10:",
+            "11:obj-$(CONFIG_HID)\t\t+= hid.o",
+            "12:obj-$(CONFIG_UHID)\t\t+= uhid.o",
+            "13:",
+            "14:obj-$(CONFIG_HID_GENERIC)\t+= hid-generic.o"
+          ]
+        }
+      ]
+    },
+    "drivers/hid/uhid.c": {
+      "git_blob": "37b60c3aaf66ab5465fd4891e169ed8914c45225",
+      "sha256": "07eb905e156af79fec3bbda79110909114d1e288a107500f23de84a0c7f08cf7",
+      "excerpts": [
+        {
+          "first": 808,
+          "last": 819,
+          "lines": [
+            "808:static struct miscdevice uhid_misc = {",
+            "809:\t.fops\t\t= &uhid_fops,",
+            "810:\t.minor\t\t= UHID_MINOR,",
+            "811:\t.name\t\t= UHID_NAME,",
+            "812:};",
+            "813:module_misc_device(uhid_misc);",
+            "814:",
+            "815:MODULE_LICENSE(\"GPL\");",
+            "816:MODULE_AUTHOR(\"David Herrmann <dh.herrmann@gmail.com>\");",
+            "817:MODULE_DESCRIPTION(\"User-space I/O driver support for HID subsystem\");",
+            "818:MODULE_ALIAS_MISCDEV(UHID_MINOR);",
+            "819:MODULE_ALIAS(\"devname:\" UHID_NAME);"
+          ]
+        }
+      ]
+    }
+  },
+  "config_uses": [
+    "ba61a62293e0f6bc5838c06f2e85e033e3d702a8:drivers/hid/Makefile:12:obj-$(CONFIG_UHID)\t\t+= uhid.o",
+    "ba61a62293e0f6bc5838c06f2e85e033e3d702a8:include/net/bluetooth/bluetooth.h:655:#if IS_ENABLED(CONFIG_BT_LE)",
+    "ba61a62293e0f6bc5838c06f2e85e033e3d702a8:include/net/bluetooth/hci_core.h:900:#if IS_ENABLED(CONFIG_BT_LE)",
+    "ba61a62293e0f6bc5838c06f2e85e033e3d702a8:net/bluetooth/Makefile:8:obj-$(CONFIG_BT_BNEP)\t+= bnep/",
+    "ba61a62293e0f6bc5838c06f2e85e033e3d702a8:net/bluetooth/Makefile:22:bluetooth-$(CONFIG_BT_LE) += iso.o",
+    "ba61a62293e0f6bc5838c06f2e85e033e3d702a8:net/bluetooth/bnep/Makefile:6:obj-$(CONFIG_BT_BNEP) += bnep.o",
+    "ba61a62293e0f6bc5838c06f2e85e033e3d702a8:net/bluetooth/bnep/core.c:85:#ifdef CONFIG_BT_BNEP_PROTO_FILTER",
+    "ba61a62293e0f6bc5838c06f2e85e033e3d702a8:net/bluetooth/bnep/core.c:116:#ifdef CONFIG_BT_BNEP_PROTO_FILTER",
+    "ba61a62293e0f6bc5838c06f2e85e033e3d702a8:net/bluetooth/bnep/core.c:162:#ifdef CONFIG_BT_BNEP_MC_FILTER",
+    "ba61a62293e0f6bc5838c06f2e85e033e3d702a8:net/bluetooth/bnep/core.c:647:#ifdef CONFIG_BT_BNEP_MC_FILTER",
+    "ba61a62293e0f6bc5838c06f2e85e033e3d702a8:net/bluetooth/bnep/core.c:655:#ifdef CONFIG_BT_BNEP_PROTO_FILTER",
+    "ba61a62293e0f6bc5838c06f2e85e033e3d702a8:net/bluetooth/bnep/core.c:785:#ifdef CONFIG_BT_BNEP_PROTO_FILTER",
+    "ba61a62293e0f6bc5838c06f2e85e033e3d702a8:net/bluetooth/bnep/core.c:789:#ifdef CONFIG_BT_BNEP_MC_FILTER",
+    "ba61a62293e0f6bc5838c06f2e85e033e3d702a8:net/bluetooth/bnep/netdev.c:49:#ifdef CONFIG_BT_BNEP_MC_FILTER",
+    "ba61a62293e0f6bc5838c06f2e85e033e3d702a8:net/bluetooth/bnep/netdev.c:118:#ifdef CONFIG_BT_BNEP_MC_FILTER",
+    "ba61a62293e0f6bc5838c06f2e85e033e3d702a8:net/bluetooth/bnep/netdev.c:129:#ifdef CONFIG_BT_BNEP_PROTO_FILTER",
+    "ba61a62293e0f6bc5838c06f2e85e033e3d702a8:net/bluetooth/bnep/netdev.c:175:#ifdef CONFIG_BT_BNEP_MC_FILTER",
+    "ba61a62293e0f6bc5838c06f2e85e033e3d702a8:net/bluetooth/bnep/netdev.c:182:#ifdef CONFIG_BT_BNEP_PROTO_FILTER",
+    "ba61a62293e0f6bc5838c06f2e85e033e3d702a8:net/bluetooth/mgmt.c:4703:\tif (IS_ENABLED(CONFIG_BT_LE)) {",
+    "ba61a62293e0f6bc5838c06f2e85e033e3d702a8:net/bluetooth/mgmt.c:5071:#ifdef CONFIG_BT_LE",
+    "ba61a62293e0f6bc5838c06f2e85e033e3d702a8:net/bluetooth/mgmt.c:5135:#ifdef CONFIG_BT_LE"
+  ]
+}

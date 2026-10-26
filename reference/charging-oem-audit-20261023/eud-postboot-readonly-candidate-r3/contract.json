@@ -1,0 +1,41 @@
+{
+  "schema": "samurai-eud-postboot-readonly-v1",
+  "scope": "source and payload preparation for root's separately verified new-endpoint transport; not executed",
+  "entry": "payload.py defaults to --check-local; no SSH implementation or device import",
+  "prepare_private_payload": [
+    "python3", "-B", "payload.py", "--emit-payload", "--execute", "--window-confirmed", "--original-key-verified",
+    "--new-endpoint", "<root-verified-new-endpoint>", "--context-private", "<new-host-context-private.json>",
+    "--camera-private", "<exact-formal481-wrapper-private.json>"
+  ],
+  "prepare_output": "private Python source on stdout, containing exact context/guard hashes and wrapper; root saves it privately",
+  "transport": "root supplies original pinned key, strict host-key verification, actual new endpoint and exclusive window; no fallback or discovery in this candidate",
+  "remote_argv": ["python3", "-B", "-", "--execute", "--window-confirmed", "--new-endpoint", "<same-root-verified-new-endpoint>"],
+  "remote_input": "exact emitted private Python payload on stdin",
+  "context_input": {
+    "schema": "samurai-eud-fastboot-context-v1",
+    "top_level": ["transaction_id", "token", "old_boot_id", "guard_sha256"],
+    "files.guard": {"path": "guard-private.json", "sha256": "exact raw guard hash also matching top-level guard_sha256"},
+    "guard_location": "host-context parent / guard-private.json; must not be a symlink",
+    "identity_pins": ["boot_id", "kernel_release", "kernel_version", "rootfs_release_sha256", "soc_serial_sha256", "compatible_sha256"],
+    "fixed_pins": ["candidate_boot_sha2564126", "rollback_boot_sha256a30", "image363_sha25615746", "logdump_sha256aca0", "camera481_expected_sha2561c458", "charging_manifest_sha2563203"]
+  },
+  "read_scope": [
+    "new boot UUID must differ from context guard old boot; exact board/SoC/rootfs/k363 version and taint0",
+    "whole boot96MiB 4126 and logdump64MiB aca0; existing full-FAT receipt binds Image363, no Image write",
+    "R8 manifest/installed files/disk-vs-live three notes/fresh protection/actual source budget and hardware limits",
+    "camera481 wrapper all files/packages/three disk-vs-live notes plus468 note; four PM/m2m/core idle and new service PID/startticks/UID/exe",
+    "DT COM disabled, no EUD console or any earlycon in cmdline/DT bootargs, no bound COM/tty/active console producer",
+    "only proven reserved RAM0x9ffe3000+0x14000 O_RDONLY ring after new identity and partition gates; no CSR MMIO"
+  ],
+  "source_limits": "actual known source/native; SDP0..500mA follows native, CDP/DCP1.5A or Type-C1.5/3A per existing observer; IIN<=min900mA,actual budget; CC<=250mA; CV<=8.725V with existing band limits; no synthesized100",
+  "waiting": "unknown/ENODATA/zero budget stays explicit not-ready, raw preserved; no polling/retry/control",
+  "private_outputs_root_must_save": [
+    "emitted-device-source.py, stdout-private.json, stderr-private.txt and transport exit result even on timeout/failure",
+    "raw.ring.raw_b64 decoded to exact eud-ring-private.bin when present; do not publish unfiltered raw/history/dmesg",
+    "raw identity/module/package/charging/service/DT facts stay private"
+  ],
+  "private_receiver": "payload.save_response(new_absolute_private_out, stdout_bytes, stderr_bytes, transport_exit, emitted_payload_bytes); creates only that new0700 local directory/files0600 and returns whitelist summary; no network or recovery",
+  "public_whitelist": "check status plus EUD_ring_receipt receipts/parsed fields/raw_sha256/header/stability note only; no blanket raw copy",
+  "success_boundary": "passed only means required readonly checks and one well-formed firmware off-report present; no independent callback-age/physical route/SDP500/icon proof",
+  "failure_boundary": "nonzero or not-ready retains originals, no new guard/adoption, no CSR read/write, no automatic recovery/reboot/flash or service start"
+}

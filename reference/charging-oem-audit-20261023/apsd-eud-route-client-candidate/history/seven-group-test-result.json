@@ -1,0 +1,41 @@
+{
+  "passed": true,
+  "groups": [
+    "1 disabled route client refuses before PHY/PD/analog/command access",
+    "2 missing actual route publication defers; real provider/client binds before PD preparation",
+    "3 real route lease plus PD/PHY final validation permits one modeled transfer and exact reverse restoration",
+    "4 fresh EFI evidence failure at final callback consumes the epoch but blocks the modeled command",
+    "5 route-only removal joins and normally restores a live gadget before debug ownership can resume",
+    "6 UDC retirement retains route exclusion until actual shutdown/end and later unregister acknowledgement",
+    "7 failed PHY restoration retains real route publication and owner tombstone without another MMIO write"
+  ],
+  "group_count": 7,
+  "flags": [
+    "-std=gnu11",
+    "-g",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-Wno-unused-parameter",
+    "-Wno-sign-compare",
+    "-fsanitize=address,undefined",
+    "-fno-omit-frame-pointer",
+    "-no-pie"
+  ],
+  "actual_whole_owner_PD_PHY_and_route_provider": true,
+  "EFI_copy_and_kernel_work_DWC_MMIO_edges_modeled": true,
+  "real_concurrency_in_prior_provider_suite_only": true,
+  "simulated_bus_attempts_only": true,
+  "phone_accessed": false,
+  "installed": false,
+  "PM_route_retention_proved": false,
+  "fixture_sha256": "4a26174ff2a448847d019849322387556aef2d8156c238e5901b5f9961871426",
+  "files": {
+    "samurai-apsd-owner.c": "55a17971a1ef3dd378e80052875074c2b27332b7e154c2ef167e6ca27621bb31",
+    "samurai-apsd-owner.h": "8c5aba7bb45f59a65e09f0effaf0d8dde65ed9acd283341be1603cad1d081d08",
+    "route-client-functions.inc": "a9599a0df56f088b30e2ff4b047a02238a22b8b2d88a37cc4cffb9763c392363",
+    "route-test-boundary.inc": "06e7e90d85e8bfe711ab918bb23b3082ffc03257cc8bb955281838c3f158ae06",
+    "test-client.c": "2f8e60461d842bad7e8e8344931af395b1bef7ddd36c297611fd107fedcb933c",
+    "run-tests.py": "e4da0e84e03b9dbd1473a305d781f3b5318a4769566458280f1582e090e507f7"
+  }
+}

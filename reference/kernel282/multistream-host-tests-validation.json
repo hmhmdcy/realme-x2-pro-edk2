@@ -1,0 +1,27 @@
+{
+  "stage": 282,
+  "tests": [
+    {
+      "name": "parent-negative",
+      "baseline_known_failures_observed": true,
+      "exit": 0,
+      "stdout": "NEGATIVE CONTROL: parent drops bus-only DONE and resets peer line on first stop\n",
+      "stderr": "",
+      "source_sha256": "601586b68ce2517b61b290bcaf6899a504f6722facac54c25b13f015b1fca849",
+      "harness_sha256": "c1b8d0a7ac3ad30bce08f2d0a131ce5e564f18772895b9d1ff110e57a945fff6"
+    },
+    {
+      "name": "fixed",
+      "baseline_known_failures_observed": false,
+      "exit": 0,
+      "stdout": "PASS: actual ISR bus-only DONE; peer preservation; final reset; failure propagation; paired WM stop; simultaneous stop/reset-enable locking\n",
+      "stderr": "",
+      "source_sha256": "4a60c6a03fc03537cf7509fe0ed2d8e68319f491db47c6acd61e228c7ec64fb2",
+      "harness_sha256": "3922e14e35f94c1a2da6bb6ac7e5ed3cace3e634b4a6d5c1d5c0618da69a31c8"
+    }
+  ],
+  "actual_driver_functions": true,
+  "real_pthread_locks": true,
+  "mock_mmio_only": true,
+  "no_hardware_multistream_test": true
+}

@@ -1,0 +1,961 @@
+--- a/include/libcamera/internal/software_isp/software_isp.h
++++ b/include/libcamera/internal/software_isp/software_isp.h
+@@ -100,6 +100,8 @@
+ 	DebayerParams debayerParams_;
+ 	DmaBufAllocator dmaHeap_;
+ 	bool ccmEnabled_;
++	bool imx471_ = false;
++	bool nativeQuadCpu_ = false;
+ 
+ 	std::unique_ptr<ipa::soft::IPAProxySoft> ipa_;
+ 	std::deque<FrameBuffer *> queuedInputBuffers_;
+--- a/include/libcamera/internal/software_isp/swstats_cpu.h
++++ b/include/libcamera/internal/software_isp/swstats_cpu.h
+@@ -52,6 +52,7 @@
+ 
+ 	const Size &patternSize() { return patternSize_; }
+ 
++	void setQuadBayer(bool enabled) { quadBayer_ = enabled; }
+ 	int configure(const StreamConfiguration &inputCfg, unsigned int statsBufferCount = 1);
+ 	void setWindow(const Rectangle &window);
+ 	void startFrame(uint32_t frame);
+--- a/src/libcamera/software_isp/debayer_cpu.cpp
++++ b/src/libcamera/software_isp/debayer_cpu.cpp
+@@ -27,6 +27,7 @@
+ #include "libcamera/internal/framebuffer.h"
+ #include "libcamera/internal/global_configuration.h"
+ #include "libcamera/internal/mapped_framebuffer.h"
++#include "libcamera/internal/software_isp/quad_bayer.h"
+ 
+ namespace libcamera {
+ 
+@@ -50,6 +51,7 @@
+ 	void memcpyNextLine(const uint8_t *linePointers[]);
+ 	void process2(uint32_t frame, const uint8_t *src, uint8_t *dst);
+ 	void process4(uint32_t frame, const uint8_t *src, uint8_t *dst);
++	void processNativeQuad(const uint8_t *src, uint8_t *dst);
+ 
+ 	/* Max. supported Bayer pattern height is 4, debayering this requires 5 lines */
+ 	static constexpr unsigned int kMaxLineBuffers = 5;
+@@ -63,6 +65,7 @@
+ 	unsigned int lineBufferIndex_;
+ 	std::vector<uint8_t> lineBuffers_[kMaxLineBuffers];
+ 	bool enableInputMemcpy_;
++	NativeQuadBayer::Workspace nativeQuadWorkspace_;
+ };
+ 
+ /**
+@@ -92,8 +95,8 @@
+  * \param[in] stats Pointer to the stats object to use
+  * \param[in] cm The camera manager
+  */
+-DebayerCpu::DebayerCpu(std::unique_ptr<SwStatsCpu> stats, const CameraManager &cm)
+-	: Debayer(cm), stats_(std::move(stats))
++DebayerCpu::DebayerCpu(std::unique_ptr<SwStatsCpu> stats, const CameraManager &cm, bool imx471)
++	: Debayer(cm), imx471_(imx471), stats_(std::move(stats))
+ {
+ 	/*
+ 	 * Reading from uncached buffers may be very slow.
+@@ -109,6 +112,10 @@
+ 	const GlobalConfiguration &configuration = cm._d()->configuration();
+ 	bool enableInputMemcpy =
+ 		configuration.option<bool>({ "software_isp", "copy_input_buffer" }).value_or(true);
++
++	/* Private board experiment: the fourcc does not describe a 4x4 CFA. */
++	nativeQuadEnabled_ = configuration.option<bool>(
++		{ "software_isp", "experimental_imx471_native_quad" }).value_or(false);
+ 
+ 	unsigned int threadCount =
+ 		configuration.option<unsigned int>({ "software_isp", "threads" }).value_or(kDefaultThreads);
+@@ -643,12 +650,19 @@
+ 			  const std::vector<std::reference_wrapper<const StreamConfiguration>> &outputCfgs,
+ 			  bool ccmEnabled)
+ {
++	nativeQuad_ = imx471_ && inputCfg.size == Size(4608, 3456);
++	if (nativeQuad_ && !nativeQuadEnabled_)
++		return -EINVAL;
++	inputSize_ = inputCfg.size;
+ 	if (getInputConfig(inputCfg.pixelFormat, inputConfig_) != 0) {
+ 		LOG(Debayer, Error)
+ 			<< "Unsupported input format " << inputCfg.pixelFormat;
+ 		return -EINVAL;
+ 	}
+ 
++	stats_->setQuadBayer(nativeQuad_);
++	if (nativeQuad_)
++		inputConfig_.patternSize = { 4, 4 };
+ 	if (stats_->configure(inputCfg, threads_.size()) != 0)
+ 		return -EINVAL;
+ 
+@@ -683,11 +697,27 @@
+ 		return -EINVAL;
+ 	}
+ 
+-	int ret = setDebayerFunctions(inputCfg.pixelFormat,
+-				      outputCfg.pixelFormat,
+-				      ccmEnabled);
+-	if (ret != 0)
+-		return -EINVAL;
++	if (nativeQuad_) {
++		const BayerFormat bayer = BayerFormat::fromPixelFormat(inputCfg.pixelFormat);
++		const Point shift = quadBayerOrderShifts(bayer.order);
++		if (!isQuadBayerInputFormatSupported(inputCfg.pixelFormat) ||
++		    !nativeQuadDecoder_.configure(inputCfg.size.width, inputCfg.size.height,
++					 inputCfg.stride, shift.x / 2, shift.y / 2) ||
++		    getOutputConfig(outputCfg.pixelFormat, outputConfig_) != 0)
++			return -EINVAL;
++		std::tie(outputConfig_.stride, outputConfig_.frameSize) =
++			strideAndFrameSize(outputCfg.pixelFormat, outputCfg.size);
++		nativeQuadAlpha_ = outputConfig_.bpp == 32;
++		nativeQuadBgr_ = outputCfg.pixelFormat == formats::RGB888 ||
++				 outputCfg.pixelFormat == formats::XRGB8888 ||
++				 outputCfg.pixelFormat == formats::ARGB8888;
++		swapRedBlueGains_ = false;
++	} else {
++		int ret = setDebayerFunctions(inputCfg.pixelFormat,
++					      outputCfg.pixelFormat, ccmEnabled);
++		if (ret != 0)
++			return -EINVAL;
++	}
+ 
+ 	ccmEnabled_ = ccmEnabled;
+ 
+@@ -844,21 +874,55 @@
+ {
+ 	Rectangle &window = debayer_->window_;
+ 
+-	/* Adjust src to top left corner of the window */
+-	src += (window.y + yStart_) * debayer_->inputConfig_.stride +
+-	       window.x * debayer_->inputConfig_.bpp / 8;
+-	/* Adjust dst for yStart_ */
+-	dst += yStart_ * debayer_->outputConfig_.stride;
+-
+-	if (debayer_->inputConfig_.patternSize.height == 2)
+-		process2(frame, src, dst);
+-	else
+-		process4(frame, src, dst);
++	if (debayer_->nativeQuad_) {
++		processNativeQuad(src, dst);
++	} else {
++		/* Adjust src to top left corner of the window */
++		src += (window.y + yStart_) * debayer_->inputConfig_.stride +
++		       window.x * debayer_->inputConfig_.bpp / 8;
++		/* Adjust dst for yStart_ */
++		dst += yStart_ * debayer_->outputConfig_.stride;
++
++		if (debayer_->inputConfig_.patternSize.height == 2)
++			process2(frame, src, dst);
++		else
++			process4(frame, src, dst);
++
++	}
+ 
+ 	debayer_->workPendingMutex_.lock();
+ 	debayer_->workPending_ &= ~(1 << threadIndex_);
+ 	debayer_->workPendingMutex_.unlock();
+ 	debayer_->workPendingCv_.notify_one();
++}
++
++void DebayerCpuThread::processNativeQuad(const uint8_t *src, uint8_t *dst)
++{
++	auto *d = debayer_;
++	d->nativeQuadDecoder_.processRows(src, size_t(d->inputConfig_.stride) * d->inputSize_.height,
++		yStart_, yEnd_, nativeQuadWorkspace_, [&](unsigned int x, unsigned int y, auto rgb) {
++			uint8_t r, g, b;
++			if (d->ccmEnabled_) {
++				const auto &red = d->redCcm_[rgb[0] >> 2];
++				const auto &green = d->greenCcm_[rgb[1] >> 2];
++				const auto &blue = d->blueCcm_[rgb[2] >> 2];
++				auto gamma = [&](int value) { return d->gammaLut_[std::clamp(value, 0, 255)]; };
++				r = gamma(red.r + green.r + blue.r);
++				g = gamma(red.g + green.g + blue.g);
++				b = gamma(red.b + green.b + blue.b);
++			} else {
++				r = d->red_[rgb[0] >> 2];
++				g = d->green_[rgb[1] >> 2];
++				b = d->blue_[rgb[2] >> 2];
++			}
++			uint8_t *pixel = dst + size_t(y) * d->outputConfig_.stride +
++					size_t(x) * (d->nativeQuadAlpha_ ? 4 : 3);
++			pixel[0] = d->nativeQuadBgr_ ? b : r;
++			pixel[1] = g;
++			pixel[2] = d->nativeQuadBgr_ ? r : b;
++			if (d->nativeQuadAlpha_)
++				pixel[3] = 255;
++		});
+ }
+ 
+ void DebayerCpuThread::process2(uint32_t frame, const uint8_t *src, uint8_t *dst)
+@@ -1092,7 +1156,17 @@
+ 		return;
+ 	}
+ 
+-	stats_->startFrame(frame);
++	if (nativeQuad_ &&
++	    (in.planes()[0].size() < size_t(inputConfig_.stride) * inputSize_.height ||
++	     out.planes()[0].size() < outputConfig_.frameSize)) {
++		metadata.status = FrameMetadata::FrameError;
++		dmaSyncers.clear();
++		outputBufferReady.emit(output);
++		inputBufferReady.emit(input);
++		return;
++	}
++	if (!nativeQuad_)
++		stats_->startFrame(frame);
+ 
+ 	workPendingMutex_.lock();
+ 	workPending_ = (1 << threads_.size()) - 1;
+@@ -1110,7 +1184,10 @@
+ 		});
+ 	}
+ 
+-	metadata.planes()[0].bytesused = out.planes()[0].size();
++	if (nativeQuad_)
++		stats_->processFrame(frame, 0, in);
++
++	metadata.planes()[0].bytesused = nativeQuad_ ? outputConfig_.frameSize : out.planes()[0].size();
+ 
+ 	dmaSyncers.clear();
+ 
+@@ -1122,7 +1199,8 @@
+ 	 *
+ 	 * \todo Pass real bufferId once stats buffer passing is changed.
+ 	 */
+-	stats_->finishFrame(frame, 0);
++	if (!nativeQuad_)
++		stats_->finishFrame(frame, 0);
+ 	outputBufferReady.emit(output);
+ 	inputBufferReady.emit(input);
+ }
+@@ -1146,6 +1224,11 @@
+ 
+ SizeRange DebayerCpu::sizes(PixelFormat inputFormat, const Size &inputSize)
+ {
++	if (imx471_ && inputSize == Size(4608, 3456)) {
++		if (!nativeQuadEnabled_ || !isQuadBayerInputFormatSupported(inputFormat))
++			return {};
++		return SizeRange(inputSize);
++	}
+ 	Size patternSize = this->patternSize(inputFormat);
+ 	unsigned int borderHeight = patternSize.height;
+ 
+--- a/src/libcamera/software_isp/debayer_cpu.h
++++ b/src/libcamera/software_isp/debayer_cpu.h
+@@ -25,6 +25,7 @@
+ #include "libcamera/internal/software_isp/swstats_cpu.h"
+ 
+ #include "debayer.h"
++#include "native_quad_bayer.h"
+ 
+ namespace libcamera {
+ 
+@@ -32,7 +33,7 @@
+ class DebayerCpu : public Debayer
+ {
+ public:
+-	DebayerCpu(std::unique_ptr<SwStatsCpu> stats, const CameraManager &cm);
++	DebayerCpu(std::unique_ptr<SwStatsCpu> stats, const CameraManager &cm, bool imx471 = false);
+ 	~DebayerCpu();
+ 
+ 	int configure(const StreamConfiguration &inputCfg,
+@@ -149,6 +150,15 @@
+ 	bool ccmEnabled_;
+ 	DebayerParams params_;
+ 
++
++	bool imx471_;
++	bool nativeQuadEnabled_ = false;
++	bool nativeQuad_ = false;
++	bool nativeQuadAlpha_ = false;
++	bool nativeQuadBgr_ = false;
++	NativeQuadBayer nativeQuadDecoder_;
++	Size inputSize_;
++
+ 	debayerFn debayer0_;
+ 	debayerFn debayer1_;
+ 	debayerFn debayer2_;
+--- a/src/libcamera/software_isp/native_quad_bayer.h
++++ b/src/libcamera/software_isp/native_quad_bayer.h
+@@ -0,0 +1,181 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++/* Copyright (C) 2026 Samurai Linux contributors */
++
++#pragma once
++
++#include <array>
++#include <cstddef>
++#include <cstdint>
++#include <limits>
++#include <vector>
++
++namespace libcamera {
++
++/*
++ * Experimental, native-size Quad Bayer interpolation, not a cell-collapse
++ * filter. The caller must establish the active mode's physical CFA layout;
++ * an ordinary Bayer fourcc alone does not provide that information.
++ *
++ * Input: CSI-2 RAW10, four samples per five bytes, 4x4 repeating CFA.
++ * Output: one RGB10 triplet for EACH physical input pixel. The measured
++ * channel is copied exactly; only the two absent channels are interpolated.
++ * At an edge use the closest valid sample of the required colour, never a
++ * reflected/clamped sample of a different colour. No image-quality claim is
++ * made for this simple bilinear baseline (in particular colour aliasing).
++ */
++class NativeQuadBayer
++{
++public:
++	struct Workspace {
++		std::array<std::vector<uint16_t>, 5> rows;
++		std::array<int64_t, 5> tags = { -1, -1, -1, -1, -1 };
++
++		void reset(unsigned int width)
++		{
++			for (auto &row : rows)
++				row.resize(width);
++			tags.fill(-1);
++		}
++	};
++
++	bool configure(unsigned int width, unsigned int height,
++		       unsigned int stride, unsigned int redCellX,
++		       unsigned int redCellY)
++	{
++		valid_ = false;
++		if (width < 4 || height < 4 || width % 4 || height % 4 ||
++		    redCellX > 1 || redCellY > 1 ||
++		    width > std::numeric_limits<unsigned int>::max() / 5 ||
++		    stride < width / 4 * 5 ||
++		    height > std::numeric_limits<size_t>::max() / stride)
++			return false;
++
++		width_ = width;
++		height_ = height;
++		stride_ = stride;
++		redCellX_ = redCellX;
++		redCellY_ = redCellY;
++		for (unsigned int cell = 0; cell < 2; cell++) {
++			xAxes_[cell].resize(width);
++			yAxes_[cell].resize(height);
++			for (unsigned int x = 0; x < width; x++)
++				xAxes_[cell][x] = axis(x, width, cell);
++			for (unsigned int y = 0; y < height; y++)
++				yAxes_[cell][y] = axis(y, height, cell);
++		}
++		valid_ = true;
++		return true;
++	}
++
++	/* Sink: void(unsigned int x, unsigned int y, array<uint16_t, 3> rgb). */
++	template<typename Sink>
++	bool processRows(const uint8_t *input, size_t inputBytes,
++			 unsigned int firstRow, unsigned int lastRow,
++			 Workspace &work, Sink sink) const
++	{
++		if (!valid_ || !input || inputBytes < size_t(stride_) * height_ ||
++		    firstRow > lastRow || lastRow > height_)
++			return false;
++
++		work.reset(width_);
++		for (unsigned int y = firstRow; y < lastRow; y++) {
++			const unsigned int begin = y > 1 ? y - 2 : 0;
++			const unsigned int end = y < height_ - 2 ? y + 2 : height_ - 1;
++			for (unsigned int row = begin; row <= end; row++) {
++				const unsigned int slot = row % work.rows.size();
++				if (work.tags[slot] == row)
++					continue;
++				unpack(input + size_t(row) * stride_, work.rows[slot]);
++				work.tags[slot] = row;
++			}
++
++			auto sample = [&](unsigned int x, unsigned int row) -> uint16_t {
++				return work.rows[row % work.rows.size()][x];
++			};
++			for (unsigned int x = 0; x < width_; x++) {
++				std::array<uint16_t, 3> rgb;
++				rgb[0] = interpolate(sample, xAxes_[redCellX_][x],
++						     yAxes_[redCellY_][y]);
++				rgb[2] = interpolate(sample, xAxes_[1 - redCellX_][x],
++						     yAxes_[1 - redCellY_][y]);
++				const unsigned int cellX = (x / 2) % 2;
++				const unsigned int cellY = (y / 2) % 2;
++				if ((cellX == redCellX_) != (cellY == redCellY_)) {
++					rgb[1] = sample(x, y);
++				} else {
++					const Axis &horizontal = xAxes_[1 - cellX][x];
++					const Axis &vertical = yAxes_[1 - cellY][y];
++					const unsigned int h =
++						sample(horizontal.lo, y) * horizontal.loWeight +
++						sample(horizontal.hi, y) * horizontal.hiWeight;
++					const unsigned int v =
++						sample(x, vertical.lo) * vertical.loWeight +
++						sample(x, vertical.hi) * vertical.hiWeight;
++					const unsigned int divisor =
++						2 * horizontal.divisor * vertical.divisor;
++					rgb[1] = (h * vertical.divisor +
++						  v * horizontal.divisor + divisor / 2) / divisor;
++				}
++				sink(x, y, rgb);
++			}
++		}
++		return true;
++	}
++
++private:
++	struct Axis {
++		unsigned int lo;
++		unsigned int hi;
++		unsigned int loWeight;
++		unsigned int hiWeight;
++		unsigned int divisor;
++	};
++
++	static Axis axis(unsigned int coordinate, unsigned int extent, unsigned int cell)
++	{
++		if ((coordinate / 2) % 2 == cell)
++			return { coordinate, coordinate, 1, 0, 1 };
++		const int64_t lo = int64_t(coordinate & ~1U) - 1;
++		const unsigned int hi = (coordinate & ~1U) + 2;
++		if (lo < 0)
++			return { hi, hi, 1, 0, 1 };
++		if (hi >= extent)
++			return { unsigned(lo), unsigned(lo), 1, 0, 1 };
++		return { unsigned(lo), hi, hi - coordinate,
++			 coordinate - unsigned(lo), hi - unsigned(lo) };
++	}
++
++	template<typename Sample>
++	static uint16_t interpolate(Sample sample, const Axis &x, const Axis &y)
++	{
++		const unsigned int sum =
++			sample(x.lo, y.lo) * x.loWeight * y.loWeight +
++			sample(x.hi, y.lo) * x.hiWeight * y.loWeight +
++			sample(x.lo, y.hi) * x.loWeight * y.hiWeight +
++			sample(x.hi, y.hi) * x.hiWeight * y.hiWeight;
++		const unsigned int divisor = x.divisor * y.divisor;
++		return (sum + divisor / 2) / divisor;
++	}
++
++	static void unpack(const uint8_t *packed, std::vector<uint16_t> &row)
++	{
++		for (size_t x = 0; x < row.size(); x += 4, packed += 5) {
++			const unsigned int low = packed[4];
++			row[x] = (unsigned(packed[0]) << 2) | (low & 3);
++			row[x + 1] = (unsigned(packed[1]) << 2) | ((low >> 2) & 3);
++			row[x + 2] = (unsigned(packed[2]) << 2) | ((low >> 4) & 3);
++			row[x + 3] = (unsigned(packed[3]) << 2) | (low >> 6);
++		}
++	}
++
++	bool valid_ = false;
++	unsigned int width_ = 0;
++	unsigned int height_ = 0;
++	unsigned int stride_ = 0;
++	unsigned int redCellX_ = 0;
++	unsigned int redCellY_ = 0;
++	std::array<std::vector<Axis>, 2> xAxes_;
++	std::array<std::vector<Axis>, 2> yAxes_;
++};
++
++} /* namespace libcamera */
+--- a/src/libcamera/software_isp/software_isp.cpp
++++ b/src/libcamera/software_isp/software_isp.cpp
+@@ -24,6 +24,8 @@
+ #include <libcamera/stream.h>
+ 
+ #include "libcamera/internal/bayer_format.h"
++#include "libcamera/internal/camera_manager.h"
++#include "libcamera/internal/global_configuration.h"
+ #include "libcamera/internal/framebuffer.h"
+ #include "libcamera/internal/software_isp/debayer_params.h"
+ #include "libcamera/internal/software_isp/quad_bayer.h"
+@@ -41,6 +43,24 @@
+ namespace libcamera {
+ 
+ LOG_DEFINE_CATEGORY(SoftwareIsp)
++
++namespace {
++
++DmaBufAllocator::DmaBufAllocatorFlags softwareIspHeapFlags(PipelineHandler *pipe,
++							const CameraSensor *sensor)
++{
++	const GlobalConfiguration &configuration = pipe->cameraManager()->_d()->configuration();
++	if (sensor->model() == "imx471" && configuration.option<bool>(
++		    { "software_isp", "experimental_imx471_native_quad" }).value_or(false))
++		return DmaBufAllocator::DmaBufAllocatorFlag::SystemHeap;
++
++	return DmaBufAllocator::DmaBufAllocatorFlag::CmaHeap |
++	       DmaBufAllocator::DmaBufAllocatorFlag::SystemHeap |
++	       DmaBufAllocator::DmaBufAllocatorFlag::UDmaBuf;
++}
++
++} /* namespace */
++
+ 
+ /**
+  * \class SoftwareIsp
+@@ -83,9 +103,7 @@
+ SoftwareIsp::SoftwareIsp(PipelineHandler *pipe, const CameraSensor *sensor,
+ 			 ControlInfoMap *ipaControls)
+ 	: ispWorkerThread_("SWIspWorker"),
+-	  dmaHeap_(DmaBufAllocator::DmaBufAllocatorFlag::CmaHeap |
+-		   DmaBufAllocator::DmaBufAllocatorFlag::SystemHeap |
+-		   DmaBufAllocator::DmaBufAllocatorFlag::UDmaBuf)
++	  dmaHeap_(softwareIspHeapFlags(pipe, sensor))
+ {
+ 	if (!dmaHeap_.isValid()) {
+ 		LOG(SoftwareIsp, Error) << "Failed to create DmaBufAllocator object";
+@@ -100,6 +118,10 @@
+ 
+ 	const CameraManager &cm = *pipe->cameraManager();
+ 	const bool quadBayer = softwareIspNeedsCellCollapse(sensor->model());
++	imx471_ = sensor->model() == "imx471";
++	const GlobalConfiguration &nativeConfiguration = cm._d()->configuration();
++	[[maybe_unused]] const bool nativeQuadExperiment = imx471_ && nativeConfiguration.option<bool>(
++		{ "software_isp", "experimental_imx471_native_quad" }).value_or(false);
+ 
+ 	auto stats = std::make_unique<SwStatsCpu>(cm, quadBayer);
+ 	if (!stats->isValid()) {
+@@ -121,7 +143,11 @@
+ 		}
+ 	}
+ 
+-	if (!softISPMode || softISPMode == "gpu") {
++	if (nativeQuadExperiment && softISPMode == "gpu") {
++		LOG(SoftwareIsp, Error) << "Native Quad Bayer experiment requires CPU mode";
++		return;
++	}
++	if ((!softISPMode || softISPMode == "gpu") && !nativeQuadExperiment) {
+ 		if (eGL::isAvailable()) {
+ 			debayer_ = std::make_unique<DebayerEGL>(std::move(stats), cm, quadBayer);
+ 		} else {
+@@ -138,8 +164,10 @@
+ 		return;
+ 	}
+ 
+-	if (!debayer_)
+-		debayer_ = std::make_unique<DebayerCpu>(std::move(stats), cm);
++	if (!debayer_) {
++		debayer_ = std::make_unique<DebayerCpu>(std::move(stats), cm, imx471_);
++		nativeQuadCpu_ = true;
++	}
+ 
+ 	debayer_->inputBufferReady.connect(this, &SoftwareIsp::inputReady);
+ 	debayer_->outputBufferReady.connect(this, &SoftwareIsp::outputReady);
+@@ -252,6 +280,8 @@
+ {
+ 	ASSERT(debayer_);
+ 
++	if (imx471_ && inputSize == Size(4608, 3456) && !nativeQuadCpu_)
++		return {};
+ 	return debayer_->sizes(inputFormat, inputSize);
+ }
+ 
+@@ -297,6 +327,8 @@
+ {
+ 	ASSERT(ipa_ && debayer_);
+ 
++	if (imx471_ && inputCfg.size == Size(4608, 3456) && !nativeQuadCpu_)
++		return -EINVAL;
+ 	int ret = ipa_->configure(configInfo);
+ 	if (ret < 0)
+ 		return ret;
+--- a/test/meson.build
++++ b/test/meson.build
+@@ -52,6 +52,8 @@
+ internal_tests = [
+     {'name': 'bayer-format', 'sources': ['bayer-format.cpp']},
+     {'name': 'quad-bayer', 'sources': ['quad-bayer.cpp']},
++    {'name': 'native-quad', 'sources': ['native-quad.cpp'], 'dependencies': [libthreads]},
++    {'name': 'native-quad-cpu', 'sources': ['native-quad-cpu.cpp'], 'dependencies': [libthreads]},
+     {'name': 'byte-stream-buffer', 'sources': ['byte-stream-buffer.cpp']},
+     {'name': 'camera-sensor', 'sources': ['camera-sensor.cpp']},
+     {'name': 'delayed_controls', 'sources': ['delayed_controls.cpp']},
+--- a/test/native-quad-cpu.cpp
++++ b/test/native-quad-cpu.cpp
+@@ -0,0 +1,181 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#include "../src/libcamera/software_isp/debayer_cpu.h"
++#include "libcamera/internal/dma_buf_allocator.h"
++#include "libcamera/internal/framebuffer.h"
++#include "libcamera/internal/software_isp/swisp_stats.h"
++
++#include <libcamera/formats.h>
++#include <linux/dma-buf.h>
++#include <sys/ioctl.h>
++#include <sys/mman.h>
++#include <unistd.h>
++
++#include <algorithm>
++#include <chrono>
++#include <cstring>
++#include <iostream>
++#include <stdexcept>
++
++using namespace libcamera;
++
++static void require(bool value, const char *what)
++{
++	if (!value) throw std::runtime_error(what);
++}
++
++class Mapping
++{
++public:
++	Mapping(const FrameBuffer::Plane &plane, bool write)
++		: fd_(plane.fd.get()), length_(plane.length), write_(write)
++	{
++		dma_buf_sync sync{};
++		sync.flags = DMA_BUF_SYNC_START | (write_ ? DMA_BUF_SYNC_WRITE : DMA_BUF_SYNC_READ);
++		require(ioctl(fd_, DMA_BUF_IOCTL_SYNC, &sync) == 0, "dma sync start");
++		data_ = mmap(nullptr, length_, PROT_READ | (write_ ? PROT_WRITE : 0), MAP_SHARED, fd_, 0);
++		require(data_ != MAP_FAILED, "mmap");
++	}
++	~Mapping()
++	{
++		munmap(data_, length_);
++		dma_buf_sync sync{};
++		sync.flags = DMA_BUF_SYNC_END | (write_ ? DMA_BUF_SYNC_WRITE : DMA_BUF_SYNC_READ);
++		if (ioctl(fd_, DMA_BUF_IOCTL_SYNC, &sync)) std::terminate();
++	}
++
++	uint8_t *data() { return static_cast<uint8_t *>(data_); }
++private:
++	int fd_;
++	size_t length_;
++	bool write_;
++	void *data_;
++};
++
++int main(int argc, char **)
++try {
++	CameraManager cm; /* Deliberately do not enumerate or start any camera. */
++	auto stats = std::make_unique<SwStatsCpu>(cm);
++	require(stats->isValid(), "stats shared memory");
++	const int statsFd = stats->getStatsFD().get();
++	DebayerCpu debayer(std::move(stats), cm, true);
++	const Size full(4608, 3456);
++	if (argc == 1) {
++		require(debayer.sizes(formats::SRGGB10_CSI2P, full).max.isNull(), "full mode must be opt-in");
++		std::cout << "{\"default_full_mode_rejected\":true}\n";
++		return 0;
++	}
++	if (access("/dev/dma_heap/system", R_OK | W_OK)) return 77;
++	require(debayer.sizes(formats::SRGGB10_CSI2P, full).max == full, "native size retained");
++	DmaBufAllocator heap(DmaBufAllocator::DmaBufAllocatorFlag::SystemHeap);
++	require(heap.isValid(), "system heap");
++	std::vector<std::unique_ptr<FrameBuffer>> inputs, outputs;
++	const unsigned int rawBytes = 5760 * 3456;
++	const unsigned int outBytes = 4608 * 3456 * 4 + 4096;
++	require(heap.exportBuffers(4, { rawBytes }, &inputs) == 4, "four full RAW buffers");
++	require(heap.exportBuffers(4, { outBytes }, &outputs) == 4, "four full RGBA buffers");
++	const std::array<PixelFormat, 4> formatsIn = {
++		formats::SRGGB10_CSI2P, formats::SGRBG10_CSI2P,
++		formats::SGBRG10_CSI2P, formats::SBGGR10_CSI2P
++	};
++	const std::array<PixelFormat, 6> formatsOut = {
++		formats::RGB888, formats::BGR888, formats::XRGB8888,
++		formats::XBGR8888, formats::ARGB8888, formats::ABGR8888
++	};
++	unsigned int cases = 0;
++	uint64_t checked = 0;
++	auto run = [&](PixelFormat inputFormat, PixelFormat outputFormat,
++		       unsigned int rx, unsigned int ry, bool ccm, bool quad) {
++		StreamConfiguration input, output;
++		input.pixelFormat = inputFormat;
++		input.size = quad ? full : Size(24, 16);
++		input.stride = quad ? 5760 : 32;
++		input.bufferCount = 4;
++		output.pixelFormat = outputFormat;
++		output.size = quad ? full : Size(16, 16);
++		std::tie(output.stride, output.frameSize) = debayer.strideAndFrameSize(outputFormat, output.size);
++		output.bufferCount = 4;
++		require(debayer.configure(input, { std::cref(output) }, ccm) == 0, "configure CPU ISP");
++		if (quad) {
++			auto smaller = output;
++			smaller.size = Size(2304, 1728);
++			std::tie(smaller.stride, smaller.frameSize) = debayer.strideAndFrameSize(outputFormat, smaller.size);
++			require(debayer.configure(input, { std::cref(smaller) }, ccm) != 0, "no hidden half-size output");
++			require(debayer.configure(input, { std::cref(output) }, ccm) == 0, "reconfigure after rejection");
++		}
++		{
++			Mapping in(inputs[0]->planes()[0], true);
++			for (unsigned int y = 0; y < input.size.height; y++) {
++				uint8_t *row = in.data() + size_t(y) * input.stride;
++				for (unsigned int x = 0; x < input.size.width; x += 4) {
++					row[x / 4 * 5 + 4] = 0;
++					for (unsigned int i = 0; i < 4; i++) {
++						const bool redColumn = (((x + i) / (quad ? 2 : 1)) % 2) == rx;
++						const bool redRow = ((y / (quad ? 2 : 1)) % 2) == ry;
++						const uint16_t value = redColumn != redRow ? 512 : (redColumn ? 128 : 896);
++						row[x / 4 * 5 + i] = value >> 2;
++					}
++				}
++			}
++		}
++		{
++			Mapping out(outputs[0]->planes()[0], true);
++			std::memset(out.data(), 0xa5, outBytes);
++		}
++		DebayerParams parameters;
++		if (ccm)
++			parameters.combinedMatrix = { { 0.0, 0.0, 1.0,
++						       0.0, 1.0, 0.0,
++						       1.0, 0.0, 0.0 } };
++		auto &meta = inputs[0]->_d()->metadata();
++		meta.status = FrameMetadata::FrameSuccess;
++		meta.sequence = cases;
++		meta.timestamp = 123456 + cases;
++		meta.planes()[0].bytesused = input.stride * input.size.height;
++		require(debayer.start() == 0, "start CPU workers");
++		debayer.process(0, inputs[0].get(), outputs[0].get(), parameters);
++		debayer.stop();
++		require(outputs[0]->metadata().status == FrameMetadata::FrameSuccess, "CPU metadata success");
++		require(outputs[0]->metadata().sequence == meta.sequence &&
++			outputs[0]->metadata().timestamp == meta.timestamp, "metadata preserved");
++		if (quad)
++			require(outputs[0]->metadata().planes()[0].bytesused == output.frameSize, "actual output bytes used");
++		{
++			Mapping out(outputs[0]->planes()[0], false);
++			const bool bgr = outputFormat == formats::RGB888 || outputFormat == formats::XRGB8888 || outputFormat == formats::ARGB8888;
++			const unsigned int bpp = outputFormat == formats::RGB888 || outputFormat == formats::BGR888 ? 3 : 4;
++			for (unsigned int y = 0; y < output.size.height; y++)
++				for (unsigned int x = 0; x < output.size.width; x++) {
++					const uint8_t *pixel = out.data() + size_t(y) * output.stride + x * bpp;
++					const unsigned int red = ccm ? 223 : 31;
++					const unsigned int blue = ccm ? 31 : 223;
++					require(pixel[0] == (bgr ? blue : red) && pixel[1] == 127 && pixel[2] == (bgr ? red : blue), "RGB order/LUT/CCM/border");
++					if (bpp == 4) require(pixel[3] == 255, "alpha byte");
++					checked++;
++				}
++			require(out.data()[output.frameSize] == 0xa5 && out.data()[outBytes - 1] == 0xa5, "output guard bytes");
++		}
++		const auto *s = static_cast<SwIspStats *>(mmap(nullptr, sizeof(SwIspStats), PROT_READ, MAP_SHARED, statsFd, 0));
++		require(s != MAP_FAILED && s->valid && s->sum_.r() > 0 &&
++			s->sum_.g() == s->sum_.r() * 4 && s->sum_.b() == s->sum_.r() * 7, "quad/ordinary statistics");
++		munmap(const_cast<SwIspStats *>(s), sizeof(SwIspStats));
++		cases++;
++	};
++	const auto started = std::chrono::steady_clock::now();
++	for (unsigned int order = 0; order < formatsIn.size(); order++)
++		for (const auto &format : formatsOut)
++			for (bool ccm : { false, true })
++				run(formatsIn[order], format, order & 1, order >> 1, ccm, true);
++	/* Reuse the same object across full -> ordinary -> full configuration. */
++	run(formats::SRGGB10_CSI2P, formats::RGB888, 0, 0, false, false);
++	run(formats::SRGGB10_CSI2P, formats::BGR888, 0, 0, true, true);
++	std::cout << "{\"cpu_isp_cases\":" << cases << ",\"pixels_checked\":" << checked
++		  << ",\"four_raw_and_four_rgba_buffers_bytes\":" << uint64_t(4) * (rawBytes + outBytes)
++		  << ",\"all_four_orders_six_formats_ccm_on_off\":true,\"non_identity_ccm\":true,\"statistics_verified\":true"
++		  << ",\"full_ordinary_full_transition\":true,\"elapsed_seconds\":"
++		  << std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count()
++		  << ",\"passed\":true}\n";
++	return 0;
++} catch (const std::exception &e) {
++	std::cerr << e.what() << '\n';
++	return 1;
++}
+--- a/test/native-quad.cpp
++++ b/test/native-quad.cpp
+@@ -0,0 +1,201 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#include "../src/libcamera/software_isp/native_quad_bayer.h"
++
++#include <algorithm>
++#include <chrono>
++#include <cmath>
++#include <iostream>
++#include <random>
++#include <stdexcept>
++#include <string>
++#include <thread>
++
++using libcamera::NativeQuadBayer;
++using RGB = std::array<uint16_t, 3>;
++
++static void require(bool condition, const char *message)
++{
++	if (!condition)
++		throw std::runtime_error(message);
++}
++
++static unsigned int colour(unsigned int x, unsigned int y, unsigned int rx, unsigned int ry)
++{
++	if (((x / 2) % 2 == rx) != ((y / 2) % 2 == ry))
++		return 1;
++	return (x / 2) % 2 == rx ? 0 : 2;
++}
++
++static std::vector<uint8_t> pack(const std::vector<uint16_t> &raw, unsigned int w,
++				 unsigned int h, unsigned int stride)
++{
++	std::vector<uint8_t> bytes(size_t(h) * stride, 0xe7);
++	for (unsigned int y = 0; y < h; y++)
++		for (unsigned int x = 0; x < w; x++) {
++			const uint16_t v = raw[size_t(y) * w + x];
++			const size_t group = size_t(y) * stride + size_t(x / 4) * 5;
++			bytes[group + x % 4] = v >> 2;
++			const unsigned int shift = (x % 4) * 2;
++			bytes[group + 4] = (bytes[group + 4] & ~(3 << shift)) | ((v & 3) << shift);
++		}
++	return bytes;
++}
++
++/* Independent oracle: find nearest same-colour coordinates by scanning the
++ * complete axis, then use floating point interpolation, not production phase
++ * offsets, weights, row cache, or RAW unpacking. */
++static std::array<unsigned int, 2> bounds(unsigned int position, unsigned int n,
++					 unsigned int wanted)
++{
++	int before = -1, after = -1;
++	for (unsigned int i = 0; i < n; i++) {
++		if ((i / 2) % 2 != wanted)
++			continue;
++		if (i <= position)
++			before = i;
++		if (i >= position && after < 0)
++			after = i;
++	}
++	if (before < 0)
++		before = after;
++	if (after < 0)
++		after = before;
++	return { unsigned(before), unsigned(after) };
++}
++
++static double lerp(unsigned int x, std::array<unsigned int, 2> axis, double a, double b)
++{
++	if (axis[0] == axis[1])
++		return a;
++	const double t = double(x - axis[0]) / (axis[1] - axis[0]);
++	return a * (1 - t) + b * t;
++}
++
++static RGB expected(const std::vector<uint16_t> &raw, unsigned int w, unsigned int h,
++		    unsigned int x, unsigned int y, unsigned int rx, unsigned int ry)
++{
++	auto at = [&](unsigned int a, unsigned int b) { return raw[size_t(b) * w + a]; };
++	RGB rgb;
++	for (unsigned int c : { 0U, 2U }) {
++		const auto xx = bounds(x, w, c ? 1 - rx : rx);
++		const auto yy = bounds(y, h, c ? 1 - ry : ry);
++		const double top = lerp(x, xx, at(xx[0], yy[0]), at(xx[1], yy[0]));
++		const double bottom = lerp(x, xx, at(xx[0], yy[1]), at(xx[1], yy[1]));
++		rgb[c] = std::floor(lerp(y, yy, top, bottom) + 0.500000001);
++	}
++	if (colour(x, y, rx, ry) == 1) {
++		rgb[1] = at(x, y);
++	} else {
++		const auto xx = bounds(x, w, 1 - (x / 2) % 2);
++		const auto yy = bounds(y, h, 1 - (y / 2) % 2);
++		rgb[1] = std::floor((lerp(x, xx, at(xx[0], y), at(xx[1], y)) +
++				     lerp(y, yy, at(x, yy[0]), at(x, yy[1]))) / 2 + 0.500000001);
++	}
++	return rgb;
++}
++
++static size_t check(const std::vector<uint16_t> &raw, unsigned int w, unsigned int h,
++		    unsigned int rx, unsigned int ry, bool constant, bool affine)
++{
++	const unsigned int stride = w / 4 * 5 + 11; /* poison row padding */
++	const auto bytes = pack(raw, w, h, stride);
++	NativeQuadBayer decoder;
++	require(decoder.configure(w, h, stride, rx, ry), "configure valid");
++	NativeQuadBayer::Workspace work;
++	std::vector<RGB> output(size_t(w) * h, { 65535, 65535, 65535 });
++	std::vector<unsigned int> visits(output.size());
++	auto sink = [&](unsigned int x, unsigned int y, RGB rgb) {
++		require(x < w && y < h, "output coordinate");
++		output[size_t(y) * w + x] = rgb;
++		visits[size_t(y) * w + x]++;
++	};
++	/* Non-four-aligned partitions exercise every thread boundary phase. */
++	for (unsigned int y = 0; y < h;) {
++		const unsigned int end = std::min(h, y + 3);
++		require(decoder.processRows(bytes.data(), bytes.size(), y, end, work, sink), "process range");
++		y = end;
++	}
++	for (unsigned int y = 0; y < h; y++)
++		for (unsigned int x = 0; x < w; x++) {
++			const size_t i = size_t(y) * w + x;
++			require(visits[i] == 1, "each physical pixel exactly once");
++			require(output[i] == expected(raw, w, h, x, y, rx, ry), "independent oracle");
++			require(output[i][colour(x, y, rx, ry)] == raw[i], "measured channel/LSB lost");
++			if (constant)
++				require(output[i] == RGB({ 117, 527, 933 }), "constant colour, border/order");
++			if (affine && x >= 2 && x < w - 2 && y >= 2 && y < h - 2)
++				for (unsigned int c = 0; c < 3; c++)
++					require(output[i][c] == 100 + 200 * c + 2 * x + 3 * y, "affine plane");
++		}
++	bool called = false;
++	auto noSink = [&](unsigned int, unsigned int, RGB) { called = true; };
++	require(!decoder.processRows(bytes.data(), bytes.size() - 1, 0, h, work, noSink), "short input rejected");
++	require(!decoder.processRows(bytes.data(), bytes.size(), h, h + 1, work, noSink), "bad range rejected");
++	require(!called, "invalid input emitted pixels");
++	return output.size();
++}
++
++int main(int argc, char **argv)
++try {
++	std::mt19937 random(218);
++	size_t checked = 0, cases = 0;
++	NativeQuadBayer invalid;
++	require(!invalid.configure(0, 4, 5, 0, 0), "zero size");
++	require(!invalid.configure(6, 4, 10, 0, 0), "bad phase size");
++	require(!invalid.configure(4, 4, 4, 0, 0), "short stride");
++	require(!invalid.configure(4, 4, 5, 2, 0), "bad CFA order");
++	for (unsigned int rx = 0; rx < 2; rx++)
++		for (unsigned int ry = 0; ry < 2; ry++)
++			for (unsigned int w : { 4U, 8U, 12U, 20U, 28U })
++				for (unsigned int h : { 4U, 8U, 12U, 20U })
++					for (unsigned int pattern = 0; pattern < 5; pattern++) {
++						std::vector<uint16_t> raw(size_t(w) * h);
++						for (unsigned int y = 0; y < h; y++)
++							for (unsigned int x = 0; x < w; x++) {
++								const unsigned int c = colour(x, y, rx, ry);
++								uint16_t value = random() & 1023;
++								if (pattern == 0) value = RGB({ 117, 527, 933 })[c];
++								if (pattern == 1) value = 100 + 200 * c + 2 * x + 3 * y;
++								if (pattern == 2) value = (x + y) % 4; /* LSB only */
++								if (pattern == 3) value = (x == w / 2 && y == h / 2) ? 1023 : 0;
++								raw[size_t(y) * w + x] = value;
++							}
++						checked += check(raw, w, h, rx, ry, pattern == 0, pattern == 1);
++						cases++;
++					}
++	std::cout << "{\"cases\":" << cases << ",\"oracle_pixels\":" << checked
++		  << ",\"all_four_orders\":true,\"native_samples_exact\":true,\"padding_and_borders\":true";
++	if (argc > 1 && std::string(argv[1]) == "--full") {
++		const unsigned int w = 4608, h = 3456, stride = 5760;
++		std::vector<uint16_t> raw(size_t(w) * h);
++		for (size_t i = 0; i < raw.size(); i++) raw[i] = (i * 13 + i / w * 7) % 1024;
++		const auto bytes = pack(raw, w, h, stride);
++		NativeQuadBayer decoder;
++		require(decoder.configure(w, h, stride, 0, 0), "full configure");
++		std::vector<uint8_t> output(size_t(w) * h * 3);
++		std::vector<double> elapsed;
++		for (unsigned int iteration = 0; iteration < 3; iteration++) {
++			const auto start = std::chrono::steady_clock::now();
++			std::array<std::thread, 4> threads;
++			for (unsigned int i = 0; i < threads.size(); i++)
++				threads[i] = std::thread([&, i]() {
++					NativeQuadBayer::Workspace work;
++					require(decoder.processRows(bytes.data(), bytes.size(), i * h / 4, (i + 1) * h / 4,
++						work, [&](unsigned int x, unsigned int y, RGB rgb) {
++							require(rgb[colour(x, y, 0, 0)] == raw[size_t(y) * w + x], "full native sample");
++							for (unsigned int c = 0; c < 3; c++)
++								output[(size_t(y) * w + x) * 3 + c] = rgb[c] >> 2;
++						}), "full process");
++				});
++			for (auto &thread : threads) thread.join();
++			elapsed.push_back(std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count());
++		}
++		std::cout << ",\"full_size\":[4608,3456],\"full_output_bytes\":" << output.size()
++			  << ",\"four_thread_ms\":[" << elapsed[0] << ',' << elapsed[1] << ',' << elapsed[2] << ']';
++	}
++	std::cout << ",\"passed\":true}\n";
++	return 0;
++} catch (const std::exception &e) {
++	std::cerr << e.what() << '\n';
++	return 1;
++}

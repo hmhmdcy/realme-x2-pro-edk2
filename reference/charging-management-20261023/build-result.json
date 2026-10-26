@@ -1,0 +1,30 @@
+{
+  "command": [
+    "make",
+    "-C",
+    "/home/cy122/charging-management-20261023/kbuild",
+    "M=/home/cy122/charging-management-20261023/module",
+    "ARCH=arm64",
+    "CROSS_COMPILE=aarch64-linux-gnu-",
+    "W=1",
+    "-j4",
+    "modules"
+  ],
+  "module": "/home/cy122/charging-management-20261023/module/samurai-mp2650.ko",
+  "module_sha256": "f2c00331fae0c2c701eaae0d7adbbdb075899f3c9b16681552e4a9c10e5c1f7a",
+  "module_bytes": 125232,
+  "modinfo": "filename:       /home/cy122/charging-management-20261023/module/samurai-mp2650.ko\nlicense:        GPL\ndescription:    RMX1931 OEM-profile managed MP2650 charging candidate\nalias:          of:N*T*Crealme,samurai-mp2650-managedC*\nalias:          of:N*T*Crealme,samurai-mp2650-managed\nalias:          i2c:mp2650\ndepends:        \nname:           samurai_mp2650\nvermagic:       7.3.0-rc6-rmx1931-samurai-k363+ SMP preempt mod_unload aarch64\nparm:           control:Enable managed writes; default is shadow mode (bool)\nparm:           runtime_board:Use the observed RMX1931 board wiring without changing DT (bool)\n",
+  "build_log": "make: Entering directory '/home/cy122/charging-management-20261023/kbuild'\nmake[1]: Entering directory '/home/cy122/charging-management-20261023/module'\n  CC [M]  samurai-usb-input.o\n  MODPOST Module.symvers\n  LD [M]  samurai-usb-input.ko\nmake[1]: Leaving directory '/home/cy122/charging-management-20261023/module'\nmake: Leaving directory '/home/cy122/charging-management-20261023/kbuild'\n",
+  "phone_accessed": false,
+  "shared_build_written": false,
+  "input_observer": {
+    "path": "/home/cy122/charging-management-20261023/module/samurai-usb-input.ko",
+    "sha256": "7e1d95db91fc0b01393b2af350b41942fce3aa2eae261fda25453b275d69ea1f",
+    "modinfo": "filename:       /home/cy122/charging-management-20261023/module/samurai-usb-input.ko\nlicense:        GPL\ndescription:    RMX1931 read-only PM8150B USB input budget observer\nalias:          of:N*T*Crealme,rmx1931-usb-inputC*\nalias:          of:N*T*Crealme,rmx1931-usb-input\ndepends:        \nname:           samurai_usb_input\nvermagic:       7.3.0-rc6-rmx1931-samurai-k363+ SMP preempt mod_unload aarch64\nparm:           register_board:Create a PM8150B read-only input device using observed board wiring (bool)\n"
+  },
+  "protection_observer": {
+    "path": "/home/cy122/charging-management-20261023/module/samurai-gauge-protection.ko",
+    "sha256": "d495ad8c478ee96476664566d1f5c5797bbf14aa4ae66c30060db48aa3e13431",
+    "modinfo": "filename:       /home/cy122/charging-management-20261023/module/samurai-gauge-protection.ko\nlicense:        GPL\ndescription:    RMX1931 factory-family gauge protection status, no protection writes\nalias:          of:N*T*Crealme,samurai-gauge-protectionC*\nalias:          of:N*T*Crealme,samurai-gauge-protection\ndepends:        \nname:           samurai_gauge_protection\nvermagic:       7.3.0-rc6-rmx1931-samurai-k363+ SMP preempt mod_unload aarch64\nparm:           register_board:Create the RMX1931 observation device without changing DT (bool)\n"
+  }
+}

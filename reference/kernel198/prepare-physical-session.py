@@ -1,0 +1,8 @@
+from pathlib import Path
+ref=Path(__file__).resolve().parent;old=ref.parent/'kernel197'
+s=(old/'stage-live-tools.py').read_text().replace('k197','k198').replace("Path('/var/lib/samurai/k198-modules').mkdir(mode=0o700)","assert Path('/var/lib/samurai/k198-modules').is_dir() and not Path('/var/lib/samurai/k198-modules/manifest.json').exists()")
+(ref/'stage-live-tools.py').write_text(s)
+s=(old/'prepare-fixed-live-native.py').read_text().replace('k197','k198').replace('stage=197','stage=198').replace('k198-live-prepare-r3','k198-live-prepare-r1');(ref/'prepare-physical-live-native.py').write_text(s)
+s=(old/'build-live-overlay.py').read_text().replace('k197','k198').replace('stage=197','stage=198').replace('k198-live-prepare-r6','k198-live-prepare-r1');(ref/'build-live-overlay.py').write_text(s);(ref/'front-probe-overlay.dtso').write_bytes((old/'front-probe-overlay.dtso').read_bytes())
+s=(old/'capture-front-fixed-session.py').read_text().replace('k197','k198').replace('stage=197','stage=198').replace('k198-front-capture-r3','k198-front-capture-r1').replace('k198-live-prepare-r3','k198-live-prepare-r1').replace('cam-front-vdig-k198','cam-front-vdig-k196').replace('cam-front-vana-k198','cam-front-vana-k196').replace('k198-offline-tools','k197-offline-tools').replace('camss-module-build-validation.json','stock-low-module-build-validation.json').replace("stage/'qcom-camss.ko'","stage/'qcom-camss-stock-low.ko'").replace("['insmod',str(stage/'qcom-camss-stock-low.ko')]","['insmod',str(stage/'qcom-camss-stock-low.ko'),'clock_trace=1']")
+(ref/'capture-front-stock-low.py').write_text(s);print('Prepared stock-low physical IMX471 session')

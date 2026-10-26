@@ -1,0 +1,38 @@
+--- r7-restart-review.py
++++ r7-restart-transport-tail-review.py
+@@ -1,4 +1,4 @@
+-# REVIEW CANDIDATE ONLY. Fresh current-boot guard; no hot module replacement.
++# UNRUN TRANSPORT-TAIL REVIEW CANDIDATE. Never repeat the existing R7 transaction.
+ """One explicitly committed RESTART2 bootloader transition, followed by host reboot."""
+ from pathlib import Path
+ import ctypes,fcntl,json,mmap,os,struct,sys,time
+@@ -56,6 +56,8 @@
+ if sys.argv[3]=='--inspect':
+  print(json.dumps(dict(work='charging-r7-restart',current_boot_guard_pass=True,quiesce_pass=True,restart2_bootloader_expected=True,inspect_only=True,csr_not_read=True)),flush=True);raise SystemExit(0)
+ fd=os.open('/dev/mem',os.O_RDWR|os.O_SYNC);rootfd=None;frozen=False
++libc=ctypes.CDLL(None,use_errno=True);libc.syscall.restype=ctypes.c_long;libc.syscall.argtypes=[ctypes.c_long,ctypes.c_ulong,ctypes.c_ulong,ctypes.c_ulong,ctypes.c_void_p]
++command=ctypes.create_string_buffer(b'bootloader\0')
+ try:
+  with mmap.mmap(fd,4096,flags=mmap.MAP_SHARED,prot=mmap.PROT_READ|mmap.PROT_WRITE,offset=0x088e1000) as csr:
+   before=struct.unpack_from('<I',csr,0x14)[0];assert (before&255) in [0,1]
+@@ -63,15 +65,14 @@
+   with phase.open('x') as claim:json.dump(dict(transaction_id=meta['transaction_id'],boot_id=meta['boot_id'],state='claimed_once',request_count=1),claim)
+   os.sync()
+   fcntl.ioctl(rootfd,0xc0045877,0);frozen=True
+-  record=dict(work='charging-r7-restart',transaction_id=meta['transaction_id'],boot_id=meta['boot_id'],state='filesystem_frozen',restart2_bootloader=True,request_count=1);phase.write_text(json.dumps(record)+'\n')
++  record=dict(work='charging-r7-restart',transaction_id=meta['transaction_id'],boot_id=meta['boot_id'],state='filesystem_frozen_restart2_armed',restart2_bootloader=True,request_count=1);phase.write_text(json.dumps(record)+'\n')
+   print(json.dumps(record),flush=True);time.sleep(0.5)
+   Path('/sys/bus/platform/drivers/qcom_eud_com/unbind').write_text(device.name);assert not (device/'driver').exists()
+   struct.pack_into('<I',csr,0x14,0);assert struct.unpack_from('<I',csr,0x14)[0]&255==0
+-  record.update(state='before_single_restart2_bootloader',eud_console_unbound=True,eud_disable_readback=True);phase.write_text(json.dumps(record)+'\n');print(json.dumps(record),flush=True)
+- libc=ctypes.CDLL(None,use_errno=True);libc.syscall.restype=ctypes.c_long;libc.syscall.argtypes=[ctypes.c_long,ctypes.c_ulong,ctypes.c_ulong,ctypes.c_ulong,ctypes.c_void_p]
+- command=ctypes.create_string_buffer(b'bootloader\0')
+- time.sleep(0.5);result=libc.syscall(142,0xfee1dead,672274793,0xa1b2c3d4,ctypes.cast(command,ctypes.c_void_p))
+- raise RuntimeError('Restart2 bootloader returned: '+str((result,ctypes.get_errno())))
++  # After retirement, transport output, JSON writes, sleep and mmap close
++  # must not stand between the confirmed CSR readback and this one syscall.
++  result=libc.syscall(142,0xfee1dead,672274793,0xa1b2c3d4,ctypes.cast(command,ctypes.c_void_p))
++  raise RuntimeError('Restart2 bootloader returned: '+str((result,ctypes.get_errno())))
+ except Exception:
+  if frozen:fcntl.ioctl(rootfd,0xc0045878,0)
+  raise

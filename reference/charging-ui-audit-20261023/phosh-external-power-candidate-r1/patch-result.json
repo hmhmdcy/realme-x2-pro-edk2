@@ -1,0 +1,49 @@
+{
+  "passed": true,
+  "regenerated_five_files_and_patch_byte_equal": true,
+  "actual_patch_dry_run_and_apply": [
+    {
+      "stage": "dry-run",
+      "argv": [
+        "wsl.exe",
+        "-d",
+        "Ubuntu",
+        "-u",
+        "root",
+        "--",
+        "patch",
+        "--dry-run",
+        "--batch",
+        "-p1",
+        "-d",
+        "/mnt/e/edk2-samurai-out/charging-ui-audit-20261023/phosh-external-power-source-proof-01/apply",
+        "-i",
+        "/mnt/e/RealmeX2Pro edk2/reference/charging-ui-audit-20261023/phosh-external-power-candidate-r1/external-power-marker.patch"
+      ],
+      "returncode": 0
+    },
+    {
+      "stage": "apply",
+      "argv": [
+        "wsl.exe",
+        "-d",
+        "Ubuntu",
+        "-u",
+        "root",
+        "--",
+        "patch",
+        "--batch",
+        "-p1",
+        "-d",
+        "/mnt/e/edk2-samurai-out/charging-ui-audit-20261023/phosh-external-power-source-proof-01/apply",
+        "-i",
+        "/mnt/e/RealmeX2Pro edk2/reference/charging-ui-audit-20261023/phosh-external-power-candidate-r1/external-power-marker.patch"
+      ],
+      "returncode": 0
+    }
+  ],
+  "patch_sha256": "8951cb77d0deebef50a792139c5806074cd3aaf7f0966147a2c35595dc45ea8b",
+  "all_applied_candidate_hashes_exact": true,
+  "only_new_private_directory_written": true,
+  "full_Phosh_build_or_device": false
+}

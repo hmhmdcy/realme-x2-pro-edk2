@@ -1,0 +1,23 @@
+{
+  "sha256": {
+    "driver": "e25d7fe215cab2ff842bdc3aa3bdf644d8f1701ecd27ea694fe43f848f5f5066",
+    "Image": "5565d69447afa60d18aab045030b3ccedb1188daa9022bb379d8a6e38ef9117d",
+    "DTB": "68001bab92e8611373200f2928d1d83ef5256890528df59dea92c72c1900756e",
+    "config": "863178c0810704b4d327c7e34375aa73ea2c8cc6c2ee09ee8aa34b7209b598f3",
+    "init": "e9c7c2da0f93509565a36c182b3b39d928ddcba0317ee9d76469317e6b9135ab",
+    "busybox": "999cb969d09093a71716cfc747bb53cdada3f332c05eb5046c56e0f66a4d6d22",
+    "pyusb_libusb1_backend": "0c86fc30235ce1d762ae14721e19a5efcadd8eea7d94771d4767d9b099ffba60"
+  },
+  "kernel_revision": "e42788eafb0bb9d8dfce319c71ca54c5207b2295",
+  "primary_urls": [
+    "https://docs.kernel.org/usb/usbmon.html",
+    "https://github.com/torvalds/linux/blob/master/Documentation/driver-api/serial/driver.rst",
+    "https://github.com/quic/eud"
+  ],
+  "preempt_rt_enabled": false,
+  "source_notes": [
+    "RX51 audit of unchanged printk core and whole-record console locking still applies.",
+    "Current 8250 console code protects its write and relies on UART-specific retained RX status; it supplies no EUD FIFO proof.",
+    "Only USB observer changed between captures; current driver, kernel, DTB, init and installed terminal are unchanged."
+  ]
+}

@@ -1,0 +1,177 @@
+{
+  "schema": "samurai-gauge-2719-saved-identity-evidence-v1",
+  "passed": true,
+  "device_type": {
+    "value": "0x2719",
+    "legacy_word": "0xffa5",
+    "full_frame_sha256": "b1da0db133ac6f3b8bcacd4ba553ee42d5a53ae65d1c87a1b8316806a841dec8",
+    "payload_le_hex": "1927"
+  },
+  "firmware": {
+    "schema": "samurai-saved-gauge-firmware-fingerprint-v1",
+    "command": 2,
+    "complete_frame_valid": true,
+    "frame_sha256": "42553d96dcd768445ac244d4d6a2e006552c1984ecb4c07f43aa244a120efffb",
+    "payload_sha256": "c6402f7a140bc94c5e3b0d7cbd54b4e7d9ce8d06bd164358293baf3c09f8bb59",
+    "payload_hex": "2719000400060003850200",
+    "payload_bytes": 11,
+    "length_byte": 15,
+    "historical_payload_match": true,
+    "standard_layout_raw_slices_unconfirmed": {
+      "device_number": "2719",
+      "version": "0004",
+      "build_number": "0006",
+      "firmware_type": "00",
+      "impedance_track_version": "0385",
+      "reserved_rr": "02",
+      "reserved_ee": "00"
+    },
+    "exact_model": null,
+    "firmware_fields_semantically_verified": false,
+    "new_mac_compatibility_verified": false,
+    "tca_mapping_verified": false,
+    "new_mac_query_authorized": false,
+    "device_accessed": false
+  },
+  "identical_historical_firmware_frames": 2,
+  "byte_order_observation": {
+    "device_type_payload": "1927",
+    "firmware_first_two_bytes": "2719",
+    "using_generic_le16_on_firmware_prefix_would_yield": "0x1927",
+    "exact_firmware_word_byte_order_confirmed": false
+  },
+  "field_layout_source": {
+    "url": "https://www.ti.com/lit/pdf/sluua65",
+    "document": "SLUUA65E June2023",
+    "section": "12.2.2",
+    "printed_page": 76,
+    "text_lines": [
+      3286,
+      3298
+    ],
+    "token": "ddDDvvVVbbBBTTzzZZRREE",
+    "firmware_type_prose": "ttTT",
+    "interpretation": "raw fixed slices only; TT token is one byte while prose is inconsistent; no invented semantic conversion"
+  },
+  "oem": {
+    "repository": "realme-kernel-opensource/realmeX2pro-X3-AndroidR-kernel-source",
+    "commit": "23172a1571bd91156032cc9fef16284a82b63d2c",
+    "source_lines": {
+      "oem_legacy_hw_config": 1545,
+      "oem_legacy_fw_read": 1572,
+      "oem_FFA5_current_override": 1590,
+      "oem_family_dt_read": 1603
+    },
+    "dts_gauge_lines": [
+      422,
+      429
+    ],
+    "legacy_FFA5_is_catalog_model_mapping": false,
+    "exact_2719_mapping_in_inspected_gauge_source": false,
+    "firmware_loader_calls_in_inspected_gauge_source": {
+      "request_firmware": 0,
+      "MODULE_FIRMWARE": 0
+    },
+    "whole_repository_or_vendor_firmware_inventory_proven": false,
+    "directory_listing_attempt": {
+      "url": "https://api.github.com/repos/realme-kernel-opensource/realmeX2pro-X3-AndroidR-kernel-source/contents/drivers/power/oppo/gauge_ic?ref=23172a1571bd91156032cc9fef16284a82b63d2c",
+      "error": "<HTTPError 403: 'rate limit exceeded'>"
+    }
+  },
+  "new_primary_constraint": {
+    "url": "https://www.ti.com/tool/BQ28Z610-DEVICE-FW",
+    "release": "R1B",
+    "hardware_incompatibility_explicit": true,
+    "applies_to_current_2719_hardware": null,
+    "current_hardware_class_identified": false,
+    "action": "do not substitute the public R1B firmware or its device configuration for this unknown pack",
+    "firmware_downloaded": false
+  },
+  "command_formats": {
+    "source": "standard BQ28Z610 SLUUA65E, not exact2719 proof",
+    "commands": {
+      "0050": {
+        "name": "SafetyAlert",
+        "payload": 4,
+        "length": 8,
+        "section": "12.2.26"
+      },
+      "0052": {
+        "name": "PFAlert",
+        "payload": 4,
+        "length": 8,
+        "section": "12.2.28"
+      },
+      "0056": {
+        "name": "GaugingStatus",
+        "payload": 4,
+        "length": 8,
+        "fourth_byte_reserved": true,
+        "section": "12.2.32"
+      }
+    },
+    "exact_2719_response_formats_confirmed": false,
+    "exact_2719_new_bits_confirmed": false
+  },
+  "next_action": {
+    "repeat_0002_device_query_needed": false,
+    "exact_model_or_OEM_firmware_descriptor_required": "match2719 plus full11-byte fingerprint; obtain exact firmware command/bit schema before new0050/52/56 query",
+    "new_queries_authorized": false,
+    "no_existing_Health_TCA_Full_or_whitelist_change": true
+  },
+  "inputs": {
+    "firmware_80": {
+      "path": "E:\\edk2-samurai-out\\kernel80\\firmware-version.txt",
+      "sha256": "7bdf619c59e1c79202bec4ea4012e0dbeb0d44106f74710c4c99e73ea863fc53",
+      "bytes": 202
+    },
+    "firmware_85": {
+      "path": "E:\\edk2-samurai-out\\kernel85\\chemistry-query.txt",
+      "sha256": "572ab13398aa75525baf9d54fe3e08f24006fd25f2bd84f68eed6e76655f725b",
+      "bytes": 696
+    },
+    "paired_identity": {
+      "path": "E:\\edk2-samurai-out\\kernel80\\paired-identity.txt",
+      "sha256": "3fc9015a42a804640976fdd904704cd5cc7ae9a53d8185beca6f0415df0cb765",
+      "bytes": 323
+    },
+    "oem_gauge": {
+      "path": "E:\\edk2-samurai-out\\kernel83\\realme-kernel-opensource--realmeX2pro-X3-AndroidR-kernel-source--drivers--power--oppo--gauge_ic--oplus_bq27541.c",
+      "sha256": "0c4640c85570f1a83ea8db3e82a63d75d9fc2650c71fbbb8c247e471c10b7a87",
+      "bytes": 87224
+    },
+    "oem_header": {
+      "path": "E:\\edk2-samurai-out\\kernel85\\official-oplus_bq27541.h",
+      "sha256": "58c68c362fc031eb73884a59e121ba25918e6728b37572df4116f8e1277e270e",
+      "bytes": 13149
+    },
+    "board_dts": {
+      "path": "E:\\edk2-samurai-out\\kernel83\\realme-kernel-opensource--realmeX2pro-X3-AndroidR-kernel-source--arch--arm64--boot--dts--19781--sm8150-pmic-overlay.dtsi",
+      "sha256": "f2f12882b42c1a5f7440d120b56ed38ee0ac2cb15fada2c6a0c3352f4c6f91e7",
+      "bytes": 12614
+    },
+    "trm_text": {
+      "path": "E:\\edk2-samurai-out\\charging-management-20261023\\ti-manual-private.txt",
+      "sha256": "c5cfb494ed5dad0311a13f134702be09cd137ed2c4478b10143eab0c760327fc",
+      "bytes": 338823
+    },
+    "oem_makefile": {
+      "path": "E:\\edk2-samurai-out\\kernel83\\realme-kernel-opensource--realmeX2pro-X3-AndroidR-kernel-source--drivers--power--oppo--gauge_ic--Makefile",
+      "sha256": "265fa96672a90755dd937ff3121e5671fcf546ff58270a8e2959bb52fbaf22d3",
+      "bytes": 95
+    },
+    "ti_family_html": {
+      "path": "E:\\edk2-samurai-out\\charging-management-20261023\\gauge-2719-identity-evidence-private-01\\ti-firmware-family-private.html",
+      "sha256": "3f3cf15d05fce2bd02281a28b652ec67532b304b8a23fbe3e343f9787c5972fc",
+      "bytes": 224080
+    },
+    "github_directory_error": {
+      "path": "E:\\edk2-samurai-out\\charging-management-20261023\\gauge-2719-identity-evidence-private-01\\official-gauge-directory-error.json",
+      "sha256": "bca64c559fe212d7803d2243308826ecbd8a590ace4d24b15805307beaa023de",
+      "bytes": 237
+    }
+  },
+  "device_accessed": false,
+  "firmware_downloaded_or_written": false,
+  "module_or_Image_build_performed": false
+}

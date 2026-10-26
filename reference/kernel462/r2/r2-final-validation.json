@@ -1,0 +1,83 @@
+{
+  "stage": 462,
+  "revision": "r2",
+  "passed": true,
+  "deployable": false,
+  "files": {
+    "0001-mux-export-unmanaged-state-handles.patch": "e1a963db9ba0fe84ed9da102673225eb901414267c83cc56ba926efa68bdc86b",
+    "0002-media-imx471-retain-resource-holder.patch": "d6adc37953a6cc2c1bdd3c00675fee14e4c02a247799ecec6a8fbc9d2d73d3ef",
+    "README.md": "adc8503c8c285aba730f350d0193503c058b647b8dd6a5e773f392604bebf715",
+    "build-targets.py": "e188d511410d0b02b639f94b133f9f157212bad39e6fb24baafc8ace1d2f809c",
+    "check-holder-c.py": "73ea6cb5a5b256855bc15998bd7fe1af3a480a19339b35cbb91190a02969f502",
+    "check-mux-api.py": "b642797d793bed1e64e794fddf60b8f6460d8bd90dc0554107ef62cc81d8002f",
+    "finalize-r2.py": "7c0a93b50da7204ac656d3cc5af6f65843683dec01bedbd4231281823812e2cf",
+    "holder-c-validation.json": "2886aa4610ca4394f11526cc51a980c034d1f34459dd7c5de1ce3d7a7c8f35be",
+    "mux-api-validation.json": "0d373f28885c84b94153e8d0c251d64ff2100e55939bd4d878aa7770b456767b",
+    "prepare-holder.py": "c4cb5e91ccab718dc67bf7acd80c12d0e6e390eddcca673035aeee2ad4b201c1",
+    "target-build-r1-validation.json": "032108e873b6478c7acf0ed7cbb37f36780d4f138e2c562124ac06942d953a39",
+    "target-build-r2-validation.json": "98eb0a45e3e4e264838749a459d31cec1c7fcaa31eecbf1947e10e9d9d19da65",
+    "target-build-validation.json": "98eb0a45e3e4e264838749a459d31cec1c7fcaa31eecbf1947e10e9d9d19da65"
+  },
+  "candidate": [
+    {
+      "path": "drivers/mux/core.c",
+      "r1_or_original_sha256": "8293cf6b2828779f539c45ebd5246a195524529c370e78b1b1c82369e1001c0c",
+      "candidate_sha256": "b4eb7a8af067dcb932b7025be61d669dcb4589c83843432bf023cba140e20c66"
+    },
+    {
+      "path": "include/linux/mux/consumer.h",
+      "r1_or_original_sha256": "001f47f92f2145d084b4e4e70e62f5c814e83b3bfc584b67c8eaf68f0f0754ae",
+      "candidate_sha256": "1029dc983b1ce47d861991916a577006cceec4111ef02048d9fd3b359a554d51"
+    },
+    {
+      "path": "drivers/media/i2c/imx471.c",
+      "r1_or_original_sha256": "11e88b658ba5c1b3ce2a33fbdc0b4495aa7b469985d00c13bd5c0d4e7cdc0c92",
+      "candidate_sha256": "42f2c8e29e95e57a9d952fa559ee382ec3bdc74170e95a9d3ff1b4a39b1e496c"
+    }
+  ],
+  "artifacts": {
+    "drivers/media/i2c/imx471.o": {
+      "bytes": 104168,
+      "sha256": "f53441db91121c7cf26c4ff526fd5aa88425fa7828a5af0fd91bc5c2287a00a8"
+    },
+    "drivers/mux/core.o": {
+      "bytes": 70496,
+      "sha256": "cd1022c3e0a346b3ad6414a62205741aef0c1a0286045accdbb78270cb8972b2"
+    }
+  },
+  "r1_eleven_public_files_and_three_private_candidates_unchanged": true,
+  "shared_source354_and_generated_inputs_unchanged": true,
+  "actual_private_config_sha256": "64c8d7893685dc5634de84a814f69d5a5ec7f274990c0ddff70801a8193d231e",
+  "configuration_differences_from_image363": {
+    "# CONFIG_VIDEO_QCOM_CAMSS_ICP is not set": [
+      null,
+      "# CONFIG_VIDEO_QCOM_CAMSS_ICP is not set"
+    ]
+  },
+  "image363_input_config_sha256": "23e088a90736bbbc442c672d82b35c11bf04f7dc489f1c6afb1b03dc0d8f30ed",
+  "new_api_real_export_records": {
+    "mux_state_get": true,
+    "mux_state_put": true
+  },
+  "exact_new_imports_missing_from_old363": [
+    "mux_state_get",
+    "mux_state_put"
+  ],
+  "new_builtin_mux_core_requires_new_image": true,
+  "actual_holder_c_host_cases": 35,
+  "actual_unmanaged_mux_c_host_cases": 4,
+  "consumer_detach_retains_independent_holder_device_module_resource_handles_modeled": true,
+  "supplier_forced_unbind_or_module_unload_isolation_proven": false,
+  "mux_chip_device_reference_pins_gpio_mux_owner_module": false,
+  "old_sensor_open_fd_lifetime_fixed": false,
+  "kernel_concurrency_or_hardware_verified": false,
+  "r1_dtb_binding_provider_results_reused": true,
+  "fifth_sensor_node_added": false,
+  "compiler_diagnostics": [],
+  "jobs": 2,
+  "source_or_output_full_copy": false,
+  "vmlinux_object_copied_or_linked": false,
+  "ko_or_image_or_rootfs_or_full_modules_built": false,
+  "phone_or_sdk_accessed": false,
+  "free_bytes_after": 6851002368
+}

@@ -1,0 +1,149 @@
+Static source audit only; no runtime phone cmdline/PHY state read.
+
+/home/cy122/x2pro-linux/linux/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
+50: 		bootargs = "earlycon=eud,mmio,0x88e0000 console=tty0 console=eud loglevel=7 ignore_loglevel panic=15 clk_ignore_unused pd_ignore_unused regulator_ignore_unused";
+297:  * qcom,eud driver wants a USB role switch and SCM access to enable secure EUD,
+302:         eud_com: serial@88e0000 {
+303:                 compatible = "qcom,sm8150-eud-com";
+
+/home/cy122/x2pro-linux/linux/arch/arm64/boot/dts/qcom/sm8150-mtp.dts
+94: 		vdd_pdphy:
+95: 		vdda_usb_hs_3p1:
+108: 		vdd_usb_hs_core:
+125: 		vdda_usb_ss_dp_core_1:
+126: 		vdda_usb_ss_dp_core_2:
+170: 		vdda_usb_hs_1p8:
+425: &ufs_mem_phy {
+428: 	vdda-phy-supply = <&vdda_ufs_2ln_core_1>;
+432: &usb_1_hsphy {
+434: 	vdda-pll-supply = <&vdd_usb_hs_core>;
+435: 	vdda33-supply = <&vdda_usb_hs_3p1>;
+436: 	vdda18-supply = <&vdda_usb_hs_1p8>;
+439: &usb_1_qmpphy {
+441: 	vdda-phy-supply = <&vdda_usb_ss_dp_core_1>;
+445: &usb_1 {
+449: &usb_1_dwc3 {
+
+/home/cy122/edk2-samurai/repo/Platform/RenegadePkg/Library/PlatformBootManagerLib/PlatformBm.c
+62:   L"earlycon=eud,mmio,0x88e0000 console=tty0 console=eud loglevel=7 ignore_loglevel panic=15 clk_ignore_unused pd_ignore_unused regulator_ignore_unused";
+
+/home/cy122/x2pro-linux/linux/.config
+2852: CONFIG_SERIAL_EUD_EARLYCON=y
+2872: CONFIG_SERIAL_EUD_CONSOLE=y
+4494: CONFIG_USB_DWC3=y
+4497: CONFIG_USB_DWC3_GADGET=y
+4503: CONFIG_USB_DWC3_OF_SIMPLE=y
+4504: CONFIG_USB_DWC3_QCOM=y
+4505: CONFIG_USB_DWC3_GENERIC_PLAT=y
+6407: CONFIG_PHY_QCOM_EDP=m
+6410: CONFIG_PHY_QCOM_PCIE2=m
+6411: CONFIG_PHY_QCOM_QMP=y
+6412: CONFIG_PHY_QCOM_QMP_COMBO=y
+6413: CONFIG_PHY_QCOM_QMP_UFS=y
+6414: CONFIG_PHY_QCOM_QMP_USB=m
+6416: CONFIG_PHY_QCOM_QUSB2=y
+6417: CONFIG_PHY_QCOM_EUSB2_REPEATER=m
+6418: CONFIG_PHY_QCOM_M31_USB=m
+6420: CONFIG_PHY_QCOM_M31_EUSB=m
+6421: CONFIG_PHY_QCOM_USB_HS=m
+6422: CONFIG_PHY_QCOM_USB_SNPS_FEMTO_V2=m
+6424: CONFIG_PHY_QCOM_USB_HS_28NM=m
+6425: CONFIG_PHY_QCOM_USB_SS=m
+6427: CONFIG_PHY_QCOM_SGMII_ETH=m
+
+kernel_eud_sha256=311e5508fccb8d6f0623ba21e7f5891e4fda45984ba9dd6c3a76168037c6d411
+workspace_eud_sha256=311e5508fccb8d6f0623ba21e7f5891e4fda45984ba9dd6c3a76168037c6d411
+local_repo_status=
+
+/home/cy122/x2pro-linux/linux/arch/arm64/boot/dts/qcom/sm8150-mtp.dts SHA256=fa62dd7deb5f2777046384732a8a292a683d9d590ab26afbe6d14f217937276a
+432: &usb_1_hsphy {
+433: 	status = "okay";
+434: 	vdda-pll-supply = <&vdd_usb_hs_core>;
+435: 	vdda33-supply = <&vdda_usb_hs_3p1>;
+436: 	vdda18-supply = <&vdda_usb_hs_1p8>;
+437: };
+438:
+439: &usb_1_qmpphy {
+440: 	status = "okay";
+441: 	vdda-phy-supply = <&vdda_usb_ss_dp_core_1>;
+442: 	vdda-pll-supply = <&vreg_l3c_1p2>;
+443: };
+444:
+445: &usb_1 {
+446: 	status = "okay";
+447: };
+448:
+449: &usb_1_dwc3 {
+450: 	dr_mode = "peripheral";
+451: };
+452:
+
+/home/cy122/x2pro-linux/linux/drivers/phy/qualcomm/phy-qcom-qusb2.c SHA256=8bc15b208fd62ac333e5734a1b12d750cbf9eb8ba7f70f71d25e4442272c851d
+760: static int qusb2_phy_init(struct phy *phy)
+761: {
+762: 	struct qusb2_phy *qphy = phy_get_drvdata(phy);
+763: 	const struct qusb2_phy_cfg *cfg = qphy->cfg;
+764: 	unsigned int val = 0;
+765: 	unsigned int clk_scheme;
+766: 	int ret;
+767:
+768: 	dev_vdbg(&phy->dev, "%s(): Initializing QUSB2 phy\n", __func__);
+769:
+770: 	/* turn on regulator supplies */
+771: 	ret = regulator_bulk_enable(ARRAY_SIZE(qphy->vregs), qphy->vregs);
+772: 	if (ret)
+773: 		return ret;
+774:
+775: 	ret = clk_prepare_enable(qphy->iface_clk);
+776: 	if (ret) {
+777: 		dev_err(&phy->dev, "failed to enable iface_clk, %d\n", ret);
+778: 		goto poweroff_phy;
+779: 	}
+780:
+781: 	/* enable ahb interface clock to program phy */
+782: 	ret = clk_prepare_enable(qphy->cfg_ahb_clk);
+783: 	if (ret) {
+784: 		dev_err(&phy->dev, "failed to enable cfg ahb clock, %d\n", ret);
+785: 		goto disable_iface_clk;
+786: 	}
+787:
+788: 	/* Perform phy reset */
+789: 	ret = reset_control_assert(qphy->phy_reset);
+790: 	if (ret) {
+791: 		dev_err(&phy->dev, "failed to assert phy_reset, %d\n", ret);
+792: 		goto disable_ahb_clk;
+793: 	}
+794:
+795: 	/* 100 us delay to keep PHY in reset mode */
+796: 	usleep_range(100, 150);
+797:
+798: 	ret = reset_control_deassert(qphy->phy_reset);
+799: 	if (ret) {
+800: 		dev_err(&phy->dev, "failed to de-assert phy_reset, %d\n", ret);
+801: 		goto disable_ahb_clk;
+802: 	}
+803:
+804: 	/* Disable the PHY */
+805: 	qusb2_setbits(qphy->base, cfg->regs[QUSB2PHY_PORT_POWERDOWN],
+806: 		      qphy->cfg->disable_ctrl);
+807:
+808: 	if (cfg->has_pll_test) {
+809: 		/* save reset value to override reference clock scheme later */
+810: 		val = readl(qphy->base + QUSB2PHY_PLL_TEST);
+811: 	}
+812:
+813: 	qcom_qusb2_phy_configure(qphy->base, cfg->regs, cfg->tbl,
+814: 				 cfg->tbl_num);
+815:
+816: 	/* Override board specific PHY tuning values */
+817: 	qusb2_phy_override_phy_params(qphy);
+818:
+819: 	/* Set efuse value for tuning the PHY */
+820: 	qusb2_phy_set_tune2_param(qphy);
+821:
+822: 	/* Enable the PHY */
+823: 	qusb2_clrbits(qphy->base, cfg->regs[QUSB2PHY_PORT_POWERDOWN],
+824: 		      POWER_DOWN);
+825:
+826: 	/* Required to get phy pll lock successfully */
+827: 	usleep_range(150, 160);

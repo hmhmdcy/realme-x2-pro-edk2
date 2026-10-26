@@ -1,0 +1,37 @@
+{
+  "passed": true,
+  "functions": [
+    "qcom_pmic_typec_port_stop",
+    "qcom_pmic_typec_port_finish_5v",
+    "qcom_pmic_typec_pdphy_reset_on",
+    "qcom_pmic_typec_pdphy_reset_off",
+    "qcom_pmic_typec_pdphy_enable",
+    "qcom_pmic_typec_pdphy_disable",
+    "pmic_typec_pdphy_reset",
+    "qcom_pmic_typec_pdphy_start",
+    "qcom_pmic_typec_pdphy_quiesce_5v",
+    "qcom_pmic_typec_pdphy_finish_5v",
+    "qcom_pmic_typec_pdphy_stop",
+    "qcom_pmic_typec_samurai_fixed_5v",
+    "qcom_pmic_typec_stop_samurai_5v",
+    "qcom_pmic_typec_remove",
+    "qcom_pmic_typec_shutdown"
+  ],
+  "groups": [
+    "PASS exact board/connector/PDO gate; 9V and other roles excluded",
+    "PASS CC/PD IRQ+work, TCPM join, four zero/readbacks, supply release, final debounce/Rd",
+    "PASS every PD write/read/mismatch: first error, retained supply, CC disabled, no retry",
+    "PASS regulator/CC failures and pre-join hardware refusal",
+    "PASS never-started resources: no IRQ underflow, no PD I/O or false quiet claim",
+    "PASS shutdown/remove once and unchanged PD5V/default shutdown dispatch",
+    "PASS failed PD startup retains supply until joined cleanup"
+  ],
+  "production_functions_sha256": "759044bdf2339a5fdf3a3b4c3e6043c0ebfa0a0855c04878a8ed50fcd62cdaed",
+  "source_sha256": {
+    "qcom_pmic_typec.c": "f8822a59467c5472b3caceab112ac8d6c9c4c8d7efe5287bbfb2e98489cf08d4",
+    "qcom_pmic_typec_port.c": "db2959582815b47e10414bf4db8ccd71b2bae95f5d8b1b18fe7a72f69428065d",
+    "qcom_pmic_typec_pdphy.c": "12b9dd9189e3aa77baf7d5c84042e88f2343deb9adac4ed00e079ba7ffec25a9"
+  },
+  "kernel_device_IRQ_work_TCPM_and_regmap_boundaries_mocked": true,
+  "phone_test": false
+}

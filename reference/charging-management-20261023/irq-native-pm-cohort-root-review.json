@@ -1,0 +1,48 @@
+{
+  "schema": "samurai-irq-native-pm-cohort-root-review-v1",
+  "passed": true,
+  "scope": "Offline current-IRQ USB PM pair and exact rollback; no installation or physical PM acceptance.",
+  "sealed_inputs": {
+    "reference/charging-oem-audit-20261023/usb-input-irq-native-pm-link-candidate/delivery.json": "fa38684a6f618bd6d081b420c1323f8f146ac5af6174e3695e2a8b40bed7975f",
+    "reference/charging-oem-audit-20261023/usb-input-irq-native-pm-link-module-candidate/delivery.json": "0ec51a553c0dedd7c7c4eac511af04291f52c8054c65118944c3b1fefbe54a08",
+    "reference/charging-session-20261023/irq-native-usb-pm-cohort-candidate/delivery.json": "89349ffc0adb7e0043505f0250b53eefd78cc917f0b953fb12bb4aeabe25da01"
+  },
+  "direct_archive_checks": {
+    "irq-native-pm-payload.tar.gz": {
+      "sha256": "f1162d2b5614327f0ce78c918cec62fd681d42cca99d8c03819cfa41086230bc",
+      "bytes": 27163,
+      "regular_members": 2,
+      "USB_note_sha256": "08523f9f969b00a278a87ddd5d27ec3b54ac9b53a9c84f6429c4ecf5934c0f3f"
+    },
+    "rollback-7cb-18e8-payload.tar.gz": {
+      "sha256": "6ff66d182f7b0dc7ac32e3e58ae756e259c246b4edddf85d48878ff561835ab8",
+      "bytes": 25858,
+      "regular_members": 2,
+      "USB_note_sha256": "a845cd08aa415ca01ad4791b8c66047a927577e76439e632c73b6b4e2cff8c6d"
+    }
+  },
+  "manifest_sha256": "34ead4cdb98c2d4b812662cdbe4c0964d5e705574b5d4ab85716b37975a8a39b",
+  "old_manifest_sha256": "18e8a1049a2c497fbc47ace50f8319aefccd63a9cd1ce5a7e9ef06916773b4e5",
+  "only_two_USB_hash_spans_and_revision_changed": true,
+  "actual_archive_ELF_notes_match_cohort": true,
+  "charger97c_protection7848_preserved": true,
+  "bootedd_IRQ_DTB13d3_preserved": true,
+  "Image504_and_4453_receipts_reused": true,
+  "original_Image_or_FAT_binaries_rehashed_by_this_review": false,
+  "full_rollback_tuple": [
+    "USB7cb",
+    "manifest18e8",
+    "logdumpace2",
+    "normal restart; bootedd retained"
+  ],
+  "source_reviewed": true,
+  "source_new_probe_IRQ_cases": 8,
+  "module_actual_strong_imports": 47,
+  "package_new_tests": 3,
+  "package_prior_five_function_cases_reused": true,
+  "runtime_or_type_ABI_attested": false,
+  "physical_PM_or_USB_recovery_accepted": false,
+  "device_accessed": false,
+  "new_stage_or_activation_request_created": false,
+  "review_script_sha256": "0f489e4cbccb9071fa1ccce7584403b216bb2223112293befa16939f793de631"
+}

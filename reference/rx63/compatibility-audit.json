@@ -1,0 +1,101 @@
+{
+    "utc":  "2026-10-09T22:23:40.0119013Z",
+    "action":  "Audit",
+    "target":  "USB\\VID_05C6\u0026PID_9505\\8\u00265580DC5\u00260\u00265",
+    "hardware_validated":  false,
+    "executed":  false,
+    "state":  {
+                  "target":  "USB\\VID_05C6\u0026PID_9505\\8\u00265580DC5\u00260\u00265",
+                  "is_64bit":  true,
+                  "is_admin":  false,
+                  "present_9505_count":  1,
+                  "all_eud_nodes_ok":  true,
+                  "known_owner_count":  0,
+                  "usb_attached":  false,
+                  "package_hashes_valid":  true,
+                  "secureboot":  1,
+                  "code_integrity_options_hex":  "0x0000F401",
+                  "test_signing_allowed":  false,
+                  "hvci_kernel_enforced":  true,
+                  "test_certificate_trusted":  false,
+                  "candidate_certificate_current":  true,
+                  "original_bound":  true,
+                  "candidate_bound":  false
+              },
+    "binding_before":  {
+                           "driver_key":  "{4d36e978-e325-11ce-bfc1-08002be10318}\\0008",
+                           "inf":  "oem102.inf",
+                           "inf_sha256":  "dd933233672930b6a138c762f729d92ad984cd1e44abcb16e4ac3878b4305f92",
+                           "version":  "2.1.3.5",
+                           "service":  "qcusbser",
+                           "binary":  "C:\\WINDOWS\\system32\\DRIVERS\\qcusbser.sys",
+                           "binary_sha256":  "ad2ace071d2362d8712820f62570757e1af266a054d2c3d3a6964a41e7cc6151",
+                           "port":  null
+                       },
+    "nodes_before":  [
+                         {
+                             "Status":  "OK",
+                             "Class":  "USB",
+                             "FriendlyName":  "Qualcomm EUD Control Device 9501",
+                             "InstanceId":  "USB\\VID_05C6\u0026PID_9501\\8\u00265580DC5\u00260\u00261"
+                         },
+                         {
+                             "Status":  "OK",
+                             "Class":  "USB",
+                             "FriendlyName":  "通用 USB 集线器",
+                             "InstanceId":  "USB\\VID_05C6\u0026PID_9500\\7\u00263B715170\u00260\u00264"
+                         },
+                         {
+                             "Status":  "OK",
+                             "Class":  "Ports",
+                             "FriendlyName":  "Qualcomm EUD Port 9505 (COM14)",
+                             "InstanceId":  "USB\\VID_05C6\u0026PID_9505\\8\u00265580DC5\u00260\u00265"
+                         }
+                     ],
+    "structure_sizes":  [
+                            32,
+                            584,
+                            1568,
+                            1584
+                        ],
+    "refusals":  [
+
+                 ],
+    "candidate_node":  {
+                           "Description":  "EUD COM 9505 toggle preservation candidate",
+                           "Provider":  "Realme X2 Pro EUD experiment",
+                           "InfPath":  "e:\\edk2-samurai-out\\rx62\\package-test-signed\\qceudexp.inf",
+                           "Section":  "EudInstall",
+                           "HardwareIds":  "usb\\vid_05c6\u0026pid_9505",
+                           "Version":  "5.47.2.26",
+                           "DateUtc":  "2026-10-10T00:00:00.0000000Z"
+                       },
+    "rollback_node":  {
+                          "Description":  "Qualcomm EUD Port 9505",
+                          "Provider":  "Qualcomm Incorporated",
+                          "InfPath":  "e:\\edk2-samurai-out\\rx61\\rollback-qcusbser-2.1.3.5\\qcser.inf",
+                          "Section":  "QportInstall00",
+                          "HardwareIds":  "usb\\vid_05c6\u0026pid_9505",
+                          "Version":  "2.1.3.5",
+                          "DateUtc":  "2018-12-17T00:00:00.0000000Z"
+                      },
+    "install_refusals":  [
+                             "Installation requires an elevated process in the selected test environment.",
+                             "Current kernel policy does not allow this self-test-signed candidate.",
+                             "The exact public test certificate is not trusted for this package on this environment."
+                         ],
+    "binding_after":  {
+                          "driver_key":  "{4d36e978-e325-11ce-bfc1-08002be10318}\\0008",
+                          "inf":  "oem102.inf",
+                          "inf_sha256":  "dd933233672930b6a138c762f729d92ad984cd1e44abcb16e4ac3878b4305f92",
+                          "version":  "2.1.3.5",
+                          "service":  "qcusbser",
+                          "binary":  "C:\\WINDOWS\\system32\\DRIVERS\\qcusbser.sys",
+                          "binary_sha256":  "ad2ace071d2362d8712820f62570757e1af266a054d2c3d3a6964a41e7cc6151",
+                          "port":  null
+                      },
+    "status":  "completed",
+    "stage_calls":  0,
+    "install_calls":  0,
+    "ended_utc":  "2026-10-09T22:23:59.4447604Z"
+}

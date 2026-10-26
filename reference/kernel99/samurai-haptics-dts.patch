@@ -1,0 +1,40 @@
+--- a/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
++++ b/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
+@@ -569,3 +569,37 @@
+         pinctrl-0 = <&samurai_nfc_irq_default>;
+     };
+ };
++
++/* 19781 same-handset wiring; no reset-line sharing with other devices. */
++&i2c7 {
++	status = "okay";
++	clock-frequency = <400000>;
++
++	haptics@5a {
++		compatible = "realme,samurai-aw8697", "awinic,aw8697";
++		reg = <0x5a>;
++		reset-gpios = <&tlmm 116 GPIO_ACTIVE_LOW>;
++		interrupt-parent = <&tlmm>;
++		interrupts = <24 IRQ_TYPE_EDGE_FALLING>;
++		pinctrl-names = "default";
++		pinctrl-0 = <&haptics_reset_default &haptics_irq_default>;
++	};
++};
++
++&tlmm {
++	haptics_reset_default: haptics-reset-default-state {
++		pins = "gpio116";
++		function = "gpio";
++		drive-strength = <2>;
++		bias-disable;
++		output-low;
++	};
++
++	haptics_irq_default: haptics-irq-default-state {
++		pins = "gpio24";
++		function = "gpio";
++		drive-strength = <2>;
++		bias-disable;
++		input-enable;
++	};
++};

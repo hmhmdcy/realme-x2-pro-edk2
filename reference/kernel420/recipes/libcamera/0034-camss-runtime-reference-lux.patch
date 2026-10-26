@@ -1,0 +1,500 @@
+--- a/include/libcamera/ipa/camss.mojom
++++ b/include/libcamera/ipa/camss.mojom
+@@ -42,6 +42,10 @@
+ 	bool rgbPresent;
+ 	uint32 awbRegions;
+ 	array<double> rgbMeans;
++	bool luxValid;
++	float exposureIndex;
++	float luxLuma;
++	float luxIndex;
+ };
+ 
+ interface IPACamssInterface {
+--- a/src/ipa/camss-vfe/camss.cpp
++++ b/src/ipa/camss-vfe/camss.cpp
+@@ -25,6 +25,7 @@
+ #include "lens_shading.h"
+ #include "white_balance_reference.h"
+ #include "colour_correction_profile.h"
++#include "lux_profile.h"
+ #include "../libipa/camera_sensor_helper.h"
+ #include "hardware_agc.h"
+ #include "hardware_awb.h"
+@@ -89,6 +90,7 @@
+  std::optional<int32_t> colourTemperature_;
+  std::optional<ColourCorrectionProfile> colourCorrection_;
+  std::optional<ColourMatrix> manualMatrix_;
++ std::optional<LuxProfile> lux_;
+  int selectColourCorrection(double red, double blue, std::optional<int32_t> temperature,
+                             const std::optional<ColourMatrix> &manualMatrix,
+                             const ColourCorrectionState *fallback,
+@@ -196,7 +198,7 @@
+      input.width < 4 || input.height < 2 || ((input.width | input.height) & 1)) return -EINVAL;
+  int ret = describeSensor(info, sensorControls, ipaControls);
+  if (ret) return ret;
+- profile_ = { 0, 1.0 }; lensShading_.reset(); whiteBalance_.reset(); colourTemperature_.reset(); colourCorrection_.reset(); manualMatrix_.reset();
++ profile_ = { 0, 1.0 }; lensShading_.reset(); whiteBalance_.reset(); colourTemperature_.reset(); colourCorrection_.reset(); manualMatrix_.reset(); lux_.reset();
+  afEnabled_=false;af_.cancel();frameLength_=info.minFrameLength;
+  if (!profilePath.empty()) {
+   File file(profilePath);
+@@ -233,6 +235,8 @@
+    map[&controls::ColourTemperature]=ControlInfo(int32_t(1500),int32_t(12000),int32_t(6500));
+    *ipaControls=ControlInfoMap(std::move(map),controls::controls);
+   }
++  ret=LuxProfile::configure(tuning["aec_lux"],&lux_);
++  if (ret) return ret;
+   ret=ColourCorrectionProfile::configure(tuning["colour_correction"],&colourCorrection_);
+   if (ret) return ret;
+   if (colourCorrection_) {
+@@ -578,6 +582,7 @@
+  revision_ = 0;
+  awaiting_.reset();
+  if (agc_) agc_->resetFrameCount();
++ if (lux_) lux_->reset();
+  epoch_ = epoch;
+ 	red_ = red; blue_ = blue;
+ 	awbEnabled_ = awbEnabled; colourTemperature_ = temperature; manualMatrix_ = manualMatrix;
+@@ -594,6 +599,7 @@
+ void IPACamss::stop()
+ {
+ 	running_ = false;af_.cancel();initialAfTrigger_.reset();
++ if (lux_) lux_->reset();
+  automatic_ = false; awaiting_.reset();
+ 	awbEnabled_ = false; colourTemperature_.reset(); manualMatrix_.reset(); pendingWhiteBalance_.reset();
+ 	preparedParameters_.clear(); parameterHistory_.clear();
+@@ -725,6 +731,20 @@
+   metadata.set(controls::ExposureTime, int32_t(std::lround(sensorContext.exposureLines * lineUs_)));
+   metadata.set(controls::AnalogueGain, float(helper_->gain(sensorContext.gainCode)));
+  }
++ if (lux_ && result.parametersKnown && result.sensorControlsKnown && result.rgbPresent) {
++  LuxResult observation;
++  const uint64_t exposureNs=std::llround(sensorContext.exposureLines * lineUs_ * 1000);
++  result.luxValid=lux_->calculate(parsed.grid,float(helper_->gain(sensorContext.gainCode)),exposureNs,
++                                float(context->second.red),float(context->second.blue),&observation);
++  if (result.luxValid) {
++   result.exposureIndex=observation.exposureIndex;result.luxLuma=observation.luma;result.luxIndex=observation.index;
++   LOG(IPACamss,Info)<<"LUX epoch="<<epoch<<" sof="<<sof<<" revision="<<result.ispRevision
++    <<" lines="<<sensorContext.exposureLines<<" gain-code="<<sensorContext.gainCode
++    <<" exposure-ns="<<exposureNs<<" analogue-gain="<<float(helper_->gain(sensorContext.gainCode))
++    <<" red="<<float(context->second.red)<<" blue="<<float(context->second.blue)
++    <<" exposure-index="<<result.exposureIndex<<" luma="<<result.luxLuma<<" index="<<result.luxIndex;
++  }
++ }
+  if (af_.state()!=ipa::ContrastAf::State::Scanning && automatic_ && effective_ && result.sensorControlsKnown &&
+      (!awaiting_ || (sensorContext.source == awaiting_->revision &&
+       sensorContext.exposureLines == awaiting_->exposureLines && sensorContext.gainCode == awaiting_->gainCode))) {
+--- a/src/ipa/camss-vfe/lux_profile.cpp
++++ b/src/ipa/camss-vfe/lux_profile.cpp
+@@ -0,0 +1,101 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#include "lux_profile.h"
++#include <cerrno>
++#include <charconv>
++#include <cmath>
++#include <utility>
++#include "../libipa/aec_bayer_luma.h"
++
++namespace libcamera::ipa::camss {
++
++int LuxProfile::configure(const ValueNode &tuning, std::optional<LuxProfile> *profile)
++{
++	if (!profile) return -EINVAL;
++	profile->reset();
++	if (tuning.isEmpty()) return 0;
++	if (!tuning.isDictionary()) return -EINVAL;
++	if (!tuning["enabled"].isEmpty()) {
++		auto enabled = tuning["enabled"].get<bool>();
++		if (!enabled) return -EINVAL;
++		if (!*enabled) return 0;
++	}
++	LuxProfile result;
++	const auto &anchor = tuning["exposure_anchor"];
++	auto gain = anchor["analogue_gain"].get<float>();
++	auto timeText = anchor["exposure_time_ns"].get<std::string>();
++	auto index = anchor["index"].get<float>();
++	if (!gain || !timeText || !index) return -EINVAL;
++	/* ValueNode implements integer accessors only through uint32_t. Preserve
++	 * the 64-bit nanosecond domain without converting it through float. */
++	uint64_t time = 0;
++	auto [end, error] = std::from_chars(timeText->data(), timeText->data() + timeText->size(), time);
++	if (error != std::errc() || end != timeText->data() + timeText->size()) return -EINVAL;
++	result.anchor_ = { *gain, time, *index };
++	float check;
++	if (!aecManualExposureIndex(result.anchor_, *gain, time, &check)) return -ERANGE;
++	auto array = [](const ValueNode &value, std::array<float, 3> *output) {
++		if (!value.isList() || value.size() != 3) return false;
++		for (unsigned int i = 0; i < 3; ++i) {
++			auto v = value[i].get<float>();
++			if (!v || !std::isfinite(*v)) return false;
++			(*output)[i] = *v;
++		}
++		return true;
++	};
++	auto colour = tuning["compensate_colour"].get<bool>();
++	auto normalization = tuning["normalization"].get<float>();
++	if (!colour || !normalization || !std::isfinite(*normalization) || *normalization <= 0 ||
++	    !array(tuning["weights"], &result.weights_) ||
++	    !array(tuning["reference_gains"], &result.referenceGains_)) return -EINVAL;
++	for (float weight : result.weights_) if (weight < 0) return -ERANGE;
++	result.compensateColour_ = *colour;
++	result.normalization_ = *normalization;
++	const auto &lux = tuning["lux"];
++	auto compensate = lux["compensate_sensitivity"].get<bool>();
++	auto factor = lux["filter_factor"].get<float>();
++	if (!compensate || !factor) return -EINVAL;
++	float reference = 0, zero = 0;
++	if (*compensate) {
++		auto r = lux["reference_zero_sensitivity"].get<float>();
++		auto z = lux["table_zero_sensitivity"].get<float>();
++		if (!r || !z) return -EINVAL;
++		reference = *r; zero = *z;
++	}
++	if (!result.filter_.configure({ *compensate, reference, zero, *factor })) return -ERANGE;
++	*profile = std::move(result);
++	return 0;
++}
++
++bool LuxProfile::calculate(const GridStatistics &grid, float analogueGain,
++			   uint64_t exposureNs, float red, float blue, LuxResult *result)
++{
++	if (!result || grid.regions.empty()) return false;
++	LuxResult output;
++	if (!aecManualExposureIndex(anchor_, analogueGain, exposureNs, &output.exposureIndex)) return false;
++	std::array<float, 3> weights;
++	if (!aecLumaWeights(weights_, referenceGains_, { red, 1, blue }, compensateColour_, &weights)) return false;
++	AecBayerLumaConfiguration config{
++		uint32_t(grid.width) * grid.height / 4,
++		{ grid.highThreshold, grid.highThreshold, grid.highThreshold, grid.highThreshold },
++		grid.inputBits, weights, normalization_
++	};
++	std::vector<AecLumaCell> regions;
++	regions.reserve(grid.regions.size());
++	for (const auto &raw : grid.regions) {
++		AecBayerRegion region{ { raw.r_sum, raw.b_sum, raw.gr_sum, raw.gb_sum },
++				       { raw.r_count, raw.b_count, raw.gr_count, raw.gb_count } };
++		AecLumaCell cell;
++		if (!aecBayerRegionLuma(config, region, &cell)) return false;
++		regions.push_back(cell);
++	}
++	std::array<AecLumaCell, 256> pooled;
++	if (!aecLegacyLumaGrid(regions, grid.columns, grid.rows, &pooled)) return false;
++	std::array<float, 256> luma;
++	for (unsigned int i = 0; i < luma.size(); ++i) luma[i] = pooled[i].luma;
++	if (!aecUniformLuxLuma(luma, &output.luma) ||
++	    !filter_.calculate(output.exposureIndex, output.luma, &output.index)) return false;
++	*result = output;
++	return true;
++}
++
++} /* namespace libcamera::ipa::camss */
+--- a/src/ipa/camss-vfe/lux_profile.h
++++ b/src/ipa/camss-vfe/lux_profile.h
+@@ -0,0 +1,31 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++#include <array>
++#include <optional>
++#include "libcamera/internal/yaml_parser.h"
++#include "../libipa/aec_lux.h"
++#include "statistics.h"
++
++namespace libcamera::ipa::camss {
++
++struct LuxResult {
++	float exposureIndex, luma, index;
++};
++
++/* Optional per-mode reference coordinates. Their factory/mode binding is a
++ * separate calibration task; an absent profile never invents an anchor. */
++class LuxProfile {
++public:
++	static int configure(const ValueNode &tuning, std::optional<LuxProfile> *profile);
++	void reset() { filter_.reset(); }
++	bool calculate(const GridStatistics &grid, float analogueGain, uint64_t exposureNs,
++		       float effectiveRed, float effectiveBlue, LuxResult *result);
++private:
++	AecExposureAnchor anchor_{};
++	AecLuxIndex filter_;
++	std::array<float, 3> weights_{}, referenceGains_{};
++	bool compensateColour_ = false;
++	float normalization_ = 1;
++};
++
++} /* namespace libcamera::ipa::camss */
+--- a/src/ipa/camss-vfe/meson.build
++++ b/src/ipa/camss-vfe/meson.build
+@@ -1,6 +1,6 @@
+ # SPDX-License-Identifier: CC0-1.0
+ ipa_name = 'ipa_camss_vfe'
+-mod = shared_module(ipa_name, ['camss.cpp', 'parameter_encoder.cpp', 'hardware_agc.cpp', 'hardware_awb.cpp', 'lens_shading.cpp', 'white_balance_reference.cpp', 'colour_correction_profile.cpp'],
++mod = shared_module(ipa_name, ['camss.cpp', 'parameter_encoder.cpp', 'hardware_agc.cpp', 'hardware_awb.cpp', 'lens_shading.cpp', 'white_balance_reference.cpp', 'colour_correction_profile.cpp', 'lux_profile.cpp'],
+     name_prefix : '',
+     include_directories : [ipa_includes],
+     dependencies : [libcamera_private, libipa_dep],
+--- a/src/ipa/libipa/aec_bayer_luma.cpp
++++ b/src/ipa/libipa/aec_bayer_luma.cpp
+@@ -0,0 +1,81 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#include "aec_bayer_luma.h"
++#include <cmath>
++
++namespace libcamera::ipa {
++namespace {
++bool positive(float value){return std::isfinite(value)&&value>0;}
++bool validWeights(const std::array<float,3> &weights)
++{
++ for(float weight:weights)if(!std::isfinite(weight)||weight<0)return false;
++ return true;
++}
++} /* namespace */
++
++bool aecLumaWeights(const std::array<float,3> &tuning,
++                    const std::array<float,3> &referenceGains,
++                    const std::array<float,3> &currentGains,
++                    bool compensate,std::array<float,3> *weights)
++{
++ if(!weights||!validWeights(tuning))return false;
++ auto output=tuning;
++ bool valid=true;
++ for(unsigned i=0;i<3;i++)valid&=positive(referenceGains[i])&&positive(currentGains[i]);
++ /* The OEM falls back to the tuning weights for invalid reference/input gains. */
++ if(compensate&&valid)
++  for(unsigned i=0;i<3;i++){
++   float product=currentGains[i]*tuning[i];
++   output[i]=product/referenceGains[i];
++  }
++ if(!validWeights(output))return false;
++ *weights=output;return true;
++}
++
++bool aecBayerRegionLuma(const AecBayerLumaConfiguration &configuration,
++                        const AecBayerRegion &region,AecLumaCell *result)
++{
++ if(!result||!configuration.pixelsPerChannel||configuration.pixelsPerChannel>65535||
++    configuration.inputBits<8||configuration.inputBits>16||
++    !positive(configuration.normalization)||!validWeights(configuration.weights))return false;
++ const uint64_t pixels=configuration.pixelsPerChannel;
++ std::array<uint64_t,4> totals,missing;
++ for(unsigned i=0;i<4;i++){
++  if(configuration.highThreshold[i]>((1u<<configuration.inputBits)-1)||
++     region.counts[i]>pixels||region.sums[i]>uint64_t(region.counts[i])*configuration.highThreshold[i])return false;
++  missing[i]=pixels-region.counts[i];
++  totals[i]=region.sums[i]+missing[i]*configuration.highThreshold[i];
++ }
++ const float scale=1.0f/float(1u<<(configuration.inputBits-8));
++ /* Retain the integer green average and distinct float products/adds. */
++ volatile float red=configuration.weights[0]*float(totals[0]);
++ volatile float green=configuration.weights[1]*float((totals[2]+totals[3])>>1);
++ volatile float blue=configuration.weights[2]*float(totals[1]);
++ float weighted=red+green;weighted=blue+weighted;
++ float numerator=scale*weighted;
++ float denominator=configuration.normalization*float(pixels);
++ AecLumaCell output{numerator/denominator,float(missing[0]+missing[1]+missing[2]+missing[3])/float(pixels*4)};
++ if(!std::isfinite(output.luma)||!std::isfinite(output.saturatedFraction))return false;
++ *result=output;return true;
++}
++
++bool aecLegacyLumaGrid(const std::vector<AecLumaCell> &regions,
++                       unsigned int columns,unsigned int rows,
++                       std::array<AecLumaCell,256> *result)
++{
++ if(!result||!columns||!rows||columns%16||rows%16||uint64_t(columns)*rows>3072||regions.size()!=size_t(columns)*rows)return false;
++ std::array<AecLumaCell,256> cells{};
++ std::array<unsigned int,256> count{};
++ const unsigned int cellWidth=columns/16,cellHeight=rows/16;
++ for(unsigned int index=0;index<regions.size();index++){
++  const auto &region=regions[index];
++  if(!std::isfinite(region.luma)||region.luma<0||!std::isfinite(region.saturatedFraction)||region.saturatedFraction<0||region.saturatedFraction>1)return false;
++  unsigned int x=(index%columns)/cellWidth,y=(index/columns)/cellHeight;
++  cells[y*16+x].luma+=region.luma;cells[y*16+x].saturatedFraction+=region.saturatedFraction;++count[y*16+x];
++ }
++ for(unsigned i=0;i<cells.size();i++){
++  if(!count[i])return false;
++  cells[i].luma/=float(count[i]);cells[i].saturatedFraction/=float(count[i]);
++ }
++ *result=cells;return true;
++}
++} /* namespace libcamera::ipa */
+--- a/src/ipa/libipa/aec_bayer_luma.h
++++ b/src/ipa/libipa/aec_bayer_luma.h
+@@ -0,0 +1,39 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++#include <array>
++#include <cstdint>
++#include <vector>
++
++namespace libcamera::ipa {
++
++/* Channel order matches the common Bayer grid statistics: R,B,GR,GB. */
++struct AecBayerRegion {
++ std::array<uint32_t,4> sums;
++ std::array<uint16_t,4> counts;
++};
++struct AecBayerLumaConfiguration {
++ uint32_t pixelsPerChannel;
++ std::array<uint32_t,4> highThreshold;
++ unsigned int inputBits;
++ std::array<float,3> weights; /* R,G,B, including optional colour compensation. */
++ float normalization; /* Explicit upstream normalization;1 for current SDR. */
++};
++struct AecLumaCell {float luma,saturatedFraction;};
++
++bool aecLumaWeights(const std::array<float,3> &tuning,
++                    const std::array<float,3> &referenceGains,
++                    const std::array<float,3> &currentGains,
++                    bool compensate,std::array<float,3> *weights);
++
++/* RGB Bayer input without an explicit saturated-sums extension. Missing
++ * pixels are accounted for using each channel's saturation threshold. */
++bool aecBayerRegionLuma(const AecBayerLumaConfiguration &configuration,
++                        const AecBayerRegion &region,AecLumaCell *result);
++
++/* All valid regions, sampling stride1. Original geometry requires dimensions
++ * divisible by16; an incompatible grid must be reconfigured at the source. */
++bool aecLegacyLumaGrid(const std::vector<AecLumaCell> &regions,
++                       unsigned int columns,unsigned int rows,
++                       std::array<AecLumaCell,256> *result);
++
++} /* namespace libcamera::ipa */
+--- a/src/ipa/libipa/aec_lux.cpp
++++ b/src/ipa/libipa/aec_lux.cpp
+@@ -0,0 +1,82 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#include "aec_lux.h"
++#include <algorithm>
++#include <cmath>
++
++namespace libcamera::ipa {
++namespace {
++/* Exact stored OEM double constant: a float32 approximation of1/log10(1.03).
++ * Recomputing log10(1.03) changes trigger boundaries. */
++constexpr double logarithmScale=77.898529052734375;
++bool positive(float value) { return std::isfinite(value) && value>0; }
++bool validAnchor(const AecExposureAnchor &anchor)
++{ return positive(anchor.gain) && anchor.exposureTimeNs && std::isfinite(anchor.index); }
++bool indexFromRatio(float ratio,float anchor,float *index)
++{
++ if(!index || !positive(ratio))return false;
++ float delta=float(std::log10(double(ratio))*logarithmScale);
++ float result=anchor+delta;
++ if(!std::isfinite(result))return false;
++ *index=result;return true;
++}
++} /* namespace */
++
++bool aecManualExposureIndex(const AecExposureAnchor &anchor,float gain,
++                           uint64_t exposureTimeNs,float *index)
++{
++ if(!validAnchor(anchor) || !positive(gain) || !exposureTimeNs)return false;
++ float gainRatio=gain/anchor.gain;
++ float timeRatio=float(exposureTimeNs)/float(anchor.exposureTimeNs);
++ return indexFromRatio(timeRatio*gainRatio,anchor.index,index);
++}
++
++bool aecSensitivityExposureIndex(const AecExposureAnchor &anchor,float correction,
++                                float sensitivity,float *index)
++{
++ if(!validAnchor(anchor) || !positive(correction) || !positive(sensitivity))return false;
++ float zero=correction*anchor.gain;
++ zero*=float(anchor.exposureTimeNs);
++ return indexFromRatio(sensitivity/zero,anchor.index,index);
++}
++
++bool aecUniformLuxLuma(const std::array<float,256> &cells,float *luma)
++{
++ if(!luma)return false;
++ float sum=0;
++ for(float cell:cells){
++  if(!std::isfinite(cell) || cell<0)return false;
++  sum+=cell;
++ }
++ *luma=std::max(sum*(1.0f/256),.1f);return true;
++}
++
++bool AecLuxIndex::configure(const Configuration &configuration)
++{
++ if(!std::isfinite(configuration.filterFactor) || configuration.filterFactor<0 ||
++    configuration.filterFactor>1 ||
++    (configuration.compensate && (!positive(configuration.referenceZeroSensitivity) ||
++                                 !positive(configuration.tableZeroSensitivity))))return false;
++ configuration_=configuration;configured_=true;reset();return true;
++}
++
++bool AecLuxIndex::calculate(float exposureIndex,float luma8,float *index,bool resetFilter)
++{
++ if(!configured_ || !index || !std::isfinite(exposureIndex) || !positive(luma8))return false;
++ float result;
++ if(!indexFromRatio(50.0f/luma8,exposureIndex,&result))return false;
++ if(configuration_.compensate) {
++  float ratio=configuration_.tableZeroSensitivity/configuration_.referenceZeroSensitivity;
++  if(!indexFromRatio(ratio,result,&result))return false;
++ }
++ result=std::max(result,0.0f);
++ float previous=resetFilter?result:previous_;
++ if(initialized_ && configuration_.filterFactor>0) {
++  /* Keep the OEM's separate float multiply/add under default compiler FMA
++   * contraction too; this runs once per frame. */
++  volatile float adjustment=configuration_.filterFactor*(result-previous);
++  result=previous+adjustment;
++ }
++ if(!std::isfinite(result))return false;
++ previous_=result;initialized_=true;*index=result;return true;
++}
++} /* namespace libcamera::ipa */
+--- a/src/ipa/libipa/aec_lux.h
++++ b/src/ipa/libipa/aec_lux.h
+@@ -0,0 +1,41 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++#include <array>
++#include <cstdint>
++
++namespace libcamera::ipa {
++
++struct AecExposureAnchor {
++ float gain;
++ uint64_t exposureTimeNs;
++ float index;
++};
++
++/* Qualcomm tuning indices, not physical illuminance in lux or exposure EV. */
++bool aecManualExposureIndex(const AecExposureAnchor &anchor, float gain,
++                           uint64_t exposureTimeNs, float *index);
++bool aecSensitivityExposureIndex(const AecExposureAnchor &anchor,
++                                float correction, float sensitivity, float *index);
++
++/* Input cells must already be the OEM-equivalent, processed 8-bit-scaled lux-luma (not capped after colour compensation)
++ * cells. This does not establish equivalence of raw Bayer statistics. */
++bool aecUniformLuxLuma(const std::array<float,256> &cells, float *luma);
++
++class AecLuxIndex {
++public:
++ struct Configuration {
++  bool compensate;
++  float referenceZeroSensitivity;
++  float tableZeroSensitivity;
++  float filterFactor;
++ };
++ bool configure(const Configuration &configuration);
++ void reset() { previous_=0;initialized_=false; }
++ bool calculate(float exposureIndex, float luma8, float *index,
++                bool resetFilter=false);
++private:
++ Configuration configuration_{};
++ bool configured_=false,initialized_=false;
++ float previous_=0;
++};
++} /* namespace libcamera::ipa */
+--- a/src/ipa/libipa/meson.build
++++ b/src/ipa/libipa/meson.build
+@@ -30,6 +30,8 @@
+     'awb_calibration.cpp',
+     'awb_colour_temperature.cpp',
+     'colour_correction.cpp',
++    'aec_lux.cpp',
++    'aec_bayer_luma.cpp',
+     'lens_shading.cpp',
+     'lsc_resample.cpp',
+     'camera_sensor_helper.cpp',

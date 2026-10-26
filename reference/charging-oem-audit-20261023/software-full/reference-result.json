@@ -1,0 +1,241 @@
+{
+  "vectors": [
+    {
+      "name": "normal_sw_voltage_equal_no_full",
+      "expected_trigger_sample": 0,
+      "actual_trigger_sample": 0
+    },
+    {
+      "name": "normal_sw_110mA_inclusive",
+      "expected_trigger_sample": 6,
+      "actual_trigger_sample": 6
+    },
+    {
+      "name": "normal_sw_111mA_no_full",
+      "expected_trigger_sample": 0,
+      "actual_trigger_sample": 0
+    },
+    {
+      "name": "normal_sw_zero_current",
+      "expected_trigger_sample": 11,
+      "actual_trigger_sample": 11
+    },
+    {
+      "name": "normal_sw_discharging",
+      "expected_trigger_sample": 11,
+      "actual_trigger_sample": 11
+    },
+    {
+      "name": "cold_sw_limit_equal",
+      "expected_trigger_sample": 0,
+      "actual_trigger_sample": 0
+    },
+    {
+      "name": "cold_sw_limit_above",
+      "expected_trigger_sample": 6,
+      "actual_trigger_sample": 6
+    },
+    {
+      "name": "littlecold_sw_limit_above",
+      "expected_trigger_sample": 6,
+      "actual_trigger_sample": 6
+    },
+    {
+      "name": "warm_sw_limit_equal",
+      "expected_trigger_sample": 0,
+      "actual_trigger_sample": 0
+    },
+    {
+      "name": "warm_sw_limit_above",
+      "expected_trigger_sample": 6,
+      "actual_trigger_sample": 6
+    },
+    {
+      "name": "sw_shared_counter_5_zero_then_110mA",
+      "expected_trigger_sample": 6,
+      "actual_trigger_sample": 6
+    },
+    {
+      "name": "sw_high_current_resets_streak",
+      "expected_trigger_sample": 12,
+      "actual_trigger_sample": 12
+    },
+    {
+      "name": "normal_hw_below_limit",
+      "expected_trigger_sample": 0,
+      "actual_trigger_sample": 0
+    },
+    {
+      "name": "normal_hw_at_limit",
+      "expected_trigger_sample": 4,
+      "actual_trigger_sample": 4
+    },
+    {
+      "name": "cold_hw_at_limit",
+      "expected_trigger_sample": 4,
+      "actual_trigger_sample": 4
+    },
+    {
+      "name": "warm_hw_at_limit",
+      "expected_trigger_sample": 4,
+      "actual_trigger_sample": 4
+    },
+    {
+      "name": "normal_recharge_equal",
+      "expected_trigger_sample": 6,
+      "actual_trigger_sample": 6
+    },
+    {
+      "name": "normal_recharge_above",
+      "expected_trigger_sample": 0,
+      "actual_trigger_sample": 0
+    },
+    {
+      "name": "littlecold_recharge_equal",
+      "expected_trigger_sample": 6,
+      "actual_trigger_sample": 6
+    },
+    {
+      "name": "littlecold_recharge_above",
+      "expected_trigger_sample": 0,
+      "actual_trigger_sample": 0
+    },
+    {
+      "name": "cold_recharge_equal",
+      "expected_trigger_sample": 6,
+      "actual_trigger_sample": 6
+    },
+    {
+      "name": "cold_recharge_above",
+      "expected_trigger_sample": 0,
+      "actual_trigger_sample": 0
+    },
+    {
+      "name": "warm_recharge_equal",
+      "expected_trigger_sample": 6,
+      "actual_trigger_sample": 6
+    },
+    {
+      "name": "warm_recharge_above",
+      "expected_trigger_sample": 0,
+      "actual_trigger_sample": 0
+    },
+    {
+      "name": "short_c_disables_recharge",
+      "expected_trigger_sample": 0,
+      "actual_trigger_sample": 0
+    },
+    {
+      "name": "full_action_zeroes_cycle_time",
+      "expected_trigger_sample": 1,
+      "actual_trigger_sample": 1
+    }
+  ],
+  "case_count": 26,
+  "current_vectors": [
+    {
+      "raw_word": 0,
+      "oem_icharging_ma": 0,
+      "gauge_current_ma": 0
+    },
+    {
+      "raw_word": 1,
+      "oem_icharging_ma": -1,
+      "gauge_current_ma": 1
+    },
+    {
+      "raw_word": 110,
+      "oem_icharging_ma": -110,
+      "gauge_current_ma": 110
+    },
+    {
+      "raw_word": 111,
+      "oem_icharging_ma": -111,
+      "gauge_current_ma": 111
+    },
+    {
+      "raw_word": 65535,
+      "oem_icharging_ma": 1,
+      "gauge_current_ma": -1
+    },
+    {
+      "raw_word": 65426,
+      "oem_icharging_ma": 110,
+      "gauge_current_ma": -110
+    },
+    {
+      "raw_word": 32768,
+      "oem_icharging_ma": 32768,
+      "gauge_current_ma": -32768
+    }
+  ],
+  "current_case_count": 7,
+  "passed": true,
+  "repository": "https://github.com/realme-kernel-opensource/realmeX2pro-X3-AndroidR-kernel-source",
+  "commit": "23172a1571bd91156032cc9fef16284a82b63d2c",
+  "functions": {
+    "oplus_chg_get_float_voltage": {
+      "first_line": 3650,
+      "last_line": 3686,
+      "body_sha256_lf": "69deccb1083a472f4b63b998c7ffe2bc7ca25a1a02fe34694f021d294ea0f081"
+    },
+    "oplus_chg_check_sw_full": {
+      "first_line": 6438,
+      "last_line": 6496,
+      "body_sha256_lf": "6a3a2a8fd311a6f8e1cd6f13ad8d4b0f55c57ad1b3c96e1fdc657b4c7782f53a"
+    },
+    "oplus_chg_check_hw_full": {
+      "first_line": 6498,
+      "last_line": 6553,
+      "body_sha256_lf": "99310884c81fefa9c19508876473a4df05dc8308e54d8ac71265543436fd9de7"
+    },
+    "oplus_chg_check_rechg_status": {
+      "first_line": 5261,
+      "last_line": 5304,
+      "body_sha256_lf": "c7dcb11d3f871fca4926506606ac837e718c91a253fb473eac67f99dc422ccec"
+    },
+    "oplus_chg_full_action": {
+      "first_line": 5306,
+      "last_line": 5319,
+      "body_sha256_lf": "d6739196d24462910f74876a0538daf39315849eefb2579ffcdffd763a1b308f"
+    },
+    "bq27541_get_average_current": {
+      "source": "gauge",
+      "first_line": 1207,
+      "last_line": 1233,
+      "body_sha256_lf": "667ee309d54819c5b39e8f081e23e7d6452600755b8d2ff6cfc22234cf1cf02e"
+    }
+  },
+  "files": {
+    "E:\\edk2-samurai-out\\kernel83\\realme-kernel-opensource--realmeX2pro-X3-AndroidR-kernel-source--drivers--power--oppo--oplus_charger.c": "6cfb97b4367afe25094f3f342db4c9cce7982a22708371bc08ac6ed8bc9aa2d4",
+    "E:\\edk2-samurai-out\\kernel83\\realme-kernel-opensource--realmeX2pro-X3-AndroidR-kernel-source--drivers--power--oppo--gauge_ic--oplus_bq27541.c": "0c4640c85570f1a83ea8db3e82a63d75d9fc2650c71fbbb8c247e471c10b7a87",
+    "E:\\edk2-samurai-out\\kernel83\\realme-kernel-opensource--realmeX2pro-X3-AndroidR-kernel-source--arch--arm64--boot--dts--19781--pm8150b.dtsi": "43d554879e68bb9b7795d7fb37530dfe6a5ce6cc6aae42514057e757079140c8",
+    "E:\\edk2-samurai-out\\kernel85\\official-oplus_bq27541.h": "58c68c362fc031eb73884a59e121ba25918e6728b37572df4116f8e1277e270e",
+    "E:\\RealmeX2Pro edk2\\reference\\charging-oem-audit-20261023\\software-full\\reference-functions.c": "c5ad0e1f7402f8ec32c510d15a616a5eb0caea967c981e8ecbb4ab192701e5fb",
+    "E:\\RealmeX2Pro edk2\\reference\\charging-oem-audit-20261023\\software-full\\reference-limits.inc": "d11a1d4a5ff39302e38926da856517c41f009a7b61aa21d4943da7f8bb83149b",
+    "E:\\RealmeX2Pro edk2\\reference\\charging-oem-audit-20261023\\software-full\\test-reference.c": "cf65459afaccc6516121449547c30a7da07f7fae5febce2df87f6f633e56b26c"
+  },
+  "command": [
+    "wsl",
+    "-d",
+    "Ubuntu",
+    "-u",
+    "root",
+    "--",
+    "gcc",
+    "-std=c11",
+    "-g",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-fsanitize=address,undefined",
+    "-fno-omit-frame-pointer",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/software-full/test-reference.c",
+    "-o",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/software-full/test-reference"
+  ],
+  "stderr": "",
+  "scope": "Exact OEM SW/HW full and recharge functions with host-only stubs; no physical or production integration acceptance",
+  "phone_accessed": false,
+  "production_source_modified": false
+}

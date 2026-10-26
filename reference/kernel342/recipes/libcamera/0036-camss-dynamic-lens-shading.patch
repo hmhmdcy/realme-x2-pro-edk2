@@ -1,0 +1,548 @@
+--- a/src/ipa/camss-vfe/camss.cpp
++++ b/src/ipa/camss-vfe/camss.cpp
+@@ -24,6 +24,7 @@
+ #include "libcamera/internal/yaml_parser.h"
+ #include "parameter_encoder.h"
+ #include "lens_shading.h"
++#include "dynamic_lens_shading.h"
+ #include "white_balance_reference.h"
+ #include "colour_correction_profile.h"
+ #include "lux_profile.h"
+@@ -70,7 +71,7 @@
+ 	bool awbEnabled_ = false;
+ 	uint32_t ispRevision_ = 0;
+ 	std::optional<AutoIspUpdate> pendingWhiteBalance_;
+-	struct ParameterContext { uint32_t revision; double red, blue; bool awbEnabled; double sourceRed, sourceBlue; std::optional<int32_t> colourTemperature, estimatedColourTemperature; std::optional<ColourCorrectionState> colourCorrection; };
++	struct ParameterContext { uint32_t revision; double red, blue; bool awbEnabled; double sourceRed, sourceBlue; std::optional<int32_t> colourTemperature, estimatedColourTemperature; std::optional<ColourCorrectionState> colourCorrection; std::optional<DynamicLscState> lensShading; };
+ 	std::map<uint32_t, ParameterContext> preparedParameters_, parameterHistory_;
+  bool automatic_ = false;
+  uint32_t revision_ = 0;
+@@ -94,6 +95,11 @@
+  std::optional<LuxProfile> lux_;
+  std::optional<ColourCorrectionInputs> ccmInputs_;
+  std::optional<ColourCorrectionState> pendingColourCorrection_;
++ std::optional<DynamicLensShading> dynamicLensShading_;
++ std::optional<DynamicLscState> pendingLensShading_;
++ int selectLensShading(double red,double blue,std::optional<int32_t> temperature,
++                      const DynamicLscState *fallback,std::optional<DynamicLscState> *state,
++                      const ColourCorrectionInputs *runtime=nullptr) const;
+  int selectColourCorrection(double red, double blue, std::optional<int32_t> temperature,
+                             const std::optional<ColourMatrix> &manualMatrix,
+                             const ColourCorrectionState *fallback,
+@@ -202,7 +208,7 @@
+      input.width < 4 || input.height < 2 || ((input.width | input.height) & 1)) return -EINVAL;
+  int ret = describeSensor(info, sensorControls, ipaControls);
+  if (ret) return ret;
+- profile_ = { 0, 1.0 }; lensShading_.reset(); whiteBalance_.reset(); colourTemperature_.reset(); colourCorrection_.reset(); manualMatrix_.reset(); lux_.reset();
++ profile_ = { 0, 1.0 }; lensShading_.reset(); dynamicLensShading_.reset(); whiteBalance_.reset(); colourTemperature_.reset(); colourCorrection_.reset(); manualMatrix_.reset(); lux_.reset();
+  afEnabled_=false;af_.cancel();frameLength_=info.minFrameLength;
+  if (!profilePath.empty()) {
+   File file(profilePath);
+@@ -229,7 +235,10 @@
+    if (!selected) return -ENOTSUP;
+   } else if (version!=1) return -EINVAL;
+   const ValueNode &tuning=*selected;
+-  ret=configureLensShading(tuning["lens_shading"],input,&lensShading_);
++  ret=DynamicLensShading::configure(tuning["lens_shading"],input,&dynamicLensShading_);
++  if(ret)return ret;
++  if(tuning["lens_shading"]["mode"].get<std::string>("static")!="dynamic")
++   ret=configureLensShading(tuning["lens_shading"],input,&lensShading_);
+   if (ret) return ret;
+   ret=WhiteBalanceReference::configure(tuning["white_balance_reference"],&whiteBalance_);
+   if (ret) return ret;
+@@ -252,7 +261,7 @@
+    map[&controls::ColourCorrectionMatrix]=ControlInfo(ControlValue(Span<const float,9>(minimum)),ControlValue(Span<const float,9>(maximum)),ControlValue(Span<const float,9>(identity)));
+    *ipaControls=ControlInfoMap(std::move(map),controls::controls);
+   }
+-  if (colourCorrection_ && colourCorrection_->requiresLux() && !lux_) return -EINVAL;
++  if (((colourCorrection_ && colourCorrection_->requiresLux()) || (dynamicLensShading_ && dynamicLensShading_->requiresLux())) && !lux_) return -EINVAL;
+   ret=configureAutofocus(tuning["autofocus"].isEmpty()?(*root)["autofocus"]:tuning["autofocus"],ipaControls);
+   if (ret) return ret;
+   auto subtraction = tuning["residual_black_subtraction"].get<uint16_t>();
+@@ -399,6 +408,23 @@
+  return ret;
+ }
+ 
++int IPACamss::selectLensShading(double red,double blue,std::optional<int32_t> temperature,
++ const DynamicLscState *fallback,std::optional<DynamicLscState> *state,const ColourCorrectionInputs *runtime) const
++{
++ state->reset();if(!dynamicLensShading_)return 0;
++ double effectiveRed,effectiveBlue;int ret=effectiveColourGains(profile_,red,blue,&effectiveRed,&effectiveBlue);if(ret)return ret;
++ if(!temperature&&whiteBalance_)temperature=whiteBalance_->temperature(effectiveRed,effectiveBlue);
++ DynamicLscState result;ret=dynamicLensShading_->select(temperature,runtime,fallback,&result);
++ if(!ret)*state=result;
++ return ret;
++}
++
++static bool sameLensShading(const std::optional<DynamicLscState> &a,const std::optional<DynamicLscState> &b)
++{
++ if(bool(a)!=bool(b))return false;
++ return !a||!std::memcmp(&a->parameters,&b->parameters,sizeof(a->parameters));
++}
++
+ static bool sameColourCorrection(const std::optional<ColourCorrectionState> &a,
+                                  const std::optional<ColourCorrectionState> &b)
+ {
+@@ -441,11 +467,15 @@
+  std::optional<ColourCorrectionState> selected;
+  ret=selectColourCorrection(red,blue,temperature,manualMatrix,current.colourCorrection ? &*current.colourCorrection : nullptr,&selected,ccmInputs_ ? &*ccmInputs_ : nullptr);
+  if (ret) return ret;
+- if (enabled == current.awbEnabled && red == current.sourceRed && blue == current.sourceBlue && temperature == current.colourTemperature && manualMatrix == manualMatrix_ && sameColourCorrection(current.colourCorrection,selected)) return 0;
++ std::optional<DynamicLscState> selectedLsc;
++ ret=selectLensShading(red,blue,temperature,current.lensShading?&*current.lensShading:nullptr,&selectedLsc,ccmInputs_?&*ccmInputs_:nullptr);
++ if(ret)return ret;
++ if (enabled == current.awbEnabled && red == current.sourceRed && blue == current.sourceBlue && temperature == current.colourTemperature && manualMatrix == manualMatrix_ && sameColourCorrection(current.colourCorrection,selected) && sameLensShading(current.lensShading,selectedLsc)) return 0;
+  if (ispRevision_ >= UINT32_MAX-1) return -EOVERFLOW;
+  af_.cancelScan();
+  awbEnabled_ = enabled; colourTemperature_ = temperature; manualMatrix_ = manualMatrix;
+  if (awb_) awb_->reset();
++ pendingLensShading_=selectedLsc;
+  pendingColourCorrection_ = selected;
+  pendingWhiteBalance_ = AutoIspUpdate{ true, ++ispRevision_, red, blue };
+  *update = *pendingWhiteBalance_;
+@@ -581,6 +611,8 @@
+  std::optional<ColourCorrectionState> selected;
+  int ret=selectColourCorrection(red,blue,temperature,manualMatrix,nullptr,&selected);
+  if (ret) return ret;
++ std::optional<DynamicLscState> selectedLsc;
++ ret=selectLensShading(red,blue,temperature,nullptr,&selectedLsc);if(ret)return ret;
+  camss_params_color_correct ccm{};
+  if (selected) {
+   const auto &params=selected->parameters;
+@@ -588,7 +620,7 @@
+   std::copy(params.c.begin(),params.c.end(),ccm.c);std::copy(params.k.begin(),params.k.end(),ccm.k);ccm.qfactor=params.qfactor;
+  }
+ 	size_t used;
+-	ret = encodeParameters(packet, profile_, red, blue, input_, Rectangle(input_), &used, lensShading_ ? &*lensShading_ : nullptr, selected ? &ccm : nullptr);
++	ret = encodeParameters(packet, profile_, red, blue, input_, Rectangle(input_), &used, selectedLsc?&selectedLsc->parameters:lensShading_?&*lensShading_:nullptr, selected ? &ccm : nullptr);
+ 	if (ret)
+ 		return ret;
+  *sensorControls = initial;
+@@ -598,7 +630,7 @@
+  awaiting_.reset();
+  if (agc_) agc_->resetFrameCount();
+  if (lux_) lux_->reset();
+- ccmInputs_.reset();pendingColourCorrection_.reset();
++ ccmInputs_.reset();pendingColourCorrection_.reset();pendingLensShading_.reset();
+  epoch_ = epoch;
+ 	red_ = red; blue_ = blue;
+ 	awbEnabled_ = awbEnabled; colourTemperature_ = temperature; manualMatrix_ = manualMatrix;
+@@ -616,7 +648,7 @@
+ {
+ 	running_ = false;af_.cancel();initialAfTrigger_.reset();
+  if (lux_) lux_->reset();
+- ccmInputs_.reset();pendingColourCorrection_.reset();
++ ccmInputs_.reset();pendingColourCorrection_.reset();pendingLensShading_.reset();
+  automatic_ = false; awaiting_.reset();
+ 	awbEnabled_ = false; colourTemperature_.reset(); manualMatrix_.reset(); pendingWhiteBalance_.reset();
+ 	preparedParameters_.clear(); parameterHistory_.clear();
+@@ -649,6 +681,11 @@
+  if (revision) selected=pendingColourCorrection_;
+  else ret=selectColourCorrection(red,blue,colourTemperature_,manualMatrix_,fallback,&selected);
+  if (ret) return ret;
++ std::optional<DynamicLscState> selectedLsc;
++ if(revision)selectedLsc=pendingLensShading_;
++ else {ret=selectLensShading(red,blue,colourTemperature_,nullptr,&selectedLsc);if(ret)return ret;}
++ const camss_params_lsc *uploadLsc=revision==0&&lensShading_?&*lensShading_:nullptr;
++ if(selectedLsc && (revision==0 || parameterHistory_.empty() || !sameLensShading(selectedLsc,parameterHistory_.rbegin()->second.lensShading)))uploadLsc=&selectedLsc->parameters;
+  camss_params_color_correct ccm{};
+  if (selected) {
+   const auto &params=selected->parameters;
+@@ -656,9 +693,9 @@
+   std::copy(params.c.begin(),params.c.end(),ccm.c);std::copy(params.k.begin(),params.k.end(),ccm.k);ccm.qfactor=params.qfactor;
+  }
+ 	size_t used;
+-	ret = encodeParameters(it->second.memory->planes()[0], profile_, red, blue, input_, Rectangle(input_), &used, revision==0 && lensShading_ ? &*lensShading_ : nullptr, selected ? &ccm : nullptr);
++	ret = encodeParameters(it->second.memory->planes()[0], profile_, red, blue, input_, Rectangle(input_), &used, uploadLsc, selected ? &ccm : nullptr);
+ 	if (!ret) {
+-		preparedParameters_[revision] = { revision, effectiveRed, effectiveBlue, awbEnabled_, red, blue, colourTemperature_, whiteBalance_ ? whiteBalance_->temperature(effectiveRed,effectiveBlue) : std::nullopt, selected };
++		preparedParameters_[revision] = { revision, effectiveRed, effectiveBlue, awbEnabled_, red, blue, colourTemperature_, whiteBalance_ ? whiteBalance_->temperature(effectiveRed,effectiveBlue) : std::nullopt, selected, selectedLsc };
+ 		*bytesused = used;
+ 	}
+ 	return ret;
+@@ -677,9 +714,13 @@
+ 	parameterHistory_[firstSof] = it->second;
+ 	preparedParameters_.erase(it);
+ 	if (pendingWhiteBalance_ && pendingWhiteBalance_->revision == revision) {
+-  pendingWhiteBalance_.reset();pendingColourCorrection_.reset();
++  pendingWhiteBalance_.reset();pendingColourCorrection_.reset();pendingLensShading_.reset();
+  }
+  ccmInputs_.reset();
++ const auto &lsc=parameterHistory_.at(firstSof).lensShading;
++ if(lsc)LOG(IPACamss,Info)<<"LSC_APPLIED epoch="<<epoch<<" revision="<<revision<<" first-sof="<<firstSof
++  <<" statistics-sof="<<lsc->statisticsSof.value_or(firstSof)<<" aec-bits="<<std::bit_cast<uint32_t>(lsc->aecValue.value_or(0))
++  <<" kelvin="<<lsc->temperature.value_or(0)<<" mesh-trace="<<lensShadingTrace(lsc->parameters);
+  const auto &ccm=parameterHistory_.at(firstSof).colourCorrection;
+  if (ccm && ccm->aecValue) {
+   LOG(IPACamss,Info)<<"CCM_APPLIED epoch="<<epoch<<" revision="<<revision<<" first-sof="<<firstSof
+@@ -721,6 +762,9 @@
+ 		result.ispRevision = context->second.revision;
+ 		const std::array<float, 2> gains{ float(context->second.red), float(context->second.blue) };
+ 		metadata.set(controls::ColourGains, Span<const float, 2>(gains));
++  if(context->second.lensShading)LOG(IPACamss,Info)<<"LSC_CONTEXT epoch="<<epoch<<" sof="<<sof<<" revision="<<context->second.revision
++   <<" mesh-trace="<<lensShadingTrace(context->second.lensShading->parameters);
++
+ 	}
+ 	effective_ = result.parametersKnown;
+ 	metadata.set(controls::AwbEnable, result.parametersKnown && context->second.awbEnabled);
+@@ -782,13 +826,16 @@
+  }
+  if (af_.state()!=ipa::ContrastAf::State::Scanning && result.parametersKnown && context==std::prev(parameterHistory_.end()) &&
+      !pendingWhiteBalance_ && preparedParameters_.empty() && ispRevision_<UINT32_MAX-1 &&
+-     (whiteBalanceChanged || (colourCorrection_ && colourCorrection_->runtimeAec()))) {
++     (whiteBalanceChanged || (colourCorrection_ && colourCorrection_->runtimeAec()) || dynamicLensShading_)) {
+   std::optional<ColourCorrectionState> selected;
+   int ret=selectColourCorrection(proposedRed,proposedBlue,colourTemperature_,manualMatrix_,
+                                 context->second.colourCorrection ? &*context->second.colourCorrection : nullptr,
+                                 &selected,ccmInputs_ ? &*ccmInputs_ : nullptr);
++  std::optional<DynamicLscState> selectedLsc;
++  if(!ret)ret=selectLensShading(proposedRed,proposedBlue,colourTemperature_,context->second.lensShading?&*context->second.lensShading:nullptr,&selectedLsc,ccmInputs_?&*ccmInputs_:nullptr);
+   if (ret) LOG(IPACamss,Error)<<"Runtime CCM selection failed: "<<ret;
+-  else if (whiteBalanceChanged || !sameColourCorrection(selected,context->second.colourCorrection)) {
++  else if (whiteBalanceChanged || !sameColourCorrection(selected,context->second.colourCorrection) || !sameLensShading(selectedLsc,context->second.lensShading)) {
++   pendingLensShading_=selectedLsc;
+    pendingColourCorrection_=selected;
+    pendingWhiteBalance_=AutoIspUpdate{ true,++ispRevision_,proposedRed,proposedBlue };
+    result.ispUpdate=*pendingWhiteBalance_;
+--- a/src/ipa/camss-vfe/dynamic_lens_shading.cpp
++++ b/src/ipa/camss-vfe/dynamic_lens_shading.cpp
+@@ -0,0 +1,114 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#include "dynamic_lens_shading.h"
++#include "lens_shading.h"
++#include <cerrno>
++#include <cmath>
++#include <utility>
++namespace libcamera::ipa::camss {
++namespace {constexpr std::array<unsigned,6> triggerSize{2,2,6,1,4,2};}
++
++uint32_t lensShadingTrace(const camss_params_lsc &parameters)
++{
++ uint32_t value=2166136261u;
++ const auto *bytes=reinterpret_cast<const uint8_t*>(&parameters);
++ for(unsigned i=0;i<sizeof(parameters);i++)value=(value^bytes[i])*16777619u;
++ return value;
++}
++
++int DynamicLensShading::readNodes(const ValueNode &value,unsigned level,std::vector<Node> *nodes)
++{
++ if(level>=triggerSize.size()||!value.isList()||!value.size())return -EINVAL;
++ for(const auto &item:value.asList()){
++  const auto &trigger=item["trigger"];
++  if(!item.isDictionary()||!trigger.isList()||trigger.size()!=triggerSize[level])return -EINVAL;
++  Node node;
++  for(unsigned i=0;i<trigger.size();i++){
++   auto v=trigger[i].get<float>();if(!v||!std::isfinite(*v))return -EINVAL;node.trigger[i]=*v;
++  }
++  unsigned position=level==2?hdrPosition_:level==4?aecPosition_:0;
++  if(level==3){if(node.trigger[0]<0||std::floor(node.trigger[0])!=node.trigger[0])return -EINVAL;}
++  else for(unsigned i=0;i<trigger.size();i+=2)if(node.trigger[i]>node.trigger[i+1])return -EINVAL;
++  if(!nodes->empty()&&(level==3?nodes->back().trigger[0]>=node.trigger[0]:nodes->back().trigger[position+1]>node.trigger[position]))return -EINVAL;
++  int ret=level==5?readLensShadingMesh(item["gains"],&node.gains):readNodes(item["children"],level+1,&node.children);
++  if(ret)return ret;
++  nodes->push_back(std::move(node));
++ }
++ return 0;
++}
++
++int DynamicLensShading::evaluate(const std::vector<Node> &nodes,unsigned level,float kelvin,float aec,LscMesh *mesh) const
++{
++ if(nodes.empty()||level>=triggerSize.size())return -EINVAL;
++ auto child=[&](const Node &node,LscMesh *result){
++  if(level==5){*result=node.gains;return 0;}
++  return evaluate(node.children,level+1,kelvin,aec,result);
++ };
++ if(level==3){for(const auto &node:nodes)if(node.trigger[0]==ledIndex_)return child(node,mesh);return -ENOENT;}
++ const float value=level==0?lensPosition_:level==1?drcGain_:level==2?hdrRatio_:level==4?aec:kelvin;
++ const unsigned position=level==2?hdrPosition_:level==4?aecPosition_:0;
++ for(unsigned i=0;i<nodes.size();i++){
++  const auto &first=nodes[i];
++  if(value<=first.trigger[position+1]||i+1==nodes.size())return child(first,mesh);
++  const auto &second=nodes[i+1];
++  if(value<second.trigger[position]){
++   LscMesh a,b;int ret=child(first,&a);if(ret)return ret;ret=child(second,&b);if(ret)return ret;
++   float weight=float((double(value)-first.trigger[position+1])/(double(second.trigger[position])-first.trigger[position+1]));
++   return interpolateLscMesh(a,b,weight,mesh)?0:-ERANGE;
++  }
++ }
++ return -EINVAL;
++}
++
++int DynamicLensShading::configure(const ValueNode &tuning,const Size &input,std::optional<DynamicLensShading> *profile)
++{
++ if(!profile)return -EINVAL;
++ profile->reset();if(tuning.isEmpty())return 0;
++ const auto mode=tuning["mode"].get<std::string>("static");
++ if(mode=="static")return 0;
++ if(mode!="dynamic"||!tuning.isDictionary())return -EINVAL;
++ if(!tuning["enabled"].isEmpty()){
++  auto enabled=tuning["enabled"].get<bool>();if(!enabled)return -EINVAL;if(!*enabled)return 0;
++ }
++ DynamicLensShading result;result.input_=input;
++ int ret=readLensShadingMapping(tuning,&result.mapping_);if(ret)return ret;
++ auto aec=tuning["aec_control"].get<std::string>(),hdr=tuning["hdr_control"].get<std::string>();
++ if(!aec||!hdr)return -EINVAL;
++ if(*aec=="lux_index")result.aecPosition_=0;else if(*aec=="analogue_gain")result.aecPosition_=2;else return -EINVAL;
++ if(*hdr=="exposure_time_ratio")result.hdrPosition_=0;else if(*hdr=="sensitivity_ratio")result.hdrPosition_=2;else if(*hdr=="exposure_gain_ratio")result.hdrPosition_=4;else return -EINVAL;
++ const auto &reference=tuning["reference_triggers"];
++ auto lens=reference["lens_position"].get<float>(),drc=reference["drc_gain"].get<float>(),ratio=reference["hdr_ratio"].get<float>();
++ auto led=reference["led_index"].get<unsigned>();
++ if(!lens||!drc||!ratio||!led||!std::isfinite(*lens)||!std::isfinite(*drc)||!std::isfinite(*ratio))return -EINVAL;
++ result.lensPosition_=*lens;result.drcGain_=*drc;result.hdrRatio_=*ratio;result.ledIndex_=*led;
++ ret=result.readNodes(tuning["core"],0,&result.core_);if(ret)return ret;
++ // One explicitly paired golden/unit response, matching the retained
++ // Default profiles. Additional illuminant bindings are not inferred.
++ if(!tuning["golden"].isEmpty()||!tuning["unit"].isEmpty()){
++  LscMesh golden,unit,factors;
++  if(readLensShadingMesh(tuning["golden"],&golden)||readLensShadingMesh(tuning["unit"],&unit)||!lscCalibrationFactors(golden,unit,&factors))return -EINVAL;
++  result.factors_=factors;
++ }
++ LscMesh check;ret=result.evaluate(result.core_,0,6500,0,&check);if(ret)return ret;
++ camss_params_lsc encoded;ret=encodeLensShading(check,input,result.mapping_,&encoded);if(ret)return ret;
++ *profile=std::move(result);return 0;
++}
++
++int DynamicLensShading::select(std::optional<int32_t> kelvin,const ColourCorrectionInputs *runtime,const DynamicLscState *fallback,DynamicLscState *state) const
++{
++ if(!state)return -EINVAL;
++ auto aec=runtime?(aecPosition_==0?runtime->luxIndex:runtime->analogueGain):std::nullopt;
++ if(aec&&!std::isfinite(*aec))return -ERANGE;
++ DynamicLscState result;
++ if(!kelvin||!aec){
++  if(fallback){*state=*fallback;return 0;}
++  LscMesh unity;for(auto &channel:unity)channel.fill(1);
++  int ret=encodeLensShading(unity,input_,mapping_,&result.parameters);if(ret)return ret;
++ }else{
++  LscMesh source;int ret=evaluate(core_,0,*kelvin,*aec,&source);if(ret)return ret;
++  if(factors_){LscMesh calibrated;if(!lscApplyCalibration(source,*factors_,&calibrated))return -ERANGE;source=calibrated;}
++  ret=encodeLensShading(source,input_,mapping_,&result.parameters);if(ret)return ret;
++  result.aecValue=aec;result.temperature=kelvin;result.statisticsSof=runtime->statisticsSof;
++ }
++ *state=result;return 0;
++}
++} /* namespace libcamera::ipa::camss */
+--- a/src/ipa/camss-vfe/dynamic_lens_shading.h
++++ b/src/ipa/camss-vfe/dynamic_lens_shading.h
+@@ -0,0 +1,38 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++#include <array>
++#include <optional>
++#include <vector>
++#include <linux/qcom-camss-config.h>
++#include <libcamera/geometry.h>
++#include "libcamera/internal/yaml_parser.h"
++#include "../libipa/lens_shading.h"
++#include "../libipa/lsc_resample.h"
++#include "colour_correction_profile.h"
++namespace libcamera::ipa::camss {
++struct DynamicLscState {
++ camss_params_lsc parameters{};
++ std::optional<float> aecValue;
++ std::optional<int32_t> temperature;
++ std::optional<uint32_t> statisticsSof;
++};
++class DynamicLensShading {
++public:
++ static int configure(const ValueNode &tuning,const Size &input,
++                      std::optional<DynamicLensShading> *profile);
++ bool requiresLux() const {return aecPosition_==0;}
++ int select(std::optional<int32_t> kelvin,const ColourCorrectionInputs *runtime,
++            const DynamicLscState *fallback,DynamicLscState *state) const;
++private:
++ struct Node {std::array<float,6> trigger{};std::vector<Node> children;LscMesh gains{};};
++ int readNodes(const ValueNode &value,unsigned level,std::vector<Node> *nodes);
++ int evaluate(const std::vector<Node> &nodes,unsigned level,float kelvin,float aec,LscMesh *mesh) const;
++ Size input_;
++ LscMapping mapping_{};
++ std::optional<LscMesh> factors_;
++ unsigned hdrPosition_=2,aecPosition_=0,ledIndex_=0;
++ float lensPosition_=0,drcGain_=1,hdrRatio_=1;
++ std::vector<Node> core_;
++};
++uint32_t lensShadingTrace(const camss_params_lsc &parameters);
++} /* namespace libcamera::ipa::camss */
+--- a/src/ipa/camss-vfe/lens_shading.cpp
++++ b/src/ipa/camss-vfe/lens_shading.cpp
+@@ -22,7 +22,7 @@
+ 	return 0;
+ }
+ 
+-static int readMesh(const ValueNode &value, LscMesh *mesh)
++int readLensShadingMesh(const ValueNode &value, LscMesh *mesh)
+ {
+ 	static constexpr std::array<const char *, 4> names = { "r", "gr", "gb", "b" };
+ 	if (!value.isDictionary())
+@@ -64,19 +64,36 @@
+ 	    readPair(tuning["first_quad"], &mapping.firstX, &mapping.firstY) ||
+ 	    readPair(tuning["quad_step"], &mapping.stepX, &mapping.stepY))
+ 		return -EINVAL;
+-	LscGrid grid;
+-	LscMesh source, resampled;
+-	if (!lscGridForSize(input.width, input.height, &grid) ||
+-	    readMesh(tuning["gains"], &source))
++ LscMesh source;
++ if (readLensShadingMesh(tuning["gains"], &source))
+ 		return -EINVAL;
+ 	if (!tuning["golden"].isEmpty() || !tuning["unit"].isEmpty()) {
+ 		LscMesh golden, unit, factors, calibrated;
+-		if (readMesh(tuning["golden"], &golden) || readMesh(tuning["unit"], &unit) ||
++		if (readLensShadingMesh(tuning["golden"], &golden) || readLensShadingMesh(tuning["unit"], &unit) ||
+ 		    !lscCalibrationFactors(golden, unit, &factors) ||
+ 		    !lscApplyCalibration(source, factors, &calibrated))
+ 			return -EINVAL;
+ 		source = calibrated;
+ 	}
++ camss_params_lsc encoded;
++ int ret=encodeLensShading(source,input,mapping,&encoded);
++ if(!ret)*parameters=encoded;
++ return ret;
++}
++
++int readLensShadingMapping(const ValueNode &tuning,LscMapping *mapping)
++{
++ if(!mapping)return -EINVAL;
++ return readPair(tuning["source_span"],&mapping->sourceSpanX,&mapping->sourceSpanY)||
++        readPair(tuning["first_quad"],&mapping->firstX,&mapping->firstY)||
++        readPair(tuning["quad_step"],&mapping->stepX,&mapping->stepY)?-EINVAL:0;
++}
++
++int encodeLensShading(const LscMesh &source,const Size &input,const LscMapping &mapping,camss_params_lsc *parameters)
++{
++ if(!parameters)return -EINVAL;
++ LscGrid grid;LscMesh resampled;
++ if(!lscGridForSize(input.width,input.height,&grid))return -EINVAL;
+ 	LscPackedMesh packed;
+ 	if (!lscResample(source, grid, mapping, &resampled) ||
+ 	    !lscPackTitan17x(resampled, &packed))
+--- a/src/ipa/camss-vfe/lens_shading.h
++++ b/src/ipa/camss-vfe/lens_shading.h
+@@ -4,11 +4,16 @@
+ #include <optional>
+ #include <linux/qcom-camss-config.h>
+ #include <libcamera/geometry.h>
++#include "../libipa/lsc_resample.h"
+ 
+ namespace libcamera {
+ class ValueNode;
+ namespace ipa::camss {
+ 
++int readLensShadingMesh(const ValueNode &value,LscMesh *mesh);
++int readLensShadingMapping(const ValueNode &tuning,LscMapping *mapping);
++int encodeLensShading(const LscMesh &source,const Size &input,const LscMapping &mapping,camss_params_lsc *parameters);
++
+ /* Static mode tuning. The ISP applies it once at stream start; colour-gain
+  * updates do not repeatedly upload this mesh. Absence leaves LSC disabled.
+  */
+--- a/src/ipa/camss-vfe/meson.build
++++ b/src/ipa/camss-vfe/meson.build
+@@ -1,6 +1,6 @@
+ # SPDX-License-Identifier: CC0-1.0
+ ipa_name = 'ipa_camss_vfe'
+-mod = shared_module(ipa_name, ['camss.cpp', 'parameter_encoder.cpp', 'hardware_agc.cpp', 'hardware_awb.cpp', 'lens_shading.cpp', 'white_balance_reference.cpp', 'colour_correction_profile.cpp', 'lux_profile.cpp'],
++mod = shared_module(ipa_name, ['camss.cpp', 'parameter_encoder.cpp', 'hardware_agc.cpp', 'hardware_awb.cpp', 'lens_shading.cpp', 'white_balance_reference.cpp', 'colour_correction_profile.cpp', 'lux_profile.cpp', 'dynamic_lens_shading.cpp'],
+     name_prefix : '',
+     include_directories : [ipa_includes],
+     dependencies : [libcamera_private, libipa_dep],
+--- a/src/ipa/libipa/colour_correction.cpp
++++ b/src/ipa/libipa/colour_correction.cpp
+@@ -1,5 +1,6 @@
+ /* SPDX-License-Identifier: LGPL-2.1-or-later */
+ #include "colour_correction.h"
++#include "tuning_interpolation.h"
+ #include <cmath>
+ 
+ namespace libcamera::ipa {
+@@ -13,17 +14,6 @@
+ 	return true;
+ }
+ 
+-/* Preserve the pinned tuning arithmetic's separate integer/fractional
+- * rounding, including its float32 decimal-scale step. */
+-float interpolateValue(float first, float second, float weight)
+-{
+-	int32_t a = first, b = second;
+-	double af = double(first - float(a)) * 1000000.0;
+-	double bf = double(second - float(b)) * 1000000.0;
+-	float fraction = float(af + double(weight) * (bf - af)) / 1000000.0f;
+-	float integer = float(double(a) + double(weight) * float(b - a));
+-	return fraction + integer;
+-}
+ } /* namespace */
+ 
+ bool interpolateColourCorrection(const ColourCorrectionData &first,
+@@ -36,9 +26,9 @@
+ 	if (weight == 1) { *result = second; return true; }
+ 	ColourCorrectionData output;
+ 	for (unsigned int i = 0; i < output.matrix.size(); ++i)
+-		output.matrix[i] = interpolateValue(first.matrix[i], second.matrix[i], weight);
++		output.matrix[i] = interpolateTuningFloat(first.matrix[i], second.matrix[i], weight);
+ 	for (unsigned int i = 0; i < output.offsets.size(); ++i)
+-		output.offsets[i] = int32_t(interpolateValue(float(first.offsets[i]), float(second.offsets[i]), weight));
++		output.offsets[i] = int32_t(interpolateTuningFloat(float(first.offsets[i]), float(second.offsets[i]), weight));
+ 	*result = output;
+ 	return true;
+ }
+--- a/src/ipa/libipa/lens_shading.cpp
++++ b/src/ipa/libipa/lens_shading.cpp
+@@ -1,5 +1,6 @@
+ /* SPDX-License-Identifier: LGPL-2.1-or-later */
+ #include "lens_shading.h"
++#include "tuning_interpolation.h"
+ 
+ #include <algorithm>
+ #include <cmath>
+@@ -11,6 +12,23 @@
+ 	return std::isfinite(value) && value > 0.0f;
+ }
+ 
++bool interpolateLscMesh(const LscMesh &first,const LscMesh &second,float weight,LscMesh *result)
++{
++ if(!result||!std::isfinite(weight)||weight<0||weight>1)return false;
++ LscMesh output;
++ for(unsigned c=0;c<LscChannels;c++)for(unsigned i=0;i<LscPoints;i++){
++  float a=first[c][i],b=second[c][i];if(!positive(a)||!positive(b))return false;
++  if(weight==0)output[c][i]=a;
++  else if(weight==1)output[c][i]=b;
++  else {
++   if(a>=2147483648.0f||b>=2147483648.0f)return false;
++   output[c][i]=interpolateTuningFloat(a,b,weight);
++  }
++  if(!positive(output[c][i]))return false;
++ }
++ *result=output;return true;
++}
++
+ bool lscCalibrationFactors(const LscMesh &golden, const LscMesh &unit,
+ 			   LscMesh *factors)
+ {
+--- a/src/ipa/libipa/lens_shading.h
++++ b/src/ipa/libipa/lens_shading.h
+@@ -17,6 +17,8 @@
+ 	std::array<uint32_t, LscPoints> gbb;
+ };
+ 
++bool interpolateLscMesh(const LscMesh &first,const LscMesh &second,float weight,LscMesh *result);
++
+ bool lscCalibrationFactors(const LscMesh &golden, const LscMesh &unit,
+ 			   LscMesh *factors);
+ bool lscApplyCalibration(const LscMesh &base, const LscMesh &factors,
+--- a/src/ipa/libipa/tuning_interpolation.h
++++ b/src/ipa/libipa/tuning_interpolation.h
+@@ -0,0 +1,16 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++#pragma once
++#include <cstdint>
++namespace libcamera::ipa {
++/* Keep the pinned tuning utility's separate integer/fractional rounding.
++ * Callers validate finite int32-representable inputs and a weight in [0,1]. */
++inline float interpolateTuningFloat(float first, float second, float weight)
++{
++ int32_t a=first,b=second;
++ double af=double(first-float(a))*1000000.0;
++ double bf=double(second-float(b))*1000000.0;
++ float fraction=float(af+double(weight)*(bf-af))/1000000.0f;
++ float integer=float(double(a)+double(weight)*float(b-a));
++ return fraction+integer;
++}
++} /* namespace libcamera::ipa */

@@ -1,0 +1,40 @@
+a31c1158-fbca-4515-83ac-1a3b40ee808e
+0
+I: Bus=0000 Vendor=0000 Product=0000 Version=0000
+N: Name="pm8941_pwrkey"
+P: Phys=pm8941_pwrkey/input0
+S: Sysfs=/devices/platform/soc@0/c440000.spmi/spmi-0/0-00/c440000.spmi:pmic@0:pon@800/c440000.spmi:pmic@0:pon@800:pwrkey/input/input0
+U: Uniq=
+H: Handlers=kbd event0 
+B: PROP=0
+B: EV=3
+B: KEY=10000000000000 0
+
+I: Bus=0019 Vendor=0001 Product=0001 Version=0100
+N: Name="gpio-keys"
+P: Phys=gpio-keys/input0
+S: Sysfs=/devices/platform/gpio-keys/input/input1
+U: Uniq=
+H: Handlers=kbd event1 
+B: PROP=0
+B: EV=3
+B: KEY=c000000000000 0
+
+I: Bus=001d Vendor=06cb Product=0000 Version=0000
+N: Name="Synaptics S3706A"
+P: Phys=rmi4-00/input0
+S: Sysfs=/devices/platform/soc@0/cc0000.geniqup/c80000.i2c/i2c-0/0-0020/rmi4-00/input/input2
+U: Uniq=
+H: Handlers=event2 
+B: PROP=2
+B: EV=b
+B: KEY=400 0 0 0 0 0
+B: ABS=6f3800001000003
+
+lrwxrwxrwx    1 0        0                0 Jan  1 00:02 /sys/bus/i2c/devices/0-0020/driver -> ../../../../../../../bus/i2c/drivers/rmi4_i2c
+lrwxrwxrwx    1 0        0                0 Jan  1 00:02 /sys/bus/rmi4/devices/rmi4-00.fn01/driver -> ../../../../../../../../../bus/rmi4/drivers/rmi4_f01
+lrwxrwxrwx    1 0        0                0 Jan  1 00:02 /sys/bus/rmi4/devices/rmi4-00.fn12/driver -> ../../../../../../../../../bus/rmi4/drivers/rmi4_f12
+lrwxrwxrwx    1 0        0                0 Jan  1 00:02 /sys/bus/rmi4/devices/rmi4-00/driver -> ../../../../../../../../bus/rmi4/drivers/rmi4_physical
+ 141:       1620          0          0          0          0          0          0          0  msmgpio    122 Level     rmi4_i2c
+ 142:          0          0          0          0          0          0          0          0  rmi4         1 Edge      rmi4-00.fn01
+ 143:       1326          0          0          0          0          0          0          0  rmi4         2 Edge      rmi4-00.fn12

@@ -1,0 +1,76 @@
+{
+  "passed": true,
+  "summary": {
+    "passed": true,
+    "cases": 8,
+    "old_late_enqueue_reproduced": true,
+    "running_worker_joined_before_unbind": true,
+    "mutex_outlives_free_irq": true,
+    "full_resume_abort_proved": false
+  },
+  "phases": [
+    {
+      "phase": "compile",
+      "argv": [
+        "gcc",
+        "-std=c11",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-Wno-unused-function",
+        "-Wno-unused-parameter",
+        "-g",
+        "-O1",
+        "-pthread",
+        "-fsanitize=address,undefined",
+        "-fno-omit-frame-pointer",
+        "-fno-pie",
+        "-no-pie",
+        "/mnt/e/RealmeX2Pro edk2/reference/charging-ui-audit-20261023/dwc-recovery-exit-lifetime-candidate/test-lifetime.c",
+        "-o",
+        "/home/cy122/charging-management-20261023/dwc-recovery-exit-lifetime-test-01/test-lifetime"
+      ],
+      "pid": 788,
+      "terminal": true,
+      "returncode": 0,
+      "seconds": 1.1020295419999968,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "phase": "run",
+      "argv": [
+        "/home/cy122/charging-management-20261023/dwc-recovery-exit-lifetime-test-01/test-lifetime"
+      ],
+      "pid": 797,
+      "terminal": true,
+      "returncode": 0,
+      "seconds": 0.01813828699999931,
+      "stdout_sha256": "5669ed3c3645371c8cd3bb898027bf0ce780c732988330c417e5fe4619544fe7",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "files": {
+    "prepare.py": "3ac696a78c378d351cb861dbbea45e4c727dc97ac72400fe2ff3912ba4272a95",
+    "gadget.c": "f32623e0bd1bdad968f84b08da28389d4d939b87ae18abcc850ccb4643640557",
+    "core.h": "b177e605cddbd0bb3a7501b3a5afe7b94a58d0027569ba08e42fbfddfdae62e4",
+    "recovery-exit-lifetime.patch": "2d3e4222f7940dcf778f020a572628f30ef38a874d271e15453e328aa273a5dd",
+    "source-result.json": "788b5fecb04e7bd5330a7231a0864c51301df653973042c671ed260c417d2f7f",
+    "actual-functions.inc": "3cc80483191ba179a11bab1c52c5611f5b901f7a492f623a646f94735599b3b2",
+    "previous-functions.inc": "a610e6e11407d418872b8f82ac1a7429c4676e25a513e99f4f10faa50c44b003",
+    "test-lifetime.c": "57c12fe644c268dcaddbce1e4a72a13d9dd72409a197897af73f2497ca9a60dc",
+    "test-lifetime.py": "09cbac6649375434994d22fd7cb997a8c4dfe7e63bde655a089deadb1e6b3cc0"
+  },
+  "private_output": "/home/cy122/charging-management-20261023/dwc-recovery-exit-lifetime-test-01",
+  "boundaries_fake": [
+    "IRQ/workqueue primitive",
+    "UDC unbind",
+    "MMIO/DMA",
+    "PM",
+    "allocation/free"
+  ],
+  "pthread_mutex_and_condition_join_executed": true,
+  "old_7_15_13_24_20_126_and_outcome_suites_rerun": false,
+  "full_resume_abort_proved": false,
+  "device_SSH_USB_storage_helper_SDK_Git_used": false
+}

@@ -1,0 +1,221 @@
+{
+  "scope": "Offline exact-source fault/classification tests and same-handset archived DT decoding; not charging acceptance.",
+  "source_sha256": {
+    "stock--drivers--power--oppo--oppo_charger.c": "57daaec681f55b35c01f2c0d5ecc7900650c13d032b0c676ca7ae86f183d33f4",
+    "stock-oppo_bq27541.c": "c0c502065fcd46cc52173ab075074f3f3f66efe596f71845de0f8092291d5d84",
+    "bq27xxx_battery.c": "b2cd415a995cb196559c0e4981988f737c17c98486449659d168314926aec69e",
+    "live-device-tree.tar": "e3329db4f3568252286489abd2ae27b9cbd0c711a2c5d790ebfba80fffc5b56b"
+  },
+  "temperature_policy": {
+    "removed_bat_decidegc": {
+      "raw_hex": "000000be",
+      "u32_be": 190,
+      "parser_decidegrees_C": -190
+    },
+    "cold_bat_decidegc": {
+      "raw_hex": "00000014",
+      "u32_be": 20,
+      "parser_decidegrees_C": -20
+    },
+    "little_cold_bat_decidegc": {
+      "raw_hex": "00000000",
+      "u32_be": 0,
+      "parser_decidegrees_C": 0
+    },
+    "cool_bat_decidegc": {
+      "raw_hex": "00000032",
+      "u32_be": 50,
+      "parser_decidegrees_C": 50
+    },
+    "little_cool_bat_decidegc": {
+      "raw_hex": "00000078",
+      "u32_be": 120,
+      "parser_decidegrees_C": 120
+    },
+    "normal_bat_decidegc": {
+      "raw_hex": "000000a0",
+      "u32_be": 160,
+      "parser_decidegrees_C": 160
+    },
+    "warm_bat_decidegc": {
+      "raw_hex": "000001b8",
+      "u32_be": 440,
+      "parser_decidegrees_C": 440
+    },
+    "hot_bat_decidegc": {
+      "raw_hex": "00000212",
+      "u32_be": 530,
+      "parser_decidegrees_C": 530
+    }
+  },
+  "raw_parameters": {
+    "vbatt_num": {
+      "raw_hex": "00000002",
+      "u32_be": 2
+    },
+    "input_current_usb_ma": {
+      "raw_hex": "000001f4",
+      "u32_be": 500
+    },
+    "max_chg_time_sec": {
+      "raw_hex": "00008ca0",
+      "u32_be": 36000
+    },
+    "temp_normal_vfloat_mv": {
+      "raw_hex": "00001130",
+      "u32_be": 4400
+    },
+    "normal_vfloat_over_sw_limit": {
+      "raw_hex": "0000113a",
+      "u32_be": 4410
+    },
+    "vbatt_hv_thr": {
+      "raw_hex": "000011f8",
+      "u32_be": 4600
+    }
+  },
+  "CONFIG_HIGH_TEMP_VERSION_stock_runtime_value_verified": false,
+  "policy_decoding_assumes_normal_parser_branch": true,
+  "source_classifier_boundary_samples": [
+    {
+      "decidegrees_C": -401,
+      "stock_initial_classification": "removed",
+      "stock_batt_exist": false
+    },
+    {
+      "decidegrees_C": -191,
+      "stock_initial_classification": "removed",
+      "stock_batt_exist": false
+    },
+    {
+      "decidegrees_C": -190,
+      "stock_initial_classification": "removed",
+      "stock_batt_exist": false
+    },
+    {
+      "decidegrees_C": -189,
+      "stock_initial_classification": "low",
+      "stock_batt_exist": true
+    },
+    {
+      "decidegrees_C": -21,
+      "stock_initial_classification": "low",
+      "stock_batt_exist": true
+    },
+    {
+      "decidegrees_C": -20,
+      "stock_initial_classification": "cold",
+      "stock_batt_exist": true
+    },
+    {
+      "decidegrees_C": -19,
+      "stock_initial_classification": "cold",
+      "stock_batt_exist": true
+    },
+    {
+      "decidegrees_C": -1,
+      "stock_initial_classification": "cold",
+      "stock_batt_exist": true
+    },
+    {
+      "decidegrees_C": 0,
+      "stock_initial_classification": "little_cold",
+      "stock_batt_exist": true
+    },
+    {
+      "decidegrees_C": 1,
+      "stock_initial_classification": "little_cold",
+      "stock_batt_exist": true
+    },
+    {
+      "decidegrees_C": 49,
+      "stock_initial_classification": "little_cold",
+      "stock_batt_exist": true
+    },
+    {
+      "decidegrees_C": 50,
+      "stock_initial_classification": "cool",
+      "stock_batt_exist": true
+    },
+    {
+      "decidegrees_C": 51,
+      "stock_initial_classification": "cool",
+      "stock_batt_exist": true
+    },
+    {
+      "decidegrees_C": 119,
+      "stock_initial_classification": "cool",
+      "stock_batt_exist": true
+    },
+    {
+      "decidegrees_C": 120,
+      "stock_initial_classification": "little_cool",
+      "stock_batt_exist": true
+    },
+    {
+      "decidegrees_C": 121,
+      "stock_initial_classification": "little_cool",
+      "stock_batt_exist": true
+    },
+    {
+      "decidegrees_C": 159,
+      "stock_initial_classification": "little_cool",
+      "stock_batt_exist": true
+    },
+    {
+      "decidegrees_C": 160,
+      "stock_initial_classification": "normal",
+      "stock_batt_exist": true
+    },
+    {
+      "decidegrees_C": 161,
+      "stock_initial_classification": "normal",
+      "stock_batt_exist": true
+    },
+    {
+      "decidegrees_C": 439,
+      "stock_initial_classification": "normal",
+      "stock_batt_exist": true
+    },
+    {
+      "decidegrees_C": 440,
+      "stock_initial_classification": "warm",
+      "stock_batt_exist": true
+    },
+    {
+      "decidegrees_C": 441,
+      "stock_initial_classification": "warm",
+      "stock_batt_exist": true
+    },
+    {
+      "decidegrees_C": 529,
+      "stock_initial_classification": "warm",
+      "stock_batt_exist": true
+    },
+    {
+      "decidegrees_C": 530,
+      "stock_initial_classification": "warm",
+      "stock_batt_exist": true
+    },
+    {
+      "decidegrees_C": 531,
+      "stock_initial_classification": "high",
+      "stock_batt_exist": true
+    }
+  ],
+  "source_function_test_output": [
+    "stock_first_error 306",
+    "stock_second_error -400",
+    "kernel_error -5 output_unchanged 12345",
+    "kernel_error -121 output_unchanged 12345",
+    "kernel_valid 0 306"
+  ],
+  "stock_error_policy": "First temperature read error returns cached value; second consecutive error returns -400 decidegrees C.",
+  "kernel_error_policy": "TEMP reads the register directly; read error returned as errno, output invalid. 360s poll interval is not TEMP sample age.",
+  "stock_dual_cell_voltage_policy_uses_max_cell": true,
+  "current_mainline_voltage_is_pack_uV": true,
+  "hysteresis_and_full_controller_exercised": false,
+  "hardware_faults_injected": false,
+  "device_access": false,
+  "charge_control_writes": false
+}

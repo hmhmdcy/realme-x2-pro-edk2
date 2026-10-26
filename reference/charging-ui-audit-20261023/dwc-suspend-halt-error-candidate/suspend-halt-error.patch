@@ -1,0 +1,14 @@
+--- Image503/drivers/usb/dwc3/gadget.c
++++ candidate/drivers/usb/dwc3/gadget.c
+@@ -5077,6 +5077,11 @@
+ 		dwc3_gadget_soft_connect(dwc);
+ 		return -EAGAIN;
+ 	}
++	/* Without a requested reconnect, preserve the failed stop errno.
++	 * The core must keep its resources active until HALT is proven.
++	 */
++	if (ret)
++		return ret;
+ 
+ 	dwc3_disconnect_gadget_sleepable(dwc);
+ 

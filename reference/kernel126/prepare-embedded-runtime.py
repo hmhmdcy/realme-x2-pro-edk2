@@ -1,0 +1,11 @@
+from pathlib import Path
+r=Path('/mnt/e/RealmeX2Pro edk2/reference/kernel126')
+s=(r/'collect-runtime.sh').read_text().replace('k126-first-runtime','k126-embedded-runtime').replace('k126-preflash','k126-firmware-preflash')
+s=s.replace('KERNEL126_FIRST_NATIVE_RUNTIME_CAPTURED','KERNEL126_EMBEDDED_NATIVE_RUNTIME_CAPTURED')
+(r/'collect-embedded-runtime.sh').write_text(s)
+s=(r/'inspect-first-runtime.py').read_text().replace('first-runtime-private.tar.gz','embedded-runtime-private.tar.gz').replace("(out/'source-boot-id-private.txt').read_bytes()","(out/'current-boot-id-private.txt').read_bytes()").replace("(out/'current-boot-id-private.txt').write_bytes","(out/'embedded-boot-id-private.txt').write_bytes")
+s=s.replace("out/'boot-package-validation.json'","out/'firmware-deployment-package-validation.json'").replace("out/'live-fdt-private", "out/'embedded-live-fdt-private").replace('first-runtime-validation.json','embedded-runtime-validation.json')
+s=s.replace("for name in ['dmesg.txt'", "for name in ['dmesg.txt'").replace("name.replace('.txt','-runtime-private.txt')","name.replace('.txt','-embedded-runtime-private.txt')")
+s=s.replace("report=dict(kernel_build=126", "report=dict(embedded126_dtb_deployed=True,kernel_build=126").replace('boot_bytes_unchanged=True','boot_bytes_match_embedded126=True')
+(r/'inspect-embedded-runtime.py').write_text(s)
+print('K126_EMBEDDED_RUNTIME_COLLECTOR_AND_PARTITION_GUARD_READY')

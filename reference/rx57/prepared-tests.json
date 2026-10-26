@@ -1,0 +1,66 @@
+{
+    "mock_registry_only":  true,
+    "no_native_pnp_calls":  true,
+    "no_port_opened":  true,
+    "actual_helper_sha256":  "f759aa4e4adbcc1d9e6f731cf1cd26f10a804c498eee853242ac55a6d211b222",
+    "parser_clean":  true,
+    "cases":  [
+                  {
+                      "case":  "success",
+                      "phase":  "restored",
+                      "sets":  2,
+                      "deletes":  2,
+                      "reloads":  2,
+                      "remaining_values":  0,
+                      "exception":  null
+                  },
+                  {
+                      "case":  "second-write",
+                      "phase":  "restored",
+                      "sets":  2,
+                      "deletes":  2,
+                      "reloads":  1,
+                      "remaining_values":  0,
+                      "exception":  "Capture setup/result: Exception calling \"SetValue\" with \"3\" argument(s): \"simulated second write failure\"; restore: "
+                  },
+                  {
+                      "case":  "first-reload",
+                      "phase":  "restored",
+                      "sets":  2,
+                      "deletes":  2,
+                      "reloads":  2,
+                      "remaining_values":  0,
+                      "exception":  "Capture setup/result: simulated first reload failure; restore: "
+                  },
+                  {
+                      "case":  "external-conflict",
+                      "phase":  "restore-failed",
+                      "sets":  2,
+                      "deletes":  1,
+                      "reloads":  1,
+                      "remaining_values":  1,
+                      "exception":  "Capture setup/result: ; restore: Restore conflict: external changes preserved: QCDriverConfig"
+                  }
+              ],
+    "reload_cases":  [
+                         {
+                             "case":  "success",
+                             "disable":  1,
+                             "enable":  1,
+                             "exception":  null
+                         },
+                         {
+                             "case":  "disable-error",
+                             "disable":  1,
+                             "enable":  1,
+                             "exception":  "simulated disable error"
+                         },
+                         {
+                             "case":  "enable-error",
+                             "disable":  1,
+                             "enable":  1,
+                             "exception":  "Enable-PnpDevice returned 5"
+                         }
+                     ],
+    "not_tested":  "Real PnP/registry failures, actual driver log creation, actual scheduling/deadlines and process termination are not verified by mocks."
+}

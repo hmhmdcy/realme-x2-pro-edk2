@@ -1,0 +1,61 @@
+--- a/community/pipewire/APKBUILD
++++ b/community/pipewire/APKBUILD
+@@ -2,7 +2,7 @@
+ maintainer="team/alpine-desktop <bribbers@disroot.org>"
+ pkgname=pipewire
+ pkgver=1.6.9
+-pkgrel=0
++pkgrel=3
+ pkgdesc="Multimedia processing graphs"
+ url="https://pipewire.org/"
+ arch="all"
+@@ -79,13 +79,19 @@
+ 	$pkgname-rtp
+ 	"
+ install="$pkgname.post-upgrade $pkgname.post-install"
+-source="https://gitlab.freedesktop.org/PipeWire/pipewire/-/archive/$pkgver/pipewire-$pkgver.tar.gz
++source="pipewire-$pkgver.tar.gz::https://github.com/PipeWire/pipewire/archive/refs/tags/$pkgver.tar.gz
+ 	pipewire.desktop
+ 	pipewire-launcher.sh
+ 	pipewire.initd
+ 	pipewire-pulse.initd
+ 
+ 	systemd-units-wo-libsystemd.patch
++	0001-gst-defer-pool-recycle.patch
++	0002-gst-optional-camera-copy.patch
++	0003-camera-broadcast-lifecycle.patch
++	0004-libcamera-buffer-lifecycle.patch
++	0005-memory-region-lookup.patch
++	0006-gst-retained-buffer-ownership.patch
+ 	"
+ 
+ case "$CARCH" in
+@@ -217,7 +223,7 @@
+ 
+ gst_plugin() {
+ 	pkgdesc="Multimedia graph framework - PipeWire plugin"
+-	depends="pipewire-session-manager gst-plugins-base"
++	depends="pipewire-session-manager gst-plugins-base pipewire-libs=$pkgver-r$pkgrel"
+ 	install_if="$pkgname=$pkgver-r$pkgrel gstreamer"
+ 
+ 	amove usr/lib/gstreamer-1.0
+@@ -257,7 +263,7 @@
+ 
+ libcamera() {
+ 	pkgdesc="PipeWire libcamera SPA plugin"
+-	depends=""
++	depends="pipewire-libs=$pkgver-r$pkgrel"
+ 
+ 	amove usr/lib/spa-*/libcamera
+ }
+@@ -333,4 +339,10 @@
+ ece0bb72b0f82943db8d188adad323b9b202f6d3e745f0fe93906415b365f12ff4df0d7a4d274d09755abf1269a1f546908e148a4bf7d8d2740b48a0e5e3526d  pipewire.initd
+ dd7e74534275386ccf23c5c3dc3184948bd2115ed1944ea1e52695ceeef9d764949839d8875d0e4187aa2edef01cec662a56c75b01ec06a0bc45098f4825f9cb  pipewire-pulse.initd
+ 181f07b6da72b486a1e9754854320e7c9ab839409b23c397bfd50d2b706625d247b9ed94913862f790712e7bba49bf34601f7f109c82a852225a00b9f00a1c98  systemd-units-wo-libsystemd.patch
++014766c373bc84b46e0bfabb7cf8a10de469817c1233086de594785e4c8125f979416610135ccb1bafbfa389de722a2b96b465b889d0371deed11dd157f181fd  0001-gst-defer-pool-recycle.patch
++63537a5c9918b54916422e3fbadf49e78abe9115cc22c189eba4763654b31c01ff80127c5e49609f21e96df92b68ffcb831676c3b05180919d035f8be96de2ca  0002-gst-optional-camera-copy.patch
++629f1622df9cf8bec4c0cbf43ff9b1f1535efbc692819a8037747f66e59208ecc3b5d8bbc81aecfe2e9d0f4debca7b9d0523f953195f3bede39c5db8071057ed  0003-camera-broadcast-lifecycle.patch
++682983c139f82f8906b9eb7096d28a42da0f645e4970725076f5cfd18ec32da5525a5e954c6b178c3598112538b7da8a1c0758fefdee9eedb3b7ef653efe5195  0004-libcamera-buffer-lifecycle.patch
++d4741933181d3cb07db8f835c51b238c119e395b62c4ae0548b00b0ea883cdbfe9a381fe42d1675b04861ee63d2a7249cb791b84c3e5539e886c0862462cf29e  0005-memory-region-lookup.patch
++e5862c0624391f68a36d42f3942be074af6b5dcec54ea944b043645722be8a20bb6e820a26db03bc39ac5006afd453778333ddb08f4be18203f2e3a25cb7e908  0006-gst-retained-buffer-ownership.patch
+ "

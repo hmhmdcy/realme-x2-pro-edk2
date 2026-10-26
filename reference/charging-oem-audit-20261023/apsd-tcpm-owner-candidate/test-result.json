@@ -1,0 +1,32 @@
+{
+  "passed": true,
+  "existing_actual_functions": 9,
+  "groups": 5,
+  "stdout": "ok actual PD RX has a separate pending work path; allocation failure has no shared-state event\nok actual SIG_RX/reset work changes PDPHY before TCPM hard-reset notification\nok actual RX-disable/role callbacks do not clear or report the TCPM PD contract\nok actual VBUS callback erases read errno and cached source enable is not a fresh sink proof\nok actual CC event bit coalesces repeated events; it is not a unique cancellation generation\n",
+  "stderr": "",
+  "compiled_with": [
+    "gcc",
+    "-std=c11",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-Wno-unused-parameter",
+    "-fsanitize=address,undefined",
+    "-fno-omit-frame-pointer",
+    "-no-pie",
+    "-g"
+  ],
+  "new_gate_policy_implemented": false,
+  "kernel_patch_created": false,
+  "production_object_built": false,
+  "old_suites_rerun": false,
+  "device_accessed": false,
+  "SDK_invoked": false,
+  "Git_invoked": false,
+  "tested_files": {
+    "actual-functions.inc": "9d6c8c40b313434ff5c11b45a64ccd4e900d8af41c56e088e5fc0245ddacdc29",
+    "function-manifest.json": "639321a0c74cc9c290b60fa057de45d6c388d51eb1516e5bd61b25154d72b3f6",
+    "test-boundaries.c": "4a0f562c40a11862705d847559657827e04fbfac02bc274186d859aa31411566",
+    "run-boundaries.py": "2a5db4cb0d0452a20f1e0ab4796613e16f385f52dd5e657be1aa00a765a77198"
+  }
+}

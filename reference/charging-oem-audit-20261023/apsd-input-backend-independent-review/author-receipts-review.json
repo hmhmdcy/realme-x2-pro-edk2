@@ -1,0 +1,29 @@
+{
+  "schema": "samurai-apsd-input-backend-independent-receipt-review-v1",
+  "conclusion": "No additional blocker found in static source and scoped author receipt review",
+  "source_sha256": {
+    "samurai-usb-input.c": "fc7c42cf6f0df20a522c0d41e8d78d6c50d38dc85ab00f35e3583edf3c4427d7",
+    "samurai-apsd-input.inc": "ef6baeeeb927f7e74159ba1f8b339a55f2c7ee3d8f050ebad3d17ee0689f4ff2",
+    "samurai-apsd-backend.h": "00d5659e8028a18be6f9db990cb9221af8475cf434693e3b995612f04f6cee94",
+    "samurai-usb-input-decode.h": "a17caa2cbeb2352da249474e0265fa96745f544d96a29d0ebe8f14c656d548fd",
+    "test-backend.py": "59e9af41acd936b62cd2d9b9c7018ccde68fb04aec353a8d55c93b8c9f7aca64",
+    "test-fixture.c": "35c8f190bd43e194673a7ce6e913a0cb379b4c6a812cb8c1f78ba5332d6b4c9b"
+  },
+  "author_receipt_sha256": {
+    "test-result.json": "0c106532833bfc594f91e39bff47787ee6b64e237655a26c26972b777d3fb025",
+    "object-build-result.json": "ae2226753fe6128baf92a284b817ca6d8eddc2f205d9125f00a62f5c47b399b2",
+    "validation-delivery.json": "9c0b836e55a0b24c87416e33bb405954a896204139f3bf9381ebd691721f1428"
+  },
+  "author_test_groups": 10,
+  "actual_function_extraction_reviewed": true,
+  "author_test_passed": true,
+  "author_object_passed": true,
+  "object_sha256": "0fe22a56dc7568228f77d9d913bbed937eb2b8d6d0e8966228ee83d17f07d840",
+  "object_build_no_diagnostics": true,
+  "receipt_sources_match_reviewed_source": true,
+  "reviewer_ran_tests_or_build": false,
+  "reviewer_device_SSH_SDK_or_Git_mutation": false,
+  "physical_or_PD_permission_proved": false,
+  "scope": "Actual inc, R7 read/budget/stop/suspend/resume extraction and pinned private single-object receipt; fake registration/regmap/PM boundaries are not concurrency or hardware proof",
+  "retained_boundary": "Provider reprobe resets serial domain while owner can retain last_read_serial; fail-closed ESTALE availability boundary remains, not corrected by these tests"
+}

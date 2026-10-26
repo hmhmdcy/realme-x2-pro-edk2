@@ -1,0 +1,10 @@
+from pathlib import Path
+root=Path('/mnt/e/RealmeX2Pro edk2')
+base=(root/'reference/kernel122/audit-public.py').read_text()
+base=base.replace('118,119,120,121,122]:','118,119,120,121,122,123]:')
+base=base.replace("'sessions/122-complete-k121-rootfs-and-verified-build-cleanup.md']","'sessions/122-complete-k121-rootfs-and-verified-build-cleanup.md','sessions/123-camss-dt-dma-interconnect-and-strict-disabled-validation.md']")
+base=base.replace('range(109,123)','range(109,124)')
+base=base.replace("'122' in hardware","'123' in hardware")
+base=base.replace('offline_camera_candidate=121','offline_camera_candidate=123')
+base=base.replace('reference/kernel122/public-audit.json','reference/kernel123/public-audit.json')
+exec(compile(base,'public-auditor-123','exec'),{})

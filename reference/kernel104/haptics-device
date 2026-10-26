@@ -1,0 +1,17 @@
+#!/bin/sh
+set -eu
+# I2C adapter numbers changed when QUP4 was enabled; resolve by wiring and
+# driver identity, not by the previous boot's adapter number.
+count=0
+result=
+for p in /sys/bus/i2c/drivers/aw8697-samurai/*-005a; do
+    test -L "$p" || continue
+    node=$(readlink -f "$p/of_node")
+    [ "$node" = /sys/firmware/devicetree/base/soc@0/geniqup@8c0000/i2c@89c000/haptics@5a ]
+    tr '\0' '\n' < "$p/of_node/compatible" | grep -qx realme,samurai-aw8697
+    test -r "$p/status"
+    result=$(readlink -f "$p")
+    count=$((count+1))
+done
+[ "$count" = 1 ]
+echo "$result"

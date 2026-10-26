@@ -1,0 +1,5 @@
+from pathlib import Path
+import importlib.util,json
+R=Path(__file__).resolve().parent;P=Path('/mnt/e/edk2-samurai-out/kernel248');spec=importlib.util.spec_from_file_location('rescue',R/'rescue-host.py');host=importlib.util.module_from_spec(spec);spec.loader.exec_module(host)
+cfg=json.loads((P/'userdata-server-config-private.json').read_text());code="from pathlib import Path;import json;assert Path('/proc/sys/kernel/random/boot_id').read_bytes()==Path('/run/k248-rescue-boot-id-private.txt').read_bytes();p=Path(%r);s=json.loads((p/'state-private.json').read_text());print(json.dumps(dict(state=s,failure=(p/'failure-private.txt').read_text() if (p/'failure-private.txt').exists() else None)))"%cfg.get('state_dir','/run/k248-userdata')
+x=host.ssh('chroot /run/rescue-tools /usr/bin/python3 -',input=code.encode(),timeout=20);v=json.loads(x.stdout);(P/'userdata-worker-state-private.json').write_bytes(x.stdout);s=v['state'];print(json.dumps({k:s[k] for k in ['state','terminal','bytes_generated','elapsed_seconds','source_fsck_exit_code','partclone_exit_code','zstd_exit_code','sha256'] if k in s}))

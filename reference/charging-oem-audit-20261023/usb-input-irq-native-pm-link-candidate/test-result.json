@@ -1,0 +1,63 @@
+{
+  "passed": true,
+  "actual_result": {
+    "passed": true,
+    "actual_function_cases": 8,
+    "actual_merged_probe_and_irq_bodies": true,
+    "OF_driver_core_devres_PSY_workqueue_faked": true
+  },
+  "asan_ubsan": true,
+  "commands": [
+    {
+      "label": "compile",
+      "argv": [
+        "gcc",
+        "-std=c11",
+        "-O1",
+        "-g",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-Wno-unused-parameter",
+        "-Wno-sign-compare",
+        "-fsanitize=address,undefined",
+        "-fno-omit-frame-pointer",
+        "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/usb-input-irq-native-pm-link-candidate/test-merge.c",
+        "-o",
+        "/home/cy122/charging-management-20261023/usb-input-irq-native-pm-link-tests-02/test-merge"
+      ],
+      "pid": 754,
+      "terminal": true,
+      "returncode": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "test",
+      "argv": [
+        "/home/cy122/charging-management-20261023/usb-input-irq-native-pm-link-tests-02/test-merge"
+      ],
+      "pid": 763,
+      "terminal": true,
+      "returncode": 0,
+      "stdout_sha256": "d10454e36e8b9aad4b82f19c1b568160756a83dc61384f643c09c2ac1776dbf7",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "tested_files": {
+    "samurai-usb-input.c": "cf3c7f039035f7bd1e654e3d781e5f6f16ca01b0fc422234ee71aefd87cc6b3f",
+    "samurai-usb-input-decode.h": "a17caa2cbeb2352da249474e0265fa96745f544d96a29d0ebe8f14c656d548fd",
+    "native-pm-link.c.inc": "1b60c5d9ccbb6a5b08176801a4d4513cf9d94bbbaa73de2c2351c38de5eaf1f5",
+    "actual-link-irq-probe.inc": "fe1f8560045ce8f287f15f7d760bb2c5f4c404c5be3de5d43f51fc477998e23d",
+    "actual-pm-and-setter.inc": "0bf535cdf30aacbeb7566b8628065275f7264fb77a10d05ac0b833de31d4ba1d",
+    "actual-dwc-vbus-work.inc": "f8c0ec10b55cd8fd46672f99086ec986ad7d2f3888c4be7498e245d91ff07d5b",
+    "test-merge.c": "001b9e251f7057fd7e35889a000de296acb4b5e786d97c5379e45b6af4076e4e",
+    "prepare-test.py": "d06c5d1d19d1e19a91b09c69f770b93c4c59a540b522da4fdd14320d7810890c",
+    "test-main.c.inc": "65754d9b87d3074564dc5c65674fe34c784192ee2e87ff10daeb4ebcc290d06b",
+    "run-tests.py": "854e588204310398a3cff13631539bac5ebd25f0a27d9760af83bac46fda1035"
+  },
+  "private_binary": "/home/cy122/charging-management-20261023/usb-input-irq-native-pm-link-tests-02/test-merge",
+  "private_binary_sha256": "8e9f777ed12d86c5539a988bda3d0f89d02a73e26918bc18e84687be8cc7c456",
+  "old21_or_IRQ16_rerun": false,
+  "hardware_or_systemPM_or_kernel_build_verified": false
+}

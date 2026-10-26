@@ -1,0 +1,29 @@
+--- a/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
++++ b/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
+@@ -273,7 +273,25 @@
+ };
+ 
+ &remoteproc_adsp {
+-	status = "disabled";
++	firmware-name = "qcom/sm8150/realme/samurai/adsp.mdt";
++	status = "okay";
++
++	glink-edge {
++		apr {
++			compatible = "qcom,apr-v2";
++			qcom,glink-channels = "apr_audio_svc";
++			qcom,domain = <4>;
++			qcom,intents = <512 20>;
++			#address-cells = <1>;
++			#size-cells = <0>;
++
++			service@3 {
++				compatible = "qcom,q6core";
++				reg = <3>;
++				qcom,protection-domain = "avs/audio", "msm/adsp/audio_pd";
++			};
++		};
++	};
+ };
+ 
+ &remoteproc_cdsp {

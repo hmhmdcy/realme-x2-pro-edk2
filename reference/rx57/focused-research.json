@@ -1,0 +1,24 @@
+{
+  "date": "2026-10-10",
+  "reason": "RX55 located a real six-byte TX gap before Windows accepted-buffer count; search for a byte observation ahead of that point rather than repeat passing commands.",
+  "queries": [
+    "\"QCDriverLoggingDirectory\" \"QCDriverConfig\"",
+    "\"QCDriverConfig\" \"EnableLogging\"",
+    "\"QCMRD_L2MultiReadThread\"",
+    "site.learn.microsoft.com USB bulk short packet successful completion multiple read requests order",
+    "site.learn.microsoft.com usb driver multiple outstanding read requests completion order",
+    "site.github.com/quic/eud/issues \"COM\"",
+    "site.learn.microsoft.com Disable-PnpDevice PassThru input object ErrorCode CDXML"
+  ],
+  "exact_config_queries_found_public_configuration_guide": false,
+  "exact_logging_configuration_origin": "Identical installed qcusbser.sys/PE/PDB machine-code audit, not a search result or mismatched public driver.",
+  "primary_sources": [
+    {"url":"https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-ioopendeviceregistrykey","use":"PLUGPLAY_REGKEY_DRIVER is the device instance software key; combines with actual PDO call to identify target COM14 key."},
+    {"url":"https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/handling-an-irp-mn-remove-device-request","use":"Device Manager disable removes software device stack; combines with exact AddDevice configuration reads and measured targeted reload."},
+    {"url":"https://learn.microsoft.com/en-us/powershell/module/pnpdevice/disable-pnpdevice?view=windowsserver2025-ps","use":"Administrative requirement and exact instance scope; PassThru description did not prevent local object-output misclassification, recorded honestly."},
+    {"url":"https://learn.microsoft.com/en-us/windows-hardware/drivers/usbcon/usb-bandwidth-allocation","use":"A short received packet can complete a larger bulk read; 0x8000 requests with six-byte completions do not alone prove loss."},
+    {"url":"https://github.com/quic/eud/issues/6","use":"RX56 source rechecked; open COM question with stale-bot activity, no ready-made fix or authoritative hardware-limit statement."},
+    {"url":"https://raw.githubusercontent.com/quic/eud/main/src/com_api.cpp","use":"RX56 source rechecked; unfinished sample loop, no adopted stability repair."}
+  ],
+  "scope": "No claim that all public sources were exhausted. No issue posted or person contacted. New actual observation uses temporary built-in logger and is a passing sample, not a fix."
+}

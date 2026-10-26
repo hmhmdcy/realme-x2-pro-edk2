@@ -1,0 +1,237 @@
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.c
+@@ -1178,12 +1178,6 @@
+ 	 * Now we need to read the HW catalog and initialize resources such as
+ 	 * clocks, regulators, GDSC/MMAGIC, ioremap the register ranges etc
+ 	 */
+-	rc = _dpu_kms_mmu_init(dpu_kms);
+-	if (rc) {
+-		DPU_ERROR("dpu_kms_mmu_init failed: %d\n", rc);
+-		goto err_pm_put;
+-	}
+-
+ 	dpu_kms->mdss = qcom_ubwc_config_get_data();
+ 	if (IS_ERR(dpu_kms->mdss)) {
+ 		rc = PTR_ERR(dpu_kms->mdss);
+@@ -1200,6 +1194,21 @@
+ 	rc = dpu_rm_init(dev, &dpu_kms->rm, dpu_kms->catalog, dpu_kms->mdss, dpu_kms->mmio);
+ 	if (rc) {
+ 		DPU_ERROR("rm init failed: %d\n", rc);
++		goto err_pm_put;
++	}
++
++	/* The boot framebuffer uses physical addresses in the identity domain. */
++	if (of_device_is_compatible(dev->dev->of_node, "qcom,sm8150-dpu")) {
++		rc = dpu_rm_clear_boot_config(&dpu_kms->rm, dpu_kms->catalog);
++		if (rc) {
++			DPU_ERROR("boot CTL shutdown failed: %d\n", rc);
++			goto err_pm_put;
++		}
++	}
++
++	rc = _dpu_kms_mmu_init(dpu_kms);
++	if (rc) {
++		DPU_ERROR("dpu_kms_mmu_init failed: %d\n", rc);
+ 		goto err_pm_put;
+ 	}
+ 
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_rm.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_rm.c
+@@ -210,6 +210,33 @@
+ 
+ fail:
+ 	return rc ? rc : -EFAULT;
++}
++
++int dpu_rm_clear_boot_config(struct dpu_rm *rm, const struct dpu_mdss_cfg *cat)
++{
++	int i, ret;
++
++	for (i = 0; i < cat->intf_count; i++) {
++		struct dpu_hw_intf *intf;
++
++		if (cat->intf[i].type != INTF_DSI)
++			continue;
++		intf = rm->hw_intf[cat->intf[i].id - INTF_0];
++		ret = dpu_hw_intf_clear_boot_config(intf);
++		if (ret)
++			return ret;
++	}
++
++	for (i = 0; i < cat->ctl_count; i++) {
++		struct dpu_hw_ctl *ctl;
++
++		ctl = to_dpu_hw_ctl(rm->ctl_blks[cat->ctl[i].id - CTL_0]);
++		ret = dpu_hw_ctl_clear_boot_config(ctl);
++		if (ret)
++			return ret;
++	}
++
++	return 0;
+ }
+ 
+ static bool _dpu_rm_needs_split_display(const struct msm_display_topology *top)
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_rm.h
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_rm.h
+@@ -125,5 +125,14 @@
+ 	return rm->hw_sspp[sspp_idx - SSPP_NONE];
+ }
+ 
++/**
++ * dpu_rm_clear_boot_config() - quiesce inherited command-mode CTLs on SM8150
++ * @rm: Initialized resource manager
++ * @cat: SM8150 hardware catalog
++ *
++ * Return: 0 on success or a negative reset error.
++ */
++int dpu_rm_clear_boot_config(struct dpu_rm *rm, const struct dpu_mdss_cfg *cat);
++
+ #endif /* __DPU_RM_H__ */
+ 
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_ctl.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_ctl.c
+@@ -480,6 +480,68 @@
+ 	DPU_REG_WRITE(c, CTL_FETCH_PIPE_ACTIVE, 0);
+ }
+ 
++/* Stop inherited command-mode fetches before replacing the IOMMU domain. */
++int dpu_hw_ctl_clear_boot_config(struct dpu_hw_ctl *ctx)
++{
++	struct dpu_hw_blk_reg_map *c = &ctx->hw;
++	u32 top = DPU_REG_READ(c, CTL_TOP);
++	u32 fetch = DPU_REG_READ(c, CTL_FETCH_PIPE_ACTIVE);
++	u32 intf = DPU_REG_READ(c, CTL_INTF_ACTIVE);
++	u32 dsc = DPU_REG_READ(c, CTL_DSC_ACTIVE);
++	u32 merge = DPU_REG_READ(c, CTL_MERGE_3D_ACTIVE);
++	u32 layers = 0;
++	int i, ret;
++
++	for (i = 0; i < ctx->mixer_count; i++) {
++		enum dpu_lm lm = ctx->mixer_hw_caps[i].id;
++
++		layers |= DPU_REG_READ(c, CTL_LAYER(lm));
++		layers |= DPU_REG_READ(c, CTL_LAYER_EXT(lm));
++		layers |= DPU_REG_READ(c, CTL_LAYER_EXT2(lm));
++		layers |= DPU_REG_READ(c, CTL_LAYER_EXT3(lm));
++	}
++
++	/* Video-mode shutdown requires stopping the INTF timing engine. */
++	if (!(top & BIT(17)) || (!layers && !fetch))
++		return 0;
++
++	pr_info("boot CTL%d: top=%#x layers=%#x fetch=%#x intf=%#x dsc=%#x\n",
++		ctx->idx - CTL_0, top, layers, fetch, intf, dsc);
++	ret = dpu_hw_ctl_reset_control(ctx);
++	if (ret)
++		return ret;
++
++	/* Detach the output before committing empty blend stages. */
++	DPU_REG_WRITE(c, CTL_INTF_ACTIVE, 0);
++	DPU_REG_WRITE(c, CTL_DSC_ACTIVE, 0);
++	DPU_REG_WRITE(c, CTL_MERGE_3D_ACTIVE, 0);
++	ctx->pending_intf_flush_mask = intf;
++	ctx->pending_dsc_flush_mask = dsc;
++	ctx->pending_merge_3d_flush_mask = merge;
++	if (intf)
++		ctx->pending_flush_mask |= BIT(INTF_IDX);
++	if (dsc)
++		ctx->pending_flush_mask |= BIT(DSC_IDX);
++	if (merge)
++		ctx->pending_flush_mask |= BIT(MERGE_3D_IDX);
++	dpu_hw_ctl_clear_all_blendstages(ctx);
++	for (i = 0; i < ctx->mixer_count; i++)
++		dpu_hw_ctl_update_pending_flush_mixer(ctx, ctx->mixer_hw_caps[i].id);
++	ctx->pending_flush_mask |= CTL_FLUSH_MASK_CTL;
++	dpu_hw_ctl_trigger_flush_v1(ctx);
++	dpu_hw_ctl_trigger_start(ctx);
++	dpu_hw_ctl_clear_pending_flush(ctx);
++	/* Discard an empty kickoff that was waiting for the disabled TE. */
++	ret = dpu_hw_ctl_reset_control(ctx);
++	if (ret)
++		return ret;
++
++	pr_info("boot CTL%d cleared: layer0=%#x layer1=%#x fetch=%#x\n",
++		ctx->idx - CTL_0, DPU_REG_READ(c, CTL_LAYER(LM_0)),
++		DPU_REG_READ(c, CTL_LAYER(LM_1)), DPU_REG_READ(c, CTL_FETCH_PIPE_ACTIVE));
++	return 0;
++}
++
+ struct ctl_blend_config {
+ 	int idx, shift, ext_shift;
+ };
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_ctl.h
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_ctl.h
+@@ -358,4 +358,12 @@
+ 				   u32 mixer_count,
+ 				   const struct dpu_lm_cfg *mixer);
+ 
++/**
++ * dpu_hw_ctl_clear_boot_config() - stop inherited DPU 5 command-mode data paths
++ * @ctx: CTL context, with clocks enabled
++ *
++ * Return: 0 on success or a negative error if CTL reset times out.
++ */
++int dpu_hw_ctl_clear_boot_config(struct dpu_hw_ctl *ctx);
++
+ #endif /*_DPU_HW_CTL_H */
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_intf.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_intf.c
+@@ -467,6 +467,43 @@
+ 	return orig;
+ }
+ 
++/* SM8150 command-mode boot paths must stop automatic frame requests first. */
++int dpu_hw_intf_clear_boot_config(struct dpu_hw_intf *intf)
++{
++	struct dpu_hw_blk_reg_map *c = &intf->hw;
++	u32 te = DPU_REG_READ(c, INTF_TEAR_TEAR_CHECK_EN);
++	u32 refresh = DPU_REG_READ(c, INTF_TEAR_AUTOREFRESH_CONFIG);
++	u32 trigger = DPU_REG_READ(c, INTF_DSI_CMD_MODE_TRIGGER_EN);
++	u32 height = DPU_REG_READ(c, INTF_TEAR_VSYNC_INIT_VAL) & 0xffff;
++	u32 line;
++	int ret;
++
++	if (!te && !(refresh & BIT(31)) && !trigger)
++		return 0;
++
++	pr_info("boot INTF%d: tearcheck=%#x autorefresh=%#x trigger=%#x\n",
++		intf->idx - INTF_0, te, refresh, trigger);
++	dpu_hw_intf_connect_external_te(intf, false);
++	dpu_hw_intf_setup_autorefresh_config(intf, 0, false);
++	/* Keep the identity domain until the inherited frame finishes. */
++	if (refresh & BIT(31)) {
++		if (!height)
++			return -EINVAL;
++		ret = readl_poll_timeout(c->blk_addr + INTF_TEAR_LINE_COUNT, line,
++					 !(line & 0xffff) || (line & 0xffff) >= height,
++					 100, 50000);
++		if (ret)
++			return ret;
++	}
++	dpu_hw_intf_disable_te(intf);
++	DPU_REG_WRITE(c, INTF_DSI_CMD_MODE_TRIGGER_EN, 0);
++	pr_info("boot INTF%d stopped: tearcheck=%#x autorefresh=%#x trigger=%#x\n",
++		intf->idx - INTF_0, DPU_REG_READ(c, INTF_TEAR_TEAR_CHECK_EN),
++		DPU_REG_READ(c, INTF_TEAR_AUTOREFRESH_CONFIG),
++		DPU_REG_READ(c, INTF_DSI_CMD_MODE_TRIGGER_EN));
++	return 0;
++}
++
+ static int dpu_hw_intf_get_vsync_info(struct dpu_hw_intf *intf,
+ 		struct dpu_hw_pp_vsync_info *info)
+ {
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_intf.h
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_intf.h
+@@ -132,4 +132,12 @@
+ 				     void __iomem *addr,
+ 				     const struct dpu_mdss_version *mdss_rev);
+ 
++/**
++ * dpu_hw_intf_clear_boot_config() - stop inherited SM8150 DSI frame requests
++ * @intf: DPU 5 DSI interface, with clocks enabled
++ *
++ * Return: 0 on success or a negative error if the inherited frame cannot drain.
++ */
++int dpu_hw_intf_clear_boot_config(struct dpu_hw_intf *intf);
++
+ #endif /*_DPU_HW_INTF_H */

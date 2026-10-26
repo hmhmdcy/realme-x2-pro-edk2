@@ -1,0 +1,156 @@
+--- a/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_port.c
++++ b/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_port.c
+@@ -174,6 +174,7 @@
+ 
+ 	struct regulator		*vdd_vbus;
+ 	bool				vbus_enabled;
++	bool				sink_only;
+ 	struct mutex			vbus_lock;		/* VBUS state serialization */
+ 
+ 	int				cc;
+@@ -339,6 +340,10 @@
+ 	struct pmic_typec *tcpm = tcpc_to_tcpm(tcpc);
+ 	struct pmic_typec_port *pmic_typec_port = tcpm->pmic_typec_port;
+ 	int ret = 0;
++
++	/* A sink connector must never enable the source power path. */
++	if (on && pmic_typec_port->sink_only)
++		return -EOPNOTSUPP;
+ 
+ 	mutex_lock(&pmic_typec_port->vbus_lock);
+ 	if (pmic_typec_port->vbus_enabled == on)
+@@ -466,6 +471,9 @@
+ 	unsigned long flags;
+ 	int ret;
+ 
++	if (pmic_typec_port->sink_only && cc != TYPEC_CC_OPEN && cc != TYPEC_CC_RD)
++		return -EOPNOTSUPP;
++
+ 	spin_lock_irqsave(&pmic_typec_port->lock, flags);
+ 
+ 	ret = regmap_read(pmic_typec_port->regmap,
+@@ -479,6 +487,8 @@
+ 	switch (cc) {
+ 	case TYPEC_CC_OPEN:
+ 		currsrc = TYPEC_SRC_RP_SEL_80UA;
++		if (pmic_typec_port->sink_only)
++			mode = TYPEC_DISABLE_CMD;
+ 		break;
+ 	case TYPEC_CC_RP_DEF:
+ 		currsrc = TYPEC_SRC_RP_SEL_80UA;
+@@ -507,6 +517,14 @@
+ 			goto done;
+ 	}
+ 
++	/* TCPM uses OPEN/Rd during reset and attachment, without toggling. */
++	if (pmic_typec_port->sink_only) {
++		ret = regmap_write(pmic_typec_port->regmap,
++				   pmic_typec_port->base + TYPEC_MODE_CFG_REG, mode);
++		if (ret)
++			goto done;
++	}
++
+ 	pmic_typec_port->cc = cc;
+ 	qcom_pmic_set_cc_debounce(pmic_typec_port);
+ 	ret = 0;
+@@ -538,6 +556,9 @@
+ 	unsigned int orientation, misc, mask, value;
+ 	unsigned long flags;
+ 	int ret;
++
++	if (on && pmic_typec_port->sink_only)
++		return -EOPNOTSUPP;
+ 
+ 	spin_lock_irqsave(&pmic_typec_port->lock, flags);
+ 
+@@ -580,6 +601,9 @@
+ 	u8 mode = 0;
+ 	unsigned long flags;
+ 	int ret;
++
++	if (pmic_typec_port->sink_only && port_type != TYPEC_PORT_SNK)
++		return -EOPNOTSUPP;
+ 
+ 	switch (port_type) {
+ 	case TYPEC_PORT_SRC:
+@@ -656,9 +680,10 @@
+ 	if (ret)
+ 		goto done;
+ 
+-	/* start in TRY_SNK mode */
++	/* Respect a sink connector from the first mode write. */
+ 	ret = regmap_write(pmic_typec_port->regmap,
+-			   pmic_typec_port->base + TYPEC_MODE_CFG_REG, EN_TRY_SNK);
++			   pmic_typec_port->base + TYPEC_MODE_CFG_REG,
++			   pmic_typec_port->sink_only ? EN_SNK_ONLY : EN_TRY_SNK);
+ 	if (ret)
+ 		goto done;
+ 
+@@ -700,6 +725,38 @@
+ 	disable_delayed_work_sync(&pmic_typec_port->cc_debounce_dwork);
+ }
+ 
++/* A fixed sink needs no VBUS source regulator; a DRP/source still does. */
++static int qcom_pmic_typec_port_get_vbus_supply(struct device *dev,
++					     struct pmic_typec_port *port)
++{
++	struct fwnode_handle *connector;
++	const char *power_role;
++	int ret = 0;
++
++	connector = device_get_named_child_node(dev, "connector");
++	if (!connector)
++		return -EINVAL;
++
++	if (!fwnode_property_read_string(connector, "power-role", &power_role))
++		port->sink_only = !strcmp(power_role, "sink");
++
++	port->vdd_vbus = devm_of_regulator_get_optional(dev,
++						     to_of_node(connector), "vbus");
++	if (port->vdd_vbus == ERR_PTR(-ENODEV)) {
++		if (port->sink_only)
++			port->vdd_vbus = devm_regulator_get_optional(dev, "vdd-vbus");
++		else
++			port->vdd_vbus = devm_regulator_get(dev, "vdd-vbus");
++	}
++	if (port->sink_only && port->vdd_vbus == ERR_PTR(-ENODEV))
++		port->vdd_vbus = NULL;
++	else if (IS_ERR(port->vdd_vbus))
++		ret = PTR_ERR(port->vdd_vbus);
++
++	fwnode_handle_put(connector);
++	return ret;
++}
++
+ int qcom_pmic_typec_port_probe(struct platform_device *pdev,
+ 			       struct pmic_typec *tcpm,
+ 			       const struct pmic_typec_port_resources *res,
+@@ -709,7 +766,6 @@
+ 	struct device *dev = &pdev->dev;
+ 	struct pmic_typec_port_irq_data *irq_data;
+ 	struct pmic_typec_port *pmic_typec_port;
+-	struct fwnode_handle *connector;
+ 	int i, ret, irq;
+ 
+ 	pmic_typec_port = devm_kzalloc(dev, sizeof(*pmic_typec_port), GFP_KERNEL);
+@@ -726,17 +782,9 @@
+ 
+ 	mutex_init(&pmic_typec_port->vbus_lock);
+ 
+-	connector = device_get_named_child_node(dev, "connector");
+-	if (!connector)
+-		return -EINVAL;
+-
+-	pmic_typec_port->vdd_vbus = devm_of_regulator_get_optional(dev,
+-								   to_of_node(connector),
+-								   "vbus");
+-	if (pmic_typec_port->vdd_vbus == ERR_PTR(-ENODEV))
+-		pmic_typec_port->vdd_vbus = devm_regulator_get(dev, "vdd-vbus");
+-	if (IS_ERR(pmic_typec_port->vdd_vbus))
+-		return PTR_ERR(pmic_typec_port->vdd_vbus);
++	ret = qcom_pmic_typec_port_get_vbus_supply(dev, pmic_typec_port);
++	if (ret)
++		return ret;
+ 
+ 	pmic_typec_port->dev = dev;
+ 	pmic_typec_port->base = base;

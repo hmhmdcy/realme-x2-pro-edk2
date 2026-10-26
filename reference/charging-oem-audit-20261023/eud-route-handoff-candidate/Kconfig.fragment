@@ -1,0 +1,9 @@
+config QCOM_SAMURAI_EUD_HANDOFF
+	bool "RMX1931 structured EUD firmware handoff evidence"
+	depends on ARM64 && ARCH_QCOM && EFI && OF
+	default n
+	help
+	  Receive the reserved-page record from the paired samurai firmware
+	  through its real EFI configuration table. No MMIO, route change or
+	  permission is created by receiving this evidence. A separate actual
+	  resource-owning, revocable route supplier remains required.

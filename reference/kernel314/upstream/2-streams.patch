@@ -1,0 +1,82 @@
+From: Gjorgji.Rosikopulos.gjorgji.rosikopulos@oss.qualcomm.com
+Subject: [PATCH 2/8] media: qcom: camss: Add streams API hw_ops to CSID interface
+
+From: Gjorgji Rosikopulos <gjorgji.rosikopulos@oss.qualcomm.com>
+
+Add configure_rx/enable_stream/disable_stream to struct csid_hw_ops:
+per-stream hardware operations needed to support the V4L2 subdev
+streams API, where the CSID Rx front-end is configured once
+independently of the per-stream RDI programming.
+
+No functional change: these are new optional hw_ops entries, not yet
+implemented by any backend or called by any code path.
+
+Signed-off-by: Gjorgji Rosikopulos <gjorgji.rosikopulos@oss.qualcomm.com>
+---
+ .../media/platform/qcom/camss/camss-csid.h    | 43 +++++++++++++++++++
+ 1 file changed, 43 insertions(+)
+
+diff --git a/drivers/media/platform/qcom/camss/camss-csid.h b/drivers/media/platform/qcom/camss/camss-csid.h
+index 5296b10f6bac..90ee611b9092 100644
+--- a/drivers/media/platform/qcom/camss/camss-csid.h
++++ b/drivers/media/platform/qcom/camss/camss-csid.h
+@@ -74,6 +74,25 @@ struct csid_phy_config {
+ 
+ struct csid_device;
+ 
++/*
++ * struct csid_hw_ops - CSID hardware version specific operations
++ *
++ * configure_stream() is the legacy (non-streams-API) path and is mutually
++ * exclusive with enable_stream()/disable_stream() - a given CSID instance
++ * uses one family or the other, chosen by streams_enable.
++ *
++ * stream_id, as passed to enable_stream()/disable_stream(), is a hardware
++ * RDI/PIX port index in [0, MSM_CSID_MAX_SRC_STREAMS). It is currently
++ * always equal to pad - MSM_CSID_PAD_FIRST_SRC (multi-pad, 1:1
++ * pad-to-port mapping).
++ *
++ * configure_rx() is called once, on the transition from zero to non-zero
++ * active sink streams, strictly before the first enable_stream() call.
++ * enable_stream()/disable_stream() calls are always made under the
++ * subdev's active-state lock (core-enforced via
++ * v4l2_subdev_enable_streams()/disable_streams()), so hw_ops
++ * implementations don't need their own serialization.
++ */
+ struct csid_hw_ops {
+ 	/*
+ 	 * configure_stream - Configures and starts CSID input stream
+@@ -81,6 +100,30 @@ struct csid_hw_ops {
+ 	 */
+ 	void (*configure_stream)(struct csid_device *csid, u8 enable);
+ 
++	/*
++	 * configure_rx - Configure the CSID Rx front-end
++	 * @csid: CSID device
++	 *
++	 * Called once, when the first stream is enabled.
++	 */
++	void (*configure_rx)(struct csid_device *csid);
++
++	/*
++	 * enable_stream - Enable a single CSID output stream
++	 * @csid: CSID device
++	 * @stream_id: stream id to enable
++	 * @vc: virtual channel to program
++	 * @dt: data type to program
++	 */
++	void (*enable_stream)(struct csid_device *csid, u32 stream_id, u8 vc, u8 dt);
++
++	/*
++	 * disable_stream - Disable a single CSID output stream
++	 * @csid: CSID device
++	 * @stream_id: stream id to disable
++	 */
++	void (*disable_stream)(struct csid_device *csid, u32 stream_id);
++
+ 	/*
+ 	 * configure_testgen_pattern - Validates and configures output pattern mode
+ 	 * of test pattern generator
+-- 
+2.34.1
+

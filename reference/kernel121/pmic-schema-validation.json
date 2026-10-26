@@ -1,0 +1,121 @@
+{
+  "schema_checks": [
+    {
+      "name": "doc",
+      "exit": 0,
+      "diagnostic_bytes": 0
+    },
+    {
+      "name": "compile",
+      "exit": 0,
+      "diagnostic_bytes": 0
+    },
+    {
+      "name": "no-irq-regulators",
+      "exit": 0,
+      "diagnostic_bytes": 0
+    },
+    {
+      "name": "full-irq",
+      "exit": 0,
+      "diagnostic_bytes": 0
+    },
+    {
+      "name": "missing-input",
+      "exit": 0,
+      "diagnostic_bytes": 195
+    },
+    {
+      "name": "orphan-irq-cells",
+      "exit": 0,
+      "diagnostic_bytes": 220
+    },
+    {
+      "name": "orphan-irq-controller",
+      "exit": 0,
+      "diagnostic_bytes": 225
+    },
+    {
+      "name": "no-irq-gpio",
+      "exit": 0,
+      "diagnostic_bytes": 214
+    },
+    {
+      "name": "no-irq-temperature",
+      "exit": 0,
+      "diagnostic_bytes": 518
+    },
+    {
+      "name": "orphan-gpio-cells",
+      "exit": 0,
+      "diagnostic_bytes": 211
+    },
+    {
+      "name": "unsupported-fallback",
+      "exit": 0,
+      "diagnostic_bytes": 222
+    }
+  ],
+  "fixtures": [
+    {
+      "name": "no-irq-regulators",
+      "expected_valid": true,
+      "diagnostic_present": false,
+      "accepted_as_expected": true
+    },
+    {
+      "name": "full-irq",
+      "expected_valid": true,
+      "diagnostic_present": false,
+      "accepted_as_expected": true
+    },
+    {
+      "name": "missing-input",
+      "expected_valid": false,
+      "diagnostic_present": true,
+      "accepted_as_expected": true
+    },
+    {
+      "name": "orphan-irq-cells",
+      "expected_valid": false,
+      "diagnostic_present": true,
+      "accepted_as_expected": true
+    },
+    {
+      "name": "orphan-irq-controller",
+      "expected_valid": false,
+      "diagnostic_present": true,
+      "accepted_as_expected": true
+    },
+    {
+      "name": "no-irq-gpio",
+      "expected_valid": false,
+      "diagnostic_present": true,
+      "accepted_as_expected": true
+    },
+    {
+      "name": "no-irq-temperature",
+      "expected_valid": false,
+      "diagnostic_present": true,
+      "accepted_as_expected": true
+    },
+    {
+      "name": "orphan-gpio-cells",
+      "expected_valid": false,
+      "diagnostic_present": true,
+      "accepted_as_expected": true
+    },
+    {
+      "name": "unsupported-fallback",
+      "expected_valid": false,
+      "diagnostic_present": true,
+      "accepted_as_expected": true
+    }
+  ],
+  "positive_cases": 2,
+  "negative_cases": 7,
+  "synthetic_supply_not_hardware_evidence": true,
+  "full_board_validation": false,
+  "no_pmic_board_nodes_yet": true,
+  "no_phone_changes": true
+}

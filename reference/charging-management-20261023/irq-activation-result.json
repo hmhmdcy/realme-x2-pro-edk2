@@ -1,0 +1,156 @@
+{
+  "schema": "samurai-usb-irq-protection-live-activation-result-v1",
+  "actual_kernel": "#502",
+  "actual_stage_and_independent_boot_activation": true,
+  "stage_transaction": "usb-irq-protection-stage-live-001",
+  "activation_transaction": "usb-irq-protection-activate-live-001",
+  "stage_original_processes_terminal": true,
+  "partitions_written": [
+    "boot"
+  ],
+  "boot_sha256": "eddadec33fcd1d114c45af76cb9fc6d6b5f1de2c81c0e9fada099c5b884f6e06",
+  "unchanged_logdump_sha256": "ace2e261bbfbd923fc3e631e857163f172d09bfb3489f7107782394fbf763ed1",
+  "unchanged_Image502_sha256": "085d03066983a82d1d1c74b74f69c85560698d6fc49f62d6db511a8799b25955",
+  "manifest_sha256": "5fca8e5a0795325bd780b7965579068c7edc35fa7da12bac357bb30bbde69417",
+  "new_modules": [
+    "samurai-usb-input",
+    "samurai-gauge-protection"
+  ],
+  "charger_module_services_policies_desktop_unchanged": true,
+  "postboot_full_checks_passed": true,
+  "checks": {
+    "identity": {
+      "new_boot": true,
+      "same_board_release_rootfs_new_Image502": true
+    },
+    "partitions": {
+      "IRQ_boot_exact": true,
+      "logdump_exact": true,
+      "Image502_binding": "exact full candidate FAT plus frozen Image readback receipt"
+    },
+    "cohort_install": {
+      "cohort_disk_and_new_live_notes": true
+    },
+    "charging": {
+      "ready": true,
+      "state": [
+        "healthy_charge_enabled",
+        "healthy_charge_enabled"
+      ],
+      "source_type": "SDP",
+      "budget_ua": 500000,
+      "native_ua": 500000,
+      "input_ua": 500000,
+      "charge_ua": 250000,
+      "cv_pack_uv": 8725000,
+      "pf_enabled_inherited": 0
+    },
+    "camera481": {
+      "camera481_files_packages_notes": true,
+      "four_PM_and_m2m_idle": true,
+      "four_new_boot_services": true
+    },
+    "EUD_producers": {
+      "DT_disabled_no_EUD_cmdline_or_active_producer": true,
+      "CSR_MMIO_read": false
+    },
+    "instant_gauge": {
+      "flag_Y_and_exact_cmdline": true,
+      "CURRENT_NOW_instant_CURRENT_AVG_separate": true,
+      "startup500_descriptor_and_native500_preserved": true,
+      "source_type": "SDP",
+      "source_budget_ua": 500000,
+      "hardware_input_ua": 500000,
+      "SDP_hardware500_observed": true,
+      "pixel_or_physical_latency_accepted": false
+    },
+    "services_faults": {
+      "services_and_remoteprocs_running": true,
+      "fault_counts": {
+        "WARNING:": 0,
+        "Oops:": 0,
+        "refcount_t: underflow": 0,
+        "gpu fault:": 0,
+        "NGD resume failed": 0,
+        "fatal error received": 0,
+        "Unhandled context fault:": 0,
+        "Kernel panic - not syncing": 0,
+        "Unable to handle kernel": 0,
+        "cannot create duplicate filename": 0
+      }
+    },
+    "native_IRQ_registration": {
+      "native_OF_provider_and_exact_IRQ_properties": true,
+      "both_named_IRQs_registered": true,
+      "Linux_IRQs": {
+        "usbin-plugin": 227,
+        "usbin-src-change": 228
+      },
+      "interval_delta": {
+        "comparable": true,
+        "positive_counts": {
+          "usbin-plugin": false,
+          "usbin-src-change": false
+        },
+        "physical_delivery_accepted": false,
+        "reason": null,
+        "increments": {
+          "usbin-plugin": {
+            "irq": 227,
+            "per_cpu": {
+              "CPU0": 0,
+              "CPU1": 0,
+              "CPU2": 0,
+              "CPU3": 0,
+              "CPU4": 0,
+              "CPU5": 0,
+              "CPU6": 0,
+              "CPU7": 0
+            },
+            "sum": 0
+          },
+          "usbin-src-change": {
+            "irq": 228,
+            "per_cpu": {
+              "CPU0": 0,
+              "CPU1": 0,
+              "CPU2": 0,
+              "CPU3": 0,
+              "CPU4": 0,
+              "CPU5": 0,
+              "CPU6": 0,
+              "CPU7": 0
+            },
+            "sum": 0
+          }
+        }
+      },
+      "IRQ_delivery_or_icon_latency_accepted": false
+    },
+    "identity_after": {
+      "new_boot": true,
+      "same_board_release_rootfs_new_Image502": true
+    }
+  },
+  "fresh_adoption_passed": true,
+  "guard_path": "/var/lib/samurai/usb-irq-protection-activate-live-001-adopted/boot-id-private.txt",
+  "old_pointer_and_guards_preserved": true,
+  "current_original_key_endpoint_verified": true,
+  "physical_irq_delivery_or_icon_latency_accepted": false,
+  "protocol_2719_compatibility_verified": false,
+  "protection_capture": "separate once-only transaction; pending at this activation result",
+  "rollback": {
+    "original_boot_sha256": "97811cc4ae13b36fec98b2eae7cd54a4f12bca988864df0f3d8f663a8c67f695",
+    "original_R8_manifest_sha256": "320316c3d93c1dbcaae29440f1f17d72c75e4994d656a9da9fcd5aeb93c10a1f",
+    "required": "restore original USB/protection/manifest and original boot; retain Image502 logdump ace2; subsequent new-boot runtime validation required",
+    "boot_only_is_not_full_rollback": true,
+    "actual_full_rollback_executed": false
+  },
+  "private_evidence": {
+    "postboot_raw_sha256": "73661159748c52f37315fc50632b864f4d4c54de4f3a7dde4f0a40e7d0bba633",
+    "adoption_result_sha256": "4396cd3c70654f3956dc163c3225dd164b0a7d310536b2c2b3481516ddcde7bc",
+    "adoption_reply_sha256": "e89716ff2b1935d68a4427e3febc354763e00f6b0e26b4c417cf4d56d861d136",
+    "adoption_terminal_sha256": "e7f4ae136357d369104fe151ea93022017de64709a8afe352e06ceb61fcaf4aa"
+  },
+  "scope": "Actual new OF provider and two unique named IRQ registrations plus preserved safety/500mA/software baseline, not physical IRQ delivery, GUI response, new protocol semantics or PM acceptance."
+}

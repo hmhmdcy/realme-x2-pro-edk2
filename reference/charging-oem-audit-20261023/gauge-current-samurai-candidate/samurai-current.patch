@@ -1,0 +1,117 @@
+--- a/drivers/power/supply/bq27xxx_battery.c
++++ b/drivers/power/supply/bq27xxx_battery.c
+@@ -856,6 +856,28 @@
+ 	POWER_SUPPLY_PROP_MANUFACTURER,
+ };
+ 
++/* Enabled only by the explicit native samurai profile below. */
++static enum power_supply_property bq28z610_samurai_props[] = {
++	POWER_SUPPLY_PROP_STATUS,
++	POWER_SUPPLY_PROP_PRESENT,
++	POWER_SUPPLY_PROP_VOLTAGE_NOW,
++	POWER_SUPPLY_PROP_CURRENT_NOW,
++	POWER_SUPPLY_PROP_CAPACITY,
++	POWER_SUPPLY_PROP_CAPACITY_LEVEL,
++	POWER_SUPPLY_PROP_TEMP,
++	POWER_SUPPLY_PROP_TIME_TO_EMPTY_NOW,
++	POWER_SUPPLY_PROP_TIME_TO_FULL_NOW,
++	POWER_SUPPLY_PROP_TECHNOLOGY,
++	POWER_SUPPLY_PROP_CHARGE_FULL,
++	POWER_SUPPLY_PROP_CHARGE_NOW,
++	POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN,
++	POWER_SUPPLY_PROP_CYCLE_COUNT,
++	POWER_SUPPLY_PROP_POWER_AVG,
++	POWER_SUPPLY_PROP_HEALTH,
++	POWER_SUPPLY_PROP_MANUFACTURER,
++	POWER_SUPPLY_PROP_CURRENT_AVG,
++};
++
+ static enum power_supply_property bq34z100_props[] = {
+ 	POWER_SUPPLY_PROP_STATUS,
+ 	POWER_SUPPLY_PROP_PRESENT,
+@@ -1104,6 +1126,30 @@
+ };
+ 
+ 
++/* Experimental board profile. Built-in kernel command-line opt-in only;
++ * read-only after boot, default off. No type or current is supplied by it.
++ */
++static bool samurai_instant_current;
++module_param(samurai_instant_current, bool, 0444);
++MODULE_PARM_DESC(samurai_instant_current,
++	"Use verified samurai BQ28Z610 0x0c for current_now/status; expose 0x14 current_avg (default off)");
++
++static bool bq27xxx_samurai_instant(struct bq27xxx_device_info *di)
++{
++	return samurai_instant_current && di->chip == BQ28Z610 &&
++		of_machine_is_compatible("realme,samurai") &&
++		of_device_is_compatible(di->dev->of_node, "ti,bq28z610");
++}
++
++static void bq27xxx_samurai_props(struct bq27xxx_device_info *di,
++				 struct power_supply_desc *desc)
++{
++	if (!bq27xxx_samurai_instant(di))
++		return;
++	desc->properties = bq28z610_samurai_props;
++	desc->num_properties = ARRAY_SIZE(bq28z610_samurai_props);
++}
++
+ static bool bq27xxx_dt_to_nvm = true;
+ module_param_named(dt_monitored_battery_updates_nvm, bq27xxx_dt_to_nvm, bool, 0444);
+ MODULE_PARM_DESC(dt_monitored_battery_updates_nvm,
+@@ -1842,6 +1888,20 @@
+ 	return 0;
+ }
+ 
++static int bq27xxx_samurai_average_current(struct bq27xxx_device_info *di,
++					 union power_supply_propval *val)
++{
++	int raw;
++
++	if (!bq27xxx_samurai_instant(di))
++		return -EINVAL;
++	raw = bq27xxx_read(di, BQ27XXX_REG_AI, false);
++	if (raw < 0)
++		return raw;
++	val->intval = (int)((s16)raw) * 1000;
++	return 0;
++}
++
+ static bool bq27xxx_battery_is_full(struct bq27xxx_device_info *di, int flags)
+ {
+ 	if (di->opts & BQ27XXX_O_ZERO)
+@@ -1867,7 +1927,14 @@
+ 	int curr;
+ 	int flags;
+ 
+-	curr = bq27xxx_read(di, BQ27XXX_REG_AI, false);
++	/* The native opt-in changes both STATUS and CURRENT_NOW together.
++	 * CURRENT_AVG retains the original signed 0x14 path. Do not consult
++	 * any charger/source property while servicing a gauge property.
++	 */
++	if (bq27xxx_samurai_instant(di))
++		curr = di->bus.read(di, 0x0c, false);
++	else
++		curr = bq27xxx_read(di, BQ27XXX_REG_AI, false);
+ 	if (curr < 0) {
+ 		dev_err(di->dev, "error reading current\n");
+ 		return curr;
+@@ -2145,6 +2212,9 @@
+ 		break;
+ 	case POWER_SUPPLY_PROP_CURRENT_NOW:
+ 		ret = bq27xxx_battery_current_and_status(di, val, NULL, NULL);
++		break;
++	case POWER_SUPPLY_PROP_CURRENT_AVG:
++		ret = bq27xxx_samurai_average_current(di, val);
+ 		break;
+ 	case POWER_SUPPLY_PROP_CAPACITY:
+ 		ret = bq27xxx_simple_value(di->cache.capacity, val);
+@@ -2252,6 +2322,7 @@
+ 	psy_desc->type = POWER_SUPPLY_TYPE_BATTERY;
+ 	psy_desc->properties = bq27xxx_chip_data[di->chip].props;
+ 	psy_desc->num_properties = bq27xxx_chip_data[di->chip].props_size;
++	bq27xxx_samurai_props(di, psy_desc);
+ 	psy_desc->get_property = bq27xxx_battery_get_property;
+ 	psy_desc->external_power_changed = bq27xxx_external_power_changed;
+ 

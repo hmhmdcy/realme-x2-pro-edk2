@@ -1,0 +1,123 @@
+{
+  "stage": 401,
+  "retained_r30_source_inspected": true,
+  "files": [
+    {
+      "path": "src/ipa/camss-vfe/camss.cpp",
+      "sha256": "3cfb0f3869905f5dd4bfa17ad20d8bbbb9ef88af0e965eea14782317b1b4e499",
+      "anchors": [
+        {
+          "anchor": "configureGammaProfile(tuning[\"gamma\"],&gamma_)",
+          "lines": [
+            247
+          ]
+        },
+        {
+          "anchor": "ColourCorrectionProfile::configure(tuning[\"colour_correction\"],&colourCorrection_)",
+          "lines": [
+            264
+          ]
+        },
+        {
+          "anchor": "gamma_?&*gamma_:nullptr",
+          "lines": [
+            647,
+            720
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/ipa/camss-vfe/parameter_encoder.cpp",
+      "sha256": "f67dd0174023413f11062f8617a724e1833510204c084f65429fe9779e437bec",
+      "anchors": [
+        {
+          "anchor": "if (ccm)",
+          "lines": [
+            103
+          ]
+        },
+        {
+          "anchor": "params.block<CamssBlocks::ColorCorrect>()",
+          "lines": [
+            104
+          ]
+        },
+        {
+          "anchor": "if (gamma)",
+          "lines": [
+            108
+          ]
+        },
+        {
+          "anchor": "params.block<CamssBlocks::IfeGamma>()",
+          "lines": [
+            109
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/ipa/camss-vfe/gamma_profile.cpp",
+      "sha256": "302e28c0678eba4267b57141663c331e190f34be2ce7a9036f3d6aa77a50142b",
+      "anchors": [
+        {
+          "anchor": "CAMSS_PARAMS_IFE_GAMMA",
+          "lines": [
+            32
+          ]
+        },
+        {
+          "anchor": "V4L2_ISP_PARAMS_FL_BLOCK_ENABLE",
+          "lines": [
+            32
+          ]
+        },
+        {
+          "anchor": "encodeGammaCurve",
+          "lines": [
+            46
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/libcamera/pipeline/camss-vfe/camss_vfe.cpp",
+      "sha256": "62c1182a9d0aac6f4b079ec93ba54155031547bc64c582dd3e9516daf560b782",
+      "anchors": [
+        {
+          "anchor": "ipe_->queue(buffer,output)",
+          "lines": [
+            1214
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/libcamera/pipeline/camss-vfe/camss_ipe.cpp",
+      "sha256": "135d857eb603fa01abfb7c5f06e915755120a3aef7c45d171a9c3293a2839db2",
+      "anchors": [
+        {
+          "anchor": "device_.capture()->queueBuffer(output)",
+          "lines": [
+            96
+          ]
+        },
+        {
+          "anchor": "device_.output()->queueBuffer(wrapped)",
+          "lines": [
+            98
+          ]
+        }
+      ]
+    }
+  ],
+  "ife_ccm_and_gamma_have_existing_parameter_emission_paths": true,
+  "ife_gamma_uses_separate64_segment_interface": true,
+  "ipe_current_userspace_queues_images_without_typed_colour_gamma_metadata": true,
+  "current_device_profile_activation_not_inferred_from_source": true,
+  "no_phone_access": true,
+  "no_source_changes": true,
+  "integration_requirement": "Keep IFE input transfer function/CCM ownership explicit before enabling IPE tone/colour controls; preserve stock LTM inverse-gamma requirements and avoid duplicate correction.",
+  "passed": true
+}

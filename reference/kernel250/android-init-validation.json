@@ -1,0 +1,782 @@
+{
+  "stage": 250,
+  "method": "init-owned HAL paused before exec, root strace capture, strict wire decode",
+  "runtime_library_lock": {
+    "libgnss.so": {
+      "sha256": "1851461061b2d7827661d8bdb2a78c6796e7690b273ff510d534d33e91bbd5a9",
+      "bytes": 379584,
+      "matches_prior_static_analysis": true
+    },
+    "libloc_api_v02.so": {
+      "sha256": "1c1524ee70400e0b6a0ad8e4d81e0436367f67e49e6c437514c8802740ce954f",
+      "bytes": 422520,
+      "matches_prior_static_analysis": true
+    },
+    "libgps.utils.so": {
+      "sha256": "49dfa69d90e3924d95526b36edd7b8adc8405a20714b1a7c167cb0d83d6eb2a9",
+      "bytes": 216376,
+      "matches_prior_static_analysis": true
+    },
+    "libqmi_cci.so": {
+      "sha256": "5ea00acf8889f0f6a3ccb97eb4f1f164d38c62caed787eaced962cf42a6f996d",
+      "bytes": 50072,
+      "matches_prior_static_analysis": true
+    },
+    "libloc_core.so": {
+      "sha256": "94d9127d7b56612785aa77d065ab7e57da8b090c2ac5279e060cfec8401d735f",
+      "bytes": 519576,
+      "matches_prior_static_analysis": true
+    },
+    "liblbs_core.so": {
+      "sha256": "882a5950470e6166c3c14dedaf8c3e1cc9c2ba27d71a4a0dce57b1b8497b572c",
+      "bytes": 160456,
+      "matches_prior_static_analysis": true
+    }
+  },
+  "init_requests_in_observed_order": [
+    {
+      "message_id": "0x21",
+      "tlv_lengths": {
+        "0x1": 8,
+        "0x10": 3,
+        "0x11": 4,
+        "0x12": 1
+      },
+      "client_label": "HAL",
+      "nonidentifying_scalar_values": {
+        "0x1": 0,
+        "0x11": 1,
+        "0x12": 0
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0xba",
+      "tlv_lengths": {
+        "0x1": 4
+      },
+      "ack_result": 0,
+      "ack_error": 0,
+      "unique_completion_status": 0,
+      "master_token_omitted": true
+    },
+    {
+      "message_id": "0x88",
+      "tlv_lengths": {
+        "0x10": 8,
+        "0x11": 8
+      },
+      "nonidentifying_scalar_values": {
+        "0x10": 63,
+        "0x11": 0
+      },
+      "ack_result": 0,
+      "ack_error": 0,
+      "unique_completion_status": 0
+    },
+    {
+      "message_id": "0x1e",
+      "tlv_lengths": {},
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0x9d",
+      "tlv_lengths": {
+        "0x1": 4
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0xa9",
+      "tlv_lengths": {},
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0x84",
+      "tlv_lengths": {
+        "0x1": 4,
+        "0x2": 4
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0x84",
+      "tlv_lengths": {
+        "0x1": 4,
+        "0x2": 4
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0x84",
+      "tlv_lengths": {
+        "0x1": 4,
+        "0x2": 4
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0x3a",
+      "tlv_lengths": {
+        "0x1": 4,
+        "0x10": 4
+      },
+      "nonidentifying_scalar_values": {
+        "0x1": 4,
+        "0x10": 3
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0x42",
+      "tlv_lengths": {
+        "0x1": 4,
+        "0x12": 0
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0x54",
+      "tlv_lengths": {
+        "0x12": 4
+      },
+      "nonidentifying_scalar_values": {
+        "0x12": 1
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0x54",
+      "tlv_lengths": {
+        "0x13": 4
+      },
+      "nonidentifying_scalar_values": {
+        "0x13": 0
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0x54",
+      "tlv_lengths": {
+        "0x14": 4
+      },
+      "nonidentifying_scalar_values": {
+        "0x14": 0
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0xb6",
+      "tlv_lengths": {
+        "0x10": 8,
+        "0x11": 8,
+        "0x12": 8,
+        "0x13": 8,
+        "0x14": 8,
+        "0x15": 8,
+        "0x16": 8,
+        "0x17": 8,
+        "0x18": 8,
+        "0x19": 8,
+        "0x1a": 8,
+        "0x1b": 8
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0x3e",
+      "tlv_lengths": {
+        "0x1": 4
+      },
+      "nonidentifying_scalar_values": {
+        "0x1": 131072
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0x5a",
+      "tlv_lengths": {
+        "0x11": 4,
+        "0x12": 4,
+        "0x13": 4,
+        "0x14": 4,
+        "0x15": 4
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0xb6",
+      "tlv_lengths": {
+        "0x10": 8,
+        "0x11": 8,
+        "0x12": 8,
+        "0x13": 8,
+        "0x14": 8,
+        "0x15": 8,
+        "0x16": 8,
+        "0x17": 8,
+        "0x18": 8,
+        "0x19": 8,
+        "0x1a": 8,
+        "0x1b": 8
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0xca",
+      "tlv_lengths": {
+        "0x1": 1
+      },
+      "nonidentifying_scalar_values": {
+        "0x1": 0
+      },
+      "ack_result": 1,
+      "ack_error": 94
+    },
+    {
+      "message_id": "0xcb",
+      "tlv_lengths": {
+        "0x1": 1
+      },
+      "nonidentifying_scalar_values": {
+        "0x1": 0
+      },
+      "ack_result": 1,
+      "ack_error": 94
+    },
+    {
+      "message_id": "0x21",
+      "tlv_lengths": {
+        "0x1": 8,
+        "0x10": 4,
+        "0x11": 4,
+        "0x12": 1
+      },
+      "client_label": "MHAL",
+      "nonidentifying_scalar_values": {
+        "0x1": 1075839040,
+        "0x11": 1,
+        "0x12": 0
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0x54",
+      "tlv_lengths": {
+        "0x18": 1
+      },
+      "nonidentifying_scalar_values": {
+        "0x18": 0
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0x21",
+      "tlv_lengths": {
+        "0x1": 8,
+        "0x10": 4,
+        "0x11": 4,
+        "0x12": 1
+      },
+      "client_label": "MHAL",
+      "nonidentifying_scalar_values": {
+        "0x1": 1075839552,
+        "0x11": 1,
+        "0x12": 0
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0x48",
+      "tlv_lengths": {
+        "0x1": 4
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0x54",
+      "tlv_lengths": {
+        "0x18": 1
+      },
+      "nonidentifying_scalar_values": {
+        "0x18": 0
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0x21",
+      "tlv_lengths": {
+        "0x1": 8,
+        "0x10": 4,
+        "0x11": 4,
+        "0x12": 1
+      },
+      "client_label": "MHAL",
+      "nonidentifying_scalar_values": {
+        "0x1": 1075839560,
+        "0x11": 1,
+        "0x12": 0
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0x51",
+      "tlv_lengths": {
+        "0x1": 4
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0x3a",
+      "tlv_lengths": {
+        "0x1": 4,
+        "0x10": 4
+      },
+      "nonidentifying_scalar_values": {
+        "0x1": 3,
+        "0x10": 3
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0x21",
+      "tlv_lengths": {
+        "0x1": 8,
+        "0x10": 4,
+        "0x11": 4,
+        "0x12": 1
+      },
+      "client_label": "MHAL",
+      "nonidentifying_scalar_values": {
+        "0x1": 1616945736,
+        "0x11": 1,
+        "0x12": 0
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0x3a",
+      "tlv_lengths": {
+        "0x1": 4,
+        "0x10": 4
+      },
+      "nonidentifying_scalar_values": {
+        "0x1": 4,
+        "0x10": 3
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0x54",
+      "tlv_lengths": {
+        "0x1b": 4
+      },
+      "nonidentifying_scalar_values": {
+        "0x1b": 0
+      },
+      "ack_result": 1,
+      "ack_error": 94
+    },
+    {
+      "message_id": "0x54",
+      "tlv_lengths": {
+        "0x12": 4
+      },
+      "nonidentifying_scalar_values": {
+        "0x12": 2
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0x54",
+      "tlv_lengths": {
+        "0x14": 4
+      },
+      "nonidentifying_scalar_values": {
+        "0x14": 0
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0x54",
+      "tlv_lengths": {
+        "0x13": 4
+      },
+      "nonidentifying_scalar_values": {
+        "0x13": 2
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0x42",
+      "tlv_lengths": {
+        "0x1": 4,
+        "0x12": 20
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0x3a",
+      "tlv_lengths": {
+        "0x1": 4,
+        "0x10": 4
+      },
+      "nonidentifying_scalar_values": {
+        "0x1": 3,
+        "0x10": 3
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0x21",
+      "tlv_lengths": {
+        "0x1": 8,
+        "0x10": 4,
+        "0x11": 4,
+        "0x12": 1
+      },
+      "client_label": "MHAL",
+      "nonidentifying_scalar_values": {
+        "0x1": 3764429384,
+        "0x11": 1,
+        "0x12": 0
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0x3a",
+      "tlv_lengths": {
+        "0x1": 4,
+        "0x10": 4
+      },
+      "nonidentifying_scalar_values": {
+        "0x1": 3,
+        "0x10": 3
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0x21",
+      "tlv_lengths": {
+        "0x1": 8,
+        "0x10": 4,
+        "0x11": 4,
+        "0x12": 1
+      },
+      "client_label": "MHAL",
+      "nonidentifying_scalar_values": {
+        "0x1": 2202787685067,
+        "0x11": 1,
+        "0x12": 0
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0x4a",
+      "tlv_lengths": {
+        "0x1": 4
+      },
+      "nonidentifying_scalar_values": {
+        "0x1": 2
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0x22",
+      "tlv_lengths": {
+        "0x1": 1,
+        "0x10": 4,
+        "0x11": 4,
+        "0x13": 4,
+        "0x15": 4,
+        "0x16": 4,
+        "0x1a": 8
+      },
+      "nonidentifying_scalar_values": {
+        "0x1": 1,
+        "0x10": 1,
+        "0x11": 3,
+        "0x13": 1000,
+        "0x15": 2,
+        "0x16": 1000
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0x21",
+      "tlv_lengths": {
+        "0x1": 8,
+        "0x10": 4,
+        "0x11": 4,
+        "0x12": 1
+      },
+      "client_label": "MHAL",
+      "nonidentifying_scalar_values": {
+        "0x1": 2202787685071,
+        "0x11": 1,
+        "0x12": 0
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0x21",
+      "tlv_lengths": {
+        "0x1": 8,
+        "0x10": 4,
+        "0x11": 4,
+        "0x12": 1
+      },
+      "client_label": "MHAL",
+      "nonidentifying_scalar_values": {
+        "0x1": 2202804462287,
+        "0x11": 1,
+        "0x12": 0
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0x4a",
+      "tlv_lengths": {
+        "0x1": 4
+      },
+      "nonidentifying_scalar_values": {
+        "0x1": 2
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0x22",
+      "tlv_lengths": {
+        "0x1": 1,
+        "0x10": 4,
+        "0x11": 4,
+        "0x13": 4,
+        "0x15": 4,
+        "0x16": 4,
+        "0x1a": 8
+      },
+      "nonidentifying_scalar_values": {
+        "0x1": 1,
+        "0x10": 1,
+        "0x11": 3,
+        "0x13": 1000,
+        "0x15": 2,
+        "0x16": 1000
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0x21",
+      "tlv_lengths": {
+        "0x1": 8,
+        "0x10": 4,
+        "0x11": 4,
+        "0x12": 1
+      },
+      "client_label": "MHAL",
+      "nonidentifying_scalar_values": {
+        "0x1": 2202804462283,
+        "0x11": 1,
+        "0x12": 0
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0x21",
+      "tlv_lengths": {
+        "0x1": 8,
+        "0x10": 4,
+        "0x11": 4,
+        "0x12": 1
+      },
+      "client_label": "MHAL",
+      "nonidentifying_scalar_values": {
+        "0x1": 2202804462287,
+        "0x11": 1,
+        "0x12": 0
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0x4a",
+      "tlv_lengths": {
+        "0x1": 4
+      },
+      "nonidentifying_scalar_values": {
+        "0x1": 2
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0x22",
+      "tlv_lengths": {
+        "0x1": 1,
+        "0x10": 4,
+        "0x11": 4,
+        "0x13": 4,
+        "0x15": 4,
+        "0x16": 4,
+        "0x1a": 8
+      },
+      "nonidentifying_scalar_values": {
+        "0x1": 1,
+        "0x10": 1,
+        "0x11": 3,
+        "0x13": 1000,
+        "0x15": 2,
+        "0x16": 1000
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0x4a",
+      "tlv_lengths": {
+        "0x1": 4
+      },
+      "nonidentifying_scalar_values": {
+        "0x1": 2
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0x22",
+      "tlv_lengths": {
+        "0x1": 1,
+        "0x10": 4,
+        "0x11": 4,
+        "0x13": 4,
+        "0x15": 4,
+        "0x16": 4,
+        "0x1a": 8
+      },
+      "nonidentifying_scalar_values": {
+        "0x1": 1,
+        "0x10": 1,
+        "0x11": 3,
+        "0x13": 1800000,
+        "0x15": 2,
+        "0x16": 1800000
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0x23",
+      "tlv_lengths": {
+        "0x1": 1
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    },
+    {
+      "message_id": "0x21",
+      "tlv_lengths": {
+        "0x1": 8,
+        "0x10": 4,
+        "0x11": 4,
+        "0x12": 1
+      },
+      "client_label": "MHAL",
+      "nonidentifying_scalar_values": {
+        "0x1": 3764429384,
+        "0x11": 1,
+        "0x12": 0
+      },
+      "ack_result": 0,
+      "ack_error": 0
+    }
+  ],
+  "platform_power_0xd0_request_count": 0,
+  "config_file_opens": {
+    "/vendor/etc/qmi_fw.conf": {
+      "attempts": 1,
+      "enoent": 0,
+      "successful_opens": 1
+    },
+    "/vendor/etc/gps.conf": {
+      "attempts": 10,
+      "enoent": 10,
+      "successful_opens": 0
+    },
+    "/vendor/etc/sap.conf": {
+      "attempts": 1,
+      "enoent": 0,
+      "successful_opens": 1
+    },
+    "/vendor/etc/flp.conf": {
+      "attempts": 3,
+      "enoent": 0,
+      "successful_opens": 3
+    },
+    "/vendor/etc/izat.conf": {
+      "attempts": 6,
+      "enoent": 0,
+      "successful_opens": 6
+    },
+    "/vendor/etc/xtwifi.conf": {
+      "attempts": 1,
+      "enoent": 0,
+      "successful_opens": 1
+    },
+    "/vendor/etc/gnss_antenna_info.conf": {
+      "attempts": 20,
+      "enoent": 0,
+      "successful_opens": 20
+    }
+  },
+  "odm_gps_conf_open_seen_in_hal_trace": false,
+  "android_boot_memshare": {
+    "client_id": 1,
+    "size_bytes": 5242880,
+    "query_success": true,
+    "allocation_success": true
+  },
+  "debugfs_readonly_mount_errno": "ENODEV",
+  "no_vendor_config_or_nv_write": true,
+  "raw_packet_payloads_keys_server_names_coordinates_and_satellite_ids_not_exported": true
+}

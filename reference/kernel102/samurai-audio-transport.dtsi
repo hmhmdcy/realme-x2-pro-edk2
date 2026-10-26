@@ -1,0 +1,112 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * RMX1931/19781 audio transport. Resources agree with the stock MTP overlay
+ * and Realme's 19781 source. The two MAX98927s use QUP4 I2C on GPIO51/52;
+ * the unrelated vendor SPI pin override on GPIO53/54 is not an I2C mapping.
+ * No machine card or speaker playback is enabled by this fragment.
+ */
+&soc {
+	samurai_slimbam: dma-controller@17184000 {
+		compatible = "qcom,bam-v1.7.4", "qcom,bam-v1.7.0";
+		reg = <0 0x17184000 0 0x2c000>;
+		interrupts = <GIC_SPI 164 IRQ_TYPE_LEVEL_HIGH>;
+		#dma-cells = <1>;
+		qcom,controlled-remotely;
+		num-channels = <31>;
+		qcom,ee = <1>;
+		qcom,num-ees = <2>;
+		iommus = <&apps_smmu 0x1b46 0>;
+	};
+
+	samurai_slim: slim-ngd@171c0000 {
+		compatible = "qcom,slim-ngd-v2.1.0";
+		reg = <0 0x171c0000 0 0x2c000>;
+		interrupts = <GIC_SPI 163 IRQ_TYPE_LEVEL_HIGH>;
+		dmas = <&samurai_slimbam 3>, <&samurai_slimbam 4>;
+		dma-names = "rx", "tx";
+		iommus = <&apps_smmu 0x1b46 0>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "okay";
+
+		slim@1 {
+			reg = <1>;
+			#address-cells = <2>;
+			#size-cells = <0>;
+
+			samurai_wcd_ifd: ifd@0,0 {
+				compatible = "slim217,250";
+				reg = <0 0>;
+			};
+
+			samurai_wcd: codec@1,0 {
+				compatible = "slim217,250";
+				reg = <1 0>;
+				slim-ifc-dev = <&samurai_wcd_ifd>;
+				#sound-dai-cells = <1>;
+				interrupts-extended = <&tlmm 123 IRQ_TYPE_LEVEL_HIGH>;
+				interrupt-controller;
+				#interrupt-cells = <1>;
+				clock-names = "extclk";
+				clocks = <&rpmhcc RPMH_LN_BB_CLK2>;
+				#clock-cells = <0>;
+				clock-frequency = <9600000>;
+				clock-output-names = "mclk";
+				/* Native MFD drives logical 0 then 1: physical low then high. */
+				reset-gpios = <&tlmm 143 GPIO_ACTIVE_HIGH>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&samurai_wcd_irq_default>;
+				vdd-buck-supply = <&vreg_s4a_1p8>;
+				vdd-buck-sido-supply = <&vreg_s4a_1p8>;
+				vdd-tx-supply = <&vreg_s4a_1p8>;
+				vdd-rx-supply = <&vreg_s4a_1p8>;
+				vdd-io-supply = <&vreg_s4a_1p8>;
+				qcom,micbias1-microvolt = <1800000>;
+				qcom,micbias2-microvolt = <2700000>;
+				qcom,micbias3-microvolt = <1800000>;
+				qcom,micbias4-microvolt = <1800000>;
+				#address-cells = <1>;
+				#size-cells = <1>;
+
+				samurai_wcdgpio: gpio@42 {
+					compatible = "qcom,wcd9340-gpio";
+					reg = <0x42 0x2>;
+					gpio-controller;
+					#gpio-cells = <2>;
+				};
+			};
+		};
+	};
+};
+
+&tlmm {
+	samurai_wcd_irq_default: samurai-wcd-irq-default-state {
+		pins = "gpio123";
+		function = "gpio";
+		drive-strength = <2>;
+		bias-pull-down;
+		input-enable;
+	};
+};
+
+&i2c4 {
+	status = "okay";
+	clock-frequency = <100000>;
+
+	samurai_amp_left: amplifier@39 {
+		compatible = "maxim,max98927";
+		reg = <0x39>;
+		#sound-dai-cells = <0>;
+		/* Native MAX98927 asserts logical 1 then deasserts 0. */
+		reset-gpios = <&tlmm 148 GPIO_ACTIVE_LOW>;
+		maxim,interleave-mode;
+	};
+
+	samurai_amp_right: amplifier@3a {
+		compatible = "maxim,max98927";
+		reg = <0x3a>;
+		#sound-dai-cells = <0>;
+		reset-gpios = <&tlmm 37 GPIO_ACTIVE_LOW>;
+		maxim,interleave-mode;
+	};
+};

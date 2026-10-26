@@ -1,0 +1,54 @@
+  SYNC    include/config/auto.conf
+  UPD     kernel/config_data
+  GZIP    kernel/config_data.gz
+  CC      kernel/configs.o
+  CC      drivers/tty/serial/eud.o
+  AR      kernel/built-in.a
+In file included from ./include/linux/device.h:15,
+                 from drivers/tty/serial/eud.c:32:
+drivers/tty/serial/eud.c: In function ‘eud_probe’:
+drivers/tty/serial/eud.c:638:30: warning: format ‘%x’ expects argument of type ‘unsigned int’, but argument 3 has type ‘long unsigned int’ [-Wformat=]
+  638 |         dev_info(&pdev->dev, "RX45 INT1 mask=%02x original=%02x (polling retained)\n",
+      |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+./include/linux/dev_printk.h:110:30: note: in definition of macro ‘dev_printk_index_wrap’
+  110 |                 _p_func(dev, fmt, ##__VA_ARGS__);                       \
+      |                              ^~~
+./include/linux/dev_printk.h:160:58: note: in expansion of macro ‘dev_fmt’
+  160 |         dev_printk_index_wrap(_dev_info, KERN_INFO, dev, dev_fmt(fmt), ##__VA_ARGS__)
+      |                                                          ^~~~~~~
+drivers/tty/serial/eud.c:638:9: note: in expansion of macro ‘dev_info’
+  638 |         dev_info(&pdev->dev, "RX45 INT1 mask=%02x original=%02x (polling retained)\n",
+      |         ^~~~~~~~
+drivers/tty/serial/eud.c:638:49: note: format string is defined here
+  638 |         dev_info(&pdev->dev, "RX45 INT1 mask=%02x original=%02x (polling retained)\n",
+      |                                              ~~~^
+      |                                                 |
+      |                                                 unsigned int
+      |                                              %02lx
+  AR      drivers/tty/serial/built-in.a
+  AR      drivers/tty/built-in.a
+  AR      drivers/built-in.a
+  AR      built-in.a
+  AR      built-in-fixup.a
+  COPY    vmlinux.a
+  LD      vmlinux.o
+  MODPOST vmlinux.symvers
+  UPD     include/generated/utsversion.h
+  CC      init/version-timestamp.o
+  KSYMS   .tmp_vmlinux0.kallsyms.S
+  AS      .tmp_vmlinux0.kallsyms.o
+  LD      .tmp_vmlinux1
+  NM      .tmp_vmlinux1.syms
+  KSYMS   .tmp_vmlinux1.kallsyms.S
+  AS      .tmp_vmlinux1.kallsyms.o
+  LD      .tmp_vmlinux2
+  NM      .tmp_vmlinux2.syms
+  KSYMS   .tmp_vmlinux2.kallsyms.S
+  AS      .tmp_vmlinux2.kallsyms.o
+  LD      vmlinux.unstripped
+  NM      System.map
+  SORTTAB vmlinux.unstripped
+  OBJCOPY vmlinux
+  GEN     modules.builtin.modinfo
+  GEN     modules.builtin
+  OBJCOPY arch/arm64/boot/Image

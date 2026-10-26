@@ -1,0 +1,74 @@
+{
+  "kernel_commit": "ba61a62293e0f6bc5838c06f2e85e033e3d702a8",
+  "bluez_commit": "65d11edee469c24dcc8d075b8be9c040cebaaf98",
+  "reused_parent_audit": "/mnt/e/edk2-samurai-out/bluetooth-20261023/host-protocol-prerequisites-private.json",
+  "parent_audit_sha256": "fb1845bb4f63a377c227aa7e6fa975b8a1151b14630ebdee563c98c172f2299d",
+  "kernel_release": "7.3.0-rc6-rmx1931-samurai-k363+",
+  "image_sha256": "15746aab311eed32478cdee4e13c1677716ff48c8a04316c9c15cf606c9d6468",
+  "image_config_sha256": "23e088a90736bbbc442c672d82b35c11bf04f7dc489f1c6afb1b03dc0d8f30ed",
+  "module_archive_sha256": "fca01dab22b0a3917f9ce5600059d00b29aa9685381c2cd2f2e4867b9fb8f73b",
+  "kernel_config": {
+    "CONFIG_BT": "y",
+    "CONFIG_BT_BREDR": "y",
+    "CONFIG_BT_LE": "n",
+    "CONFIG_BT_RFCOMM": "y",
+    "CONFIG_BT_RFCOMM_TTY": "y",
+    "CONFIG_BT_BNEP": "n",
+    "CONFIG_BT_BNEP_MC_FILTER": "absent",
+    "CONFIG_BT_BNEP_PROTO_FILTER": "absent",
+    "CONFIG_BT_HIDP": "m",
+    "CONFIG_UHID": "n",
+    "CONFIG_HID_GENERIC": "y",
+    "CONFIG_BT_HCIUART": "m",
+    "CONFIG_BT_HCIUART_QCA": "y",
+    "CONFIG_BT_HCIUART_SERDEV": "y"
+  },
+  "matching_archive_modules": [
+    "usr/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/kernel/net/bluetooth/hidp/hidp.ko"
+  ],
+  "supplemental_read_only_image_config_values": {
+    "CONFIG_HID_SUPPORT": "y",
+    "CONFIG_HID": "y",
+    "CONFIG_CRC32": "y",
+    "CONFIG_MODVERSIONS": "n"
+  },
+  "ordinary_le_mgmt_att_smp_gatt_not_removed_by_bt_le_n": true,
+  "bt_le_switch_gates_iso_socket_objects_in_this_fixed_tree": true,
+  "mgmt_runtime_capability_and_bluez_interfaces_not_yet_read": true,
+  "uart_pm_module_is_not_a_host_protocol_enablement_patch": true,
+  "hog_requires_uhid_for_kernel_input": true,
+  "classic_hidp_does_not_replace_hog_uhid": true,
+  "bnep_needed_for_pan_networking": true,
+  "planned_config_delta": {
+    "CONFIG_BT_BNEP": [
+      "n",
+      "m"
+    ],
+    "CONFIG_UHID": [
+      "n",
+      "m"
+    ]
+  },
+  "unchanged_config": [
+    "CONFIG_BT",
+    "CONFIG_BT_BREDR",
+    "CONFIG_BT_LE",
+    "CONFIG_BT_HIDP",
+    "CONFIG_HID",
+    "CONFIG_HID_GENERIC",
+    "CONFIG_CRC32"
+  ],
+  "shared_header_abi_change_from_these_two_switches_found": false,
+  "abi_evidence": "No CONFIG_UHID/CONFIG_BT_BNEP conditional shared headers; symbols occur only in module Kbuild/private BNEP filter paths",
+  "new_image_needed_for_two_module_additions": false,
+  "optional_iso_switch_would_require_new_builtin_bluetooth_image": true,
+  "ec_red_code_present_runtime_default_disabled": true,
+  "current_stage": "two optional modules built after explicit camera456 resource handoff; not installed or loaded",
+  "kernel_build_started": true,
+  "shared_source_or_build_changed": false,
+  "sdk_or_device_accessed": false,
+  "installed_or_loaded": false,
+  "resource_handoff_received_and_build_completed": true,
+  "build_validation": "module-build-validation.json",
+  "build_provenance": "build-provenance.json"
+}

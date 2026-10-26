@@ -1,0 +1,14 @@
+--- a/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
++++ b/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
+@@ -804,7 +804,10 @@
+      !d->focusWorkspace_.prepare(d->output_.width,d->output_.height)){ret=-ENOMEM;goto error;}
+   LOG(CamssVfe,Debug)<<"FOCUS_WORKSPACE_PREPARE epoch="<<d->epoch_<<" width="<<d->output_.width
+    <<" height="<<d->output_.height<<" bytes="<<d->focusWorkspace_.storageBytes();
+-  if(d->lensActive_){
++  /* The Manager also runs FULL ownership, IPE dispatch and synchronous IPA
++   * calls without a lens. Existing isolated workers are not retargeted by
++   * this thread lease; retain its established start/stop lifetime. */
++  if(d->lensActive_ || (d->processedEnabled_ && d->ipe_)){
+    const auto capacity=d->focusCapacity_.acquire();
+    LOG(CamssVfe,Debug)<<"CAPACITY_START epoch="<<d->epoch_<<" tid="<<capacity.tid<<" status="<<capacity.status
+     <<" reason="<<capacity.reason<<" active="<<capacity.active<<" users="<<capacity.users

@@ -1,0 +1,776 @@
+Subject: [PATCH] simple: add acknowledged contrast AF with frame-owned focus metrics
+
+Carry the scalar focus metric with its frame through the worker and IPA boundary.
+Track the capture timestamp clock explicitly. Route standard lens controls with
+serial acknowledgements and exclude exposures preceding mechanical settling.
+Provide bounded coarse/fine/verification contrast AF through standard Auto mode,
+trigger/cancel and state metadata, enabled only by matching sensor/lens tuning.
+Keep device ranges and search parameters in data, not controller code.
+
+This does not provide a calibrated manual LensPosition map, continuous AF or a
+hardware ISP. Other software ISP algorithms retain their existing stats path.
+---
+--- a/include/libcamera/internal/framebuffer.h
++++ b/include/libcamera/internal/framebuffer.h
+@@ -29,6 +29,8 @@
+ 
+ 	void setRequest(Request *request) { request_ = request; }
+ 	bool isContiguous() const { return isContiguous_; }
++	bool timestampMonotonic() const { return timestampMonotonic_; }
++	void setTimestampMonotonic(bool monotonic) { timestampMonotonic_ = monotonic; }
+ 
+ 	Fence *fence() const { return fence_.get(); }
+ 	void setFence(std::unique_ptr<Fence> fence) { fence_ = std::move(fence); }
+@@ -45,6 +47,7 @@
+ 	std::unique_ptr<Fence> fence_;
+ 	Request *request_;
+ 	bool isContiguous_;
++	bool timestampMonotonic_ = false;
+ };
+ 
+ } /* namespace libcamera */
+--- a/src/libcamera/v4l2_videodevice.cpp
++++ b/src/libcamera/v4l2_videodevice.cpp
+@@ -1898,6 +1898,8 @@
+ 	metadata.sequence = buf.sequence;
+ 	metadata.timestamp = buf.timestamp.tv_sec * 1000000000ULL
+ 			   + buf.timestamp.tv_usec * 1000ULL;
++	buffer->_d()->setTimestampMonotonic((buf.flags & V4L2_BUF_FLAG_TIMESTAMP_MASK) ==
++					 V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC);
+ 
+ 	if (V4L2_TYPE_IS_OUTPUT(buf.type))
+ 		return buffer;
+--- a/include/libcamera/internal/software_isp/swstats_cpu.h
++++ b/include/libcamera/internal/software_isp/swstats_cpu.h
+@@ -84,7 +84,7 @@
+ 		(this->*stats2_)(src, stats_[statsBufferIndex]);
+ 	}
+ 
+-	Signal<uint32_t, uint32_t> statsReady;
++	Signal<uint32_t, uint32_t, bool, int32_t> statsReady;
+ 
+ private:
+ 	using statsProcessFn = void (SwStatsCpu::*)(const uint8_t *src[], SwIspStats &stats);
+--- a/src/libcamera/software_isp/swstats_cpu.cpp
++++ b/src/libcamera/software_isp/swstats_cpu.cpp
+@@ -449,7 +449,9 @@
+ 
+ 	sharedStats_->frame = frame;
+ 	sharedStats_->valid = valid;
+-	statsReady.emit(frame, bufferId);
++	/* Copy the focus measurement while this producer still owns its frame. */
++	std::optional<int32_t> focus = valid ? sharedStats_->focus.figureOfMerit() : std::nullopt;
++	statsReady.emit(frame, bufferId, focus.has_value(), focus.value_or(0));
+ }
+ 
+ /**
+--- a/include/libcamera/internal/software_isp/software_isp.h
++++ b/include/libcamera/internal/software_isp/software_isp.h
+@@ -37,6 +37,7 @@
+ namespace libcamera {
+ 
+ class Debayer;
++class CameraLens;
+ class FrameBuffer;
+ class PixelFormat;
+ class Stream;
+@@ -48,7 +49,7 @@
+ {
+ public:
+ 	SoftwareIsp(PipelineHandler *pipe, const CameraSensor *sensor,
+-		    ControlInfoMap *ipaControls);
++		    ControlInfoMap *ipaControls, CameraLens *lens = nullptr);
+ 	~SoftwareIsp();
+ 
+ 	int loadConfiguration([[maybe_unused]] const std::string &filename) { return 0; }
+@@ -72,10 +73,12 @@
+ 			  std::vector<std::unique_ptr<FrameBuffer>> *buffers);
+ 
+ 	void processStats(const uint32_t frame, const uint32_t bufferId,
+-			  const ControlList &sensorControls, uint32_t source);
++			  const ControlList &sensorControls, uint32_t source,
++			  bool focusValid, int32_t focus, uint64_t capturedMonotonic);
+ 
+ 	int start(const ControlList &controls, ControlList *sensorControls, uint32_t *source);
+ 	void stop();
++	void lensPositionApplied(uint32_t serial, int32_t status, uint64_t monotonic);
+ 
+ 	void queueRequest(const uint32_t frame, const ControlList &controls);
+ 	int queueBuffers(uint32_t frame, FrameBuffer *input,
+@@ -85,14 +88,15 @@
+ 
+ 	Signal<FrameBuffer *> inputBufferReady;
+ 	Signal<FrameBuffer *> outputBufferReady;
+-	Signal<uint32_t, uint32_t> ispStatsReady;
++	Signal<uint32_t, uint32_t, bool, int32_t> ispStatsReady;
+ 	Signal<uint32_t, const ControlList &> metadataReady;
+ 	Signal<const ControlList &, uint32_t> setSensorControls;
++	Signal<uint32_t, int32_t> setLensControls;
+ 
+ private:
+ 	void saveIspParams();
+ 	void setSensorCtrls(const ControlList &sensorControls, uint32_t source);
+-	void statsReady(uint32_t frame, uint32_t bufferId);
++	void statsReady(uint32_t frame, uint32_t bufferId, bool focusValid, int32_t focus);
+ 	void inputReady(FrameBuffer *input);
+ 	void outputReady(FrameBuffer *output);
+ 	std::unique_ptr<Debayer> debayer_;
+--- a/src/libcamera/software_isp/software_isp.cpp
++++ b/src/libcamera/software_isp/software_isp.cpp
+@@ -6,6 +6,7 @@
+  */
+ 
+ #include "libcamera/internal/software_isp/software_isp.h"
++#include "libcamera/internal/camera_lens.h"
+ 
+ #include <memory>
+ #include <optional>
+@@ -108,7 +109,7 @@
+  * handler
+  */
+ SoftwareIsp::SoftwareIsp(PipelineHandler *pipe, const CameraSensor *sensor,
+-			 ControlInfoMap *ipaControls)
++			 ControlInfoMap *ipaControls, CameraLens *lens)
+ 	: ispWorkerThread_("SWIspWorker"),
+ 	  dmaHeap_(softwareIspHeapFlags(pipe, sensor))
+ {
+@@ -206,6 +207,8 @@
+ 			 sharedParams_.fd(),
+ 			 sensorInfo,
+ 			 sensor->controls(),
++			 lens ? lens->controls() : ControlInfoMap{},
++			 lens ? lens->model() : std::string{},
+ 			 ipaControls,
+ 			 &ccmEnabled_);
+ 	if (ret) {
+@@ -220,6 +223,9 @@
+ 					    metadataReady.emit(frame, metadata);
+ 				    });
+ 	ipa_->setSensorControls.connect(this, &SoftwareIsp::setSensorCtrls);
++	ipa_->setLensControls.connect(this, [this](uint32_t serial, int32_t position) {
++		setLensControls.emit(serial, position);
++	});
+ 
+ 	debayer_->moveToThread(&ispWorkerThread_);
+ }
+@@ -250,10 +256,12 @@
+  * values for the sensor.
+  */
+ void SoftwareIsp::processStats(const uint32_t frame, const uint32_t bufferId,
+-			       const ControlList &sensorControls, uint32_t source)
++			       const ControlList &sensorControls, uint32_t source,
++			       bool focusValid, int32_t focus, uint64_t capturedMonotonic)
+ {
+ 	ASSERT(ipa_);
+-	ipa_->processStats(frame, bufferId, sensorControls, source);
++	ipa_->processStats(frame, bufferId, sensorControls, source,
++			   focusValid, focus, capturedMonotonic);
+ }
+ 
+ /**
+@@ -503,9 +511,15 @@
+ 	setSensorControls.emit(sensorControls, source);
+ }
+ 
+-void SoftwareIsp::statsReady(uint32_t frame, uint32_t bufferId)
+-{
+-	ispStatsReady.emit(frame, bufferId);
++void SoftwareIsp::statsReady(uint32_t frame, uint32_t bufferId,
++			     bool focusValid, int32_t focus)
++{
++	ispStatsReady.emit(frame, bufferId, focusValid, focus);
++}
++
++void SoftwareIsp::lensPositionApplied(uint32_t serial, int32_t status, uint64_t monotonic)
++{
++	ipa_->lensPositionApplied(serial, status, monotonic);
+ }
+ 
+ void SoftwareIsp::inputReady(FrameBuffer *input)
+--- a/src/libcamera/pipeline/simple/simple.cpp
++++ b/src/libcamera/pipeline/simple/simple.cpp
+@@ -7,6 +7,7 @@
+  */
+ 
+ #include <algorithm>
++#include <time.h>
+ #include <iterator>
+ #include <list>
+ #include <map>
+@@ -202,6 +203,7 @@
+ 	bool metadataProcessed;
+ 	std::optional<ControlList> sensorControls;
+ 	uint32_t sensorControlSource = 0;
++	uint64_t capturedMonotonic = 0;
+ };
+ 
+ class SimpleFrames
+@@ -367,6 +369,7 @@
+ 
+ 	std::unique_ptr<Converter> converter_;
+ 	std::unique_ptr<SoftwareIsp> swIsp_;
++	bool lensActive_ = false;
+ 	SimpleFrames frameInfo_;
+ 
+ private:
+@@ -377,9 +380,10 @@
+ 	void conversionInputDone(FrameBuffer *buffer);
+ 	void conversionOutputDone(FrameBuffer *buffer);
+ 
+-	void ispStatsReady(uint32_t frame, uint32_t bufferId);
++	void ispStatsReady(uint32_t frame, uint32_t bufferId, bool focusValid, int32_t focus);
+ 	void metadataReady(uint32_t frame, const ControlList &metadata);
+ 	void setSensorControls(const ControlList &sensorControls, uint32_t source);
++	void setLensControls(uint32_t serial, int32_t position);
+ };
+ 
+ class SimpleCameraConfiguration : public CameraConfiguration
+@@ -627,7 +631,7 @@
+ 	 * Instantiate Soft ISP if this is enabled for the given driver and no converter is used.
+ 	 */
+ 	if (!converter_ && pipe->swIspEnabled()) {
+-		swIsp_ = std::make_unique<SoftwareIsp>(pipe, sensor_.get(), &controlInfo_);
++		swIsp_ = std::make_unique<SoftwareIsp>(pipe, sensor_.get(), &controlInfo_, sensor_->focusLens());
+ 		if (!swIsp_->isValid()) {
+ 			LOG(SimplePipeline, Warning)
+ 				<< "Failed to create software ISP, disabling software debayering";
+@@ -638,6 +642,7 @@
+ 			swIsp_->ispStatsReady.connect(this, &SimpleCameraData::ispStatsReady);
+ 			swIsp_->metadataReady.connect(this, &SimpleCameraData::metadataReady);
+ 			swIsp_->setSensorControls.connect(this, &SimpleCameraData::setSensorControls);
++		swIsp_->setLensControls.connect(this, &SimpleCameraData::setLensControls);
+ 		}
+ 	}
+ 
+@@ -977,6 +982,8 @@
+ 			uint32_t sequence = frameStartEmitter_
+ 				? buffer->metadata().sequence : request->sequence();
+ 			info->sensorControls = delayedCtrls_->get(sequence, &info->sensorControlSource);
++			info->capturedMonotonic = buffer->_d()->timestampMonotonic()
++				? buffer->metadata().timestamp : 0;
+ 			LOG(SimplePipeline, Debug)
+ 				<< "Captured request " << request->sequence()
+ 				<< " from sequence " << buffer->metadata().sequence
+@@ -1053,14 +1060,16 @@
+ 		tryCompleteRequest(request);
+ }
+ 
+-void SimpleCameraData::ispStatsReady(uint32_t frame, uint32_t bufferId)
++void SimpleCameraData::ispStatsReady(uint32_t frame, uint32_t bufferId,
++				   bool focusValid, int32_t focus)
+ {
+ 	SimpleFrameInfo *info = frameInfo_.find(frame);
+ 	if (!info)
+ 		return;
+ 
+ 	ASSERT(info->sensorControls.has_value());
+-	swIsp_->processStats(frame, bufferId, *info->sensorControls, info->sensorControlSource);
++	swIsp_->processStats(frame, bufferId, *info->sensorControls, info->sensorControlSource,
++			     focusValid, focus, info->capturedMonotonic);
+ }
+ 
+ void SimpleCameraData::metadataReady(uint32_t frame, const ControlList &metadata)
+@@ -1072,6 +1081,18 @@
+ 	info->request->_d()->metadata().merge(metadata);
+ 	info->metadataProcessed = true;
+ 	tryCompleteRequest(info->request);
++}
++
++void SimpleCameraData::setLensControls(uint32_t serial, int32_t position)
++{
++	CameraLens *lens = sensor_->focusLens();
++	int ret = lensActive_ && lens ? lens->setFocusPosition(position) : -EPIPE;
++	struct timespec now{};
++	uint64_t timestamp = clock_gettime(CLOCK_MONOTONIC, &now) == 0
++		? uint64_t(now.tv_sec) * 1000000000ULL + now.tv_nsec : 0;
++	LOG(SimplePipeline, Debug) << "Focus command " << serial << " position "
++				   << position << " result " << ret << " at " << timestamp;
++	swIsp_->lensPositionApplied(serial, ret, timestamp);
+ }
+ 
+ void SimpleCameraData::setSensorControls(const ControlList &sensorControls, uint32_t source)
+@@ -1742,6 +1763,7 @@
+ 			stop(camera);
+ 			return ret;
+ 		}
++		data->lensActive_ = true;
+ 	}
+ 
+ 	if (data->useConversion_) {
+@@ -1768,6 +1790,7 @@
+ void SimplePipelineHandler::stopDevice(Camera *camera)
+ {
+ 	SimpleCameraData *data = cameraData(camera);
++	data->lensActive_ = false;
+ 	V4L2VideoDevice *video = data->video_;
+ 	V4L2Subdevice *frameStartEmitter = data->frameStartEmitter_;
+ 
+--- a/include/libcamera/ipa/soft.mojom
++++ b/include/libcamera/ipa/soft.mojom
+@@ -18,11 +18,14 @@
+ 	     libcamera.SharedFD fdStats,
+ 	     libcamera.SharedFD fdParams,
+ 	     libcamera.IPACameraSensorInfo sensorInfo,
+-	     libcamera.ControlInfoMap sensorControls)
++	     libcamera.ControlInfoMap sensorControls,
++	     libcamera.ControlInfoMap lensControls,
++	     string lensModel)
+ 		=> (int32 ret, libcamera.ControlInfoMap ipaControls, bool ccmEnabled);
+ 	start(libcamera.ControlList controls)
+ 		=> (int32 ret, libcamera.ControlList sensorControls, uint32 source);
+ 	stop();
++	[async] lensPositionApplied(uint32 serial, int32 status, uint64 monotonic);
+ 	configure(IPAConfigInfo configInfo)
+ 		=> (int32 ret, libcamera.ControlInfoMap ipaControls);
+ 
+@@ -31,11 +34,13 @@
+ 	[async] processStats(uint32 frame,
+ 			     uint32 bufferId,
+ 			     libcamera.ControlList sensorControls,
+-			     uint32 source);
++			     uint32 source,
++			     bool focusValid, int32 focus, uint64 capturedMonotonic);
+ };
+ 
+ interface IPASoftEventInterface {
+ 	setSensorControls(libcamera.ControlList sensorControls, uint32 source);
+ 	setIspParams();
++	setLensControls(uint32 serial, int32 position);
+ 	metadataReady(uint32 frame, libcamera.ControlList metadata);
+ };
+--- a/src/ipa/simple/ipa_context.h
++++ b/src/ipa/simple/ipa_context.h
+@@ -71,6 +71,8 @@
+ };
+ 
+ struct IPAFrameContext : public FrameContext {
++	std::optional<int32_t> afTrigger;
++	bool afCancel = false;
+ 	Matrix<float, 3, 3> ccm;
+ 
+ 	struct {
+--- a/src/ipa/simple/soft_simple.cpp
++++ b/src/ipa/simple/soft_simple.cpp
+@@ -7,6 +7,7 @@
+ 
+ #include <chrono>
+ #include <cmath>
++#include <time.h>
+ #include <stdint.h>
+ #include <sys/mman.h>
+ 
+@@ -29,6 +30,7 @@
+ 
+ #include "algorithms/adjust.h"
+ #include "libipa/camera_sensor_helper.h"
++#include "libipa/contrast_af.h"
+ 
+ #include "module.h"
+ 
+@@ -57,23 +59,32 @@
+ 		 const SharedFD &fdParams,
+ 		 const IPACameraSensorInfo &sensorInfo,
+ 		 const ControlInfoMap &sensorControls,
++		 const ControlInfoMap &lensControls, const std::string &lensModel,
+ 		 ControlInfoMap *ipaControls,
+ 		 bool *ccmEnabled) override;
+ 	int configure(const IPAConfigInfo &configInfo, ControlInfoMap *ipaControls) override;
+ 
+ 	int start(const ControlList &controls, ControlList *sensorControls, uint32_t *source) override;
+ 	void stop() override;
++	void lensPositionApplied(uint32_t serial, int32_t status, uint64_t monotonic) override;
+ 
+ 	void queueRequest(const uint32_t frame, const ControlList &controls) override;
+ 	void computeParams(const uint32_t frame) override;
+ 	void processStats(const uint32_t frame, const uint32_t bufferId,
+-			  const ControlList &sensorControls, uint32_t source) override;
++			  const ControlList &sensorControls, uint32_t source,
++			  bool focusValid, int32_t focus, uint64_t capturedMonotonic) override;
+ 
+ protected:
+ 	std::string logPrefix() const override;
+ 
+ private:
+ 	void updateControls(ControlInfoMap *ipaControls);
++	int configureAutofocus(const ValueNode &tuning, const ControlInfoMap &lensControls,
++			       const std::string &lensModel);
++	ipa::ContrastAf af_;
++	ipa::ContrastAf::Config afConfig_{};
++	bool afEnabled_ = false, afRunning_ = false, initialAfPending_ = false;
++	std::optional<int32_t> initialAfTrigger_;
+ 	ControlList sensorControls(const IPAFrameContext &frameContext) const;
+ 	IPAConfigInfo configInfo_;
+ 
+@@ -99,6 +110,7 @@
+ 			const SharedFD &fdParams,
+ 			const IPACameraSensorInfo &sensorInfo,
+ 			const ControlInfoMap &sensorControls,
++			const ControlInfoMap &lensControls, const std::string &lensModel,
+ 			ControlInfoMap *ipaControls,
+ 			bool *ccmEnabled)
+ {
+@@ -124,6 +136,10 @@
+ 	std::unique_ptr<ValueNode> data = YamlParser::parse(file);
+ 	if (!data)
+ 		return -EINVAL;
++
++	int afRet = configureAutofocus((*data)["autofocus"], lensControls, lensModel);
++	if (afRet)
++		return afRet;
+ 
+ 	/* \todo Use the IPA configuration file for real. */
+ 	unsigned int version = (*data)["version"].get<uint32_t>(0);
+@@ -200,6 +216,37 @@
+ 	configInfo_ = { sensorInfo, sensorControls };
+ 	sensorInfoMap_ = sensorControls;
+ 	updateControls(ipaControls);
++	return 0;
++}
++
++int IPASoftSimple::configureAutofocus(const ValueNode &tuning,
++				    const ControlInfoMap &lensControls,
++				    const std::string &lensModel)
++{
++	afEnabled_ = false;
++	if (!tuning || lensModel.empty() || tuning["lens"].get<std::string>("") != lensModel)
++		return 0;
++	auto control = lensControls.find(V4L2_CID_FOCUS_ABSOLUTE);
++	if (control == lensControls.end())
++		return 0;
++	afConfig_ = {
++		tuning["minimumCode"].get<int32_t>(-1),
++		tuning["maximumCode"].get<int32_t>(-1),
++		tuning["coarseStep"].get<int32_t>(0),
++		tuning["fineStep"].get<int32_t>(0),
++		tuning["samples"].get<unsigned int>(3),
++		uint64_t(tuning["settleMs"].get<unsigned int>(100)) * 1000000,
++		uint64_t(tuning["timeoutMs"].get<unsigned int>(120000)) * 1000000,
++		tuning["minimumPeak"].get<int32_t>(100),
++		tuning["peakRatio"].get<double>(1.15),
++		tuning["verifyRatio"].get<double>(0.75),
++	};
++	if (afConfig_.minimum < control->second.min().get<int32_t>() ||
++	    afConfig_.maximum > control->second.max().get<int32_t>() || !af_.configure(afConfig_)) {
++		LOG(IPASoft, Error) << "Invalid autofocus tuning or lens control limits";
++		return -EINVAL;
++	}
++	afEnabled_ = true;
+ 	return 0;
+ }
+ 
+@@ -302,6 +349,12 @@
+ 			    static_cast<float>(camHelper_ ? camHelper_->gain(gain.max().get<int32_t>()) : gain.max().get<int32_t>()),
+ 			    static_cast<float>(camHelper_ ? camHelper_->gain(gain.def().get<int32_t>()) : gain.def().get<int32_t>()));
+ 	context_.ctrlMap[&controls::FocusFoM] = ControlInfo(0, INT32_MAX);
++	if (afEnabled_) {
++		/* Auto-only until a calibrated manual distance map is supplied. */
++		context_.ctrlMap[&controls::AfMode] = ControlInfo(int32_t(controls::AfModeAuto), int32_t(controls::AfModeAuto), int32_t(controls::AfModeAuto));
++		context_.ctrlMap[&controls::AfTrigger] = ControlInfo(int32_t(controls::AfTriggerStart), int32_t(controls::AfTriggerCancel), int32_t(controls::AfTriggerCancel));
++		context_.ctrlMap[&controls::AfState] = ControlInfo(int32_t(controls::AfStateIdle), int32_t(controls::AfStateFailed), int32_t(controls::AfStateIdle));
++	}
+ 	ControlInfoMap::Map map = context_.ctrlMap;
+ 	*ipaControls = ControlInfoMap(std::move(map), controls::controls);
+ }
+@@ -318,6 +371,12 @@
+ 
+ int IPASoftSimple::start(const ControlList &controls, ControlList *sensorControls, uint32_t *source)
+ {
++	af_.configure(afConfig_);
++	afRunning_ = afEnabled_;
++	initialAfPending_ = afEnabled_;
++	initialAfTrigger_ = controls.get(controls::AfTrigger);
++	if (auto mode = controls.get(controls::AfMode); mode && *mode != controls::AfModeAuto)
++		initialAfTrigger_ = controls::AfTriggerCancel;
+ 	/* A restart without configure() must also restore the default Auto modes. */
+ 	context_.activeState = {};
+ 	context_.frameContexts.clear();
+@@ -342,12 +401,24 @@
+ 
+ void IPASoftSimple::stop()
+ {
++	afRunning_ = false;
++	af_.cancel();
+ 	context_.frameContexts.clear();
+ }
+ 
++void IPASoftSimple::lensPositionApplied(uint32_t serial, int32_t status, uint64_t monotonic)
++{
++	if (afRunning_)
++		af_.applied(serial, status, monotonic);
++}
++
+ void IPASoftSimple::queueRequest(const uint32_t frame, const ControlList &controls)
+ {
+ 	IPAFrameContext &frameContext = context_.frameContexts.alloc(frame);
++	frameContext.afTrigger = controls.get(controls::AfTrigger);
++	if (auto mode = controls.get(controls::AfMode); mode && *mode != controls::AfModeAuto)
++		frameContext.afCancel = true;
++
+ 
+ 	for (const auto &algo : algorithms())
+ 		algo->queueRequest(context_, frame, frameContext, controls);
+@@ -367,7 +438,8 @@
+ 
+ void IPASoftSimple::processStats(const uint32_t frame,
+ 				 [[maybe_unused]] const uint32_t bufferId,
+-				 const ControlList &sensorControls, uint32_t source)
++				 const ControlList &sensorControls, uint32_t source,
++				 bool focusValid, int32_t focus, uint64_t capturedMonotonic)
+ {
+ 	if (!sensorControls.contains(V4L2_CID_EXPOSURE) ||
+ 	    !sensorControls.contains(V4L2_CID_ANALOGUE_GAIN)) {
+@@ -383,10 +455,35 @@
+ 	frameContext.sensor.gain = camHelper_ ? camHelper_->gain(again) : again;
+ 
+ 	ControlList metadata(controls::controls);
+-	/* Never report a cached focus score as belonging to another frame. */
+-	if (stats_->valid && stats_->frame == frame) {
+-		if (auto focus = stats_->focus.figureOfMerit())
+-			metadata.set(controls::FocusFoM, *focus);
++	/* Focus is a value copied with this frame, not a mutable shared snapshot. */
++	if (focusValid)
++		metadata.set(controls::FocusFoM, focus);
++	if (afEnabled_ && afRunning_) {
++		struct timespec clock{};
++		uint64_t now = clock_gettime(CLOCK_MONOTONIC, &clock) == 0
++			? uint64_t(clock.tv_sec) * 1000000000ULL + clock.tv_nsec : 0;
++		auto trigger = frameContext.afTrigger;
++		if (initialAfPending_) {
++			if (!trigger)
++				trigger = initialAfTrigger_;
++			initialAfPending_ = false;
++		}
++		if (frameContext.afCancel)
++			af_.cancel();
++		else if (trigger && *trigger == controls::AfTriggerCancel)
++			af_.cancelScan();
++		else if (trigger && *trigger == controls::AfTriggerStart)
++			af_.trigger(now);
++		/* WM-done timestamps can trail exposure: exclude exposure plus readout. */
++		long double lines = uint64_t(context_.sensorInfo.minFrameLength) +
++				    std::max(frameContext.sensor.exposure, 0);
++		uint64_t guard = std::ceil(lines * context_.sensorInfo.minLineLength *
++					  1000000000.0L / context_.sensorInfo.pixelRate);
++		af_.process(focusValid, focus, capturedMonotonic, guard, now);
++		if (auto move = af_.takeMove(now))
++			setLensControls.emit(move->serial, move->position);
++		metadata.set(controls::AfMode, controls::AfModeAuto);
++		metadata.set(controls::AfState, static_cast<int32_t>(af_.state()));
+ 	}
+ 	for (const auto &algo : algorithms())
+ 		algo->process(context_, frame, frameContext, stats_, metadata);
+--- /dev/null
++++ b/src/ipa/libipa/contrast_af.h
+@@ -0,0 +1,212 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later */
++/* Bounded contrast AF search, independent of sensor, lens and statistics ABI. */
++#pragma once
++
++#include <algorithm>
++#include <cmath>
++#include <cstdint>
++#include <limits>
++#include <optional>
++#include <vector>
++
++namespace libcamera::ipa {
++
++class ContrastAf
++{
++public:
++	enum class State { Idle, Scanning, Focused, Failed };
++	struct Config {
++		int32_t minimum;
++		int32_t maximum;
++		int32_t coarseStep;
++		int32_t fineStep;
++		unsigned int samples;
++		uint64_t settleNs;
++		uint64_t timeoutNs;
++		int32_t minimumPeak;
++		double peakRatio;
++		double verifyRatio;
++	};
++	struct Move { uint32_t serial; int32_t position; };
++
++	bool configure(const Config &config)
++	{
++		cancel();
++		int64_t extent = int64_t(config.maximum) - config.minimum;
++		if (config.minimum < 0 || extent <= 0 || config.coarseStep <= 0 ||
++		    config.fineStep <= 0 || config.fineStep > config.coarseStep ||
++		    extent / config.coarseStep > 126 ||
++		    (int64_t(config.coarseStep) * 2) / config.fineStep > 126 ||
++		    !config.samples || config.samples > 9 || config.minimumPeak < 0 ||
++		    config.settleNs > 5000000000ULL || config.timeoutNs <= config.settleNs ||
++		    config.timeoutNs > 600000000000ULL ||
++		    !std::isfinite(config.peakRatio) || config.peakRatio <= 1 ||
++		    !std::isfinite(config.verifyRatio) || config.verifyRatio <= 0 || config.verifyRatio > 1)
++			return configured_ = false;
++		config_ = config;
++		return configured_ = true;
++	}
++
++	void trigger(uint64_t now)
++	{
++		if (!configured_ || state_ == State::Scanning)
++			return;
++		if (!now || now > std::numeric_limits<uint64_t>::max() - config_.timeoutNs) {
++			state_ = State::Failed;
++			return;
++		}
++		state_ = State::Scanning;
++		phase_ = Phase::Coarse;
++		deadline_ = now + config_.timeoutNs;
++		coarseMinimum_ = std::numeric_limits<int32_t>::max();
++		bestScore_ = -1;
++		bestPosition_ = config_.minimum;
++		lastSample_ = 0;
++		makePoints(config_.minimum, config_.maximum, config_.coarseStep);
++	}
++
++	void cancel()
++	{
++		state_ = State::Idle;
++		awaiting_ = false;
++		needMove_ = false;
++		points_.clear();
++		scores_.clear();
++	}
++	void cancelScan()
++	{
++		if (state_ == State::Scanning)
++			cancel();
++	}
++
++	State state() const { return state_; }
++	std::optional<int32_t> selectedPosition() const
++	{
++		return state_ == State::Focused ? std::optional<int32_t>(bestPosition_) : std::nullopt;
++	}
++
++	std::optional<Move> takeMove(uint64_t now)
++	{
++		if (state_ != State::Scanning || !needMove_)
++			return std::nullopt;
++		if (!now || now > deadline_ || serial_ == std::numeric_limits<uint32_t>::max()) {
++			fail();
++			return std::nullopt;
++		}
++		needMove_ = false;
++		awaiting_ = true;
++		issued_ = now;
++		return Move{ ++serial_, points_[point_] };
++	}
++
++	void applied(uint32_t serial, int status, uint64_t timestamp)
++	{
++		if (state_ != State::Scanning || !awaiting_ || serial != serial_)
++			return;
++		awaiting_ = false;
++		if (status || !timestamp || timestamp < issued_ ||
++		    timestamp > std::numeric_limits<uint64_t>::max() - config_.settleNs) {
++			fail();
++			return;
++		}
++		settled_ = timestamp + config_.settleNs;
++	}
++
++	/* All timestamps use CLOCK_MONOTONIC; guard includes exposure and readout. */
++	void process(bool valid, int32_t score, uint64_t captured,
++		     uint64_t guard, uint64_t now)
++	{
++		if (state_ != State::Scanning)
++			return;
++		if (!now || !captured || captured > now || now > deadline_) {
++			fail();
++			return;
++		}
++		if (awaiting_ || needMove_ || !valid || score < 0 ||
++		    guard > std::numeric_limits<uint64_t>::max() - settled_ ||
++		    captured <= settled_ + guard || captured <= lastSample_)
++			return;
++		lastSample_ = captured;
++		scores_.push_back(score);
++		if (scores_.size() < config_.samples)
++			return;
++		std::sort(scores_.begin(), scores_.end());
++		int32_t median = scores_[scores_.size() / 2];
++		scores_.clear();
++
++		if (phase_ == Phase::Verify) {
++			state_ = median >= config_.minimumPeak &&
++				 median >= bestScore_ * config_.verifyRatio
++				 ? State::Focused : State::Failed;
++			return;
++		}
++		if (phase_ == Phase::Coarse)
++			coarseMinimum_ = std::min(coarseMinimum_, median);
++		if (median > bestScore_) {
++			bestScore_ = median;
++			bestPosition_ = points_[point_];
++		}
++		if (++point_ < points_.size()) {
++			needMove_ = true;
++			return;
++		}
++		if (phase_ == Phase::Coarse) {
++			if (!usefulPeak()) {
++				fail();
++				return;
++			}
++			phase_ = Phase::Fine;
++			int32_t minimum = std::max<int64_t>(config_.minimum, int64_t(bestPosition_) - config_.coarseStep);
++			int32_t maximum = std::min<int64_t>(config_.maximum, int64_t(bestPosition_) + config_.coarseStep);
++			bestScore_ = -1;
++			makePoints(minimum, maximum, config_.fineStep);
++		} else {
++			if (!usefulPeak()) {
++				fail();
++				return;
++			}
++			phase_ = Phase::Verify;
++			points_ = { bestPosition_ };
++			point_ = 0;
++			needMove_ = true;
++		}
++	}
++
++private:
++	enum class Phase { Coarse, Fine, Verify };
++	bool usefulPeak() const
++	{
++		return bestScore_ >= config_.minimumPeak && bestScore_ > 0 &&
++		       bestScore_ >= coarseMinimum_ * config_.peakRatio;
++	}
++	void makePoints(int32_t minimum, int32_t maximum, int32_t step)
++	{
++		points_.clear();
++		for (int64_t position = minimum; position < maximum; position += step)
++			points_.push_back(position);
++		points_.push_back(maximum);
++		point_ = 0;
++		scores_.clear();
++		awaiting_ = false;
++		needMove_ = true;
++	}
++	void fail()
++	{
++		state_ = State::Failed;
++		awaiting_ = false;
++		needMove_ = false;
++	}
++	Config config_{};
++	bool configured_ = false;
++	State state_ = State::Idle;
++	Phase phase_ = Phase::Coarse;
++	uint32_t serial_ = 0;
++	bool awaiting_ = false;
++	bool needMove_ = false;
++	uint64_t deadline_ = 0, issued_ = 0, settled_ = 0, lastSample_ = 0;
++	std::vector<int32_t> points_, scores_;
++	size_t point_ = 0;
++	int32_t coarseMinimum_ = 0, bestScore_ = 0, bestPosition_ = 0;
++};
++
++} /* namespace libcamera::ipa */

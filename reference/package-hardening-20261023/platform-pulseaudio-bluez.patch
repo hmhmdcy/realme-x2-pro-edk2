@@ -1,0 +1,18 @@
+--- a/linux-port/packages/samurai-platform/APKBUILD
++++ b/linux-port/packages/samurai-platform/APKBUILD
+@@ -1,13 +1,13 @@
+ maintainer="hmhmdcy <hmhmdcy@users.noreply.github.com>"
+ pkgname=samurai-platform
+ pkgver=5
+-pkgrel=1
++pkgrel=2
+ pkgdesc="Realme X2 Pro platform"
+ url="https://github.com/hmhmdcy/pmaports"
+ arch="aarch64"
+ license="LicenseRef-Local-Project"
+ options="!check"
+-depends="samurai-radio-tools python3 openrc eudev iproute2 util-linux coreutils qrtr libqmi networkmanager bluez wpa_supplicant openssh openssh-server-pam alsa-ucm-conf alsa-utils pulseaudio"
++depends="samurai-radio-tools python3 openrc eudev iproute2 util-linux coreutils qrtr libqmi networkmanager bluez wpa_supplicant openssh openssh-server-pam alsa-ucm-conf alsa-utils pulseaudio pulseaudio-bluez"
+ source="usr_libexec_samurai-audio-route etc_pulse_daemon.conf.d_90-samurai.conf etc_phoc_phoc.ini etc_phosh_phoc.ini usr_sbin_samurai-bluetooth usr_sbin_samurai-modem-configs usr_sbin_samurai-modem-remoteproc usr_sbin_samurai-radio-address usr_sbin_samurai-udhcpc-wlan usr_sbin_samurai-wifi usr_sbin_samurai-usb etc_init.d_samurai-loopback etc_init.d_samurai-radio etc_init.d_samurai-usb etc_NetworkManager_conf.d_20-samurai-wlan.conf etc_NetworkManager_conf.d_90-samurai-usb.conf 99-realme-rmx1931-sensors.rules usr_share_alsa_ucm2_conf.d_Realme_X2_Pro_HiFi.conf usr_share_alsa_ucm2_conf.d_Realme_X2_Pro_Realme_X2_Pro.conf"
+ package() {
+  install -Dm755 "$srcdir"/usr_libexec_samurai-audio-route "$pkgdir"/usr/libexec/samurai-audio-route

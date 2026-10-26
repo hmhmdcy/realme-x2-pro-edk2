@@ -1,0 +1,369 @@
+--- a/src/libcamera/pipeline/camss-vfe/camss_ipe.h
++++ b/src/libcamera/pipeline/camss-vfe/camss_ipe.h
+@@ -1,41 +1,57 @@
+ /* SPDX-License-Identifier: LGPL-2.1-or-later */
+ #pragma once
+ 
++#include <cstdint>
++#include <deque>
+ #include <map>
+ #include <memory>
+ #include <string>
++#include <vector>
++#include <linux/qcom-ipe-a5.h>
+ 
+ #include <libcamera/base/object.h>
+ #include <libcamera/base/signal.h>
+ #include <libcamera/base/timer.h>
++#include "libcamera/internal/media_device.h"
+ #include "libcamera/internal/v4l2_videodevice.h"
+ 
+ namespace libcamera {
+ 
+-/* Own both m2m queues until each side returns, including cancellation. */
++/* Own both image queues and request parameters until all three complete. */
+ class CamssIpe : public Object
+ {
+ public:
+-	explicit CamssIpe(const std::string &node);
++	explicit CamssIpe(const std::string &node, std::shared_ptr<MediaDevice> media);
+ 	~CamssIpe();
+ 	int start(const V4L2DeviceFormat &format, unsigned int count);
+ 	void stop();
+-	int queue(FrameBuffer *input, FrameBuffer *output);
++	int queue(FrameBuffer *input, FrameBuffer *output,
++		  const qcom_ipe_a5_frame_params *params = nullptr);
+ 	Signal<FrameBuffer *, FrameBuffer *, bool> processed;
+ 
+ private:
+ 	struct Job {
+ 		FrameBuffer *original;
+ 		std::unique_ptr<FrameBuffer> input;
+-		bool inputDone = false, outputDone = false, failed = false;
++		V4L2Request *request = nullptr;
++		uint64_t serial = 0;
++		bool inputDone = false, outputDone = false, requestDone = true, failed = false;
+ 	};
+ 	void inputReady(FrameBuffer *buffer);
+ 	void outputReady(FrameBuffer *buffer);
++	void requestReady(V4L2Request *request);
++	void finishRequest(FrameBuffer *output, uint64_t serial, int error);
+ 	void complete(FrameBuffer *output);
+ 	void timeout();
+ 	V4L2M2MDevice device_;
++	std::shared_ptr<MediaDevice> media_;
+ 	Timer watchdog_;
+ 	bool running_ = false, stopping_ = false, opened_ = false, failed_ = false;
++	bool requestsEnabled_ = false;
++	uint64_t nextSerial_ = 0;
++	std::vector<std::unique_ptr<V4L2Request>> requests_;
++	std::deque<V4L2Request *> freeRequests_;
++	std::map<V4L2Request *, FrameBuffer *> requestOutputs_;
+ 	std::map<FrameBuffer *, Job> jobs_;
+ 	std::map<FrameBuffer *, FrameBuffer *> inputs_;
+ };
+--- a/src/libcamera/pipeline/camss-vfe/camss_ipe.cpp
++++ b/src/libcamera/pipeline/camss-vfe/camss_ipe.cpp
+@@ -11,13 +11,11 @@
+ 
+ LOG_DECLARE_CATEGORY(CamssVfe)
+ 
+-CamssIpe::CamssIpe(const std::string &node) : device_(node)
++CamssIpe::CamssIpe(const std::string &node, std::shared_ptr<MediaDevice> media)
++	: device_(node), media_(std::move(media))
+ {
+ 	device_.output()->bufferReady.connect(this, &CamssIpe::inputReady);
+ 	device_.capture()->bufferReady.connect(this, &CamssIpe::outputReady);
+-	/* The string-based V4L2M2MDevice construction in this libcamera version
+-	 * does not connect the video-device watchdog. Own the job timer here.
+-	 */
+ 	watchdog_.timeout.connect(this, &CamssIpe::timeout);
+ }
+ 
+@@ -30,15 +28,37 @@
+ {
+ 	if (running_ || stopping_ || !jobs_.empty())
+ 		return -EBUSY;
+-	/* A failed STREAMOFF leaves the library queue bookkeeping unresolved.
+-	 * close has joined the kernel work, but this object must not reopen it.
+-	 */
++	if (!count)
++		return -EINVAL;
+ 	if (failed_)
+ 		return -EIO;
+ 	int ret = device_.open();
+ 	if (ret)
+ 		return ret;
+ 	opened_ = true;
++	const auto *info = device_.output()->controlInfo(V4L2_CID_QCOM_IPE_A5_FRAME_PARAMS);
++	requestsEnabled_ = info;
++	if (requestsEnabled_) {
++		if (info->type != V4L2_CTRL_TYPE_U8 || info->elem_size != 1 ||
++		    info->elems != sizeof(qcom_ipe_a5_frame_params) ||
++		    info->nr_of_dims != 1 || info->dims[0] != sizeof(qcom_ipe_a5_frame_params)) {
++			stop();
++			return -EINVAL;
++		}
++		if (!media_ || !media_->supportsRequests()) {
++			stop();
++			return -ENOTSUP;
++		}
++		ret = media_->allocateRequests(count, &requests_);
++		if (ret) {
++			stop();
++			return ret;
++		}
++		for (auto &request : requests_) {
++			request->requestDone.connect(this, &CamssIpe::requestReady);
++			freeRequests_.push_back(request.get());
++		}
++	}
+ 	for (V4L2VideoDevice *queue : { device_.output(), device_.capture() }) {
+ 		V4L2DeviceFormat negotiated = format;
+ 		ret = queue->setFormat(&negotiated);
+@@ -53,9 +73,7 @@
+ 			return ret;
+ 		}
+ 	}
+-	/* Geometry is shared by both queues. Finish both S_FMT calls before
+-	 * either REQBUFS: this driver rejects format changes once buffers exist.
+-	 */
++	/* Both formats must precede either REQBUFS for shared geometry. */
+ 	for (V4L2VideoDevice *queue : { device_.output(), device_.capture() }) {
+ 		ret = queue->importBuffers(count);
+ 		if (ret) {
+@@ -71,36 +89,68 @@
+ 		}
+ 	}
+ 	running_ = true;
+-	LOG(CamssVfe, Info) << "IPE enabled " << format.toString();
++	LOG(CamssVfe, Info) << "IPE enabled " << format.toString()
++		<< " requests=" << requestsEnabled_;
+ 	return 0;
+ }
+ 
+-int CamssIpe::queue(FrameBuffer *input, FrameBuffer *output)
++int CamssIpe::queue(FrameBuffer *input, FrameBuffer *output,
++		    const qcom_ipe_a5_frame_params *params)
+ {
+ 	if (!running_ || stopping_)
+ 		return -EPIPE;
+ 	if (!input || !output || input == output || jobs_.count(output))
+ 		return -EINVAL;
++	for (const auto &[buffer, job] : jobs_) {
++		(void)buffer;
++		if (job.original == input)
++			return -EBUSY;
++	}
++	if (params && !requestsEnabled_)
++		return -ENOTSUP;
++	V4L2Request *request = nullptr;
++	if (requestsEnabled_) {
++		if (freeRequests_.empty())
++			return -ENOBUFS;
++		request = freeRequests_.front();
++		const qcom_ipe_a5_frame_params bypass{};
++		const auto *packet = params ? params : &bypass;
++		ControlList controls(device_.output()->controls());
++		ControlValue value;
++		value.set(Span<const uint8_t>(reinterpret_cast<const uint8_t *>(packet), sizeof(*packet)));
++		controls.set(V4L2_CID_QCOM_IPE_A5_FRAME_PARAMS, value);
++		int ret = device_.output()->setControls(&controls, request);
++		if (ret) {
++			if (request->reinit())
++				stop();
++			return ret;
++		}
++	}
+ 	auto planes = input->planes();
+ 	Job job{ input, std::make_unique<FrameBuffer>(
+ 		std::vector<FrameBuffer::Plane>(planes.begin(), planes.end())) };
+-	/* OUTPUT DQBUF writes sequence/timestamp. Preserve the IFE SOF by using
+-	 * a wrapper with shared plane FDs, not the original camera buffer.
+-	 */
++	/* OUTPUT DQBUF must not overwrite the original IFE SOF metadata. */
+ 	job.input->_d()->metadata() = input->metadata();
++	job.request = request;
++	job.requestDone = !request;
++	job.serial = ++nextSerial_;
+ 	FrameBuffer *wrapped = job.input.get();
+ 	inputs_.emplace(wrapped, output);
+ 	jobs_.emplace(output, std::move(job));
++	if (request) {
++		freeRequests_.pop_front();
++		requestOutputs_.emplace(request, output);
++	}
+ 	if (jobs_.size() == 1)
+ 		watchdog_.start(std::chrono::seconds(3));
+ 	int ret = device_.capture()->queueBuffer(output);
+ 	if (!ret)
+-		ret = device_.output()->queueBuffer(wrapped);
++		ret = device_.output()->queueBuffer(wrapped, request);
++	if (!ret && request)
++		ret = request->queue();
+ 	if (ret) {
+ 		LOG(CamssVfe, Error) << "IPE queue failed: " << ret;
+-		/* A one-sided QBUF must never shift the FIFO pairing. Once adopted,
+-		 * the job always completes via the signal, including this failure.
+-		 */
++		/* Once adopted, partial submission completes through processed. */
+ 		stop();
+ 	}
+ 	return 0;
+@@ -128,14 +178,49 @@
+ 	complete(buffer);
+ }
+ 
++void CamssIpe::requestReady(V4L2Request *request)
++{
++	auto it = requestOutputs_.find(request);
++	if (it == requestOutputs_.end())
++		return;
++	Job &job = jobs_.at(it->second);
++	int ret = request->reinit(); /* Also disables the level-triggered notifier. */
++	if (!ret)
++		job.requestDone = true;
++	/* A completion callback may stop and destroy the request pool. Defer
++	 * that possibility until V4L2Request::requestReady() has unwound.
++	 */
++	invokeMethod(&CamssIpe::finishRequest, ConnectionTypeQueued,
++		     it->second, job.serial, ret);
++}
++
++void CamssIpe::finishRequest(FrameBuffer *output, uint64_t serial, int error)
++{
++	auto it = jobs_.find(output);
++	if (it == jobs_.end() || it->second.serial != serial)
++		return;
++	if (error) {
++		LOG(CamssVfe, Error) << "IPE request reinit failed: " << error;
++		stop();
++		return;
++	}
++	complete(output);
++}
++
+ void CamssIpe::complete(FrameBuffer *output)
+ {
+ 	auto it = jobs_.find(output);
+-	if (it == jobs_.end() || !it->second.inputDone || !it->second.outputDone)
++	if (it == jobs_.end() || !it->second.inputDone || !it->second.outputDone ||
++	    !it->second.requestDone)
+ 		return;
+ 	Job job = std::move(it->second);
+ 	inputs_.erase(job.input.get());
+ 	jobs_.erase(it);
++	if (job.request) {
++		requestOutputs_.erase(job.request);
++		if (running_)
++			freeRequests_.push_back(job.request);
++	}
+ 	if (!running_ || jobs_.empty())
+ 		watchdog_.stop();
+ 	else
+@@ -153,15 +238,20 @@
+ 	int inputError = device_.output()->streamOff();
+ 	int outputError = device_.capture()->streamOff();
+ 	failed_ |= inputError || outputError;
+-	/* close() also joins the driver's work when STREAMOFF itself failed.
+-	 * Keep all imported FDs and original IFE buffers alive until then.
++	/* Keep image wrappers, plane FDs and request FDs through the driver's
++	 * close/join, even when one of the STREAMOFF calls failed.
+ 	 */
+ 	device_.close();
+ 	opened_ = false;
++	freeRequests_.clear();
++	requestOutputs_.clear();
++	requests_.clear();
++	requestsEnabled_ = false;
+ 	while (!jobs_.empty()) {
+ 		FrameBuffer *output = jobs_.begin()->first;
+ 		Job &job = jobs_.begin()->second;
+-		job.inputDone = job.outputDone = job.failed = true;
++		job.request = nullptr;
++		job.inputDone = job.outputDone = job.requestDone = job.failed = true;
+ 		complete(output);
+ 	}
+ 	stopping_ = false;
+--- a/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
++++ b/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
+@@ -1296,7 +1296,7 @@
+ 			}
+ 			if (ipeMedia_) {
+ 				MediaEntity *source=ipeMedia_->getEntityByName("qcom-ipe-a5-source");
+-				d->ipe_=std::make_unique<CamssIpe>(source->deviceNode());
++				d->ipe_=std::make_unique<CamssIpe>(source->deviceNode(), ipeMedia_);
+ 				d->ipe_->processed.connect(d.get(),&CamssVfeData::imageProcessed);
+ 			}
+ 			std::set<Stream *> streams{ &d->stream_ };
+--- /dev/null
++++ b/include/linux/qcom-ipe-a5.h
+@@ -0,0 +1,68 @@
++/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
++#ifndef _UAPI_QCOM_IPE_A5_H
++#define _UAPI_QCOM_IPE_A5_H
++#include <linux/types.h>
++#include <linux/v4l2-controls.h>
++
++/* Experimental local control allocation; not an upstream-reserved CID. */
++#define V4L2_CID_QCOM_IPE_A5_FRAME_PARAMS (V4L2_CID_USER_BASE + 0x1240)
++#define QCOM_IPE_A5_PARAMS_VERSION 1U
++#define QCOM_IPE_A5_GAMMA 1U
++#define QCOM_IPE_A5_LTM 2U
++#define QCOM_IPE_A5_COLOUR_CST 1U
++#define QCOM_IPE_A5_COLOUR_CC 2U
++#define QCOM_IPE_A5_COLOUR_CV 4U
++
++struct qcom_ipe_a5_cst {
++	__s16 matrix[9], subtract[3];
++	__u16 offset[3], minimum[3], maximum[3];
++};
++struct qcom_ipe_a5_cc {
++	__s16 matrix[9], offset[3];
++	__u32 shift;
++};
++struct qcom_ipe_a5_cv {
++	__s16 luma[3], y_offset, chroma[8], offset[2];
++};
++struct qcom_ipe_a5_colour {
++	__u32 modules;
++	struct qcom_ipe_a5_cst cst;
++	/* Explicit alignment bytes: callers must zero padding. */
++	__u16 padding;
++	struct qcom_ipe_a5_cc cc;
++	struct qcom_ipe_a5_cv cv;
++};
++struct qcom_ipe_a5_gamma {
++	__u16 base[3][256];
++	__s16 delta[3][256];
++};
++struct qcom_ipe_a5_ltm_unsigned { __u16 base; __s16 delta; };
++struct qcom_ipe_a5_ltm_signed { __s16 base, delta; };
++struct qcom_ipe_a5_ltm_iq {
++	__u32 reverse_gamma, local_adaptation, mask_filter, bin_init_count;
++	__u32 rgb2y[4], lce_threshold, y_ratio_max, mask_kernel[6];
++	__u32 mask_shift, mask_scale, horizontal_termination, vertical_termination;
++	__u32 data_collection, image_processing;
++};
++struct qcom_ipe_a5_ltm {
++	struct qcom_ipe_a5_ltm_iq iq;
++	__u16 weight[12];
++	struct qcom_ipe_a5_ltm_unsigned la[2][64], curve[64];
++	struct qcom_ipe_a5_ltm_signed scale[64];
++	struct qcom_ipe_a5_ltm_unsigned mask[64];
++	struct qcom_ipe_a5_ltm_signed lce[2][16];
++	struct qcom_ipe_a5_ltm_unsigned reverse_gamma[5][64];
++};
++/* A compound U8 control stored in a Media Request with one OUTPUT buffer.
++ * All-zero payload means bypass. Otherwise version1 and size6008 are required.
++ * Values are native-endian fixed-width quantized fields. No pointers, device
++ * addresses, commands or arbitrary registers are accepted. CAPTURE buffers
++ * are queued normally. Direct non-request buffers always retain bypass.
++ */
++struct qcom_ipe_a5_frame_params {
++	__u32 version, size, flags, reserved[5];
++	struct qcom_ipe_a5_colour colour;
++	struct qcom_ipe_a5_gamma gamma;
++	struct qcom_ipe_a5_ltm ltm;
++};
++#endif

@@ -1,0 +1,42 @@
+--- a/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
++++ b/src/libcamera/pipeline/camss-vfe/camss_vfe.cpp
+@@ -93,6 +93,7 @@
+    uint64_t ipeToken = 0;
+    uint32_t ipeSof = 0;
+    std::optional<std::array<float, 9>> ipeColourMatrix{};
++  bool ipaCompleting = false;
+  };
+  std::map<Request *, PendingFrame> requests_;
+  Request *ipeActive_ = nullptr;
+@@ -998,6 +999,9 @@
+  auto it=requests_.find(request);
+  if(it==requests_.end())return;
+  PendingFrame &frame=it->second;
++ /* The synchronous receipt may dispatch another completion or a timeout.
++  * Stop must still find this frame and cancel it through the ordinary drain. */
++ if(frame.ipaCompleting && running_)return;
+  if(!frame.imageFinished || !frame.rawReady)return;
+  if(rawEnabled_ && !frame.failed && running_) {
+   const uint32_t imageSof=frame.ifeImage->_d()->kernelSequence(),rawSof=frame.raw->_d()->kernelSequence();
+@@ -1026,8 +1030,20 @@
+  }
+  const uint64_t ipeToken=frame.ipeToken;const uint32_t ipeSof=frame.ipeSof;
+   const bool ipeSuccess=!frame.failed && processedEnabled_ && bool(ipe_);
++  if(ipeToken && !frame.ipaCompleting) {
++   const uint64_t receiptEpoch=epoch_;
++   const uint32_t requestSequence=request->sequence();
++   frame.ipaCompleting=true;
++   ipa_->frameProcessed(receiptEpoch,ipeSof,ipeToken,ipeSuccess);
++   /* Stop may have completed this request and released its FULL buffer.
++    * A restarted stream may even reuse the request or buffer address. */
++   auto live=requests_.find(request);
++   if(!running_ || epoch_!=receiptEpoch || live==requests_.end() ||
++      live->second.ifeImage!=ife || request->sequence()!=requestSequence)return;
++   live->second.ipaCompleting=false;
++   it=live;
++  }
+   requests_.erase(it);
+-  if(ipeToken)ipa_->frameProcessed(epoch_,ipeSof,ipeToken,ipeSuccess);
+   if(ipeActive_==request)ipeActive_=nullptr;
+   /* Release the internal association before any application completion. */
+   if(internalRequests_.erase(ife)) {

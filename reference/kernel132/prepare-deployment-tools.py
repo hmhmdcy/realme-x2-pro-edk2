@@ -1,0 +1,21 @@
+from pathlib import Path
+r = Path('/mnt/e/RealmeX2Pro edk2')
+ref = r / 'reference/kernel132'
+prev = r / 'reference/kernel129'
+text = (prev / 'verify-live-staging.py').read_text().replace('kernel129', 'kernel132').replace('k129', 'k132').replace('K129', 'K132')
+text = text.replace('old128', 'old129').replace('new129_directory', 'new132_directory').replace('old118_and126_and128', 'old118_and126_and129').replace('current_kernel_still128', 'current_kernel_still129')
+(ref / 'verify-live-staging.py').write_text(text)
+text = (r / 'reference/kernel130/quiesce-current129.sh').read_text()
+text = text.replace('before=/var/lib/samurai/k130-service-checkpoint', 'before=/var/lib/samurai/k132-preflash')
+text = text.replace('k130-quiesce', 'k132-quiesce').replace('K130_CURRENT129_WARM_REBOOT', 'K132_CURRENT129_PREFLASH')
+text = text.replace('$before/partitions.sha256', '$before/partition-check.sha256')
+text = text.replace('(cd /usr/lib/modules/7.3.0-rc6-rmx1931-samurai-k129+ && sha256sum -c /var/lib/samurai/k129-preflash/new-module-tree.sha256)', '(cd /usr/lib/modules/7.3.0-rc6-rmx1931-samurai-k132+ && sha256sum -c "$before/new-module-tree.sha256")')
+(ref / 'quiesce-current129.sh').write_text(text)
+text = (prev / 'verify-quiesce.py').read_text().replace('kernel129', 'kernel132').replace('K129', 'K132')
+text = text.replace('current_kernel=128,target_kernel=129', 'current_kernel=129,target_kernel=132').replace('staged129', 'staged132').replace('CURRENT128', 'CURRENT129')
+(ref / 'verify-quiesce.py').write_text(text)
+text = (prev / 'freeze-for-bootloader.sh').read_text().replace('k129', 'k132').replace('K129', 'K132').replace("'^#128 '", "'^#129 '")
+(ref / 'freeze-for-bootloader.sh').write_text(text)
+text = (prev / 'enter-bootloader.ps1').read_text().replace('kernel129', 'kernel132').replace('k129', 'k132').replace('K129', 'K132').replace('console-node-first', 'charger-node-first')
+(ref / 'enter-bootloader.ps1').write_text(text)
+print('K132_BLUEZ_STOP_FULL_QUIESCE_FRESH_BOOT_FREEZE_TOOLS_READY')

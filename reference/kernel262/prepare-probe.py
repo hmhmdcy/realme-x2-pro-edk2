@@ -1,0 +1,28 @@
+"""Derive the accepted camera cleanup harness with fresh guards and scope."""
+from pathlib import Path
+import hashlib,json
+R=Path(__file__).parent
+s=(R.parent/'kernel240/native-snapshot-mmap-r2.py').read_text()
+s=s.replace('One exact physical camera capture; RAM aggregates only, exhaustive cleanup.', 'Bounded camera buffer and JPEG probe with state restoration.')
+s=s.replace("which,kind=sys.argv[1:];assert (which,kind)==('front','rgb')", "which,kind='front','rgb';delay=int(sys.argv[1]);assert delay in [0,40000,1000000,2000000,2000001,3000000,3000001,3000002,4000000,6000000]")
+s=s.replace('k236-runtime/boot-id-private.txt','k260-work/boot-id-private.txt')
+s=s.replace("out=root/'k240-snapshot-mmap-r2'", "out=root/('k262-pipewire-'+str(delay)+'-r2')")
+s=s.replace('stage=240','stage=262')
+s=s.replace("assert json.loads((root/'k240-baseline/summary.json').read_text())['installed_r15_r10']", "command(['apk','info','--exists','libcamera=99990.7.2-r15'])")
+s=s.replace("policy=json.loads((root/'k240-tools/idle-policy-identity-private.json').read_text())", "observers=[p for p in Path('/proc').glob('[0-9]*') if (p/'comm').exists() and (p/'comm').read_text().strip()=='wireplumber'];assert len(observers)==1;policy=dict(pid=int(observers[0].name),start_ticks=(observers[0]/'stat').read_text().rsplit(')',1)[1].split()[19])")
+s=s.replace("args=['/usr/bin/snapshot']", "args=['/usr/bin/python3','/var/lib/samurai/k262-tools/pipewire-probe.py',str(delay)]")
+s=s.replace("subprocess.run(['gsettings','set','org.gnome.Snapshot','last-camera-id','Built-in Front Camera'],env=env,preexec_fn=demote,check=True,timeout=5)\n settings_changed=True", "# Headless probe does not alter last-camera-id.")
+s=s.replace("k240_snapshot_mmap_r2", "k262_pipewire")
+s=s.replace('time.monotonic()+30','time.monotonic()+(42 if delay==4000000 else 23)')
+s=s.replace("application='snapshot'", "application='pipewire-probe',probe_result=data")
+s=s.replace("completed=not error and", "completed=data is not None and process.returncode==0 and not error and")
+s=s.replace('app_still_running_at30s=timed','outer_timeout_reached=timed')
+s=s.replace("gtk_renderer='cairo'", "gtk_renderer_requested='cairo',gui_window_used=False")
+s=s.replace('only_this_app_uses_cpu_renderer=True,','')
+s=s.replace(" if stdout:\n", " if process.poll() is not None:stdout,stderr=process.communicate()\n if stdout:\n")
+s=s.replace('no_shutter_action=True,no_scene_images_saved=True','no_shutter_action=delay not in [2000000,2000001,3000002],no_scene_images_saved=delay not in [2000000,2000001,3000002]')
+s=s.replace("env.update(GSK_RENDERER=", "env.update(PIPEWIRE_DEBUG='3',GSK_RENDERER=")
+s=s.replace(" args=['/usr/bin/python3'", " if delay in [3000000,3000001,3000002,6000000]:env.update(GST_PLUGIN_PATH='/var/lib/samurai/k262-candidate',GST_REGISTRY='/var/lib/samurai/k262-user/candidate-registry.bin')\n if delay in [3000001,3000002,4000000]:env['SAMURAI_CAMERA_COPY']='1'\n args=['/usr/bin/python3'")
+compile(s,'native-pipewire-probe.py','exec')
+(R/'native-pipewire-probe.py').write_text(s)
+print(json.dumps(dict(harness_sha256=hashlib.sha256(s.encode()).hexdigest(),current_boot_guard=260,temporary_camera_setting_change=False)))

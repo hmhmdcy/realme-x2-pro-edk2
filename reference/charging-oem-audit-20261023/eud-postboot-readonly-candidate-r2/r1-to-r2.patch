@@ -1,0 +1,22 @@
+--- r1/device.py
++++ r2/device.py
+@@ -252,6 +252,11 @@
+  assert r['retained']=='Y' and r['helper_absent']
+  return {'R8_disk_and_live_notes':True}
+ 
++def healthy_charge_mode(s):
++ full=(s.get('logical_full')==s.get('hold_requested')==s.get('full_holding')==1 and s.get('full_cause') in (1,2,3) and s.get('desired_enable')==0 and s.get('session_seconds')==0)
++ mode=full if any(s.get(k,0) for k in ['logical_full','hold_requested','full_holding','full_cause']) else s.get('desired_enable')==1
++ return bool(mode)
++
+ def check_charging(r):
+  s,c=r['source'],r['charger'];kind=active(s['usb_type']) if isinstance(s['usb_type'],str) else None
+  # Preserve read errors/ENODATA/unknown: no fallback value or assumed 100mA.
+@@ -276,6 +281,7 @@
+   assert t['thermal_band'] in range(6);band=BANDS[t['thermal_band']]
+   assert band[0]-20<=t['temp_decic']<band[1]+20
+   assert max(t['cell1_uv'],t['cell2_uv'])<=band[4] and cc<=band[2] and cv//2<=min(4362500,band[3])
++  assert healthy_charge_mode(t),'inconsistent Full/normal state'
+   if t['logical_full']:
+    assert t['desired_enable']==0 and t['full_holding']==t['hold_requested']==1 and t['full_cause'] in [1,2,3]
+    states.append('healthy_full_charge_only_hold')

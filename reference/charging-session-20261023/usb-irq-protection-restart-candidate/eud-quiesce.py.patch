@@ -1,0 +1,437 @@
+--- old/eud-quiesce.py
++++ new/eud-quiesce.py
+@@ -3,26 +3,36 @@
+ from pathlib import Path
+ import sys
+ if sys.flags.optimize:raise RuntimeError("optimized interpreter is unsupported")
++if not sys.argv[1:] or sys.argv[1:]==['--check-local']:
++ print('{"source_only":true,"device_accessed":false,"request_generated":false}');raise SystemExit(0)
+ import ctypes,dbus,json,os,signal,subprocess,time,traceback
+ 
+-# Embedded verbatim into both workers by prepare.py; no device action on import.
+-import fcntl,hashlib,re,stat,struct,sys
+-
+-EUD_BOOT_SCHEMA='samurai-image502-notify-activation-v1'
+-UNCHANGED_BOOT='97811cc4ae13b36fec98b2eae7cd54a4f12bca988864df0f3d8f663a8c67f695'
+-CANDIDATE_LOGDUMP='__MATERIALIZE_LOGDUMP_SHA256__'
+-IMAGE502='085d03066983a82d1d1c74b74f69c85560698d6fc49f62d6db511a8799b25955'
+-IMAGE501='3a656c75d3b714153d77b637654c894a0418fd688cc906d59a37a41401e8cc02'
+-STARTUP500='2a364e12d72229ef7b0ddfd7620d5ff434b97eaf93eb60899fd24a03b5b9a54a'
+-LOGDUMP501='7e5de5b437fbc884d97a103e77bd97a21b77c99151c67b7bcb1745d51076cbf9'
++"""Stage-aware device gates. Source only; no device action on definition."""
++import base64,fcntl,hashlib,json,os,re,runpy,stat,struct,sys,time,uuid
++from pathlib import Path
++
++ROOT=Path('/root/charging-management-20261023')
++SERVICE_LOCK='/run/lock/samurai-charging.lock'
++STAGE_WORKER='47794e53b8f31e974a968cb6610c69a49e456042be940bca7104bb182595c83a'
++STAGE_SUPERVISOR='b29ab985159ecc911571514cdc5fa72a1a44886037e35ff024dfa6fe623440cc'
++LIVE_PATH='/usr/lib/samurai-charging/live-session.py'
++LIVE_SHA='2199d7d413b2f4a5aeaa8270c20e967f5da711397c29e959e59463c1a5715f2b'
++_SERVICE_FD=None
++
++
++FIXED={'schema': 'samurai-usb-irq-protection-activation-v1', 'kernel_release': '7.3.0-rc6-rmx1931-samurai-k363+', 'kernel_version': '#502 SMP PREEMPT Tue Oct 20 03:03:47 UTC 2026', 'source_kernel_version': '#502 SMP PREEMPT Tue Oct 20 03:03:47 UTC 2026', 'partitions': ['boot'], 'candidate_boot_sha256': 'eddadec33fcd1d114c45af76cb9fc6d6b5f1de2c81c0e9fada099c5b884f6e06', 'rollback_boot_sha256': '97811cc4ae13b36fec98b2eae7cd54a4f12bca988864df0f3d8f663a8c67f695', 'unchanged_logdump_sha256': 'ace2e261bbfbd923fc3e631e857163f172d09bfb3489f7107782394fbf763ed1', 'boot_bytes': 100663296, 'logdump_bytes': 67108864, 'image502_sha256': '085d03066983a82d1d1c74b74f69c85560698d6fc49f62d6db511a8799b25955', 'charging_manifest_sha256': '5fca8e5a0795325bd780b7965579068c7edc35fa7da12bac357bb30bbde69417', 'source_manifest_sha256': '320316c3d93c1dbcaae29440f1f17d72c75e4994d656a9da9fcd5aeb93c10a1f', 'cohort_delivery_sha256': '3d5b78bc4c7a6b476bfb97c2fbad3e0d76497c94e13bd755a8e4aaa0b032a07b', 'startup500_sha256': '2a364e12d72229ef7b0ddfd7620d5ff434b97eaf93eb60899fd24a03b5b9a54a', 'startup500_path': '/usr/local/sbin/samurai-usb', 'max_power_ma': 500, 'camera481_expected_sha256': '1c4584915dade64a0978a0138c6775bf99e56af9f8036d7d2276c33f132f4705', 'new_disk_files': {'/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-gauge-protection.ko': '7848cfab264dde1f7f02b24b8022b951d4f3a604eba120b313bac23d0f4a3044', '/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-usb-input.ko': '7cbf10c0f74609effb415c30145e58b0fbe554511ef55a96baeeaf367c94ff5f', '/usr/share/samurai-charging/manifest.json': '5fca8e5a0795325bd780b7965579068c7edc35fa7da12bac357bb30bbde69417'}, 'old_resident_notes': {'samurai_usb_input': 'f0edb792d30ee1168ee1793e89707aa48b2085c845acde8f472f2c13a03804b0', 'samurai_gauge_protection': '930e0e1f34e89e4e06a7632ca14a26181975f9f35e55a51209af71480b56fe76', 'samurai_mp2650': 'f4d5768a4250b901ea956560d9c6b4b1dd32ac80893cbbd31609d9c032c4680d'}}
++EXPECTED_MANIFEST={'release': '7.3.0-rc6-rmx1931-samurai-k363+', 'modules': {'samurai-mp2650': {'target': '/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-mp2650.ko', 'sha256': '10ec06fb9d798d72e08495617cfc04e7e49c77e536a12f205053e9cdbfa6297f'}, 'samurai-usb-input': {'target': '/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-usb-input.ko', 'sha256': '7cbf10c0f74609effb415c30145e58b0fbe554511ef55a96baeeaf367c94ff5f'}, 'samurai-gauge-protection': {'target': '/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-gauge-protection.ko', 'sha256': '7848cfab264dde1f7f02b24b8022b951d4f3a604eba120b313bac23d0f4a3044'}}, 'default_input_cap_ua': 900000, 'default_charge_cap_ua': 250000, 'source_budget_enforced': True, 'installed_files': {'/usr/sbin/samurai-charging': '61451ffea87cca466dbbb2f1a2c6e7c05d0eee517479e8b019d43b1869355aa4', '/etc/init.d/samurai-charging': 'bfed48ebbcaced5f017110564045eef500a88f12fefe7ebff6d1e74cabfe570a', '/usr/lib/samurai-charging/control-trial.py': 'c33cb2eec24031e72a5f1dda9b94c05607615e0b12a14ba3cecd6db56c820761', '/usr/lib/samurai-charging/live-session.py': '2199d7d413b2f4a5aeaa8270c20e967f5da711397c29e959e59463c1a5715f2b', '/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-mp2650.ko': '10ec06fb9d798d72e08495617cfc04e7e49c77e536a12f205053e9cdbfa6297f', '/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-usb-input.ko': '7cbf10c0f74609effb415c30145e58b0fbe554511ef55a96baeeaf367c94ff5f', '/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-gauge-protection.ko': '7848cfab264dde1f7f02b24b8022b951d4f3a604eba120b313bac23d0f4a3044'}, 'adapter_revision': 'usb-irq-protection-observer-01'}
++RELEASE='7.3.0-rc6-rmx1931-samurai-k363+'
++VERSION='#502 SMP PREEMPT Tue Oct 20 03:03:47 UTC 2026'
++BOOT='97811cc4ae13b36fec98b2eae7cd54a4f12bca988864df0f3d8f663a8c67f695'
++LOGDUMP='ace2e261bbfbd923fc3e631e857163f172d09bfb3489f7107782394fbf763ed1'
++OLD='320316c3d93c1dbcaae29440f1f17d72c75e4994d656a9da9fcd5aeb93c10a1f'
++OLD_NOTES={'samurai-usb-input': 'f0edb792d30ee1168ee1793e89707aa48b2085c845acde8f472f2c13a03804b0', 'samurai-gauge-protection': '930e0e1f34e89e4e06a7632ca14a26181975f9f35e55a51209af71480b56fe76', 'samurai-mp2650': 'f4d5768a4250b901ea956560d9c6b4b1dd32ac80893cbbd31609d9c032c4680d'}
++OLD_FILES={'/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-usb-input.ko': '7d4e0f948b993a6e0cc9459bac4ade2db2fe7b88ce7b7d462ea34bcb933c4f70', '/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-gauge-protection.ko': '75b97e0d6b906ec600171ce68adec6f25a91556758f76bbf3d563cf831e783c7', '/usr/share/samurai-charging/manifest.json': '320316c3d93c1dbcaae29440f1f17d72c75e4994d656a9da9fcd5aeb93c10a1f'}
++CHECKS={'partitions', 'instant_gauge', 'services_faults', 'camera481', 'identity_after', 'identity', 'charging', 'EUD_producers', 'R8_install'}
++PAYLOAD='9dee06ddea1190ea70a188efe47742afb8b104bf53ac31cb57598f079ee4fb3c'
+ CAMERA481='1c4584915dade64a0978a0138c6775bf99e56af9f8036d7d2276c33f132f4705'
+-CAMERA_RETURN='071c5353bac3f25b97c61ea897853f69c0eaff659771043263a2641f1c8fb8e8'
+-R8_MANIFEST='320316c3d93c1dbcaae29440f1f17d72c75e4994d656a9da9fcd5aeb93c10a1f'
+-R8_NOTES={'samurai_usb_input':'f0edb792d30ee1168ee1793e89707aa48b2085c845acde8f472f2c13a03804b0',
+- 'samurai_gauge_protection':'930e0e1f34e89e4e06a7632ca14a26181975f9f35e55a51209af71480b56fe76',
+- 'samurai_mp2650':'f4d5768a4250b901ea956560d9c6b4b1dd32ac80893cbbd31609d9c032c4680d'}
+ SENSOR468_NOTE='a52ef87a2388757c542768e5438120d858e785bd334c080b55dec0f532c54d13'
+-OLD_BOOT_GUARD='/var/lib/samurai/image501-gauge-live-001-adopted/boot-id-private.txt'
+ 
+ def secure_file(path):
+  p=Path(path);assert p.is_file() and not p.is_symlink(),str(p)
+@@ -81,74 +91,285 @@
+   return sample['desired_enable']==sample['hold_requested']==sample['full_holding']==0 and (sample['logical_full']==0 and sample['full_cause']==0 or sample['logical_full']==1 and sample['full_cause'] in (1,2,3) and sample['session_seconds']==0)
+  return full if any(sample[k] for k in ['logical_full','hold_requested','full_holding','full_cause']) else sample['desired_enable']==1
+ 
+-def validate_activation_guard(guard_path, allow_inhibit=False):
+- guard_path=secure_file(guard_path);assert guard_path.is_absolute()
+- assert guard_path.name=='guard-private.json'
+- meta=json.loads(guard_path.read_bytes());assert meta['schema']==EUD_BOOT_SCHEMA
+- assert re.fullmatch(r'image502-notify-live-001',meta['transaction_id'])
+- assert re.fullmatch(r'[0-9a-f]{32,64}',meta['token'])
+- assert guard_path.parent==Path('/root/charging-management-20261023')/meta['transaction_id']
+- assert meta['old_boot_guard_path']==OLD_BOOT_GUARD
+- assert meta['boot_id']==Path('/proc/sys/kernel/random/boot_id').read_text().strip()==secure_file(OLD_BOOT_GUARD).read_text().strip()
+- assert os.uname().machine=='aarch64'
+- assert os.uname().release==meta['kernel_release']=='7.3.0-rc6-rmx1931-samurai-k363+'
+- assert os.uname().version==meta['kernel_version'] and os.uname().version.startswith('#501 ')
+- assert Path('/proc/sys/kernel/tainted').read_text().strip()=='0'
+- assert file_sha('/etc/samurai-rootfs-release')==meta['rootfs_release_sha256']
+- serial=Path('/sys/devices/soc0/serial_number').read_bytes();assert serial.strip()
+- compatible=Path('/sys/firmware/devicetree/base/compatible').read_bytes()
+- assert b'realme,samurai' in compatible.split(bytes([0]))
+- assert hashlib.sha256(serial).hexdigest()==meta['soc_serial_sha256']
+- assert hashlib.sha256(compatible).hexdigest()==meta['compatible_sha256']
+- assert meta['unchanged_boot_sha256']==UNCHANGED_BOOT and meta['partitions']==['logdump'] and meta['boot_bytes']==100663296
+- assert meta['candidate_logdump_sha256']==CANDIDATE_LOGDUMP and meta['rollback_logdump_sha256']==LOGDUMP501 and meta['logdump_bytes']==67108864
+- assert meta['image501_sha256']==IMAGE501 and meta['image502_sha256']==IMAGE502
+- assert meta['startup500_sha256']==STARTUP500 and meta['startup500_path']=='/usr/local/sbin/samurai-usb' and meta['max_power_ma']==500
+- assert file_sha(meta['startup500_path'])==STARTUP500
+- eud_off_check()
+- assert meta['camera481_expected_sha256']==CAMERA481
+- assert meta['charging_manifest_sha256']==R8_MANIFEST
+- assert block_sha('/dev/disk/by-partlabel/boot',100663296)==UNCHANGED_BOOT
+- # Current complete FAT identity binds the already verified Image501; both partitions are read-only here.
+- assert block_sha('/dev/disk/by-partlabel/logdump',67108864)==LOGDUMP501
+- manifest_path='/usr/share/samurai-charging/manifest.json';assert file_sha(manifest_path)==R8_MANIFEST
+- manifest=json.loads(Path(manifest_path).read_bytes())
+- assert manifest['release']==meta['kernel_release'] and manifest['adapter_revision']=='r8'
+- for name,digest in manifest['installed_files'].items():assert file_sha(name)==digest,name
+- for name,info in manifest['modules'].items():
+-  assert manifest['installed_files'][info['target']]==info['sha256']
+-  assert file_sha(info['target'])==info['sha256']
+- assert set(manifest['modules'])=={n.replace('_','-') for n in R8_NOTES}
+- for name,digest in R8_NOTES.items():
+-  assert hashlib.sha256(Path('/sys/module',name,'notes/.note.gnu.build-id').read_bytes()).hexdigest()==digest
+-  assert Path('/sys/module',name,'initstate').read_text().strip()=='live'
+- assert Path('/sys/module/samurai_usb_input/parameters/native_retained').read_text().strip()=='Y'
+- assert not Path('/sys/module/samurai_usbin_init').exists()
+- assert Path('/sys/kernel/config/usb_gadget/samurai/configs/c.1/MaxPower').read_text().strip()=='500'
+- camera481_check(guard_path.parent/'camera481-expected-private.json')
+- sample={k:int(v) for k,v in (part.split('=') for part in Path('/sys/bus/i2c/devices/0-005c/telemetry').read_text().split())}
+- assert sample['valid']==sample['online']==sample['protection_ok']==1 and 0<=sample['age_ms']<=3000
+- assert Path('/sys/module/bq27xxx_battery/parameters/samurai_instant_current').read_text().strip()=='Y'
+- assert 'bq27xxx_battery.samurai_instant_current=1' in Path('/proc/cmdline').read_text().split()
+- full=(sample['logical_full']==sample['hold_requested']==sample['full_holding']==1 and sample['full_cause'] in (1,2,3) and sample['desired_enable']==0 and sample['session_seconds']==0)
+- stopped=False
+- if allow_inhibit:
+-  qdir=Path('/var/lib/samurai')/meta['transaction_id']
+-  q=json.loads(secure_file(qdir/'state-private.json').read_bytes());summary=json.loads(secure_file(qdir/'summary.json').read_bytes())
+-  assert q['terminal'] and q['exit_code']==0 and summary['taint']==0
+-  assert all(q[k]==summary[k]==meta[k] for k in ['transaction_id','token','boot_id'])
+-  stopped=True
+- assert charging_sample_phase(sample,stopped)
+- budget=int(Path('/sys/class/power_supply/samurai-usb-input/current_max').read_text())
+- assert budget>=50000 and sample['budget_ua']==budget
+- actual=Path('/sys/class/power_supply/mp2650-input')
+- assert 50000<=int((actual/'input_current_limit').read_text())<=min(900000,budget)
+- assert 200000<=int((actual/'constant_charge_current').read_text())<=250000
+- assert 7425000<=int((actual/'constant_charge_voltage').read_text())<=8725000
+- assert all(sample[k]==0 for k in ['shadow','error','stop_error','latched','fault','source_inhibit','thermal_inhibit','cycle_timeout','gauge_charge_stop'])
+- assert not sample['flags']&0xc000 and sample['session_seconds']<36000
+- phase=Path('/run')/(meta['transaction_id']+'-reboot-phase-private.json');assert not phase.exists()
++def validate_adoption(proof, request):
++    result, raw = proof['result'], proof['raw']
++    need(result['passed'] is True and result['read_only'] is True and result['hardware_writes'] == 0 and
++         not result['errors'] and set(result['checks']) == CHECKS and
++         all(item.get('ready', True) is True for item in result['checks'].values()), 'actual complete adoption validation')
++    need(proof['postboot_raw_sha256'] == request['adoption']['postboot_raw_sha256'], 'original passed postboot binding')
++    before = raw['identity_before']
++    need(before == raw['identity_after'], 'adoption identity complete')
++    identity = request['identity']
++    need(before['boot_id'] == identity['boot_id'] and before['uname']['version'] == VERSION and
++         before['uname']['release'] == RELEASE and before['uname']['machine'] == 'aarch64' and before['taint'] == '0', 'adopted kernel/boot')
++    need(before['serial_sha256'] == identity['serial_sha256'] and before['rootfs']['sha256'] == identity['rootfs_sha256'] and
++         sha(base64.b64decode(before['compatible_b64'], validate=True)) == identity['compatible_sha256'], 'adopted board/rootfs')
++    need(raw['boot_partition']['sha256'] == BOOT and raw['boot_partition']['bytes'] == 100663296 and
++         raw['logdump_partition']['sha256'] == LOGDUMP and raw['logdump_partition']['bytes'] == 67108864, 'adopted old boot/Image502 carrier')
++    # The frozen collector deliberately strips text; its separate file fact
++    # hashes the original bytes including the final newline.
++    need(raw['manifest']['sha256'] == OLD and json.loads(raw['manifest_text'])['adapter_revision'] == 'r8', 'adopted R8 disk')
++    need(all(raw['charging_modules'][name]['loaded_note_sha256'] == digest for name, digest in OLD_NOTES.items()), 'adopted R8 notes')
++
++def safe_sample(data, now):
++    s = data['sample']
++    need(s.get('valid') == s.get('protection_ok') == s.get('online') == 1 and
++         s.get('shadow') == 0 and 0 <= s.get('age_ms', -1) <= 3000, 'fresh complete online protection sample')
++    need(all(s.get(k, -1) == 0 for k in ['error', 'stop_error', 'latched', 'fault', 'source_inhibit',
++                                       'cycle_timeout', 'thermal_inhibit', 'gauge_charge_stop']), 'no fault/timeout/gauge or thermal stop')
++    need('flags' in s and not s['flags'] & 0xc000 and 0 <= s.get('session_seconds', -1) < 36000, 'safe raw flags/session')
++    need(all(2000000 <= s.get(key, 0) <= 4600000 for key in ['cell1_uv', 'cell2_uv']) and
++         4000000 <= s.get('pack_uv', 0) <= 9200000 and
++         abs(s['cell1_uv'] + s['cell2_uv'] - s['pack_uv']) <= 200000, 'safe complete pack/cell values')
++    need(160 <= s.get('temp_decic', -999) < 440 and s.get('thermal_band') == 4, 'known safe NORMAL window')
++    need(0 <= data['read_end'] - data['read_start'] <= 3 and 0 <= now - data['read_end'] <= 1, 'fresh bounded observation')
++    p = data['protection']
++    need(data['protection_health'] == 'Good' and p.get('id') == 0x2719 and p.get('error') == p.get('safety') == p.get('pf') == 0,
++         'independent fresh protection state')
++    need(p.get('operation', 0) & 0x300 == 0x300 and not p['operation'] & ((1 << 20) | (1 << 16) | 0x7c00) and
++         p.get('manufacturing', 0) & 0x18 == 0x18 and not p['manufacturing'] & 0x8006, 'sealed autonomous factory protection')
++    need(data['notes'] == OLD_NOTES and data['openrc_started'] is True, 'old resident modules and service retained')
++
++def environment(data):
++    state = data['state']
++    need(state['taint'] == '0' and state['driver'] == 'samurai-mp2650' and
++         len(state['camera_pm']) == 4 and all(v == 'suspended' for v in state['camera_pm'].values()), 'idle camera and managed charger')
++    m2m = json.loads(state['m2m'])
++    need(all(m2m.get(k) == 0 for k in ['users', 'orphans', 'jobs', 'first_error']) and
++         all(m2m.get(k) is False for k in ['running', 'fatal', 'pinned']), 'idle camera m2m')
++    services = state['services']
++    need(len(services) == 4 and {s['comm'] for s in services} == {'phoc', 'phosh', 'pipewire', 'wireplumber'} and
++         all(s['uid'] == 10000 and s['pid'] > 0 for s in services), 'actual four session processes')
++
++def active(text):
++ assert isinstance(text,str),'unreadable active choice'
++ found=re.findall(r'\[([^]]+)\]',text)
++ return found[0] if len(found)==1 else text.strip() if not found and len(text.split())==1 else None
++
++def need(value,message):
++ if not value:raise ValueError(message)
++
++
++def sha(raw):return hashlib.sha256(raw).hexdigest()
++
++
++def owned_directory(path):
++ p=Path(path);s=p.lstat()
++ need(stat.S_ISDIR(s.st_mode) and not p.is_symlink() and s.st_uid==0 and stat.S_IMODE(s.st_mode)==0o700,'owned directory: '+str(p))
++ return p
++
++
++def raw_owned(path,limit=4_000_000):
++ p=secure_file(path);s=p.stat()
++ need(s.st_size<=limit and stat.S_IMODE(s.st_mode)==0o600,'bounded private raw: '+str(p))
++ return p.read_bytes()
++
++
++def process_observation(receipt):
++ pid=receipt['pid'];need(type(pid) is int and pid>0,'retained positive PID')
++ try:fields=Path('/proc',str(pid),'stat').read_text().rsplit(')',1)[1].split()
++ except FileNotFoundError:return {'state':'absent','pid':pid}
++ except (OSError,ValueError,IndexError):return {'state':'unknown','pid':pid}
++ try:ticks=int(fields[19])
++ except (ValueError,IndexError):return {'state':'unknown','pid':pid}
++ if ticks!=receipt['start_ticks']:return {'state':'pid_reused','pid':pid}
++ return {'state':'zombie' if fields[0]=='Z' else 'alive','pid':pid,'start_ticks':ticks}
++
++
++def stage_paths(transaction):
++ need(re.fullmatch(r'usb-irq-protection-stage-[a-z0-9-]{8,48}',transaction),'stage name')
++ root=ROOT/transaction;out=root/'device-stage'
++ return {**{k:str(root/v) for k,v in {
++  'request':'request-private.json','worker_launch':'worker-launch-receipt-private.json',
++  'worker_terminal':'worker-terminal-private.json','supervisor_launch':'launch-receipt-private.json',
++  'supervisor_process':'supervisor-process-private.json','supervisor_terminal':'supervisor-terminal-private.json',
++  'worker_source':'stage-worker.py','supervisor_source':'stage-supervisor.py'}.items()},
++  **{k:str(out/v) for k,v in {'result':'result.json','before':'before-private.json',
++  'stopped':'stopped-private.json','after':'after-private.json','worker_process':'process-private.json',
++  'adoption_proof':'adoption-proof-private.json'}.items()}}
++
++
++def validate_stage_records(meta,records,processes,claim):
++ stage=meta['stage'];tx=stage['transaction_id'];paths=stage_paths(tx)
++ need(set(stage)=={'transaction_id','request_sha256','result_sha256','host_binding_sha256',
++  'worker_sha256','supervisor_sha256','evidence'},'stage exact fields')
++ need(stage['worker_sha256']==STAGE_WORKER and stage['supervisor_sha256']==STAGE_SUPERVISOR,'fixed original stage sources')
++ need(set(stage['evidence'])==set(paths),'stage evidence keys')
++ for key,path in paths.items():
++  item=stage['evidence'][key]
++  need(set(item)=={'path','sha256'} and item['path']==path and re.fullmatch('[0-9a-f]{64}',item['sha256']),'fixed original evidence path/hash')
++ for name in ['request_sha256','result_sha256','host_binding_sha256']:
++  need(re.fullmatch('[0-9a-f]{64}',stage[name]),'actual stage digest: '+name)
++ need(stage['evidence']['request']['sha256']==stage['request_sha256'] and stage['evidence']['result']['sha256']==stage['result_sha256'],'request/result raw binding')
++ need(stage['evidence']['worker_source']['sha256']==STAGE_WORKER and stage['evidence']['supervisor_source']['sha256']==STAGE_SUPERVISOR,'source evidence hashes')
++ req=records['request'];result=records['result'];w=records['worker_process'];s=records['supervisor_process']
++ need(set(req)=={'schema','transaction_id','cohort_delivery_sha256','payload_sha256','payload_base64',
++  'worker_sha256','identity','adoption','lease_token'},'original request exact fields')
++ need(req['schema']=='samurai-usb-irq-protection-stage-request-v1' and req['transaction_id']==tx and req['worker_sha256']==STAGE_WORKER,'original stage request')
++ need(req['cohort_delivery_sha256']==FIXED['cohort_delivery_sha256'] and req['payload_sha256']==PAYLOAD,'original payload request')
++ need(sha(base64.b64decode(req['payload_base64'],validate=True))==PAYLOAD and re.fullmatch('[0-9a-f]{48}',req['lease_token']),'actual original payload/lease identity')
++ expected_identity=dict(boot_id=meta['boot_id'],version=FIXED['kernel_version'],serial_sha256=meta['soc_serial_sha256'],
++  compatible_sha256=meta['compatible_sha256'],rootfs_sha256=meta['rootfs_release_sha256'])
++ need(req['identity']==expected_identity,'same actual source identity')
++ need(req['adoption']=={k:meta['adoption'][k] for k in ['transaction_id','guard_path','guard_sha256','postboot_raw_sha256']},'same actual adoption')
++ need(result['schema']=='samurai-usb-irq-protection-stage-result-v1' and result['transaction_id']==tx and
++  result['cohort_delivery_sha256']==FIXED['cohort_delivery_sha256'] and result['payload_sha256']==PAYLOAD,'stage result binding')
++ need(result['terminal'] is True and result['staged'] is True and result['phase']=='staged' and
++  result['status']=='staged/runtime_pending' and result['runtime_pending'] is True and
++  result['disk_state']=='all_new_fsynced' and result['stop_verified'] is True and result['unknown_write_state'] is False,'successful complete stage terminal')
++ need(all(result.get(k) is None for k in ['primary_error','stop_error','receipt_error','close_error']),'no stage outcome/receipt/close error')
++ need(all(result.get(k) is False for k in ['activation_attempted','new_module_loaded','capture_issued','automatic_rollback_or_replay']),'stage did not activate/replay')
++ need(result['source_boot_id']==meta['boot_id'] and result['source_version']==FIXED['kernel_version'] and
++  result['source_guard_path']==meta['adoption']['guard_path'],'stage source not a prior boot')
++ need(result['old_manifest_sha256']==FIXED['source_manifest_sha256'] and result['new_manifest_sha256']==FIXED['charging_manifest_sha256'],'stage old/new manifests')
++ need(result['old_resident_notes']==OLD_NOTES and result['resident_notes_expected']==OLD_NOTES,'retained old resident notes')
++ need(set(result['final_files'])==set(FIXED['new_disk_files']) and set(result['temporary_files'])==set(FIXED['new_disk_files']),'exact staged three-file set')
++ for name,digest in FIXED['new_disk_files'].items():
++  item=result['final_files'][name]
++  need(item['sha256']==digest and item['new_sha256']==digest and item['old_sha256']==OLD_FILES[name] and item['mode']=='0o600' and item['classification']=='new','staged final readback')
++  need(result['temporary_files'][name]['state']=='absent','no unknown/retained atomic temporary')
++ wargv=['python3','-B',str(ROOT/tx/'stage-worker.py'),'--execute-stage']
++ sargv=['python3','-B',str(ROOT/tx/'stage-supervisor.py'),'--execute-supervisor']
++ for receipt,argv in [(w,wargv),(s,sargv)]:
++  need(type(receipt['pid']) is int and receipt['pid']>0 and type(receipt['start_ticks']) is int and receipt['start_ticks']>0 and
++   receipt['transaction_id']==tx and receipt['boot_id']==meta['boot_id'] and receipt['argv']==argv,'original process self receipt')
++ need(w['worker_sha256']==STAGE_WORKER and s['request_sha256']==stage['request_sha256'],'original worker/supervisor source request')
++ wl=records['worker_launch'];wt=records['worker_terminal'];sl=records['supervisor_launch'];st=records['supervisor_terminal']
++ for item,pid,argv in [(wl,w['pid'],wargv),(wt,w['pid'],wargv),(sl,s['pid'],sargv),(st,s['pid'],sargv)]:
++  need(item['pid']==pid and item['argv']==argv and item['transaction_id']==tx and item['boot_id']==meta['boot_id'] and
++   item['request_sha256']==stage['request_sha256'],'same original child request')
++ need(wl['supervisor_pid']==wt['supervisor_pid']==s['pid'] and wl.get('start_ticks') in [None,w['start_ticks']],'worker supervised instance')
++ need(sl.get('start_ticks') in [None,s['start_ticks']] and st['start_ticks']==s['start_ticks'],'supervisor original instance')
++ need(wt['terminal'] is True and type(wt['returncode']) is int and wt['returncode']==0 and
++  st['terminal'] is True and type(st['returncode']) is int and st['returncode']==0 and
++  st['worker_pid']==w['pid'] and type(st['worker_returncode']) is int and st['worker_returncode']==0,'both original Popen terminals')
++ need(claim['transaction_id']==tx and claim['boot_id']==meta['boot_id'] and claim['request_sha256']==stage['request_sha256'] and
++  claim['request_count']==1 and claim['argv']==wargv and claim['supervisor_argv']==sargv and
++  claim['supervisor_sha256']==STAGE_SUPERVISOR,'original launch claim')
++ for key,receipt in [('worker',w),('supervisor',s)]:
++  observed=processes[key]
++  need(observed['pid']==receipt['pid'] and observed['state'] in ['absent','zombie'],'original mutator not alive/unknown/reused')
++  if observed['state']=='zombie':need(observed['start_ticks']==receipt['start_ticks'],'same zombie instance')
++ need(records['adoption_proof']['actual_fresh_validation_sha256']==result['adoption_fresh_validation_sha256']==meta['adoption']['fresh_validation_sha256'],'original adoption proof hash')
++ return req
++
++
++def read_stage(meta):
++ stage=meta['stage'];root=owned_directory(ROOT/stage['transaction_id']);owned_directory(root/'device-stage')
++ records={}
++ for key,path in stage_paths(stage['transaction_id']).items():
++  item=stage['evidence'][key];need(item['path']==path,'original stage path')
++  raw=raw_owned(path);need(sha(raw)==item['sha256'],'stage original bytes changed: '+key)
++  if key not in ['worker_source','supervisor_source']:records[key]=json.loads(raw)
++ processes={k:process_observation(records[k+'_process']) for k in ['worker','supervisor']}
++ claim=json.loads(raw_owned(root/'launch-claim-private.json'))
++ request=validate_stage_records(meta,records,processes,claim)
++ proof=raw_owned(Path(meta['adoption']['guard_path']).parent/'fresh-validation-private.json')
++ need(sha(proof)==meta['adoption']['fresh_validation_sha256'],'actual original adoption validation')
++ validate_adoption(json.loads(proof),request)
++ return records
++
++
++def observe_staged():
++ need(file_sha(LIVE_PATH)==LIVE_SHA,'fixed read-only live library')
++ live=runpy.run_path(LIVE_PATH)
++ need(file_sha(LIVE_PATH)==LIVE_SHA and live['REGS']==[0,1,2,3,4,5,7,8,9,15,19],'stable non-destructive register set')
++ start=time.clock_gettime(time.CLOCK_BOOTTIME);state=live['state']()
++ ps=Path('/sys/class/power_supply');supply=ps/'mp2650-input'
++ protection=Path('/sys/devices/platform/samurai-gauge-protection/protection_state').read_text()
++ result={'read_start':start,'state':state,
++  'sample':{k:int(v) for k,v in (p.split('=') for p in Path('/sys/bus/i2c/devices/0-005c/telemetry').read_text().split())},
++  'source':{k:(ps/'samurai-usb-input'/k).read_text().strip() for k in ['online','usb_type','current_max','input_current_limit']},
++  'notes':{name:sha(Path('/sys/module',name.replace('-','_'),'notes/.note.gnu.build-id').read_bytes()) for name in OLD_NOTES},
++  'openrc_started':Path('/run/openrc/started/samurai-charging').exists(),
++  'protection':{k:int(v,0) for k,v in (p.split('=') for p in protection.split())},
++  'protection_health':(ps/'samurai-gauge-protection/health').read_text().strip(),
++  'charge_behaviour':(supply/'charge_behaviour').read_text().strip(),
++  'limits':{'input_ua':int((supply/'input_current_limit').read_text()),'charge_ua':int((supply/'constant_charge_current').read_text()),
++    'cv_pack_uv':int((supply/'constant_charge_voltage').read_text())}}
++ result['read_end']=time.clock_gettime(time.CLOCK_BOOTTIME)
++ return result
++
++
++def staged_health(data,now):
++ safe_sample(data,now)
++ s,r,lim=data['sample'],data['state']['registers'],data['limits']
++ need(charging_sample_phase(s,True) and active(data['charge_behaviour'])=='inhibit-charge' and r['08']&0x18==8,'stage INHIBIT still held')
++ source=data['source'];kind=active(source['usb_type'])
++ need(source['online']=='1','actual online source')
++ budget,native=int(source['current_max']),int(source['input_current_limit'])
++ need(native==500000 and ((kind=='SDP' and budget==500000) or
++  (kind in ['CDP','DCP'] and budget==1500000) or (kind=='C' and budget in [1500000,3000000])),'fresh known source/native500 budget')
++ need(s['budget_ua']==budget and lim['input_ua']==min(900000,budget) and lim['charge_ua']==250000,'fresh source authority/caps')
++ need((r['00']&0x7f)*50000==(r['0f']&0x7f)*50000==lim['input_ua'] and
++  (r['02']&0x7f)*50000==lim['charge_ua'],'both actual input and charge limits')
++ need(7425000<=lim['cv_pack_uv']<=8725000 and lim['cv_pack_uv']==2*(3712500+((r['04']&0x7e)>>1)*12500),'inherited CV')
++ state=data['state'];need(state['taint']=='0' and state['driver']=='samurai-mp2650','current untainted provider')
++ need(len(state['camera_pm'])==4 and all(v=='suspended' for v in state['camera_pm'].values()),'idle actual camera')
++ m=json.loads(state['m2m'])
++ need(all(m.get(k)==0 for k in ['users','orphans','jobs','first_error']) and
++  all(m.get(k) is False for k in ['running','fatal','pinned']),'no active camera work')
++ return {'stage_INHIBIT_reverified':True,'source':kind,'budget_ua':budget,'hardware_input_ua':lim['input_ua']}
++
++
++def acquire_service_lock():
++ global _SERVICE_FD
++ need(_SERVICE_FD is None,'single lock acquisition')
++ fd=os.open(SERVICE_LOCK,os.O_RDWR|os.O_NOFOLLOW)
++ try:
++  info=os.fstat(fd);need(stat.S_ISREG(info.st_mode) and info.st_uid==0 and stat.S_IMODE(info.st_mode)==0o600,'original service lock')
++  fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
++ except BaseException:os.close(fd);raise
++ _SERVICE_FD=fd
++
++
++def validate_meta_shape(meta,guard_path):
++ need(guard_path.is_absolute() and guard_path.name=='guard-private.json','private guard path')
++ need(set(meta)==set(FIXED)|{'transaction_id','token','boot_id','soc_serial_sha256','compatible_sha256',
++  'rootfs_release_sha256','adoption','stage'},'exact activation fields')
++ need(all(meta.get(k)==v for k,v in FIXED.items()),'new fixed activation profile')
++ need(re.fullmatch(r'usb-irq-protection-activate-[a-z0-9-]{8,48}',meta['transaction_id']) and
++  re.fullmatch('[0-9a-f]{32,64}',meta['token']),'new independent activation')
++ need(guard_path.parent==ROOT/meta['transaction_id'],'new activation directory')
++
++
++def validate_activation_guard(guard_path,allow_inhibit=False):
++ need(os.geteuid()==0 and not sys.flags.optimize,'root non-optimized worker')
++ guard_path=secure_file(guard_path);meta=json.loads(raw_owned(guard_path))
++ validate_meta_shape(meta,guard_path)
++ owned_directory(guard_path.parent);acquire_service_lock()
++ need(str(uuid.UUID(meta['boot_id']))==meta['boot_id'] and meta['boot_id']==Path('/proc/sys/kernel/random/boot_id').read_text().strip(),'actual original #502 boot')
++ need(os.uname().machine=='aarch64' and os.uname().release==FIXED['kernel_release'] and os.uname().version==FIXED['kernel_version'],'exact adopted Image502')
++ need(Path('/proc/sys/kernel/tainted').read_text().strip()=='0','taint')
++ need(file_sha('/etc/samurai-rootfs-release')==meta['rootfs_release_sha256'],'rootfs')
++ serial=Path('/sys/devices/soc0/serial_number').read_bytes();compatible=Path('/sys/firmware/devicetree/base/compatible').read_bytes()
++ need(serial.strip() and sha(serial)==meta['soc_serial_sha256'] and sha(compatible)==meta['compatible_sha256'] and b'realme,samurai' in compatible.split(b'\0'),'board identity')
++ adoption=meta['adoption'];need(set(adoption)=={'transaction_id','guard_path','guard_sha256','postboot_raw_sha256','fresh_validation_sha256'},'adoption fields')
++ need(re.fullmatch(r'image502-[a-z0-9-]{8,64}',adoption['transaction_id']) and
++  adoption['guard_path']=='/var/lib/samurai/'+adoption['transaction_id']+'-adopted/boot-id-private.txt','actual 502 adoption path')
++ for key in ['guard_sha256','postboot_raw_sha256','fresh_validation_sha256']:need(re.fullmatch('[0-9a-f]{64}',adoption[key]),'adoption raw digest')
++ owned_directory(Path(adoption['guard_path']).parent)
++ guard=raw_owned(adoption['guard_path']);need(guard==(meta['boot_id']+'\n').encode() and sha(guard)==adoption['guard_sha256'],'actual adopted guard bytes')
++ records=read_stage(meta)
++ need(block_sha('/dev/disk/by-partlabel/boot',100663296)==FIXED['rollback_boot_sha256'] and
++  block_sha('/dev/disk/by-partlabel/logdump',67108864)==FIXED['unchanged_logdump_sha256'],'current complete carriers read-only')
++ need(file_sha('/usr/share/samurai-charging/manifest.json')==FIXED['charging_manifest_sha256'],'new staged disk manifest')
++ manifest=json.loads(Path('/usr/share/samurai-charging/manifest.json').read_bytes())
++ need(manifest==EXPECTED_MANIFEST,'exact new manifest structure')
++ for path,digest in manifest['installed_files'].items():need(file_sha(path)==digest,'current retained/new file: '+path)
++ for path,digest in FIXED['new_disk_files'].items():need(sha(raw_owned(path))==digest,'three actual new disk files')
++ for name,digest in FIXED['old_resident_notes'].items():
++  need(sha(Path('/sys/module',name,'notes/.note.gnu.build-id').read_bytes())==digest and Path('/sys/module',name,'initstate').read_text().strip()=='live','old live note independent of new disk')
++ need(Path('/sys/module/samurai_usb_input/parameters/native_retained').read_text().strip()=='Y' and not Path('/sys/module/samurai_usbin_init').exists(),'native provider retained/no helper')
++ need(file_sha(FIXED['startup500_path'])==FIXED['startup500_sha256'] and Path('/sys/kernel/config/usb_gadget/samurai/configs/c.1/MaxPower').read_text().strip()=='500','startup/descriptor500')
++ need(Path('/sys/module/bq27xxx_battery/parameters/samurai_instant_current').read_text().strip()=='Y' and
++  [x for x in Path('/proc/cmdline').read_text().split() if x.startswith('bq27xxx_battery.samurai_instant_current=')]==['bq27xxx_battery.samurai_instant_current=1'],'current gauge opt-in')
++ eud_off_check();camera481_check(guard_path.parent/'camera481-expected-private.json')
++ data=observe_staged();staged_health(data,time.clock_gettime(time.CLOCK_BOOTTIME))
++ if not allow_inhibit:environment(data)
++ phase=Path('/run')/(meta['transaction_id']+'-reboot-phase-private.json');need(not phase.exists(),'restart already claimed; inspect original only')
+  return meta,Path('/var/lib/samurai')/meta['transaction_id'],phase
++
+ 
+ assert len(sys.argv)==4 and sys.argv[1]=='--guard'
+ meta,o,phase=validate_activation_guard(Path(sys.argv[2]),allow_inhibit=sys.argv[3] in ['--inspect','--commit-restart2-bootloader'])
+@@ -156,7 +377,7 @@
+ 
+ assert sys.argv[3]=='--commit-quiesce'
+ os.umask(0o077);assert not o.exists();o.mkdir(mode=0o700)
+-state=dict(work='image502-notify-activation',transaction_id=meta['transaction_id'],boot_id=meta['boot_id'],token=meta['token'],state='preflight',terminal=False,pid=os.getpid());error=None
++state=dict(work='usb-irq-protection-activation',transaction_id=meta['transaction_id'],boot_id=meta['boot_id'],token=meta['token'],state='preflight',terminal=False,pid=os.getpid());error=None
+ def save():
+  p=o/'state-next-private.json';p.write_text(json.dumps(state,indent=2)+'\n');p.replace(o/'state-private.json')
+ def command(args,timeout=30):
+@@ -178,8 +399,8 @@
+   assert all(int(v['org.freedesktop.ModemManager1.Modem.Location']['Enabled'])==0 for v in objects.values() if 'org.freedesktop.ModemManager1.Modem.Location' in v)
+   bus.close()
+  (o/'boot-id-private.txt').write_bytes(boot);state.update(state='stopping_services');save()
+- command(['/usr/sbin/samurai-charging','stop'])
+- for name in ['samurai-charging','samurai-gnss-assist','bluetooth','greetd','chronyd','networkmanager','iio-sensor-proxy','samurai-ssc']:stop_service(name)
++ # Stage already stopped synchronously; guard reverified INHIBIT under the original service flock.
++ for name in ['samurai-gnss-assist','bluetooth','greetd','chronyd','networkmanager','iio-sensor-proxy','samurai-ssc']:stop_service(name)
+  pids=subprocess.run(['pgrep','-u','10000'],capture_output=True).stdout.split()
+  for value in pids:
+   try:os.kill(int(value),signal.SIGTERM)
+@@ -237,7 +458,7 @@
+   time.sleep(1);text=Path('/sys/kernel/debug/dri/1/state').read_text();(o/('drm-idle-'+str(i)+'-private.txt')).write_text(text);assert 'active=1' not in text
+  command(['sha256sum','-c','/run/samurai-wifi/nv-source-hashes.txt'])
+  after=subprocess.check_output(['dmesg']);(o/'dmesg-after-private.txt').write_bytes(after);faults={k:after.count(v)-before.count(v) for k,v in dict(warning=b'WARNING:',oops=b'Oops:',gpu=b'gpu fault:',dsp_fatal=b'fatal error received').items()};assert not any(faults.values()) and Path('/proc/sys/kernel/tainted').read_text().strip()=='0'
+- report=dict(work='image502-notify-activation',transaction_id=meta['transaction_id'],boot_id=meta['boot_id'],token=meta['token'],all_remoteprocs_offline=True,display_inactive=True,audio_closed_and_muted=True,sensor_power_off=True,camera_providers_retained=True,wlan_driver_detached=True,source_nv_hashes_preserved=True,taint=0,fault_delta=faults,restart2_bootloader_expected=True)
++ report=dict(work='usb-irq-protection-activation',transaction_id=meta['transaction_id'],boot_id=meta['boot_id'],token=meta['token'],all_remoteprocs_offline=True,display_inactive=True,audio_closed_and_muted=True,sensor_power_off=True,camera_providers_retained=True,wlan_driver_detached=True,source_nv_hashes_preserved=True,taint=0,fault_delta=faults,restart2_bootloader_expected=True)
+  (o/'summary.json').write_text(json.dumps(report,indent=2)+'\n');os.sync();state.update(state='terminal',terminal=True,exit_code=0);save()
+ except BaseException:
+  error=traceback.format_exc();(o/'failure-private.txt').write_text(error);state.update(state='failed',terminal=True,exit_code=1);save()

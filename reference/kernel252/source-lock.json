@@ -1,0 +1,83 @@
+{
+  "stage": 252,
+  "qualcomm_loc": {
+    "stage": 221,
+    "repository": "https://github.com/qualcomm-linux/location-apis-qcom.git",
+    "commit": "a581b6c9ee15e3fdbb0e15f43cd37b97616b0948",
+    "files": {
+      "location_service_v02.h": {
+        "url": "https://raw.githubusercontent.com/qualcomm-linux/location-apis-qcom/a581b6c9ee15e3fdbb0e15f43cd37b97616b0948/loc_api/loc_api_v02/location_service_v02.h",
+        "sha256": "5ebe4ed7a33c8bb567eb67d6c7203671bfbf6bcb02666ecd3e5393242ff3d255",
+        "bytes": 1241443
+      },
+      "location_service_v02.c": {
+        "url": "https://raw.githubusercontent.com/qualcomm-linux/location-apis-qcom/a581b6c9ee15e3fdbb0e15f43cd37b97616b0948/loc_api/loc_api_v02/location_service_v02.c",
+        "sha256": "b66db26326a17b15ec94750aa3ac6eea7ad2ed00e07c24e37e87eb0237aa3f47",
+        "bytes": 561969
+      },
+      "LocApiV02.cpp": {
+        "url": "https://raw.githubusercontent.com/qualcomm-linux/location-apis-qcom/a581b6c9ee15e3fdbb0e15f43cd37b97616b0948/loc_api/loc_api_v02/LocApiV02.cpp",
+        "sha256": "b408ac6ed1e15a00aeb34e8899a75dcf905df7e99f0a2187eecaff63916cd871",
+        "bytes": 504784
+      }
+    },
+    "source_review_only": true
+  },
+  "diag_reference_files": {
+    "diag_mdlog.c": {
+      "url": "https://raw.githubusercontent.com/bcyj/android_tools_leeco_msm8996/master/diag/mdlog/diag_mdlog.c",
+      "sha256": "c682e8a9091679b281ed5cfbf81fe758c4acbdaf5b75e41c1427a0b0b18d3d70",
+      "bytes": 20201
+    },
+    "diag_lsm.c": {
+      "url": "https://raw.githubusercontent.com/bcyj/android_tools_leeco_msm8996/master/diag/src/diag_lsm.c",
+      "sha256": "c3b085c560941bfca316cd5cb4f8153706b65d215b7a392165b93d9c9f5015e2",
+      "bytes": 88094
+    },
+    "diagcmd.py": {
+      "url": "https://raw.githubusercontent.com/fgsect/scat/master/src/scat/parsers/qualcomm/diagcmd.py",
+      "sha256": "7cafda66635179cd2e3786242c818baa8b5e335834b17785179692cd2c463a95",
+      "bytes": 34545
+    },
+    "util.py": {
+      "url": "https://raw.githubusercontent.com/fgsect/scat/master/src/scat/util.py",
+      "sha256": "4fd12380600f11c1c0c9d6562f25c455d203ec58aa0148f6abac3411e71a4490",
+      "bytes": 29346
+    }
+  },
+  "reference_diag_source_not_exact_stock_binary": true,
+  "wire_and_write_return_zero_independently_verified_from_stock_syscalls": true,
+  "measurement_layouts": {
+    "GPS": {
+      "header_bytes": 28,
+      "sv_stride": 70,
+      "cno_offset": 7,
+      "obs_state_offset": 1,
+      "measurement_status_offset": 34,
+      "source_sha256": "3761ff87f09b9329b9ccde8efcd448ceb40e562952849e65d59b11da978da24d"
+    },
+    "GLONASS": {
+      "header_bytes": 29,
+      "sv_stride": 70,
+      "cno_offset": 7,
+      "obs_state_offset": 2,
+      "measurement_status_offset": 34,
+      "source_sha256": "5bcb111b0059186bf7e20bcb1773fdaedaa16a63a05c3407cd1230e3b40e1cc2"
+    },
+    "GALILEO": {
+      "header_bytes": 30,
+      "sv_stride": 71,
+      "cno_offset": 8,
+      "obs_state_offset": 2,
+      "measurement_status_offset": 35,
+      "source_sha256": "5f14a748645ec32995fdc8999f135707bcd10155b620b6e5308ddb604b5e88b7"
+    }
+  },
+  "local_sources": {
+    "analyze-aiding.py": "eb41dabd3a6d460e6440244c98750f084a04db53d42999a30eaef34bdf9df459",
+    "decode-diag-trace.py": "5bb77eb2098f0d1f2280bd232baf75e8878530d3756e1c0b7af03856ae0dcd34",
+    "decode-measurements.py": "da65d3ff2d1708adc4e90d85c3320ba77433a4d0458bbf4c8da917c48f939406",
+    "loc-readonly.c": "55690784b7c05596bcdc9ff04d04c1fffb8f3849fe1605d037110143a434b31f",
+    "native-loc-session.c": "78bb62becd34643f9299366d1f389b936bcdedd152685a071166e0641dfd2382"
+  }
+}

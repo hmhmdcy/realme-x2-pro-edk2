@@ -1,0 +1,1890 @@
+{
+  "scope": "Read-only host and seed metadata; no target tool, chroot, package solve/download/install or build executed",
+  "uid": 0,
+  "host_tools": {
+    "qemu-aarch64-static": null,
+    "qemu-aarch64": "/usr/bin/qemu-aarch64",
+    "aarch64-alpine-linux-musl-gcc": null,
+    "aarch64-linux-musl-gcc": null,
+    "aarch64-linux-gnu-gcc": "/usr/bin/aarch64-linux-gnu-gcc",
+    "abuild": null,
+    "apk": null,
+    "meson": "/usr/bin/meson",
+    "ninja": "/usr/bin/ninja",
+    "proot": null,
+    "bwrap": "/usr/bin/bwrap",
+    "unshare": "/usr/bin/unshare",
+    "chroot": "/usr/bin/chroot",
+    "readelf": "/usr/bin/readelf"
+  },
+  "qemu_ELF": [
+    {
+      "path": "/usr/bin/qemu-aarch64-static",
+      "exists": false,
+      "symlink": false
+    },
+    {
+      "path": "/usr/bin/qemu-aarch64",
+      "exists": true,
+      "symlink": false,
+      "resolved": "/usr/bin/qemu-aarch64",
+      "machine": 62
+    },
+    {
+      "path": "/usr/libexec/qemu-binfmt/aarch64-binfmt-P",
+      "exists": false,
+      "symlink": false
+    }
+  ],
+  "binfmt": {
+    "qemu-aarch64_be": "enabled\ninterpreter /usr/bin/qemu-aarch64_be\nflags: POF\noffset 0\nmagic 7f454c46020201000000000000000000000200b7\nmask ffffffffffffff00fffffffffffffffffffeffff\n",
+    "qemu-aarch64": "enabled\ninterpreter /usr/bin/qemu-aarch64\nflags: POF\noffset 0\nmagic 7f454c460201010000000000000000000200b700\nmask ffffffffffffff00fffffffffffffffffeffffff\n",
+    "status": "enabled\n"
+  },
+  "seed": {
+    "path": "/home/cy122/x2pro-linux/libcamera214-root",
+    "mountpoint": false,
+    "installed_db_sha256": "c07fc470a367a3a4a752b6d75892a57ad852af697db35d74d0d009e3ef39a93e",
+    "world_sha256": "aceb9a40ba2b4d5c7a6862c01a460bb852f7a81e99ce71d521eb3bd49e69925c",
+    "repositories": null,
+    "abuild_conf": "# defaults are in /usr/share/abuild/default.conf\n#\n# uncomment line below to enable colors\n#USE_COLORS=1\n\n# uncomment line below to enable ccache support.\n#USE_CCACHE=1\n\n# where downloaded files are stored\n#SRCDEST=${XDG_CACHE_HOME:-$HOME/.cache}/abuild\n\n# uncomment line below to store built packages in other location\n# The package will be stored as $REPODEST/$repo/$arch/$pkgname-$pkgver-r$pkgrel.apk\n# where $repo is the name of the parent directory of $startdir.\n#REPODEST=${XDG_DATA_HOME:-$HOME/.local/share}/abuild\n\n# included in build .apk files and used by abuild-keygen to derive default filename\n#PACKAGER=\"Your Name <your@email.address>\"\n\n# default contributor/maintainer for generated APKBUILDs\n#MAINTAINER=\"$PACKAGER\"\n\n# what to clean up after a successful build\n#CLEANUP=\"srcdir bldroot pkgdir deps\"\n\n# what to cleanup after a failed build\n#ERROR_CLEANUP=\"bldroot deps\"\n\n# uncomment to use global cache directories for Go and Cargo\n#GOCACHE=\"${XDG_CACHE_HOME:-$HOME/.cache}\"/go-build\n#GOMODCACHE=${GOPATH:-$HOME/go}/pkg/mod\n#CARGO_HOME=$HOME/.cargo\n\n# uncomment to avoid creating .orig files when patches don't align\n#patch_args_cfg=\"--no-backup-if-mismatch\"\n\n# uncomment to disable SOURCE_DATE_EPOCH retrieval and fasten up the build process\n#SOURCE_DATE_EPOCH=0\n\nREPODEST=/packages\nSRCDEST=/var/cache/distfiles\nPACKAGER=\"Realme X2 Pro Linux port\"\nPACKAGER_PRIVKEY=/private/samurai-linux-203.rsa\nJOBS=4\nMAKEFLAGS=\"-j4\"\nNINJAFLAGS=\"-j4\"\n",
+    "selected_packages": {
+      "abuild": {
+        "V": "3.18.0_rc7-r1",
+        "A": "aarch64",
+        "c": "f17f4de7ac4bf4d27d7a33980872e2f5093fd3db",
+        "D": "apk-tools>=3.0.0_rc4 cmd:getcap fakeroot musl-utils lzip openssl>3 patch pkgconf scanelf tar /bin/sh so:libc.musl-aarch64.so.1 so:libcrypto.so.3 so:libz.so.1",
+        "p": "cmd:abuild-fetch=3.18.0_rc7-r1 cmd:abuild-gzsplit=3.18.0_rc7-r1 cmd:abuild-keygen=3.18.0_rc7-r1 cmd:abuild-rm=3.18.0_rc7-r1 cmd:abuild-sign=3.18.0_rc7-r1 cmd:abuild-tar=3.18.0_rc7-r1 cmd:abuild=3.18.0_rc7-r1 cmd:abump=3.18.0_rc7-r1 cmd:apkgrel=3.18.0_rc7-r1 cmd:checkapk=3.18.0_rc7-r1 cmd:newapkbuild=3.18.0_rc7-r1"
+      },
+      "apk-tools": {
+        "V": "3.0.8-r0",
+        "A": "aarch64",
+        "c": "31eb9b7d150e197c3a16f1d7a11dc829016a0fc7",
+        "D": "musl>=1.2.3_git20230424 libcrypto3>=3.5 libapk=3.0.8-r0 ca-certificates-bundle so:libapk.so.3.0.0 so:libc.musl-aarch64.so.1 so:libz.so.1",
+        "p": "apk-tools3=3.0.8-r0 cmd:apk=3.0.8-r0"
+      },
+      "binutils": {
+        "V": "2.45.1-r1",
+        "A": "aarch64",
+        "c": "673df4f3ce2e71e9bcfbf64939332917a35795fc",
+        "D": "so:libc.musl-aarch64.so.1 so:libgcc_s.so.1 so:libjansson.so.4 so:libstdc++.so.6 so:libz.so.1 so:libzstd.so.1",
+        "p": "cmd:addr2line=2.45.1-r1 cmd:ar=2.45.1-r1 cmd:as=2.45.1-r1 cmd:c++filt=2.45.1-r1 cmd:dwp=2.45.1-r1 cmd:elfedit=2.45.1-r1 cmd:gprof=2.45.1-r1 cmd:ld.bfd=2.45.1-r1 cmd:ld=2.45.1-r1 cmd:nm=2.45.1-r1 cmd:objcopy=2.45.1-r1 cmd:objdump=2.45.1-r1 cmd:ranlib=2.45.1-r1 cmd:readelf=2.45.1-r1 cmd:size=2.45.1-r1 cmd:strings=2.45.1-r1 cmd:strip=2.45.1-r1 so:libbfd-2.45.1.so=0 so:libctf-nobfd.so.0=0.0.0 so:libctf.so.0=0.0.0 so:libopcodes-2.45.1.so=0 so:libsframe.so.2=2.0.0"
+      },
+      "build-base": {
+        "V": "0.5-r4",
+        "A": "aarch64",
+        "c": "1eff03395e9533e60c804a7a21400e59d5c8a1bf",
+        "D": "binutils file gcc g++ make libc-dev fortify-headers patch",
+        "p": null
+      },
+      "gcc": {
+        "V": "15.2.0-r9",
+        "A": "aarch64",
+        "c": "21530a8b7b00b34c648a6b3744d461f32203a885",
+        "D": "binutils libgcc-static libgomp=15.2.0-r9 libatomic=15.2.0-r9 libgomp=15.2.0-r9 so:libc.musl-aarch64.so.1 so:libgcc_s.so.1 so:libgmp.so.10 so:libisl.so.23 so:libmpc.so.3 so:libmpfr.so.6 so:libstdc++.so.6 so:libz.so.1",
+        "p": "cmd:aarch64-alpine-linux-musl-cc=15.2.0-r9 cmd:aarch64-alpine-linux-musl-gcc-15.2.0=15.2.0-r9 cmd:aarch64-alpine-linux-musl-gcc-ar=15.2.0-r9 cmd:aarch64-alpine-linux-musl-gcc-nm=15.2.0-r9 cmd:aarch64-alpine-linux-musl-gcc-ranlib=15.2.0-r9 cmd:aarch64-alpine-linux-musl-gcc=15.2.0-r9 cmd:c89=15.2.0-r9 cmd:c99=15.2.0-r9 cmd:cc=15.2.0-r9 cmd:cpp=15.2.0-r9 cmd:gcc-ar=15.2.0-r9 cmd:gcc-nm=15.2.0-r9 cmd:gcc-ranlib=15.2.0-r9 cmd:gcc=15.2.0-r9 cmd:gcov-dump=15.2.0-r9 cmd:gcov-tool=15.2.0-r9 cmd:gcov=15.2.0-r9 cmd:lto-dump=15.2.0-r9 so:libcc1.so.0=0.0.0 so:libitm.so.1=1.0.0"
+      },
+      "gettext-dev": {
+        "V": "1.0-r0",
+        "A": "aarch64",
+        "c": "a0b12dbf67fb047e79a1b76c6dfe6f2904d0d391",
+        "D": "!musl-libintl xz gettext-asprintf=1.0-r0 gettext-libs=1.0-r0 gettext=1.0-r0 libintl=1.0-r0",
+        "p": null
+      },
+      "glib-dev": {
+        "V": "2.90.0-r0",
+        "A": "aarch64",
+        "c": "b1f2e90f9e0d99b6d3b9d1c2084494eed27405ce",
+        "D": "bzip2-dev docbook-xml docbook-xsl gettext-dev libxml2-utils libxslt python3 py3-packaging glib=2.90.0-r0 pc:libffi>=3.0.0 pc:libpcre2-8>=10.32 pc:mount>=2.23 pc:zlib pkgconfig so:libc.musl-aarch64.so.1 so:libgio-2.0.so.0 so:libglib-2.0.so.0 so:libgobject-2.0.so.0 so:libintl.so.8",
+        "p": "cmd:gdbus-codegen=2.90.0-r0 cmd:glib-compile-resources=2.90.0-r0 cmd:glib-genmarshal=2.90.0-r0 cmd:glib-gettextize=2.90.0-r0 cmd:glib-mkenums=2.90.0-r0 cmd:gobject-query=2.90.0-r0 cmd:gresource=2.90.0-r0 cmd:gtester-report=2.90.0-r0 cmd:gtester=2.90.0-r0 pc:gio-2.0=2.90.0 pc:gio-unix-2.0=2.90.0 pc:girepository-2.0=2.90.0 pc:glib-2.0=2.90.0 pc:gmodule-2.0=2.90.0 pc:gmodule-export-2.0=2.90.0 pc:gmodule-no-export-2.0=2.90.0 pc:gobject-2.0=2.90.0 pc:gthread-2.0=2.90.0"
+      },
+      "meson": {
+        "V": "1.12.1-r0",
+        "A": "aarch64",
+        "c": "596a764f27e06027e48bbe2c90c690fefe769af8",
+        "D": "samurai python3~3.14",
+        "p": "cmd:meson=1.12.1-r0 py3.14:mesonbuild=1.12.1-r0"
+      },
+      "musl": {
+        "V": "1.2.6-r5",
+        "A": "aarch64",
+        "c": "d72a964d7f68bb113225a61d9425ba48005a99e0",
+        "D": null,
+        "p": "so:libc.musl-aarch64.so.1=1"
+      },
+      "pkgconf": {
+        "V": "3.0.8-r0",
+        "A": "aarch64",
+        "c": "83e5ba9223ef757cadbca2533d29ebaaa7aa7b76",
+        "D": "so:libc.musl-aarch64.so.1",
+        "p": "pkgconfig=1 cmd:bomtool=3.0.8-r0 cmd:pccritic=3.0.8-r0 cmd:pkg-config=3.0.8-r0 cmd:pkgconf=3.0.8-r0 cmd:spdxtool=3.0.8-r0 so:libpkgconf.so.8=8.0.0"
+      },
+      "samurai": {
+        "V": "1.3-r0",
+        "A": "aarch64",
+        "c": "afdfbe4f5ba67fe500b0235f0a986c73b124c799",
+        "D": "so:libc.musl-aarch64.so.1",
+        "p": "ninja cmd:ninja=1.3-r0 cmd:samu=1.3-r0"
+      },
+      "wayland-dev": {
+        "V": "1.26.0-r0",
+        "A": "aarch64",
+        "c": "13b755bcd1f1ee9fc241c6e02d7ea22519ea7729",
+        "D": "expat-dev libffi-dev wayland-libs-client=1.26.0-r0 wayland-libs-cursor=1.26.0-r0 wayland-libs-egl=1.26.0-r0 wayland-libs-server=1.26.0-r0 pc:libffi pkgconfig so:libc.musl-aarch64.so.1 so:libexpat.so.1 so:libxml2.so.2",
+        "p": "cmd:wayland-scanner=1.26.0-r0 pc:wayland-client=1.26.0 pc:wayland-cursor=1.26.0 pc:wayland-egl-backend=3 pc:wayland-egl=18.1.0 pc:wayland-scanner=1.26.0 pc:wayland-server=1.26.0"
+      }
+    },
+    "present_makedepends": {
+      "gettext-dev": "1.0-r0",
+      "glib-dev": "2.90.0-r0",
+      "meson": "1.12.1-r0",
+      "wayland-dev": "1.26.0-r0"
+    },
+    "missing_makedepends": [
+      "appstream-dev",
+      "callaudiod-dev",
+      "elogind-dev",
+      "evince-dev",
+      "evolution-data-server-dev",
+      "feedbackd-dev",
+      "gcr-dev",
+      "gmobile-dev",
+      "gnome-bluetooth-dev",
+      "gnome-desktop-dev",
+      "gtk+3.0-dev",
+      "libadwaita-dev",
+      "libgudev-dev",
+      "libhandy1-dev",
+      "libsecret-dev",
+      "linux-pam-dev",
+      "modemmanager-dev",
+      "networkmanager-dev",
+      "polkit-elogind-dev",
+      "pulseaudio-dev",
+      "py3-docutils",
+      "qrcodegen-dev",
+      "upower-dev",
+      "wayland-protocols"
+    ],
+    "gcc": {
+      "path": "/home/cy122/x2pro-linux/libcamera214-root/usr/bin/gcc",
+      "exists": true,
+      "symlink": false,
+      "resolved": "/home/cy122/x2pro-linux/libcamera214-root/usr/bin/gcc",
+      "machine": 183,
+      "interpreter": "/lib/ld-musl-aarch64.so.1"
+    },
+    "pkgconfig_directories": [
+      "/home/cy122/x2pro-linux/libcamera214-root/usr/lib/pkgconfig",
+      "/home/cy122/x2pro-linux/libcamera214-root/usr/share/pkgconfig"
+    ]
+  },
+  "apk_caches": [
+    {
+      "path": "/home/cy122/x2pro-linux/libcamera214-root/var/cache/apk",
+      "exists": true,
+      "resolved": "/home/cy122/x2pro-linux/libcamera214-root/var/cache/apk",
+      "files": []
+    },
+    {
+      "path": "/home/cy122/x2pro-linux/libcamera214-root/etc/apk/cache",
+      "exists": false,
+      "resolved": "/home/cy122/x2pro-linux/libcamera214-root/etc/apk/cache",
+      "files": []
+    },
+    {
+      "path": "/home/cy122/pmos-samurai-rootfs01/work",
+      "exists": true,
+      "resolved": "/home/cy122/pmos-samurai-rootfs01/work",
+      "files": [
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/apk.static",
+          "bytes": 5470888
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/alpine-baselayout-data-3.7.2-r1.9f92c135.apk",
+          "bytes": 10791
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/nftables-openrc-1.1.7-r0.54513ba9.apk",
+          "bytes": 3745
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/postmarketos-keys-1-r1.c68e7d1c.apk",
+          "bytes": 2327
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/dropbear-2026.94-r0.bce298e1.apk",
+          "bytes": 232255
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/uuidgen-2.42.4-r3.e8fbccf7.apk",
+          "bytes": 6644
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/postmarketos-mkinitfs-2.11.1-r0.81092d70.apk",
+          "bytes": 1619825
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/sfdisk-2.42.4-r3.a50e9afc.apk",
+          "bytes": 35978
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/APKINDEX.53194aba.tar.gz",
+          "bytes": 532227
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/elogind-common-255.24-r0.18b61a30.apk",
+          "bytes": 530926
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/APKINDEX.d022dfc8.tar.gz",
+          "bytes": 2536592
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/ssl_client-1.38.0-r7.135660c6.apk",
+          "bytes": 5096
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/routewrangler-0.3.1-r0.1717910a.apk",
+          "bytes": 275621
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/losetup-2.42.4-r3.9f2a4acd.apk",
+          "bytes": 26958
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libunwind-1.8.3-r0.38ac5d3f.apk",
+          "bytes": 87579
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libcom_err-1.47.4-r0.7c16c932.apk",
+          "bytes": 6583
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/file-5.48-r0.b5996ff0.apk",
+          "bytes": 10364
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libinput-libs-1.32.0-r0.5390efc0.apk",
+          "bytes": 150309
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libxext-1.3.7-r0.236550f2.apk",
+          "bytes": 26225
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/abseil-cpp-throw-delegate-20260817.0-r0.f219b84f.apk",
+          "bytes": 5568
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/APKINDEX.180de0ad.tar.gz",
+          "bytes": 2536592
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/abseil-cpp-raw-logging-internal-20260817.0-r0.779d54f6.apk",
+          "bytes": 5320
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/mesa-26.2.4-r1.02fa0bd9.apk",
+          "bytes": 12461724
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/alsa-lib-1.2.16.1-r0.91b35529.apk",
+          "bytes": 479995
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libmm-glib-1.25.95_git20261005-r0.93b55423.apk",
+          "bytes": 379097
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/chrony-4.9-r0.810eac4c.apk",
+          "bytes": 162410
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/postmarketos-baselayout-78-r0.795f9c70.apk",
+          "bytes": 1772
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/glib-2.90.0-r0.fc2d521b.apk",
+          "bytes": 1986078
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/hwdata-pci-0.412-r0.3d31e1f8.apk",
+          "bytes": 375888
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/udev-init-scripts-openrc-35-r1.e2cce752.apk",
+          "bytes": 5061
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libffi-3.8.0-r0.baf4cc45.apk",
+          "bytes": 21307
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/dbus-openrc-1.16.2-r4.49dada8a.apk",
+          "bytes": 2813
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/flock-2.42.4-r3.9a75dc21.apk",
+          "bytes": 13025
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/ifupdown-ng-0.13.0-r0.307a0755.apk",
+          "bytes": 74440
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/pipewire-openrc-1.6.9-r0.fa5ab69f.apk",
+          "bytes": 1831
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libelogind-255.24-r0.0e7dcf9d.apk",
+          "bytes": 257574
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/wpa_supplicant-2.11-r4.96c9a3e7.apk",
+          "bytes": 1929137
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/e2fsprogs-libs-1.47.4-r0.130947ad.apk",
+          "bytes": 216714
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libnl3-3.12.0-r0.6732e13b.apk",
+          "bytes": 341765
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/curl-8.22.0-r0.5370f151.apk",
+          "bytes": 178942
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/generate-kernel-cmdline-1.0-r0.d3119d76.apk",
+          "bytes": 145667
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/eudev-9999.3.2.14-r7.b385e8c4.apk",
+          "bytes": 267205
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/nettle-3.10.2-r0.9a9a6d63.apk",
+          "bytes": 356884
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/APKINDEX.b5dcfde3.tar.gz",
+          "bytes": 106194
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/pipewire-webrtc-1.6.9-r0.52765df1.apk",
+          "bytes": 7552
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/readline-8.3.3-r1.4027d7a3.apk",
+          "bytes": 129718
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/wpa_supplicant-openrc-2.11-r4.d6bbe1c6.apk",
+          "bytes": 3156
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/f2fs-tools-libs-1.17.0-r0.193c6846.apk",
+          "bytes": 66246
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/p11-kit-0.26.2-r1.7cfd2e8b.apk",
+          "bytes": 361427
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/postmarketos-base-ui-elogind-61-r0.79606594.apk",
+          "bytes": 2100
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/openrc-0.63.2-r1.cce7c743.apk",
+          "bytes": 376275
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/agetty-openrc-0.63.2-r1.bbb83070.apk",
+          "bytes": 2507
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/boot-deploy-0.25.0-r0.80d149e4.apk",
+          "bytes": 15138
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libucontext-1.5.2-r0.4fb747a8.apk",
+          "bytes": 6015
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/abseil-cpp-strings-internal-20260817.0-r0.3106c5c8.apk",
+          "bytes": 6587
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/esystemd-tmpfiles-openrc-261.2-r1.c44f7b5b.apk",
+          "bytes": 2088
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libpanelw-6.6_p20260822-r0.7503e0fb.apk",
+          "bytes": 5919
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/systemd-boot-262-r0.950e3445.apk",
+          "bytes": 62472
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/networkmanager-cli-1.58.1-r1.dcba8b43.apk",
+          "bytes": 268880
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libdaemon-0.14-r6.0b53fb4b.apk",
+          "bytes": 11951
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/beebzzr-0_git20251214-r0.3e6e497f.apk",
+          "bytes": 5449
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libuuid-2.42.4-r3.4e790bba.apk",
+          "bytes": 15406
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/musl-utils-1.2.6-r5.cd5b9511.apk",
+          "bytes": 16904
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/busybox-binsh-1.38.0-r7.1079f2ef.apk",
+          "bytes": 1566
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libintl-1.0-r0.284b54bb.apk",
+          "bytes": 41500
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/plymouth-openrc-plugin-0.4.0_git20250822-r2.1b3d8b71.apk",
+          "bytes": 5275
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/networkmanager-tui-1.58.1-r1.573e3971.apk",
+          "bytes": 222917
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/dropbear-openrc-2026.94-r0.ba40ecf5.apk",
+          "bytes": 2284
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/alpine-baselayout-3.7.2-r1.7d537c36.apk",
+          "bytes": 8273
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/postmarketos-zram-4-r0.8fdab057.apk",
+          "bytes": 2756
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/dmesg-2.42.4-r3.4085ed56.apk",
+          "bytes": 24884
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/logbookd-0.2.4-r4.1f7ee857.apk",
+          "bytes": 19764
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/pipewire-libs-1.6.9-r0.b3cfd17d.apk",
+          "bytes": 2246270
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/bridge-1.5-r5.5970b179.apk",
+          "bytes": 2871
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/musl-1.2.6-r5.d19d0925.apk",
+          "bytes": 417718
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/abseil-cpp-strings-20260817.0-r0.de423260.apk",
+          "bytes": 58824
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libevent-2.1.13-r0.d398aabe.apk",
+          "bytes": 283203
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/nftables-1.1.7-r0.6b5e98d9.apk",
+          "bytes": 352827
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/postmarketos-config-nftables-networkmanager-1-r4.ed178895.apk",
+          "bytes": 1617
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libnftnl-1.3.2-r0.ca399cda.apk",
+          "bytes": 70033
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/btrfs-progs-openrc-6.17.1-r1.eca69b6c.apk",
+          "bytes": 1678
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libncursesw-6.6_p20260822-r0.0eea4960.apk",
+          "bytes": 162336
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/nano-9.2-r0.888c870a.apk",
+          "bytes": 165454
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/speexdsp-1.2.1-r2.bdb0b48b.apk",
+          "bytes": 35112
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/merge-usr-1.0.3_git20260616-r0.9cb4a44d.apk",
+          "bytes": 9891
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/busybox-mdev-openrc-1.38.0-r7.800f3146.apk",
+          "bytes": 2036
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/mount-2.42.4-r3.c12e93ed.apk",
+          "bytes": 15515
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/apk-tools-3.0.8-r0.049e1138.apk",
+          "bytes": 56433
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/newt-0.52.25-r1.36b81762.apk",
+          "bytes": 47265
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/jansson-2.15.0-r0.66878db2.apk",
+          "bytes": 49836
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/liblastlog2-2.42.4-r3.d4de88fc.apk",
+          "bytes": 11790
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/xz-5.8.4-r0.16de9f51.apk",
+          "bytes": 70079
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/runuser-2.42.4-r3.5f4a851e.apk",
+          "bytes": 20722
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/graphite2-1.3.15-r0.b341c70b.apk",
+          "bytes": 60062
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/device-mapper-libs-2.03.35-r8.834897d6.apk",
+          "bytes": 133602
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/e2fsprogs-extra-1.47.4-r0.0cf1ba7e.apk",
+          "bytes": 236204
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/py3-ruamel.yaml-0.19.1-r0.4772d184.apk",
+          "bytes": 108708
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/busybox-openrc-1.38.0-r7.37c3e404.apk",
+          "bytes": 3757
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/ifupdown-ng-wifi-0.13.0-r0.259e1fc0.apk",
+          "bytes": 3037
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/json-c-0.19-r1.a64af998.apk",
+          "bytes": 29510
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libcap-ng-0.9.6-r0.68da5f07.apk",
+          "bytes": 14609
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/postmarketos-initramfs-3.12.4-r0.d9875734.apk",
+          "bytes": 20145
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libexpat-2.9.0-r0.24e8cf67.apk",
+          "bytes": 61888
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/postmarketos-artwork-icons-26.06-r2.8043d142.apk",
+          "bytes": 2068
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/brotli-libs-1.2.0-r1.7f14eeac.apk",
+          "bytes": 424947
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/sleep-inhibitor-openrc-1.25-r2.75e9d04d.apk",
+          "bytes": 1866
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libapk-3.0.8-r0.a8067b8f.apk",
+          "bytes": 138180
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/gnutls-3.8.13-r0.67ba5391.apk",
+          "bytes": 901814
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/iw-6.17-r0.4680ca81.apk",
+          "bytes": 104387
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/logger-2.42.4-r3.e37c2da4.apk",
+          "bytes": 13669
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/busybox-1.38.0-r7.82b3a8ee.apk",
+          "bytes": 527937
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/cfdisk-2.42.4-r3.e7bebeab.apk",
+          "bytes": 32926
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libedit-20260508.3.1-r1.b2bd30c0.apk",
+          "bytes": 78247
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/device-mapper-udev-2.03.35-r8.1ea13cb8.apk",
+          "bytes": 6010
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/dbus-1.16.2-r4.ecd165ff.apk",
+          "bytes": 130851
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/haveged-1.9.26-r0.2e979323.apk",
+          "bytes": 31677
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libseccomp-2.6.1-r0.0fc8364b.apk",
+          "bytes": 51743
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/avahi-openrc-0.9_rc5-r0.91c0c286.apk",
+          "bytes": 1933
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/postmarketos-base-sudo-78-r0.783e23c5.apk",
+          "bytes": 1876
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libxkbcommon-1.13.2-r0.e1183d02.apk",
+          "bytes": 163945
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/agetty-2.42.4-r3.32728ebb.apk",
+          "bytes": 26411
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libcamera-99990.7.2-r4.378e9f9f.apk",
+          "bytes": 904872
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/esystemd-sysusers-openrc-261.2-r1.b66bfc31.apk",
+          "bytes": 1707
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libdrm-2.4.134-r0.9592442d.apk",
+          "bytes": 206163
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/wireless-regdb-2025.10.07-r0.08798911.apk",
+          "bytes": 8614
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/skalibs-libs-2.15.1.0-r0.d308088c.apk",
+          "bytes": 91553
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/font-droid-20200215-r5.0badf4bc.apk",
+          "bytes": 711978
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/udev-init-scripts-35-r1.a626b0b6.apk",
+          "bytes": 1493
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libxdmcp-1.1.5-r1.90865d4a.apk",
+          "bytes": 9931
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/openssh-server-common-openrc-10.6_p1-r1.5dc7c121.apk",
+          "bytes": 3620
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/iproute2-minimal-7.2.0-r0.fb117d69.apk",
+          "bytes": 285873
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/xkeyboard-config-99992.48-r0.d1b542c5.apk",
+          "bytes": 581915
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/python3-pycache-pyc0-3.14.8-r0.4831e51b.apk",
+          "bytes": 4635876
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/wireplumber-openrc-0.5.18-r2.8f5e1dc0.apk",
+          "bytes": 1802
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/dnsmasq-common-2.93-r0.6d05b615.apk",
+          "bytes": 12229
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/chrony-openrc-4.9-r0.12ce1eca.apk",
+          "bytes": 2635
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/networkmanager-1.58.1-r1.d16e1d52.apk",
+          "bytes": 1497470
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/fontconfig-2.18.1-r0.019ec751.apk",
+          "bytes": 187034
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/iproute2-tc-7.2.0-r0.619f89dc.apk",
+          "bytes": 264857
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/util-linux-openrc-2.42.4-r3.2914889d.apk",
+          "bytes": 2283
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/postmarketos-release-78-r0.e5ed886e.apk",
+          "bytes": 1810
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libpng-1.6.59-r0.94de2adc.apk",
+          "bytes": 97479
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/lzo-2.10-r5.94aa0c2a.apk",
+          "bytes": 76565
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/wayland-libs-client-1.26.0-r0.c58280cd.apk",
+          "bytes": 23616
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/plymouth-26.134.222-r1.6428ef9d.apk",
+          "bytes": 312838
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/postmarketos-base-nftables-openrc-78-r0.fcb2c60a.apk",
+          "bytes": 1352
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/openssh-keygen-10.6_p1-r1.6e09b179.apk",
+          "bytes": 202589
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/umount-2.42.4-r3.06f86072.apk",
+          "bytes": 11851
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libmd-1.3.0-r0.85c9b931.apk",
+          "bytes": 26887
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/freetype-2.14.3-r0.ab468c0f.apk",
+          "bytes": 355900
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/fribidi-1.0.16-r3.9ed29d3b.apk",
+          "bytes": 32414
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/sleep-inhibitor-pyc-1.25-r2.05d06aed.apk",
+          "bytes": 7884
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libmount-2.42.4-r3.47cac99d.apk",
+          "bytes": 129863
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/zstd-libs-1.5.7-r2.756a125a.apk",
+          "bytes": 363934
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libeconf-0.8.4-r0.aa5471ad.apk",
+          "bytes": 27219
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/openssh-server-common-10.6_p1-r1.49868316.apk",
+          "bytes": 3198
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/postmarketos-config-nftables-1-r4.6fc7b405.apk",
+          "bytes": 2422
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/pcre2-10.49-r0.209cd6c8.apk",
+          "bytes": 320316
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libxau-1.0.12-r0.34b59c69.apk",
+          "bytes": 6164
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/wipefs-2.42.4-r3.4c3b73b9.apk",
+          "bytes": 12480
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libmnl-1.0.5-r2.2508996f.apk",
+          "bytes": 9465
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/xz-libs-5.8.4-r0.a2478aa5.apk",
+          "bytes": 119441
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libbsd-0.12.2-r0.e443185b.apk",
+          "bytes": 31592
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/alpine-keys-2.6-r0.c49117fc.apk",
+          "bytes": 12720
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/blkid-2.42.4-r3.7f3a1846.apk",
+          "bytes": 20260
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/mpdecimal-4.0.1-r0.3121d45d.apk",
+          "bytes": 81417
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libxml2-2.13.9-r2.3ae8ca3f.apk",
+          "bytes": 496763
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/pipewire-spa-libcamera-1.6.9-r0.b215a706.apk",
+          "bytes": 61221
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/musl-fts-1.2.7-r7.6fcdca5c.apk",
+          "bytes": 7666
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/mdev-conf-4.10-r0.28b999bf.apk",
+          "bytes": 5418
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/openssh-client-default-10.6_p1-r1.765a6d9f.apk",
+          "bytes": 357363
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/eudev-openrc-9999.3.2.14-r7.2949b2ed.apk",
+          "bytes": 2161
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/fstrim-2.42.4-r3.472456e2.apk",
+          "bytes": 14079
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/utmps-libs-0.1.3.4-r0.178b5739.apk",
+          "bytes": 5779
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/sudo-1.9.17_p2-r3.2ec6ff23.apk",
+          "bytes": 743120
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/APKINDEX.9b60f87e.tar.gz",
+          "bytes": 764896
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/pcsc-lite-libs-2.5.2-r0.22324a6d.apk",
+          "bytes": 25066
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libtasn1-4.21.0-r0.18b8f5b5.apk",
+          "bytes": 34170
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libcap2-2.78-r0.fd907fef.apk",
+          "bytes": 24009
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libfdisk-2.42.4-r3.a6c53ad1.apk",
+          "bytes": 121467
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/haveged-openrc-1.9.26-r0.afb472d8.apk",
+          "bytes": 2024
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/harfbuzz-14.2.1-r0.c9d2d731.apk",
+          "bytes": 762550
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libnm-1.58.1-r1.88010a8a.apk",
+          "bytes": 470641
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/mtdev-1.1.7-r0.45bdc844.apk",
+          "bytes": 10775
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libcamera-ipa-99990.7.2-r4.cf656f0b.apk",
+          "bytes": 762625
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/mcookie-2.42.4-r3.dd2a4929.apk",
+          "bytes": 9662
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/unudhcpd-openrc-0.5.0-r0.f76c961d.apk",
+          "bytes": 1919
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/openssh-client-common-10.6_p1-r1.098f94eb.apk",
+          "bytes": 844048
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/alpine-conf-3.22.0-r0.165b43f8.apk",
+          "bytes": 66213
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/postmarketos-base-ui-networkmanager-61-r0.d34621d1.apk",
+          "bytes": 2191
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/iproute2-ss-7.2.0-r0.b8707f7e.apk",
+          "bytes": 48179
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/partx-2.42.4-r3.4f4a7bf2.apk",
+          "bytes": 23348
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libssl3-3.5.9-r0.7d30e3c5.apk",
+          "bytes": 373041
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/slang-2.3.3-r3.441385e4.apk",
+          "bytes": 612292
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/alpine-release-3.25.0_alpha20260805-r0.5d43a35c.apk",
+          "bytes": 2118
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/postmarketos-base-openrc-78-r0.bee5c020.apk",
+          "bytes": 4881
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/util-linux-2.42.4-r3.58b81571.apk",
+          "bytes": 1537
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/e2fsprogs-1.47.4-r0.abc9f07a.apk",
+          "bytes": 184444
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/yaml-0.2.5-r2.bb6067a4.apk",
+          "bytes": 44502
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libxtables-1.8.13-r0.3595c830.apk",
+          "bytes": 26343
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/routewrangler-openrc-0.3.1-r0.845bf2f2.apk",
+          "bytes": 1754
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/hexdump-2.42.4-r3.8ad01107.apk",
+          "bytes": 17662
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/cryptsetup-libs-2.8.8-r0.5e6b9521.apk",
+          "bytes": 222794
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/mesa-gles-26.2.4-r1.239ed076.apk",
+          "bytes": 22087
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libpisp-1.7.0-r0.a3cbe164.apk",
+          "bytes": 167436
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/pixman-0.46.4-r0.efcb6179.apk",
+          "bytes": 185732
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libjpeg-turbo-3.1.3-r0.82c57a32.apk",
+          "bytes": 225399
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/kmod-libs-34.2-r1.53b2162c.apk",
+          "bytes": 40001
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/setarch-2.42.4-r3.4382cadd.apk",
+          "bytes": 9272
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libxmu-1.3.1-r0.003319b4.apk",
+          "bytes": 49858
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libxshmfence-1.3.3-r0.8d08a1b9.apk",
+          "bytes": 4281
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libcurl-8.22.0-r0.5ea2d0e7.apk",
+          "bytes": 358055
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/sleep-inhibitor-1.25-r2.5d71710e.apk",
+          "bytes": 13331
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/unudhcpd-0.5.0-r0.5004b5d0.apk",
+          "bytes": 6763
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libsmartcols-2.42.4-r3.d777eaff.apk",
+          "bytes": 56576
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libunistring-1.4.2-r0.aa2f5e49.apk",
+          "bytes": 746184
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libbz2-1.0.8-r6.f9f7fde3.apk",
+          "bytes": 35661
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/roc-toolkit-libs-0.4.0-r1.dc68b64e.apk",
+          "bytes": 434870
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libyuv-0.0.1928-r0.7ab544f0.apk",
+          "bytes": 554191
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/mesa-gbm-26.2.4-r1.11301d52.apk",
+          "bytes": 7473
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/btrfs-progs-6.17.1-r1.e145a0e8.apk",
+          "bytes": 802863
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/lz4-1.10.0-r1.25a4858f.apk",
+          "bytes": 109378
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libevdev-1.13.6-r0.3272c63d.apk",
+          "bytes": 28221
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libpciaccess-0.19-r0.65514097.apk",
+          "bytes": 15529
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libxrender-0.9.12-r0.a2100086.apk",
+          "bytes": 17351
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libinput-udev-1.32.0-r0.b10c4f93.apk",
+          "bytes": 11430
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/popt-1.19-r4.6d418fb9.apk",
+          "bytes": 22114
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/cryptsetup-openrc-2.8.8-r0.f8ef7acf.apk",
+          "bytes": 6679
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/plymouth-drm-26.134.222-r1.4ad22574.apk",
+          "bytes": 18364
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/nspr-4.38.2-r0.e2afd3ba.apk",
+          "bytes": 124970
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/esystemd-261.2-r1.4ebbe8a2.apk",
+          "bytes": 3590
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/postmarketos-base-ui-61-r0.acfb7e62.apk",
+          "bytes": 3942
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/avahi-libs-0.9_rc5-r0.6b41cc08.apk",
+          "bytes": 42632
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libndp-1.9-r1.793434ec.apk",
+          "bytes": 18928
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/wireplumber-0.5.18-r2.4767002c.apk",
+          "bytes": 305048
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/ca-certificates-bundle-20260909-r0.dd9c22d9.apk",
+          "bytes": 108538
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/ca-certificates-20260909-r0.9810ba4c.apk",
+          "bytes": 132577
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/networkmanager-wifi-1.58.1-r1.853b749b.apk",
+          "bytes": 105618
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/inih-62-r0.fda06cbb.apk",
+          "bytes": 4649
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/ncurses-terminfo-base-6.6_p20260822-r0.49c956da.apk",
+          "bytes": 22177
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/devicepkg-utils-0.3.3-r0.0177717b.apk",
+          "bytes": 1695
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/networkmanager-openrc-1.58.1-r1.624d568e.apk",
+          "bytes": 1962
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/esystemd-sysusers-261.2-r1.25d4e7b1.apk",
+          "bytes": 1004104
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libgcc-15.2.0-r9.5b41dc3c.apk",
+          "bytes": 66331
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/pipewire-udev-1.6.9-r0.8b2cb1eb.apk",
+          "bytes": 4877
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/util-linux-login-2.42.4-r3.07dddee6.apk",
+          "bytes": 91356
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/dbus-daemon-launch-helper-1.16.2-r4.7e4ad57a.apk",
+          "bytes": 23173
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/ifupdown-ng-iproute2-0.13.0-r0.b1ae11e8.apk",
+          "bytes": 4220
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/postmarketos-bootsplash-3-r0.4ba49e4d.apk",
+          "bytes": 3164
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/esystemd-tmpfiles-261.2-r1.deb9bc99.apk",
+          "bytes": 1025593
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/mesa-dri-gallium-26.2.4-r1.54911f86.apk",
+          "bytes": 22253
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/dnsmasq-2.93-r0.345d1f5f.apk",
+          "bytes": 216516
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/APKINDEX.66af3263.tar.gz",
+          "bytes": 106194
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/dbus-libs-1.16.2-r4.397cae61.apk",
+          "bytes": 130837
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/lua5.4-libs-5.4.9-r0.031a7481.apk",
+          "bytes": 108191
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/openssh-server-pam-10.6_p1-r1.571bdb22.apk",
+          "bytes": 970091
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/elogind-255.24-r0.044d89b7.apk",
+          "bytes": 315482
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/postmarketos-base-udev-78-r0.d83d65a2.apk",
+          "bytes": 2598
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/postmarketos-base-ssh-78-r0.ed61fb88.apk",
+          "bytes": 1814
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/postmarketos-plymouth-themes-1.2.3-r0.5cf02a2e.apk",
+          "bytes": 56640
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/llvm23-libs-23.1.3-r0.15a47759.apk",
+          "bytes": 64332737
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/wireless-tools-libs-30_pre9-r5.c3d03d3c.apk",
+          "bytes": 16599
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/lscpu-2.42.4-r3.74c99b63.apk",
+          "bytes": 42439
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/cryptsetup-2.8.8-r0.981a0d1a.apk",
+          "bytes": 109863
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/f2fs-tools-1.17.0-r0.d15fa57b.apk",
+          "bytes": 185625
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/wireplumber-libs-0.5.18-r2.5c0441f2.apk",
+          "bytes": 182687
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/APKINDEX.c0dba71d.tar.gz",
+          "bytes": 764896
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/postmarketos-base-ui-wifi-wpa_supplicant-openrc-61-r0.97333da8.apk",
+          "bytes": 1724
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/mesa-egl-26.2.4-r1.ad347f5c.apk",
+          "bytes": 130538
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/device-mapper-2.03.35-r8.d50084aa.apk",
+          "bytes": 44480
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/webrtc-audio-processing-2-2.1-r3.b961b641.apk",
+          "bytes": 369463
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libbpf-1.8.0-r0.6bb0b0d0.apk",
+          "bytes": 179874
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/setpriv-2.42.4-r3.14743c79.apk",
+          "bytes": 15933
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/xfsprogs-extra-7.1.1-r1.7e9235fe.apk",
+          "bytes": 785722
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/scanelf-1.3.11-r0.c372e557.apk",
+          "bytes": 31848
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/cairo-1.18.4-r1.fe5b108d.apk",
+          "bytes": 513214
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/xfsprogs-7.1.1-r1.180ccb8d.apk",
+          "bytes": 584635
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libuv-1.52.1-r0.3305b3b7.apk",
+          "bytes": 96471
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/gmp-6.3.0-r4.9a146193.apk",
+          "bytes": 223195
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/pkgconf-3.0.8-r0.5e6d3da8.apk",
+          "bytes": 99132
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/py3-ruamel.yaml-pyc-0.19.1-r0.7d30ca8e.apk",
+          "bytes": 249648
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/openrc-user-pam-0.63.2-r1.e5d575f7.apk",
+          "bytes": 17445
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libstdc++-15.2.0-r9.13b3f981.apk",
+          "bytes": 908720
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/buffyboard-3.6.0-r0.15b71243.apk",
+          "bytes": 261635
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/xprop-1.2.8-r0.39e27a11.apk",
+          "bytes": 18031
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/postmarketos-ui-console-openrc-1-r0.e63d4b08.apk",
+          "bytes": 1393
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/postmarketos-base-78-r0.7519fbf5.apk",
+          "bytes": 5062
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libxcb-1.17.0-r2.9bae05bc.apk",
+          "bytes": 261275
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libpsl-0.21.5-r3.36fb7614.apk",
+          "bytes": 55349
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/openssh-nftrules-10.6_p1-r1.996b24c4.apk",
+          "bytes": 1689
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/chrony-common-4.9-r0.485bcdc9.apk",
+          "bytes": 2919
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/busctl-255.24-r0.6e9afce2.apk",
+          "bytes": 31188
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libmagic-5.48-r0.546cbc53.apk",
+          "bytes": 534162
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/postmarketos-zram-openrc-4-r0.abe2a91b.apk",
+          "bytes": 1772
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libice-1.1.2-r0.6eea36fc.apk",
+          "bytes": 41235
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/APKINDEX.e37b76c2.tar.gz",
+          "bytes": 532227
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/pipewire-1.6.9-r0.b02972c1.apk",
+          "bytes": 92737
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/xdg-utils-1.2.1-r1.f8dbc4d5.apk",
+          "bytes": 72532
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/zlib-1.3.2-r1.7297bf33.apk",
+          "bytes": 54349
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/userspace-rcu-0.15.3-r0.7b4588f0.apk",
+          "bytes": 93905
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/spirv-tools-1.4.357.0-r0.7c566f3f.apk",
+          "bytes": 1928924
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/postmarketos-base-ui-openrc-61-r0.3520f8dc.apk",
+          "bytes": 2570
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/shadow-4.20.3-r2.3b19e04a.apk",
+          "bytes": 481084
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/eudev-libs-3.2.14-r8.814376f0.apk",
+          "bytes": 26471
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/xset-1.2.5-r1.728160cf.apk",
+          "bytes": 12609
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libidn2-2.3.8-r0.c47dfdcd.apk",
+          "bytes": 105505
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/python3-3.14.8-r0.e75a5eaf.apk",
+          "bytes": 8370978
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/bzip2-1.0.8-r6.9fd25c99.apk",
+          "bytes": 144629
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/wireless-tools-30_pre9-r5.1fdc19df.apk",
+          "bytes": 56843
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/busybox-extras-1.38.0-r7.756a34c2.apk",
+          "bytes": 69392
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libx11-1.8.13-r0.a2122145.apk",
+          "bytes": 869110
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/linux-pam-1.7.1-r4.bc52af14.apk",
+          "bytes": 274997
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/sqlite-libs-3.53.4-r0.9865ffbb.apk",
+          "bytes": 852564
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/kmod-34.2-r1.b30164e6.apk",
+          "bytes": 65203
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/logbookd-openrc-0.2.4-r4.4b566db2.apk",
+          "bytes": 2230
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libblkid-2.42.4-r3.4400483b.apk",
+          "bytes": 97157
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libsm-1.2.6-r0.ce2d370c.apk",
+          "bytes": 15125
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/iproute2-7.2.0-r0.e99f01c4.apk",
+          "bytes": 203025
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libelf-0.195-r0.cf2666dc.apk",
+          "bytes": 44738
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/acl-libs-2.3.2-r1.b4139fee.apk",
+          "bytes": 15298
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libselinux-3.11-r3.0679a28b.apk",
+          "bytes": 81524
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/tzdata-2026e-r0.277f4659.apk",
+          "bytes": 190921
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/dosfstools-4.2-r2.4491d134.apk",
+          "bytes": 76196
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/nss-3.130-r0.8db82fc1.apk",
+          "bytes": 1628128
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/device-postmarketos-trailblazer-22-r0.95e129af.apk",
+          "bytes": 3749
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/parted-3.7-r0.c8576331.apk",
+          "bytes": 227377
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libxft-2.3.9-r0.851ff830.apk",
+          "bytes": 38632
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/nghttp2-libs-1.70.0-r0.d348f0d2.apk",
+          "bytes": 63664
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libxt-1.3.1-r0.e48e7054.apk",
+          "bytes": 156769
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/util-linux-misc-2.42.4-r3.e1d9cd82.apk",
+          "bytes": 888974
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/avahi-0.9_rc5-r0.a5172d9c.apk",
+          "bytes": 153819
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/lsblk-2.42.4-r3.307112f3.apk",
+          "bytes": 54874
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/dnsmasq-openrc-2.93-r0.6aa7f521.apk",
+          "bytes": 3757
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/libcrypto3-3.5.9-r0.08134f1c.apk",
+          "bytes": 2286824
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/iskey-3.6.0-r0.ca10b052.apk",
+          "bytes": 5162
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/py3-ruamel.yaml.clib-0.2.15-r3.4d1a908d.apk",
+          "bytes": 118393
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/btrfs-progs-udev-6.17.1-r1.da3d4291.apk",
+          "bytes": 2114
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/networkmanager-wwan-1.58.1-r1.5fa8a46d.apk",
+          "bytes": 57880
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/postmarketos-buffybox-iskey-1-r0.af60ff6d.apk",
+          "bytes": 1562
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/font-terminus-4.49.1-r4.ac0f8731.apk",
+          "bytes": 1212157
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/pango-1.58.2-r0.11165e41.apk",
+          "bytes": 273216
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/findmnt-2.42.4-r3.49a7dc3a.apk",
+          "bytes": 24959
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/elogind-openrc-255.24-r0.645ba8b6.apk",
+          "bytes": 1894
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_aarch64/c-ares-1.34.8-r0.431d25b7.apk",
+          "bytes": 108774
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_http/APKINDEX_e1c7a218619290624667d4cc53ee2a3ac040e43938a6d9d955a50940318ec013",
+          "bytes": 40568
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_http/APKINDEX_1198571c5febc058204d02a3fe5db1eed06539a898cce55b90c102d16d1fea93",
+          "bytes": 532227
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_http/APKINDEX_47c2fbfbedb4f77c2789e17ab0883162f09379b75c99b16b2eab32d71d21787e",
+          "bytes": 2536592
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_http/APKINDEX_9c1f2d00fc5ab1e9b4fb419448b1c53bdb9ae5e1aa76b06f8e4b0d69c7fd87d0",
+          "bytes": 764896
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_http/APKINDEX_50e101518531b548e16609dc8496fa076275a36e14da2950c329fb9b55e2138e",
+          "bytes": 531284
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_http/APKINDEX_ce848a673ce373106a42b44d593b43835141d605205fbac66e80e4d32d3d1324",
+          "bytes": 776159
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_http/APKINDEX_1d78b7663399664865907b811ec53f81fdd038182b7ccfd73f1316f3c6bcdab6",
+          "bytes": 2548859
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_http/APKINDEX_801d975b06f101b4e07e9d67d6015c7b1ae45de8bd3b3faeab9ed2b02da3c0d8",
+          "bytes": 106194
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/alpine-baselayout-data-3.7.2-r1.9f92c135.apk",
+          "bytes": 10789
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/musl-1.2.6-r5.860ca775.apk",
+          "bytes": 415481
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/agetty-2.42.4-r3.523ed01b.apk",
+          "bytes": 25846
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/popt-1.19-r4.6f3a5728.apk",
+          "bytes": 21160
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/partx-2.42.4-r3.2fee3690.apk",
+          "bytes": 22809
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/APKINDEX.d022dfc8.tar.gz",
+          "bytes": 2548859
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/util-linux-2.42.4-r3.bbafef41.apk",
+          "bytes": 1540
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/libeconf-0.8.4-r0.411e1530.apk",
+          "bytes": 26036
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/sfdisk-2.42.4-r3.71ca4a3d.apk",
+          "bytes": 34704
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/APKINDEX.1fcf8a2c.tar.gz",
+          "bytes": 40568
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/mcookie-2.42.4-r3.c3b47fcc.apk",
+          "bytes": 8561
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/libapk-3.0.8-r0.aa18afbc.apk",
+          "bytes": 133925
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/losetup-2.42.4-r3.ebe1600f.apk",
+          "bytes": 27057
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/busybox-binsh-1.38.0-r7.1079f2ef.apk",
+          "bytes": 1565
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/findmnt-2.42.4-r3.adfa40cd.apk",
+          "bytes": 24096
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/alpine-baselayout-3.7.2-r1.7d537c36.apk",
+          "bytes": 8273
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/busybox-1.38.0-r7.54eda2df.apk",
+          "bytes": 510099
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/libfdisk-2.42.4-r3.9bac6105.apk",
+          "bytes": 125581
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/flock-2.42.4-r3.140770d4.apk",
+          "bytes": 8201
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/json-c-0.19-r1.b6fd3ff9.apk",
+          "bytes": 28821
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/libblkid-2.42.4-r3.3689817e.apk",
+          "bytes": 98450
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/runuser-2.42.4-r3.97bf3e43.apk",
+          "bytes": 20537
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/libssl3-3.5.9-r0.d28ccec0.apk",
+          "bytes": 381865
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/cfdisk-2.42.4-r3.24b62173.apk",
+          "bytes": 32076
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/APKINDEX.4000b982.tar.gz",
+          "bytes": 776159
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/linux-pam-1.7.1-r4.29a81683.apk",
+          "bytes": 203554
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/APKINDEX.cf20471b.tar.gz",
+          "bytes": 531284
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/lsblk-2.42.4-r3.c76e9bbd.apk",
+          "bytes": 54996
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/libuuid-2.42.4-r3.6e0a73a8.apk",
+          "bytes": 14268
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/setpriv-2.42.4-r3.6b1699e2.apk",
+          "bytes": 15082
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/qemu-aarch64-11.1.2-r0.09f7bbb1.apk",
+          "bytes": 2171800
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/zlib-1.3.2-r1.10b72dfa.apk",
+          "bytes": 56208
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/ssl_client-1.38.0-r7.373298dd.apk",
+          "bytes": 4682
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/fstrim-2.42.4-r3.e72320ed.apk",
+          "bytes": 13348
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/wipefs-2.42.4-r3.22d150bd.apk",
+          "bytes": 11866
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/cryptsetup-libs-2.8.8-r0.14ab085c.apk",
+          "bytes": 225565
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/utmps-libs-0.1.3.4-r0.c6c90793.apk",
+          "bytes": 5212
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/libncursesw-6.6_p20260822-r0.5896c987.apk",
+          "bytes": 159749
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/ca-certificates-bundle-20260909-r0.dd9c22d9.apk",
+          "bytes": 108535
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/lscpu-2.42.4-r3.45c11dab.apk",
+          "bytes": 42072
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/setarch-2.42.4-r3.ea260f49.apk",
+          "bytes": 8669
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/APKINDEX.66af3263.tar.gz",
+          "bytes": 40568
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/mount-2.42.4-r3.938b400b.apk",
+          "bytes": 14703
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/libsmartcols-2.42.4-r3.42ca75aa.apk",
+          "bytes": 56255
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/umount-2.42.4-r3.5f331ae0.apk",
+          "bytes": 11148
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/scanelf-1.3.11-r0.b61eb30b.apk",
+          "bytes": 32372
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/ncurses-terminfo-base-6.6_p20260822-r0.b88f067f.apk",
+          "bytes": 22178
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/APKINDEX.c0dba71d.tar.gz",
+          "bytes": 776159
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/parted-3.7-r0.c4fa64c2.apk",
+          "bytes": 224988
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/hexdump-2.42.4-r3.1fb5033f.apk",
+          "bytes": 17052
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/readline-8.3.3-r1.be485719.apk",
+          "bytes": 127189
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/device-mapper-libs-2.03.35-r8.a0732fee.apk",
+          "bytes": 138218
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/uuidgen-2.42.4-r3.c166d829.apk",
+          "bytes": 6289
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/blkid-2.42.4-r3.2d091b1c.apk",
+          "bytes": 19561
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/dmesg-2.42.4-r3.2819bee3.apk",
+          "bytes": 23916
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/apk-tools-3.0.8-r0.451ab476.apk",
+          "bytes": 55400
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/skalibs-libs-2.15.1.0-r0.17b237a8.apk",
+          "bytes": 85059
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/util-linux-misc-2.42.4-r3.1c888270.apk",
+          "bytes": 720555
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/libmount-2.42.4-r3.281d2d13.apk",
+          "bytes": 136070
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/APKINDEX.e37b76c2.tar.gz",
+          "bytes": 531284
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/cryptsetup-2.8.8-r0.e7099661.apk",
+          "bytes": 109465
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/libcap-ng-0.9.6-r0.9cb7c7e6.apk",
+          "bytes": 12694
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/APKINDEX.90ad0d91.tar.gz",
+          "bytes": 2548859
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/logger-2.42.4-r3.c12a4812.apk",
+          "bytes": 13018
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/musl-utils-1.2.6-r5.aed54524.apk",
+          "bytes": 13599
+        },
+        {
+          "path": "/home/cy122/pmos-samurai-rootfs01/work/cache_apk_x86_64/libcrypto3-3.5.9-r0.64f235bd.apk",
+          "bytes": 1980202
+        }
+      ]
+    },
+    {
+      "path": "/home/cy122/.cache/pmbootstrap",
+      "exists": false,
+      "resolved": "/home/cy122/.cache/pmbootstrap",
+      "files": []
+    },
+    {
+      "path": "/home/cy122/.cache/apk",
+      "exists": false,
+      "resolved": "/home/cy122/.cache/apk",
+      "files": []
+    }
+  ],
+  "free_bytes_home": 822608285696,
+  "seed_db_and_world_unchanged": true,
+  "inventory_source_sha256": "fca4d58abc1e48143b755611fb3195e5ded2eade7b1f185333d5c856402b5d45"
+}

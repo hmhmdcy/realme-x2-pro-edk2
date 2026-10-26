@@ -1,0 +1,40 @@
+{
+  "passed": true,
+  "boundary_groups": 9,
+  "compile_returncode": 0,
+  "compile_stderr": "",
+  "runtime_returncode": 0,
+  "runtime_stdout": "no consumer: baseline TX/startup/UART callbacks retained\nquiet joins IRQ/work and gates TX/shutdown/startup/console/IRQ/RX/reboot\nonly the exact token restores saved enabled IRQ and pending TTY/RX\ncancel holds quiet; explicit end preserves disabled IRQ and old fault\nF1/reboot/stopping/startup state cannot be silently cleared by begin\nPM rejects quiet; successful prepare blocks new begin through complete\ninconsistent IRQ restore refuses, retains token and can be explicitly retried\nremove invalidates token, preserves borrowed AHB; ordinary remove behavior retained\nactual begin join and remove serialize through one object-lifetime mutex\ngroups=9\n",
+  "runtime_stderr": "",
+  "flags": [
+    "-std=gnu11",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-Wno-unused-parameter",
+    "-Wno-unused-function",
+    "-fsanitize=address,undefined",
+    "-fno-omit-frame-pointer",
+    "-pthread"
+  ],
+  "tested_files": {
+    "eud.c": "8cdd661b7834a7ccba46bd7577be84bd3bb81f6a00fb512d2b70e9d7c4c1231c",
+    "eud-com-window.h": "8003aa9619d2f9d1a15d4ff97460b8f106dc54defc841f31670e98d48e2d8c46",
+    "candidate-functions.inc": "5d95d9a17d6a3e986a7dfce82b444dc23aa9216f1e151a7c0b971a244d5c6937",
+    "candidate-function-manifest.json": "f2ca15f4654548e6c122f3dc72f148103306e179c884d21ab04ceb9e1b865044",
+    "fake-eud-os.h": "3caf8faf13b3d3ce67b83871688311fe92462c640caa7db32db32ace59e87e94",
+    "test-candidate.c": "7a1135ec8aadb9ffc3227f1a7aa0b3300536b06a289f028cc0741bc940696e48",
+    "prepare-candidate.py": "c98b2f07afff46c354ef5344f22e573e90f98469c751d99d79256510a091750e",
+    "prepare-candidate-fixture.py": "f4472e28836bfa87c71c6e02a7301a6cf6e7f6884a44e778c2205c1ded37ec52",
+    "run-candidate-tests.py": "cf6866076a40bc4087e50de28de0802ef87c410575afe9d8ad23ef96131cb81a",
+    "window-implementation.inc": "aeac7b04479a16b0c030985c3e6da2d2df7b223013d2ce50216348d67b01edb6"
+  },
+  "phone_accessed": false,
+  "ssh_executed": false,
+  "usb_accessed": false,
+  "sdk_invoked": false,
+  "shared_source_modified": false,
+  "consumer_present": false,
+  "csr_or_ahb_window_writes": false,
+  "scope": "actual software window with fake OS/MMIO and one pthread lifetime race; no electrical or USB acceptance"
+}

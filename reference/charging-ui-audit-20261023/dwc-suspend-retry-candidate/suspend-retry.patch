@@ -1,0 +1,28 @@
+--- halt-error-candidate/drivers/usb/dwc3/gadget.c
++++ retry-candidate/drivers/usb/dwc3/gadget.c
+@@ -5065,7 +5065,25 @@
+ 
+ int dwc3_gadget_suspend(struct dwc3 *dwc)
+ {
++	unsigned long flags;
++	u32 reg;
+ 	int ret;
++
++	/* A previous stop can clear the software pullup flag before HALT.
++	 * Do not repeat request teardown or reset while waiting for that HALT.
++	 * This is a hardware snapshot, not serialization of every run/stop
++	 * writer through the subsequent core PM exit.
++	 */
++	spin_lock_irqsave(&dwc->lock, flags);
++	if (!dwc->pullups_connected && !pm_runtime_suspended(dwc->dev)) {
++		reg = dwc3_readl(dwc, DWC3_DSTS);
++		if (!(reg & DWC3_DSTS_DEVCTRLHLT) ||
++		    (dwc3_readl(dwc, DWC3_DCTL) & DWC3_DCTL_RUN_STOP)) {
++			spin_unlock_irqrestore(&dwc->lock, flags);
++			return -EAGAIN;
++		}
++	}
++	spin_unlock_irqrestore(&dwc->lock, flags);
+ 
+ 	ret = dwc3_gadget_soft_disconnect(dwc);
+ 	/*

@@ -1,0 +1,62 @@
+{
+  "passed": true,
+  "actual": {
+    "passed": true,
+    "actual_function_cases": 21,
+    "six_real_packets_replayed": 6,
+    "new_status_replies_are_synthetic": true,
+    "concurrent_capture_and_bus_contender_joined": true
+  },
+  "command": [
+    "gcc",
+    "-std=c11",
+    "-g",
+    "-O1",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-Wno-unused-parameter",
+    "-Wno-sign-compare",
+    "-Wno-misleading-indentation",
+    "-fsanitize=address,undefined",
+    "-fno-omit-frame-pointer",
+    "-pthread",
+    "-I/home/cy122/charging-management-20261023/protection-query-observer-tests-r2/stubs",
+    "-I/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/protection-query-observer-candidate",
+    "-I/home/cy122/charging-management-20261023/protection-query-observer-tests-r2",
+    "/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023/protection-query-observer-candidate/test-observer.c",
+    "-o",
+    "/home/cy122/charging-management-20261023/protection-query-observer-tests-r2/test-observer"
+  ],
+  "compile_returncode": 0,
+  "run_returncode": 0,
+  "private_output": "/home/cy122/charging-management-20261023/protection-query-observer-tests-r2",
+  "actual_function_source_sha256": "2442b60bb72946cc588d28ebd3b618ec3792c82c162374821745bf1b6ecf37f8",
+  "actual_functions": {
+    "sm_protection_read": "5f2dc5040f7ee6f9f0fe852ed8bf33566f64d99caa28537ea532e8dbe9990a85",
+    "sm_protection_capture_locked": "07f3c2df84820da3000228a11c725bd6c3c2e0974505bf4d07df2d50a678aca5",
+    "mac_evidence_capture_store": "9ea5331715ac9e159ef4273b3b47a0b609ebcb0b7adeeb55d3679710ad687b29",
+    "mac_evidence_show": "583094408afd85140f0d83e411153a9ee8a3b3bfbdc15cdfe7cb76a7d3a24174"
+  },
+  "test_binary_sha256": "fce88a660945ac8daba744930b753f109d8fe25f06f4a4766db159e6a4339c4d",
+  "compile_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "run_log_sha256": "1651c33688d457501442a14da334f4bf244d2c692bd085b42afeba393214d5fe",
+  "tested_files": {
+    "gauge-protocol.h": "98148c0701d000c21c7a9be60d0d14e412887f90fc1b83d0a3de8168359c28df",
+    "gauge-i2c.h": "8846d20648dc0b137a2608be9a7ed479ecd692b17db6875a2a18a2d046d7c8b2",
+    "samurai-gauge-protection.c": "3e1e81a341a5df072cde2c57ec7505096c192e7b873cfbb2720375ae7f9b8f6d",
+    "test-observer.c": "b4888db56d9f22b80260f1d3f09318e92758fcf6f9dbbb8165c8f95dd2af351b",
+    "test-observer.py": "cb22831da4843472527ab206f37ad6d6e54f0763be7d1bdf287bea248f949c11"
+  },
+  "old6_packet_fixture_sha256": "662254550a4f08ed8d0b1f9b1b58139e10cec0ceace5d2b222c438730d7d5ca2",
+  "old149_classifier_receipt_sha256": "94439bc21de11d1b4ab1793422f70e77bfada48d6a7f102baed03b5486e7b2fd",
+  "unmodified_normal_functions": [
+    "sm_protection_read",
+    "sm_protection_get",
+    "protection_state_show",
+    "sm_protection_probe"
+  ],
+  "old_suites_rerun": false,
+  "device_SSH_USB_SDK_Git_accessed": false,
+  "boundary": "real new functions/header; OS/I2C fake; not probe/physical or 2719 compatibility proof"
+}

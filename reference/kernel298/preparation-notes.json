@@ -1,0 +1,17 @@
+{
+  "stage": 298,
+  "flash_preflight_r1": {
+    "outcome": "rejected_before_any_flash_request_or_write",
+    "cause": "Unbounded stage-number replacement changed boot partition expected bytes from 100663296 to 100663297",
+    "actual_boot_bytes": 100663296,
+    "same_bootloader_transition_not_repeated": true,
+    "repair": "Preserve original read-only logs; exact partition size restored; fresh R2 device and geometry checks precede the single flash request; generator uses bounded non-hex stage tokens"
+  },
+  "host_harness_repairs": [
+    "Reserved bit expectation now matches the actual initial bit rather than assuming one",
+    "Failure injection targets the gamma stage that exercises the existing unwind path",
+    "Use the UAPI enable constant instead of a literal that meant disable"
+  ],
+  "candidate_build_invocation_before_workflow_generator_finished": "No file existed, no build started; after generator terminal success the full build ran once successfully",
+  "physical_black_calibration_pending": true
+}

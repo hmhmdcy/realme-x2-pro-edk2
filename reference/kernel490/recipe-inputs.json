@@ -1,0 +1,18 @@
+{
+  "stage": 490,
+  "materialization": "overlay references only; no full recipe source copy or recipe build",
+  "libcamera_base": "reference/kernel440/recipes/libcamera",
+  "existing_cohort_patch": {
+    "path": "reference/kernel475/0066-camss-r33-processed-ipe-cohort.patch",
+    "sha256": "cac57c9d0835fed193f572eddd11946d456e63dfeb88015b21d8ea70cc9299c5"
+  },
+  "new_patch": {
+    "path": "reference/kernel490/0067-camera-sensor-properties-v4l2-format.patch",
+    "sha256": "b53d8b4eff7834a28c0a7e1e8d25416e69eb00e5a93edb4c076da1fa850d5ff9"
+  },
+  "configuration_base": "reference/kernel440/recipes/samurai-camera-config",
+  "overlay_apkbuilds": [
+    "reference/kernel490/recipes/libcamera/APKBUILD",
+    "reference/kernel490/recipes/samurai-camera-config/APKBUILD"
+  ]
+}

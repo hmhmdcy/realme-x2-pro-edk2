@@ -1,0 +1,76 @@
+From: Gjorgji.Rosikopulos.gjorgji.rosikopulos@oss.qualcomm.com
+Subject: [PATCH 5/8] media: qcom: camss: Fix CSID-to-VFE all-to-all link crossbar on sm8250
+
+From: Gjorgji Rosikopulos <gjorgji.rosikopulos@oss.qualcomm.com>
+
+camss_link_entities() unconditionally links every CSID to every VFE,
+creating an all-to-all crossbar. On SM8250 the hardware wiring is
+fixed: each CSID is hardwired to exactly one VFE (csid[i] <-> vfe[i]),
+with no crossbar between instances. Enabling a mismatched link (e.g.
+csid0 -> vfe1) creates a media link that does not correspond to any
+real hardware datapath.
+
+Add a csid_vfe_fixed_pairing flag to struct camss_resources and set it
+for sm8250_resources. When set, camss_link_entities() skips creating
+links between CSID and VFE instances whose indices do not match.
+Other platforms keep the historical all-to-all link creation.
+
+Signed-off-by: Gjorgji Rosikopulos <gjorgji.rosikopulos@oss.qualcomm.com>
+---
+ drivers/media/platform/qcom/camss/camss.c | 7 ++++++-
+ drivers/media/platform/qcom/camss/camss.h | 7 +++++++
+ 2 files changed, 13 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/media/platform/qcom/camss/camss.c b/drivers/media/platform/qcom/camss/camss.c
+index 2123f6388e3d..1bb22cd23c5e 100644
+--- a/drivers/media/platform/qcom/camss/camss.c
++++ b/drivers/media/platform/qcom/camss/camss.c
+@@ -5000,7 +5000,10 @@ static int camss_link_entities(struct camss *camss)
+ 				}
+ 	} else {
+ 		for (i = 0; i < camss->res->csid_num; i++)
+-			for (k = 0; k < camss->res->vfe_num; k++)
++			for (k = 0; k < camss->res->vfe_num; k++) {
++				if (camss->res->csid_vfe_fixed_pairing && i != k)
++					continue;
++
+ 				for (j = 0; j < camss->vfe[k].res->line_num; j++) {
+ 					struct v4l2_subdev *csid = &camss->csid[i].subdev;
+ 					struct v4l2_subdev *vfe = &camss->vfe[k].line[j].subdev;
+@@ -5017,6 +5020,7 @@ static int camss_link_entities(struct camss *camss)
+ 						return ret;
+ 					}
+ 				}
++			}
+ 	}
+ 
+ 	return 0;
+@@ -5666,6 +5670,7 @@ static const struct camss_resources sm8250_resources = {
+ 	.csiphy_num = ARRAY_SIZE(csiphy_res_8250),
+ 	.csid_num = ARRAY_SIZE(csid_res_8250),
+ 	.vfe_num = ARRAY_SIZE(vfe_res_8250),
++	.csid_vfe_fixed_pairing = true,
+ };
+ 
+ static const struct camss_resources sc8280xp_resources = {
+diff --git a/drivers/media/platform/qcom/camss/camss.h b/drivers/media/platform/qcom/camss/camss.h
+index 93d691c8ac63..ad0b42719788 100644
+--- a/drivers/media/platform/qcom/camss/camss.h
++++ b/drivers/media/platform/qcom/camss/camss.h
+@@ -119,6 +119,13 @@ struct camss_resources {
+ 	const unsigned int tpg_num;
+ 	const unsigned int csid_num;
+ 	const unsigned int vfe_num;
++	/*
++	 * True on platforms where each CSID is wired to exactly one VFE at
++	 * the same index (csid[i] <-> vfe[i]). When set, camss_link_entities()
++	 * only creates CSID->VFE links for matching indices instead of an
++	 * all-to-all crossbar.
++	 */
++	const bool csid_vfe_fixed_pairing;
+ };
+ 
+ struct camss {
+-- 
+2.34.1
+

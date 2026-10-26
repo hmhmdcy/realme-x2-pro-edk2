@@ -1,0 +1,219 @@
+Subject: [PATCH] slimbus: refresh WCD934x addresses after reset
+
+Invalidate primary and interface addresses after the physical reset and
+defer chip setup until address assignment completes. Keep that query
+outside the WCD state lock because it can notify the client. Manage
+power and status cleanup even when the bus wrapper rejects a probe.
+Make repeated address invalidation release an allocated address once.
+
+---
+--- a/drivers/mfd/wcd934x.c
++++ b/drivers/mfd/wcd934x.c
+@@ -37,6 +37,7 @@
+ 	/* Serializes UP, DOWN and removal of status-scoped resources. */
+ 	struct mutex lock;
+ 	bool up;
++	bool ready;
+ };
+ 
+ static struct wcd934x_priv *wcd934x_get_private(struct slim_device *sdev)
+@@ -263,6 +264,10 @@
+ 		return -EPROBE_DEFER;
+ 
+ 	mutex_lock(&priv->lock);
++	if (!priv->ready) {
++		ret = -EPROBE_DEFER;
++		goto unlock;
++	}
+ 	switch (status) {
+ 	case SLIM_DEVICE_STATUS_UP:
+ 		ret = wcd934x_slim_status_up(sdev);
+@@ -274,6 +279,7 @@
+ 		ret = -EINVAL;
+ 		break;
+ 	}
++unlock:
+ 	mutex_unlock(&priv->lock);
+ 
+ 	return ret;
+@@ -281,11 +287,61 @@
+ 
+ static int wcd934x_finish_probe(struct slim_device *sdev)
+ {
+-	/* A driver rebind can start while the bus device is already UP. */
+-	if (sdev->status == SLIM_DEVICE_STATUS_UP)
+-		return wcd934x_slim_status(sdev, SLIM_DEVICE_STATUS_UP);
++	struct wcd934x_priv *priv = wcd934x_get_private(sdev);
++	int ret;
++
++	/* Address assignment can call device_status: do not hold priv->lock. */
++	ret = slim_get_logical_addr(sdev);
++	if (ret)
++		return ret;
++
++	mutex_lock(&priv->lock);
++	priv->ready = true;
++	ret = wcd934x_slim_status_up(sdev);
++	mutex_unlock(&priv->lock);
++
++	return ret;
++}
++
++static int wcd934x_reset_addresses(struct slim_device *sdev)
++{
++	struct device_node *np;
++	struct slim_device *sidev;
++
++	np = of_parse_phandle(sdev->dev.of_node, "slim-ifc-dev", 0);
++	if (!np)
++		return -EINVAL;
++	sidev = of_slim_get_device(sdev->ctrl, np);
++	of_node_put(np);
++	if (!sidev)
++		return -EPROBE_DEFER;
++
++	/* Reset affects both the primary and interface logical devices. */
++	slim_report_absent(sidev);
++	slim_report_absent(sdev);
++	put_device(&sidev->dev);
+ 
+ 	return 0;
++}
++
++static void wcd934x_stop_action(void *data)
++{
++	struct slim_device *sdev = data;
++	struct wcd934x_priv *priv = wcd934x_get_private(sdev);
++
++	if (!priv)
++		return;
++	mutex_lock(&priv->lock);
++	priv->ready = false;
++	wcd934x_slim_status_down(sdev);
++	mutex_unlock(&priv->lock);
++}
++
++static void wcd934x_disable_supplies(void *data)
++{
++	struct wcd934x_ddata *ddata = data;
++
++	regulator_bulk_disable(WCD934X_MAX_SUPPLY, ddata->supplies);
+ }
+ 
+ static int wcd934x_slim_probe(struct slim_device *sdev)
+@@ -327,6 +383,9 @@
+ 	ret = regulator_bulk_enable(WCD934X_MAX_SUPPLY, ddata->supplies);
+ 	if (ret)
+ 		return dev_err_probe(dev, ret, "Failed to enable supplies\n");
++	ret = devm_add_action_or_reset(dev, wcd934x_disable_supplies, ddata);
++	if (ret)
++		return ret;
+ 
+ 	/*
+ 	 * For WCD934X, it takes about 600us for the Vout_A and
+@@ -335,37 +394,28 @@
+ 	 */
+ 	usleep_range(600, 650);
+ 	reset_gpio = devm_gpiod_get_optional(dev, "reset", GPIOD_OUT_LOW);
+-	if (IS_ERR(reset_gpio)) {
+-		ret = dev_err_probe(dev, PTR_ERR(reset_gpio),
+-				    "Failed to get reset gpio\n");
+-		goto err_disable_regulators;
+-	}
++	if (IS_ERR(reset_gpio))
++		return dev_err_probe(dev, PTR_ERR(reset_gpio),
++				     "Failed to get reset gpio\n");
+ 	msleep(20);
+ 	gpiod_set_value(reset_gpio, 1);
+ 	msleep(20);
+ 
++	ret = wcd934x_reset_addresses(sdev);
++	if (ret)
++		return dev_err_probe(dev, ret, "Failed to invalidate SLIM addresses\n");
++
+ 	dev_set_drvdata(dev, ddata);
+-	ret = wcd934x_finish_probe(sdev);
+-	if (ret)
+-		goto err_disable_regulators;
+-
+-	return 0;
+-
+-err_disable_regulators:
+-	regulator_bulk_disable(WCD934X_MAX_SUPPLY, ddata->supplies);
+-	return ret;
++	ret = devm_add_action_or_reset(dev, wcd934x_stop_action, sdev);
++	if (ret)
++		return ret;
++
++	return wcd934x_finish_probe(sdev);
+ }
+ 
+ static void wcd934x_slim_remove(struct slim_device *sdev)
+ {
+-	struct wcd934x_ddata *ddata = dev_get_drvdata(&sdev->dev);
+-
+-	struct wcd934x_priv *priv = wcd934x_get_private(sdev);
+-
+-	mutex_lock(&priv->lock);
+-	wcd934x_slim_status_down(sdev);
+-	mutex_unlock(&priv->lock);
+-	regulator_bulk_disable(WCD934X_MAX_SUPPLY, ddata->supplies);
++	wcd934x_stop_action(sdev);
+ }
+ 
+ static const struct slim_device_id wcd934x_slim_id[] = {
+--- a/drivers/slimbus/core.c
++++ b/drivers/slimbus/core.c
+@@ -306,24 +306,28 @@
+ EXPORT_SYMBOL_GPL(slim_unregister_controller);
+ 
+ /**
+- * slim_report_absent() - Controller calls this function when a device
+- *	reports absent, OR when the device cannot be communicated with
++ * slim_report_absent() - Invalidate a device address and report it absent
++ *
++ * Controllers call this when a device reports absent or cannot be reached.
++ * A client can also use it after a hardware reset invalidates its address.
+  *
+  * @sbdev: Device that cannot be reached, or sent report absent
+  */
+ void slim_report_absent(struct slim_device *sbdev)
+ {
+ 	struct slim_controller *ctrl = sbdev->ctrl;
++	bool was_valid;
+ 
+ 	if (!ctrl)
+ 		return;
+ 
+ 	/* invalidate logical addresses */
+ 	mutex_lock(&ctrl->lock);
++	was_valid = sbdev->is_laddr_valid;
+ 	sbdev->is_laddr_valid = false;
++	if (was_valid && !ctrl->get_laddr)
++		ida_free(&ctrl->laddr_ida, sbdev->laddr);
+ 	mutex_unlock(&ctrl->lock);
+-	if (!ctrl->get_laddr)
+-		ida_free(&ctrl->laddr_ida, sbdev->laddr);
+ 	slim_device_update_status(sbdev, SLIM_DEVICE_STATUS_DOWN);
+ }
+ EXPORT_SYMBOL_GPL(slim_report_absent);
+--- a/include/linux/slimbus.h
++++ b/include/linux/slimbus.h
+@@ -177,6 +177,7 @@
+ struct slim_device *slim_get_device(struct slim_controller *ctrl,
+ 				    struct slim_eaddr *e_addr);
+ int slim_get_logical_addr(struct slim_device *sbdev);
++void slim_report_absent(struct slim_device *sbdev);
+ 
+ /* Information Element management messages */
+ #define SLIM_MSG_MC_REQUEST_INFORMATION          0x20
+--- a/drivers/slimbus/slimbus.h
++++ b/drivers/slimbus/slimbus.h
+@@ -424,7 +424,6 @@
+ 
+ int slim_device_report_present(struct slim_controller *ctrl,
+ 			       struct slim_eaddr *e_addr, u8 *laddr);
+-void slim_report_absent(struct slim_device *sbdev);
+ int slim_register_controller(struct slim_controller *ctrl);
+ int slim_unregister_controller(struct slim_controller *ctrl);
+ void slim_msg_response(struct slim_controller *ctrl, u8 *reply, u8 tid, u8 l);

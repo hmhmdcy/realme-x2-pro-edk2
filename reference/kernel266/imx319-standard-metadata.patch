@@ -1,0 +1,214 @@
+Subject: [PATCH] media: imx319: report preset crop geometry and camera location
+
+Report analogue crop coordinates from each existing register-list mode.
+Expose mounting properties exclusively from firmware. Board location
+belongs in the RMX1931 device tree. Keep sensor registers unchanged.
+Do not invent an unknown sensor rotation.
+
+---
+--- a/drivers/media/i2c/imx319.c
++++ b/drivers/media/i2c/imx319.c
+@@ -92,12 +92,17 @@
+ 	const struct imx319_reg *regs;
+ };
+ 
++/* Full unbinned register-list readout coordinate space. */
++#define IMX319_NATIVE_WIDTH	3280
++#define IMX319_NATIVE_HEIGHT	2464
++
+ /* Mode : resolution and related config&values */
+ struct imx319_mode {
+ 	/* Frame width */
+ 	u32 width;
+ 	/* Frame height */
+ 	u32 height;
++	struct v4l2_rect analogue_crop;
+ 
+ 	/* V-timing */
+ 	u32 fll_def;
+@@ -1693,6 +1698,10 @@
+ 	{
+ 		.width = 3280,
+ 		.height = 2464,
++		.analogue_crop = {
++			.left = 0, .top = 0,
++			.width = 3280, .height = 2464,
++		},
+ 		.fll_def = 3242,
+ 		.fll_min = 3242,
+ 		.llp = 3968,
+@@ -1705,6 +1714,10 @@
+ 	{
+ 		.width = 3264,
+ 		.height = 2448,
++		.analogue_crop = {
++			.left = 0, .top = 0,
++			.width = 3280, .height = 2464,
++		},
+ 		.fll_def = 3242,
+ 		.fll_min = 3242,
+ 		.llp = 3968,
+@@ -1717,6 +1730,10 @@
+ 	{
+ 		.width = 1936,
+ 		.height = 1096,
++		.analogue_crop = {
++			.left = 0, .top = 684,
++			.width = 3280, .height = 1096,
++		},
+ 		.fll_def = 3242,
+ 		.fll_min = 3242,
+ 		.llp = 3968,
+@@ -1729,6 +1746,10 @@
+ 	{
+ 		.width = 1920,
+ 		.height = 1080,
++		.analogue_crop = {
++			.left = 0, .top = 692,
++			.width = 3280, .height = 1080,
++		},
+ 		.fll_def = 3242,
+ 		.fll_min = 3242,
+ 		.llp = 3968,
+@@ -1741,6 +1762,10 @@
+ 	{
+ 		.width = 1640,
+ 		.height = 1232,
++		.analogue_crop = {
++			.left = 0, .top = 0,
++			.width = 3280, .height = 2464,
++		},
+ 		.fll_def = 5146,
+ 		.fll_min = 5146,
+ 		.llp = 2500,
+@@ -1753,6 +1778,10 @@
+ 	{
+ 		.width = 1640,
+ 		.height = 922,
++		.analogue_crop = {
++			.left = 0, .top = 304,
++			.width = 3280, .height = 1856,
++		},
+ 		.fll_def = 5146,
+ 		.fll_min = 5146,
+ 		.llp = 2500,
+@@ -1765,6 +1794,10 @@
+ 	{
+ 		.width = 1296,
+ 		.height = 736,
++		.analogue_crop = {
++			.left = 0, .top = 496,
++			.width = 3280, .height = 1472,
++		},
+ 		.fll_def = 5146,
+ 		.fll_min = 5146,
+ 		.llp = 2500,
+@@ -1777,6 +1810,10 @@
+ 	{
+ 		.width = 1280,
+ 		.height = 720,
++		.analogue_crop = {
++			.left = 0, .top = 512,
++			.width = 3280, .height = 1440,
++		},
+ 		.fll_def = 5146,
+ 		.fll_min = 5146,
+ 		.llp = 2500,
+@@ -1797,6 +1834,10 @@
+ static const struct imx319_mode imx319_oem_modes[] = {
+ 	{
+ 		.width = 1632, .height = 1224,
++		.analogue_crop = {
++			.left = 0, .top = 8,
++			.width = 3280, .height = 2448,
++		},
+ 		.fll_def = 3350, .fll_min = 3350, .llp = 2080,
+ 		.link_freq_index = 0,
+ 		.reg_list = { ARRAY_SIZE(imx319_oem_mode_regs), imx319_oem_mode_regs },
+@@ -2298,6 +2339,48 @@
+ 	mutex_unlock(&imx319->mutex);
+ 
+ 	return ret;
++}
++
++static int imx319_get_selection(struct v4l2_subdev *sd,
++				struct v4l2_subdev_state *sd_state,
++				struct v4l2_subdev_selection *sel)
++{
++	struct imx319 *imx319 = to_imx319(sd);
++	const struct imx319_mode *mode;
++	struct v4l2_mbus_framefmt *format;
++
++	if (sel->pad || (sel->which != V4L2_SUBDEV_FORMAT_ACTIVE &&
++			 sel->which != V4L2_SUBDEV_FORMAT_TRY))
++		return -EINVAL;
++
++	switch (sel->target) {
++	case V4L2_SEL_TGT_NATIVE_SIZE:
++	case V4L2_SEL_TGT_CROP_BOUNDS:
++	case V4L2_SEL_TGT_CROP_DEFAULT:
++		sel->r = (struct v4l2_rect) {
++			.left = 0, .top = 0,
++			.width = IMX319_NATIVE_WIDTH,
++			.height = IMX319_NATIVE_HEIGHT,
++		};
++		return 0;
++	case V4L2_SEL_TGT_CROP:
++		mutex_lock(&imx319->mutex);
++		if (sel->which == V4L2_SUBDEV_FORMAT_TRY) {
++			format = v4l2_subdev_state_get_format(sd_state, sel->pad);
++			mode = v4l2_find_nearest_size(imx319->profile->modes,
++						      imx319->profile->num_modes,
++						      width, height,
++						      format->width, format->height);
++		} else {
++			mode = imx319->cur_mode;
++		}
++		/* Report the analogue window before binning/digital cropping. */
++		sel->r = mode->analogue_crop;
++		mutex_unlock(&imx319->mutex);
++		return 0;
++	default:
++		return -EINVAL;
++	}
+ }
+ 
+ static int
+@@ -2508,6 +2591,7 @@
+ 	.enum_mbus_code = imx319_enum_mbus_code,
+ 	.get_fmt = imx319_get_pad_format,
+ 	.set_fmt = imx319_set_pad_format,
++	.get_selection = imx319_get_selection,
+ 	.enum_frame_size = imx319_enum_frame_size,
+ };
+ 
+@@ -2528,6 +2612,7 @@
+ /* Initialize control handlers */
+ static int imx319_init_controls(struct imx319 *imx319)
+ {
++	struct v4l2_fwnode_device_properties props;
+ 	struct v4l2_ctrl_handler *ctrl_hdlr;
+ 	s64 exposure_max;
+ 	s64 vblank_def;
+@@ -2538,12 +2623,19 @@
+ 	u32 max;
+ 	int ret;
+ 
+-	ctrl_hdlr = &imx319->ctrl_handler;
+-	ret = v4l2_ctrl_handler_init(ctrl_hdlr, 10);
++	ret = v4l2_fwnode_device_parse(imx319->dev, &props);
+ 	if (ret)
+ 		return ret;
+ 
++	ctrl_hdlr = &imx319->ctrl_handler;
++	ret = v4l2_ctrl_handler_init(ctrl_hdlr, 12);
++	if (ret)
++		return ret;
++
+ 	ctrl_hdlr->lock = &imx319->mutex;
++	ret = v4l2_ctrl_new_fwnode_properties(ctrl_hdlr, &imx319_ctrl_ops, &props);
++	if (ret)
++		goto error;
+ 	max = imx319->profile->num_link_freqs - 1;
+ 	imx319->link_freq = v4l2_ctrl_new_int_menu(ctrl_hdlr, &imx319_ctrl_ops,
+ 						   V4L2_CID_LINK_FREQ, max, 0,

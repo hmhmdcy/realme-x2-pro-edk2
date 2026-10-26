@@ -1,0 +1,31 @@
+--- sm8150-usb.dtsi ---
+22: 		reg-names = "core_base";
+47: 		clock-names = "core_clk", "iface_clk", "bus_aggr_clk",
+139: 	usb2_phy0: hsphy@88e2000 {
+143: 		reg-names = "hsusb_phy_base",
+152: 		clock-names = "ref_clk_src";
+164: 		reg-names = "qmp_phy_base";
+328: 		clock-names = "aux_clk", "pipe_clk", "ref_clk_src",
+351: 		reg-names = "core_base";
+371: 		clock-names = "core_clk", "iface_clk", "bus_aggr_clk",
+436: 		reg-names = "hsusb_phy_base",
+445: 		clock-names = "ref_clk_src";
+459: 		reg-names = "qmp_phy_base",
+575: 		clock-names = "aux_clk", "pipe_clk", "ref_clk_src",
+--- dwc3-msm.c ---
+71: #define PERIPH_SS_AHB2PHY_TOP_CFG 0x10
+74: #define ONE_READ_WRITE_WAIT 0x11
+--- phy-qcom-snps-femto-v2.c ---
+154: 	hsphy->clks[0].id = "cfg_ahb";
+155: 	hsphy->clks[0].clk = devm_clk_get_optional(dev, "cfg_ahb");
+158: 				     "failed to get cfg_ahb clk\n");
+386: static int qcom_snps_hsphy_init(struct phy *phy)
+403: 	ret = reset_control_assert(hsphy->phy_reset);
+411: 	ret = reset_control_deassert(hsphy->phy_reset);
+483: 	reset_control_assert(hsphy->phy_reset);
+492: 	.init		= qcom_snps_hsphy_init,
+499: 	{ .compatible	= "qcom,sm8150-usb-hs-phy", },
+--- sm8150-mainline.dtsi ---
+3455: 		usb_1_hsphy: phy@88e2000 {
+3456: 			compatible = "qcom,sm8150-usb-hs-phy",
+3469: 			compatible = "qcom,sm8150-usb-hs-phy",

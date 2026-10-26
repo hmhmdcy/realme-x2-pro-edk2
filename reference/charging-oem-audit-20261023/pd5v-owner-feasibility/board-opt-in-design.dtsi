@@ -1,0 +1,8 @@
+/* Design only: never compiled or applied. Native DTB c559...c4503 paths.
+ * Remains disabled. A future separately reviewed boot policy would have to
+ * enable this node, add module opt-in and bind a real consumer. */
+&{/soc@0/spmi@c440000/pmic@2/typec@1500} {
+	realme,pd5v-only;
+	vdd-pdphy-supply = <&{/soc@0/rsc@18200000/regulators-0/ldo2}>;
+	status = "disabled";
+};

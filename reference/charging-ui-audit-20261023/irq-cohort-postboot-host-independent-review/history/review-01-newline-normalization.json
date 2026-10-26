@@ -1,0 +1,10 @@
+{
+  "scope": "reviewer's read-only AST/hash binder",
+  "exit_code": 1,
+  "failed_assertion": "hash of extracted probe function equals author source-reuse receipt",
+  "cause": "The first binder included the function's trailing line ending; the receipt uses ast.get_source_segment, which excludes it. Exact device-versus-probe function comparison had already succeeded.",
+  "correction": "Use ast.get_source_segment consistently for the reviewer's own hash comparison.",
+  "author_source_or_receipt_changed": false,
+  "author_entry_tests_or_device_executed": false,
+  "final_review_written_by_failed_run": false
+}

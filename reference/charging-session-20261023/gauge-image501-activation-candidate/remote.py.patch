@@ -1,0 +1,20 @@
+--- previous/remote.py
++++ image501/remote.py
+@@ -2,7 +2,7 @@
+ from pathlib import Path
+ import base64,hashlib,json,os,re,runpy,subprocess,sys,time
+ sha=lambda raw:hashlib.sha256(raw).hexdigest()
+-OWNER=Path('/run/samurai-eud-boot-activation-owner-private.json')
++OWNER=Path('/run/samurai-image501-activation-owner-private.json')
+ 
+ def create(p,raw):
+  with Path(p).open('xb') as f:f.write(raw);f.flush();os.fsync(f.fileno())
+@@ -37,7 +37,7 @@
+  assert meta['boot_id']==d['expected_boot'];return meta,output,phase
+ 
+ def main(d):
+- os.umask(0o077);tx=d['transaction_id'];assert re.fullmatch(r'eud-boot-[a-z0-9-]{8,64}',tx)
++ os.umask(0o077);tx=d['transaction_id'];assert re.fullmatch(r'image501-[a-z0-9-]{8,64}',tx)
+  assert re.fullmatch(r'[0-9a-f]{32,64}',d['token'])
+  root=Path('/root/charging-management-20261023')/tx;output=Path('/var/lib/samurai')/tx
+  phase=Path('/run')/(tx+'-reboot-phase-private.json');action=d['action']
