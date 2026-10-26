@@ -6,7 +6,8 @@ param(
     [string]$ManifestPath = (Join-Path $PSScriptRoot 'manifest.json'),
     [string]$WorkDirectory = '',
     [string]$ReportPath = '',
-    [switch]$Execute
+    [switch]$Execute,
+    [switch]$NoFetch
 )
 
 $ErrorActionPreference = 'Stop'
@@ -265,6 +266,24 @@ function Flash-And-Verify {
     Fetch-And-Verify -Partition $Partition -ExpectedSha $ExpectedSha -Bytes $Bytes -Label $Readback
 }
 
+function Flash-WithoutReadback {
+    param(
+        [Parameter(Mandatory = $true)][string]$Partition,
+        [Parameter(Mandatory = $true)][string]$Image
+    )
+    $script:WriteAttempted = $true
+    $result = Invoke-Fastboot -Arguments @('flash', $Partition, $Image)
+    if ($result.ExitCode -ne 0) {
+        throw "fastboot flash $Partition failed`n$($result.Text)"
+    }
+    [pscustomobject]@{
+        partition = $Partition
+        image = $Image
+        host_readback = $false
+        guard_readback_required = $true
+    }
+}
+
 function Invoke-SingleReboot {
     if ($script:RebootAttempted) {
         throw 'refusing to send fastboot reboot more than once'
@@ -301,6 +320,24 @@ function Restore-OldPair {
     [pscustomobject]@{ passed = $true; steps = $steps }
 }
 
+function Restore-OldPairWithoutFetch {
+    if ($script:RecoveryAttempted) {
+        throw 'refusing to replay recovery more than once'
+    }
+    $script:RecoveryAttempted = $true
+    if ($script:RebootAttempted) {
+        throw 'refusing to write recovery after reboot was attempted'
+    }
+    $steps = @()
+    $steps += Flash-WithoutReadback `
+        -Partition 'boot' `
+        -Image $Manifest.carriers.boot.old_path
+    $steps += Flash-WithoutReadback `
+        -Partition 'logdump' `
+        -Image $Manifest.carriers.logdump.old_path
+    [pscustomobject]@{ passed = $true; steps = $steps; host_readback = $false }
+}
+
 function Test-StageReceipt {
     param([Parameter(Mandatory = $true)][string]$Path)
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
@@ -331,12 +368,28 @@ function Test-StageReceipt {
     Assert-True $receipt.stage_execute 'stage_execute'
     Assert-True $receipt.guard_installed 'guard_installed'
     Assert-True $receipt.original_service_installed 'original_service_installed'
+    Assert-True $receipt.main_manifest_patched 'main_manifest_patched'
     Assert-True $receipt.old_carriers_backed_up 'old_carriers_backed_up'
     Assert-True $receipt.partition_identity_recorded 'partition_identity_recorded'
     Assert-False $receipt.new_carrier_written 'new_carrier_written'
     Assert-True $receipt.reboot_bootloader_requested 'reboot_bootloader_requested'
+    if ($receipt.host_fetch_unavailable -isnot [bool]) {
+        throw 'stage receipt host_fetch_unavailable must be a boolean'
+    }
     if ($receipt.manifest_sha256 -ne (Get-Sha256 -Path $ManifestPath)) {
         throw 'stage receipt manifest hash mismatch'
+    }
+    if ($receipt.original_main_manifest.sha256 -ne $Manifest.main_manifest.old_sha256 -or
+        $receipt.main_manifest_patch.old_sha256 -ne $Manifest.main_manifest.old_sha256 -or
+        $receipt.main_manifest_patch.target -ne $Manifest.main_manifest.target -or
+        $receipt.main_manifest_patch.service_target -ne $Manifest.main_manifest.service_target -or
+        $receipt.main_manifest_patch.service_sha256 -ne $Manifest.device_files.($Manifest.main_manifest.service_target).sha256) {
+        throw 'stage receipt main manifest patch metadata mismatch'
+    }
+    $mainManifestHash = $receipt.installed_file_sha256.PSObject.Properties[$Manifest.main_manifest.target]
+    if ($null -eq $mainManifestHash -or
+        $mainManifestHash.Value.ToLowerInvariant() -ne $receipt.main_manifest_patch.new_sha256.ToLowerInvariant()) {
+        throw 'stage receipt main manifest patch hash mismatch'
     }
     foreach ($property in $Manifest.device_files.PSObject.Properties) {
         $target = $property.Name
@@ -368,6 +421,9 @@ function Assert-Manifest {
     if ($manifest.schema -ne 1) { throw 'manifest schema mismatch' }
     if ($manifest.fastboot.serial -ne $script:Serial) { throw 'manifest serial mismatch' }
     if ($manifest.fastboot.product -ne $script:Product) { throw 'manifest product mismatch' }
+    if ($manifest.fastboot.guard_carrier_readback_required -ne $true) {
+        throw 'manifest must require guard carrier readback'
+    }
     Assert-False $manifest.high_voltage_permitted 'high_voltage_permitted'
     foreach ($name in @('boot', 'logdump')) {
         $row = $manifest.carriers.$name
@@ -375,9 +431,9 @@ function Assert-Manifest {
         Assert-FilePin -Path $row.new_path -Sha256 $row.new -Bytes ([long]$row.bytes) -Label "new $name"
     }
     if ($null -ne $manifest.image) {
-        if ($manifest.image.sha256 -ne 'df9644bd8946a4d066937549aefbe6b552ca18715cc1a745efac6ca41bb8f910' -or
+        if ($manifest.image.sha256 -ne '3893a1c29a143325e7067e1d88fdf539332ae7ec11ac83fea263a86956d372b5' -or
             [long]$manifest.image.bytes -ne 59374080) {
-            throw 'manifest Image pin is not the #510 Image'
+            throw 'manifest Image pin is not the #513 Image'
         }
     }
     $null = Assert-DtbAndBootReceipt -ManifestData $manifest
@@ -388,6 +444,10 @@ $report = [ordered]@{
     schema = 1
     passed = $false
     execute = [bool]$Execute
+    no_fetch = [bool]$NoFetch
+    host_fetch_unavailable = $null
+    host_readback_verified = $false
+    guard_carrier_readback_required = $false
     device_touched = $false
     writes_attempted = $false
     recovery_attempted = $false
@@ -410,10 +470,23 @@ try {
     }
     $receipt = Test-StageReceipt -Path $StageReceipt
     $report.stage_receipt = $receipt
+    if ($NoFetch) {
+        if ($receipt.host_fetch_unavailable -ne $true) {
+            throw '-NoFetch requires stage receipt host_fetch_unavailable=true'
+        }
+        $report.host_fetch_unavailable = $true
+        $report.guard_carrier_readback_required = $true
+    }
+    else {
+        if ($receipt.host_fetch_unavailable -eq $true) {
+            throw 'stage receipt says host fetch is unavailable; pass -NoFetch'
+        }
+        $report.host_fetch_unavailable = $false
+    }
 
     if ([string]::IsNullOrWhiteSpace($WorkDirectory)) {
         $WorkDirectory = Join-Path ([System.IO.Path]::GetTempPath()) (
-            'charging-trial-510-' + [guid]::NewGuid().ToString('N')
+            'charging-trial-513-' + [guid]::NewGuid().ToString('N')
         )
     }
     if (Test-Path -LiteralPath $WorkDirectory) {
@@ -441,54 +514,89 @@ try {
     $sizes = Assert-PartitionSizes
     $report.partition_sizes = $sizes
 
-    $preflightBoot = Fetch-And-Verify `
-        -Partition 'boot' `
-        -ExpectedSha $Manifest.carriers.boot.old `
-        -Bytes ([long]$Manifest.carriers.boot.bytes) `
-        -Label 'preflight-boot.img'
-    $preflightLogdump = Fetch-And-Verify `
-        -Partition 'logdump' `
-        -ExpectedSha $Manifest.carriers.logdump.old `
-        -Bytes ([long]$Manifest.carriers.logdump.bytes) `
-        -Label 'preflight-logdump.img'
-    $report.preflight_current_old = @($preflightBoot, $preflightLogdump)
-
-    try {
-        $report.logdump = Flash-And-Verify `
-            -Partition 'logdump' `
-            -Image $Manifest.carriers.logdump.new_path `
-            -ExpectedSha $Manifest.carriers.logdump.new `
-            -Bytes ([long]$Manifest.carriers.logdump.bytes) `
-            -Readback 'new-logdump.img'
-        $report.boot = Flash-And-Verify `
-            -Partition 'boot' `
-            -Image $Manifest.carriers.boot.new_path `
-            -ExpectedSha $Manifest.carriers.boot.new `
-            -Bytes ([long]$Manifest.carriers.boot.bytes) `
-            -Readback 'new-boot.img'
-        Invoke-SingleReboot
-        $report.reboot_count = 1
-        $report.passed = $true
-        $report.outcome = 'new_pair_verified_and_rebooted'
-    }
-    catch {
-        $writeError = $_.Exception.Message
-        $report.write_error = $writeError
-        if (-not $script:WriteAttempted) {
-            throw
-        }
+    if ($NoFetch) {
         try {
-            $recovery = Restore-OldPair
-            $report.recovery = $recovery
-            $report.recovery_attempted = $true
+            $report.logdump = Flash-WithoutReadback `
+                -Partition 'logdump' `
+                -Image $Manifest.carriers.logdump.new_path
+            $report.boot = Flash-WithoutReadback `
+                -Partition 'boot' `
+                -Image $Manifest.carriers.boot.new_path
             Invoke-SingleReboot
             $report.reboot_count = 1
-            $report.outcome = 'old_pair_restored_and_rebooted'
+            $report.passed = $true
+            $report.outcome = 'new_pair_flashed_no_host_readback_guard_readback_required'
         }
         catch {
-            $report.recovery_error = $_.Exception.Message
-            $report.recovery_attempted = $script:RecoveryAttempted
-            $report.outcome = 'recovery_failed_no_reboot'
+            $report.write_error = $_.Exception.Message
+            if (-not $script:WriteAttempted) {
+                throw
+            }
+            try {
+                $recovery = Restore-OldPairWithoutFetch
+                $report.recovery = $recovery
+                $report.recovery_attempted = $true
+                Invoke-SingleReboot
+                $report.reboot_count = 1
+                $report.outcome = 'old_pair_restored_without_host_readback_and_rebooted'
+            }
+            catch {
+                $report.recovery_error = $_.Exception.Message
+                $report.recovery_attempted = $script:RecoveryAttempted
+                $report.outcome = 'recovery_failed_no_reboot'
+            }
+        }
+    }
+    else {
+        $preflightBoot = Fetch-And-Verify `
+            -Partition 'boot' `
+            -ExpectedSha $Manifest.carriers.boot.old `
+            -Bytes ([long]$Manifest.carriers.boot.bytes) `
+            -Label 'preflight-boot.img'
+        $preflightLogdump = Fetch-And-Verify `
+            -Partition 'logdump' `
+            -ExpectedSha $Manifest.carriers.logdump.old `
+            -Bytes ([long]$Manifest.carriers.logdump.bytes) `
+            -Label 'preflight-logdump.img'
+        $report.preflight_current_old = @($preflightBoot, $preflightLogdump)
+
+        try {
+            $report.logdump = Flash-And-Verify `
+                -Partition 'logdump' `
+                -Image $Manifest.carriers.logdump.new_path `
+                -ExpectedSha $Manifest.carriers.logdump.new `
+                -Bytes ([long]$Manifest.carriers.logdump.bytes) `
+                -Readback 'new-logdump.img'
+            $report.boot = Flash-And-Verify `
+                -Partition 'boot' `
+                -Image $Manifest.carriers.boot.new_path `
+                -ExpectedSha $Manifest.carriers.boot.new `
+                -Bytes ([long]$Manifest.carriers.boot.bytes) `
+                -Readback 'new-boot.img'
+            Invoke-SingleReboot
+            $report.reboot_count = 1
+            $report.host_readback_verified = $true
+            $report.passed = $true
+            $report.outcome = 'new_pair_verified_and_rebooted'
+        }
+        catch {
+            $report.write_error = $_.Exception.Message
+            if (-not $script:WriteAttempted) {
+                throw
+            }
+            try {
+                $recovery = Restore-OldPair
+                $report.recovery = $recovery
+                $report.recovery_attempted = $true
+                Invoke-SingleReboot
+                $report.reboot_count = 1
+                $report.outcome = 'old_pair_restored_and_rebooted'
+            }
+            catch {
+                $report.recovery_error = $_.Exception.Message
+                $report.recovery_attempted = $script:RecoveryAttempted
+                $report.outcome = 'recovery_failed_no_reboot'
+            }
         }
     }
 }

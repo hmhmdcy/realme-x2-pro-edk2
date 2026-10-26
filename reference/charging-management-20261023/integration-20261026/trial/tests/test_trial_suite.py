@@ -61,6 +61,7 @@ def build_manifest(
     new_paths: dict[str, Path],
     dtb_path: Path,
     boot_receipt_path: Path,
+    main_manifest_path: Path,
 ) -> dict:
     device_files = {
         str(trial_common.COMMON_PATH): {
@@ -105,8 +106,15 @@ def build_manifest(
             "serial": SERIAL,
             "product": "msmnile",
             "path": r"C:\Users\cy122\Downloads\platform-tools\platform-tools\fastboot.exe",
+            "host_fetch_unavailable": False,
+            "guard_carrier_readback_required": True,
         },
         "device_files": device_files,
+        "main_manifest": {
+            "target": str(trial_common.MAIN_MANIFEST_PATH),
+            "old_sha256": sha(main_manifest_path),
+            "service_target": str(trial_common.SERVICE_PATH),
+        },
         "carriers": carriers,
         "dtb": {
             "path": str(dtb_path),
@@ -159,6 +167,21 @@ def make_fixture(base: Path) -> dict:
         target / "etc/init.d/samurai-charging",
         "#!/sbin/openrc-run\n# original service\n",
     )
+    main_manifest = write(
+        target / "usr/share/samurai-charging/manifest.json",
+        json.dumps(
+            {
+                "release": trial_common.RELEASE,
+                "modules": {},
+                "installed_files": {
+                    str(trial_common.SERVICE_PATH): sha(original_service),
+                },
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+    )
     devices = {
         "boot": write(base / "devices/boot.img", old_paths["boot"].read_bytes()),
         "logdump": write(base / "devices/logdump.img", old_paths["logdump"].read_bytes()),
@@ -179,7 +202,12 @@ def make_fixture(base: Path) -> dict:
         + "\n",
     )
     manifest = build_manifest(
-        package, old_paths, new_paths, dtb_path, boot_receipt_path
+        package,
+        old_paths,
+        new_paths,
+        dtb_path,
+        boot_receipt_path,
+        main_manifest,
     )
     manifest_path = write(
         package / "manifest.json",
@@ -205,6 +233,9 @@ def make_fixture(base: Path) -> dict:
         "target": target,
         "target_manifest": target
         / Path(str(trial_common.MANIFEST_PATH)).relative_to("/"),
+        "main_manifest": main_manifest,
+        "original_main_manifest_sha256": sha(main_manifest),
+        "original_main_manifest_bytes": main_manifest.read_bytes(),
         "devices": devices,
         "identities": identities,
         "dtb_path": dtb_path,
@@ -412,7 +443,12 @@ class GuardStageTests(unittest.TestCase):
             self.assertFalse(receipt["old_carriers_backed_up"])
             self.assertEqual(receipt["serial_source"], "operator_cli")
             self.assertFalse((fixture["root"] / "original/samurai-charging").exists())
+            self.assertFalse((fixture["root"] / "original/main-manifest.json").exists())
             self.assertEqual(fixture["original_service"].read_text(), "#!/sbin/openrc-run\n# original service\n")
+            self.assertEqual(
+                sha(fixture["main_manifest"]),
+                fixture["original_main_manifest_sha256"],
+            )
             self.assertEqual(before_devices, {name: path.read_bytes() for name, path in fixture["devices"].items()})
             self.assertEqual(calls, [])
 
@@ -443,6 +479,20 @@ class GuardStageTests(unittest.TestCase):
             self.assertNotEqual(
                 sha(fixture["target"] / "etc/init.d/samurai-charging"),
                 fixture["original_service_sha256"],
+            )
+            installed_service = sha(fixture["target"] / "etc/init.d/samurai-charging")
+            main_value = json.loads(fixture["main_manifest"].read_text())
+            self.assertEqual(
+                main_value["installed_files"][str(trial_common.SERVICE_PATH)],
+                installed_service,
+            )
+            self.assertNotEqual(
+                sha(fixture["main_manifest"]),
+                fixture["original_main_manifest_sha256"],
+            )
+            self.assertEqual(
+                (fixture["root"] / "original/main-manifest.json").read_bytes(),
+                fixture["original_main_manifest_bytes"],
             )
 
     def test_guard_does_not_arm_on_the_old_stage_boot(self) -> None:
@@ -489,6 +539,16 @@ class GuardStageTests(unittest.TestCase):
             self.assertEqual(
                 fixture["original_service_sha256"],
                 sha(fixture["target"] / "etc/init.d/samurai-charging"),
+            )
+            self.assertEqual(
+                fixture["original_main_manifest_sha256"],
+                sha(fixture["main_manifest"]),
+            )
+            rollback = json.loads((fixture["root"] / "rollback.json").read_text())
+            self.assertTrue(rollback["main_manifest_restored"])
+            self.assertEqual(
+                rollback["main_manifest_sha256"],
+                fixture["original_main_manifest_sha256"],
             )
 
     def test_stage_explicit_serial_is_operator_assertion(self) -> None:
@@ -587,6 +647,18 @@ class GuardStageTests(unittest.TestCase):
                 any(path.endswith("stage-result.json") for path in fsync_calls[1])
             )
 
+    def test_stage_receipt_records_host_fetch_unavailable(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = make_fixture(Path(temporary))
+            manifest = json.loads(fixture["manifest_path"].read_text())
+            manifest["fastboot"]["host_fetch_unavailable"] = True
+            write(
+                fixture["manifest_path"],
+                json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+            )
+            stage_fixture(fixture)
+            self.assertIs(fixture["receipt"]["host_fetch_unavailable"], True)
+
     def test_restart2_syscall_uses_verified_aarch64_arguments(self) -> None:
         seen = {}
 
@@ -656,6 +728,10 @@ class GuardStageTests(unittest.TestCase):
                 sha(fixture["target"] / "etc/init.d/samurai-charging"),
                 fixture["original_service_sha256"],
             )
+            self.assertEqual(
+                sha(fixture["main_manifest"]),
+                fixture["original_main_manifest_sha256"],
+            )
 
     def test_stage_restart2_failure_is_not_retried(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -694,6 +770,13 @@ class GuardStageTests(unittest.TestCase):
                 sha(fixture["target"] / "etc/init.d/samurai-charging"),
                 fixture["original_service_sha256"],
             )
+            self.assertEqual(
+                sha(fixture["main_manifest"]),
+                fixture["original_main_manifest_sha256"],
+            )
+            self.assertFalse((fixture["root"] / "stage-result.json").exists())
+            failure = json.loads((fixture["root"] / "stage-failure.json").read_text())
+            self.assertTrue(failure["restored_original_files"])
 
     def test_stage_requires_serial_when_device_exposes_none(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -754,6 +837,25 @@ class GuardStageTests(unittest.TestCase):
                 fixture["old_paths"]["boot"].read_bytes(),
             )
 
+    def test_guard_rejects_main_manifest_not_bound_to_trial_service(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = make_fixture(Path(temporary))
+            stage_fixture(fixture)
+            value = json.loads(fixture["main_manifest"].read_text())
+            value["installed_files"][str(trial_common.SERVICE_PATH)] = "0" * 64
+            write(
+                fixture["main_manifest"],
+                json.dumps(value, indent=2, sort_keys=True) + "\n",
+            )
+            with self.assertRaisesRegex(
+                trial_common.TrialError,
+                "main manifest does not pin the trial service",
+            ):
+                trial_guard.verify_installed(
+                    guard_runtime(fixture),
+                    trial_guard.load_manifest(guard_runtime(fixture)),
+                )
+
 
 class PostbootAuditTests(unittest.TestCase):
     def _ready(self, temporary: str) -> tuple[dict, dict]:
@@ -761,6 +863,16 @@ class PostbootAuditTests(unittest.TestCase):
         stage_fixture(fixture)
         new_boot(fixture)
         write_watchdog_state(fixture)
+        runtime = guard_runtime(fixture)
+        readback = trial_guard.verify_new_pair(
+            runtime,
+            trial_guard.load_manifest(runtime),
+            json.loads((fixture["root"] / "stage.json").read_text()),
+        )
+        trial_common.atomic_write(
+            fixture["root"] / "carrier-readback.json",
+            (json.dumps(readback, sort_keys=True) + "\n").encode(),
+        )
         tree = make_audit_tree(fixture)
         return fixture, tree
 
@@ -781,7 +893,7 @@ class PostbootAuditTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             fixture, tree = self._ready(temporary)
             report = postboot_audit.audit(
-                audit_runtime(fixture, tree, version="#510 SMP PREEMPT")
+                audit_runtime(fixture, tree, version="#514 SMP PREEMPT")
             )
             self.assertFalse(report["passed"])
             self.assertIn("kernel version", report["error"])
@@ -793,6 +905,21 @@ class PostbootAuditTests(unittest.TestCase):
             report = postboot_audit.audit(audit_runtime(fixture, tree))
             self.assertFalse(report["passed"])
             self.assertIn("different boot", report["error"])
+
+    def test_audit_requires_guard_carrier_readback_for_same_boot(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture, tree = self._ready(temporary)
+            readback = json.loads(
+                (fixture["root"] / "carrier-readback.json").read_text()
+            )
+            readback["boot_id"] = OLD_BOOT_ID
+            write(
+                fixture["root"] / "carrier-readback.json",
+                json.dumps(readback, sort_keys=True) + "\n",
+            )
+            report = postboot_audit.audit(audit_runtime(fixture, tree))
+            self.assertFalse(report["passed"])
+            self.assertIn("carrier readback evidence", report["error"])
 
     def test_audit_rejects_missing_ncm_binding(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -863,10 +990,21 @@ class PostbootAuditTests(unittest.TestCase):
                 tree["sys_root"]
                 / "firmware/devicetree/base/soc@0/spmi@c440000/pmic@2/typec@1500/realme,apsd-handoff-trial"
             )
-            property_path.write_bytes(b"\x00\x00\x00\x00")
+            property_path.unlink()
             report = postboot_audit.audit(audit_runtime(fixture, tree))
             self.assertFalse(report["passed"])
             self.assertIn("apsd-handoff-trial", report["error"])
+
+    def test_audit_checks_apsd_property_presence_not_value(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture, tree = self._ready(temporary)
+            property_path = (
+                tree["sys_root"]
+                / "firmware/devicetree/base/soc@0/spmi@c440000/pmic@2/typec@1500/realme,apsd-handoff-trial"
+            )
+            property_path.write_bytes(b"\x00\x00\x00\x00")
+            report = postboot_audit.audit(audit_runtime(fixture, tree))
+            self.assertTrue(report["passed"], report)
 
     def test_audit_rejects_new_taint_and_warning(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -999,8 +1137,13 @@ exit 13
 '''
 
 
-def make_fastboot_fixture(base: Path) -> dict:
+def make_fastboot_fixture(base: Path, *, host_fetch_unavailable: bool = False) -> dict:
     fixture = make_fixture(base)
+    fixture["manifest"]["fastboot"]["host_fetch_unavailable"] = host_fetch_unavailable
+    write(
+        fixture["manifest_path"],
+        json.dumps(fixture["manifest"], indent=2, sort_keys=True) + "\n",
+    )
     state = base / "fastboot-state"
     state.mkdir()
     shutil.copy2(fixture["old_paths"]["boot"], state / "boot.img")
@@ -1019,6 +1162,7 @@ def make_fastboot_fixture(base: Path) -> dict:
         "serial_source": "operator_cli",
         "guard_installed": True,
         "original_service_installed": True,
+        "main_manifest_patched": True,
         "old_carriers_backed_up": True,
         "partition_identity_recorded": True,
         "partition_identity": fixture["identities"],
@@ -1026,12 +1170,29 @@ def make_fastboot_fixture(base: Path) -> dict:
             name: manifest["carriers"][name]["old"] for name in SMALL_BYTES
         },
         "manifest_sha256": sha(fixture["manifest_path"]),
+        "original_main_manifest": {
+            "sha256": manifest["main_manifest"]["old_sha256"],
+        },
+        "main_manifest_patch": {
+            "target": manifest["main_manifest"]["target"],
+            "old_sha256": manifest["main_manifest"]["old_sha256"],
+            "new_sha256": "f" * 64,
+            "service_target": manifest["main_manifest"]["service_target"],
+            "service_sha256": manifest["device_files"][
+                str(trial_common.SERVICE_PATH)
+            ]["sha256"],
+        },
         "installed_file_sha256": {
-            target: row["sha256"] for target, row in manifest["device_files"].items()
+            **{
+                target: row["sha256"]
+                for target, row in manifest["device_files"].items()
+            },
+            manifest["main_manifest"]["target"]: "f" * 64,
         },
         "new_carrier_written": False,
         "reboot_bootloader_requested": True,
         "restart_method": "restart2_syscall_142",
+        "host_fetch_unavailable": host_fetch_unavailable,
         "restart2": {
             "syscall": 142,
             "magic1": 0xFEE1DEAD,
@@ -1061,6 +1222,7 @@ def run_fastboot_operator(
     work: Path,
     *,
     execute: bool = True,
+    no_fetch: bool = False,
     env_extra: dict | None = None,
 ) -> tuple[subprocess.CompletedProcess, dict]:
     pwsh = shutil.which("pwsh")
@@ -1096,6 +1258,8 @@ def run_fastboot_operator(
     ]
     if execute:
         args.append("-Execute")
+    if no_fetch:
+        args.append("-NoFetch")
     result = subprocess.run(args, capture_output=True, text=True, env=env, timeout=120)
     value = json.loads(report.read_text())
     return result, value
@@ -1139,6 +1303,78 @@ class FastbootOperatorTests(unittest.TestCase):
             self.assertEqual(fixture["reboot_log"].read_text().splitlines(), ["reboot"])
             for forbidden in ("erase", "format", "unlock", "set_active", "pd5v", "9v"):
                 self.assertNotIn(forbidden, "\n".join(commands).lower())
+
+    def test_no_fetch_success_uses_guard_readback_and_one_reboot(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = make_fastboot_fixture(
+                Path(temporary), host_fetch_unavailable=True
+            )
+            result, report = run_fastboot_operator(
+                fixture, fixture["base"] / "work", no_fetch=True
+            )
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+            self.assertTrue(report["passed"])
+            self.assertTrue(report["host_fetch_unavailable"])
+            self.assertFalse(report["host_readback_verified"])
+            self.assertTrue(report["guard_carrier_readback_required"])
+            self.assertEqual(
+                report["outcome"],
+                "new_pair_flashed_no_host_readback_guard_readback_required",
+            )
+            commands = fixture["commands_log"].read_text().splitlines()
+            self.assertFalse(any(line.startswith("fetch ") for line in commands))
+            flashes = [line for line in commands if line.startswith("flash ")]
+            self.assertEqual(
+                [line.split()[1] for line in flashes], ["logdump", "boot"]
+            )
+            self.assertEqual(fixture["reboot_log"].read_text().splitlines(), ["reboot"])
+
+    def test_no_fetch_requires_receipt_host_fetch_unavailable(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = make_fastboot_fixture(Path(temporary))
+            result, report = run_fastboot_operator(
+                fixture, fixture["base"] / "work", no_fetch=True
+            )
+            self.assertEqual(result.returncode, 3)
+            self.assertIn("host_fetch_unavailable=true", report["error"])
+            self.assertFalse(fixture["commands_log"].exists())
+
+    def test_fetch_mode_rejects_receipt_declaring_fetch_unavailable(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = make_fastboot_fixture(
+                Path(temporary), host_fetch_unavailable=True
+            )
+            result, report = run_fastboot_operator(
+                fixture, fixture["base"] / "work"
+            )
+            self.assertEqual(result.returncode, 3)
+            self.assertIn("pass -NoFetch", report["error"])
+            self.assertFalse(fixture["commands_log"].exists())
+
+    def test_no_fetch_boot_failure_restores_old_pair_without_readback(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = make_fastboot_fixture(
+                Path(temporary), host_fetch_unavailable=True
+            )
+            result, report = run_fastboot_operator(
+                fixture,
+                fixture["base"] / "work",
+                no_fetch=True,
+                env_extra={"FAKE_FAIL_BOOT": "1"},
+            )
+            self.assertEqual(result.returncode, 3, result.stderr + result.stdout)
+            self.assertEqual(
+                report["outcome"],
+                "old_pair_restored_without_host_readback_and_rebooted",
+            )
+            commands = fixture["commands_log"].read_text().splitlines()
+            self.assertFalse(any(line.startswith("fetch ") for line in commands))
+            flashes = [line for line in commands if line.startswith("flash ")]
+            self.assertEqual(
+                [line.split()[1] for line in flashes],
+                ["logdump", "boot", "boot", "logdump"],
+            )
+            self.assertEqual(fixture["reboot_log"].read_text().splitlines(), ["reboot"])
 
     def test_boot_flash_failure_restores_old_pair_and_reboots_once(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -1271,6 +1507,22 @@ class FastbootOperatorTests(unittest.TestCase):
             result, report = run_fastboot_operator(fixture, fixture["base"] / "work")
             self.assertEqual(result.returncode, 3)
             self.assertEqual(report["outcome"], "not_started")
+            self.assertFalse(fixture["commands_log"].exists())
+
+    def test_main_manifest_patch_receipt_mismatch_does_not_write(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = make_fastboot_fixture(Path(temporary))
+            receipt = json.loads(fixture["receipt_path"].read_text())
+            receipt["main_manifest_patch"]["new_sha256"] = "e" * 64
+            write(
+                fixture["receipt_path"],
+                json.dumps(receipt, indent=2, sort_keys=True) + "\n",
+            )
+            result, report = run_fastboot_operator(
+                fixture, fixture["base"] / "work"
+            )
+            self.assertEqual(result.returncode, 3)
+            self.assertIn("main manifest patch hash", report["error"])
             self.assertFalse(fixture["commands_log"].exists())
 
 

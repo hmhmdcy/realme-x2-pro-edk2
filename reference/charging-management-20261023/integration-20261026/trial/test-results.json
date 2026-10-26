@@ -1,6 +1,6 @@
 {
   "device_rebooted": false,
-  "duration_seconds": 11.852,
+  "duration_seconds": 18.409,
   "errors": 0,
   "failures": 0,
   "high_voltage_accessed": false,
@@ -8,79 +8,109 @@
   "phone_accessed": false,
   "platform": "Windows-11-10.0.26300-SP0",
   "python": "3.14.5",
-  "ran": 36,
+  "ran": 45,
   "schema": 1,
   "scope": "local control tests only; no phone, fastboot device, or charging hardware access",
   "skipped": 0,
-  "started_unix": 1793003981.355,
+  "started_unix": 1793005389.431,
   "tests": [
     {
-      "seconds": 0.301,
+      "seconds": 0.311,
       "status": "passed",
       "test": "test_manifest.ProductionManifestTests.test_manifest_pins_bundled_files_and_real_carriers"
     },
     {
-      "seconds": 1.051,
+      "seconds": 1.155,
       "status": "passed",
       "test": "test_trial_suite.FastbootOperatorTests.test_boot_flash_failure_restores_old_pair_and_reboots_once"
     },
     {
-      "seconds": 0.654,
+      "seconds": 0.697,
       "status": "passed",
       "test": "test_trial_suite.FastbootOperatorTests.test_boot_receipt_tamper_prevents_fastboot_execution"
     },
     {
-      "seconds": 0.664,
+      "seconds": 0.687,
       "status": "passed",
       "test": "test_trial_suite.FastbootOperatorTests.test_dtb_tamper_prevents_fastboot_execution"
     },
     {
-      "seconds": 0.742,
+      "seconds": 0.781,
       "status": "passed",
       "test": "test_trial_suite.FastbootOperatorTests.test_fastboot_rejects_a_different_real_device_serial"
     },
     {
-      "seconds": 0.838,
+      "seconds": 0.797,
+      "status": "passed",
+      "test": "test_trial_suite.FastbootOperatorTests.test_fetch_mode_rejects_receipt_declaring_fetch_unavailable"
+    },
+    {
+      "seconds": 0.751,
       "status": "passed",
       "test": "test_trial_suite.FastbootOperatorTests.test_local_validation_does_not_touch_fastboot"
     },
     {
-      "seconds": 0.657,
+      "seconds": 0.893,
+      "status": "passed",
+      "test": "test_trial_suite.FastbootOperatorTests.test_main_manifest_patch_receipt_mismatch_does_not_write"
+    },
+    {
+      "seconds": 0.904,
       "status": "passed",
       "test": "test_trial_suite.FastbootOperatorTests.test_missing_stage_receipt_never_invokes_fastboot"
     },
     {
-      "seconds": 0.857,
+      "seconds": 1.001,
+      "status": "passed",
+      "test": "test_trial_suite.FastbootOperatorTests.test_no_fetch_boot_failure_restores_old_pair_without_readback"
+    },
+    {
+      "seconds": 0.831,
+      "status": "passed",
+      "test": "test_trial_suite.FastbootOperatorTests.test_no_fetch_requires_receipt_host_fetch_unavailable"
+    },
+    {
+      "seconds": 0.96,
+      "status": "passed",
+      "test": "test_trial_suite.FastbootOperatorTests.test_no_fetch_success_uses_guard_readback_and_one_reboot"
+    },
+    {
+      "seconds": 0.907,
       "status": "passed",
       "test": "test_trial_suite.FastbootOperatorTests.test_preflight_current_pair_mismatch_does_not_write"
     },
     {
-      "seconds": 0.983,
+      "seconds": 1.027,
       "status": "passed",
       "test": "test_trial_suite.FastbootOperatorTests.test_readback_mismatch_restores_old_pair_without_new_retry"
     },
     {
-      "seconds": 0.891,
+      "seconds": 0.966,
       "status": "passed",
       "test": "test_trial_suite.FastbootOperatorTests.test_success_flashes_logdump_then_boot_and_reboots_once"
     },
     {
-      "seconds": 1.597,
+      "seconds": 1.688,
       "status": "passed",
       "test": "test_trial_suite.FastbootOperatorTests.test_wrong_product_or_partition_size_does_not_write"
     },
     {
-      "seconds": 0.123,
+      "seconds": 0.155,
       "status": "passed",
       "test": "test_trial_suite.GuardStageTests.test_guard_accepts_only_a_token_for_the_current_boot"
     },
     {
-      "seconds": 0.086,
+      "seconds": 0.119,
       "status": "passed",
       "test": "test_trial_suite.GuardStageTests.test_guard_does_not_arm_on_the_old_stage_boot"
     },
     {
-      "seconds": 0.111,
+      "seconds": 0.106,
+      "status": "passed",
+      "test": "test_trial_suite.GuardStageTests.test_guard_rejects_main_manifest_not_bound_to_trial_service"
+    },
+    {
+      "seconds": 0.147,
       "status": "passed",
       "test": "test_trial_suite.GuardStageTests.test_guard_timeout_restores_boot_then_logdump_then_original_service"
     },
@@ -90,7 +120,7 @@
       "test": "test_trial_suite.GuardStageTests.test_restart2_syscall_uses_verified_aarch64_arguments"
     },
     {
-      "seconds": 0.074,
+      "seconds": 0.1,
       "status": "passed",
       "test": "test_trial_suite.GuardStageTests.test_stage_backs_up_only_and_installs_guard_service"
     },
@@ -100,97 +130,112 @@
       "test": "test_trial_suite.GuardStageTests.test_stage_does_not_use_busybox_reboot_bootloader"
     },
     {
-      "seconds": 0.072,
+      "seconds": 0.098,
       "status": "passed",
       "test": "test_trial_suite.GuardStageTests.test_stage_explicit_serial_is_operator_assertion"
     },
     {
-      "seconds": 0.041,
+      "seconds": 0.052,
       "status": "passed",
       "test": "test_trial_suite.GuardStageTests.test_stage_preflight_is_noninstalling_and_nonwriting_to_carriers"
     },
     {
-      "seconds": 0.031,
+      "seconds": 0.096,
+      "status": "passed",
+      "test": "test_trial_suite.GuardStageTests.test_stage_receipt_records_host_fetch_unavailable"
+    },
+    {
+      "seconds": 0.042,
       "status": "passed",
       "test": "test_trial_suite.GuardStageTests.test_stage_requires_serial_when_device_exposes_none"
     },
     {
-      "seconds": 0.08,
+      "seconds": 0.117,
       "status": "passed",
       "test": "test_trial_suite.GuardStageTests.test_stage_restart2_failure_is_not_retried"
     },
     {
-      "seconds": 0.043,
+      "seconds": 0.058,
       "status": "passed",
       "test": "test_trial_suite.GuardStageTests.test_stage_stop_failure_prevents_install_and_restart"
     },
     {
-      "seconds": 0.075,
+      "seconds": 0.101,
       "status": "passed",
       "test": "test_trial_suite.GuardStageTests.test_stage_stops_and_fsyncs_before_install_then_restart2_once"
     },
     {
-      "seconds": 0.127,
+      "seconds": 0.17,
       "status": "passed",
       "test": "test_trial_suite.PostbootAuditTests.test_ack_refuses_wrong_confirmation_or_failed_report"
     },
     {
-      "seconds": 0.141,
+      "seconds": 0.198,
       "status": "passed",
       "test": "test_trial_suite.PostbootAuditTests.test_ack_writes_boot_bound_token_after_readonly_report"
     },
     {
-      "seconds": 0.127,
+      "seconds": 0.167,
+      "status": "passed",
+      "test": "test_trial_suite.PostbootAuditTests.test_audit_checks_apsd_property_presence_not_value"
+    },
+    {
+      "seconds": 0.177,
       "status": "passed",
       "test": "test_trial_suite.PostbootAuditTests.test_audit_does_not_require_success_log_strings"
     },
     {
-      "seconds": 0.136,
+      "seconds": 0.17,
       "status": "passed",
       "test": "test_trial_suite.PostbootAuditTests.test_audit_rejects_apsd_takeover_refusal"
     },
     {
-      "seconds": 0.127,
+      "seconds": 0.16,
       "status": "passed",
       "test": "test_trial_suite.PostbootAuditTests.test_audit_rejects_boot_mismatch"
     },
     {
-      "seconds": 0.128,
+      "seconds": 0.164,
       "status": "passed",
       "test": "test_trial_suite.PostbootAuditTests.test_audit_rejects_missing_ncm_binding"
     },
     {
-      "seconds": 0.141,
+      "seconds": 0.167,
       "status": "passed",
       "test": "test_trial_suite.PostbootAuditTests.test_audit_rejects_new_taint_and_warning"
     },
     {
-      "seconds": 0.13,
+      "seconds": 0.155,
       "status": "passed",
       "test": "test_trial_suite.PostbootAuditTests.test_audit_rejects_nonzero_protection_or_fault"
     },
     {
-      "seconds": 0.135,
+      "seconds": 0.162,
       "status": "passed",
       "test": "test_trial_suite.PostbootAuditTests.test_audit_rejects_wrong_mp2650_voltage"
     },
     {
-      "seconds": 0.147,
+      "seconds": 0.162,
       "status": "passed",
       "test": "test_trial_suite.PostbootAuditTests.test_audit_rejects_wrong_tcpm_current"
     },
     {
-      "seconds": 0.129,
+      "seconds": 0.188,
       "status": "passed",
       "test": "test_trial_suite.PostbootAuditTests.test_audit_rejects_wrong_version"
     },
     {
-      "seconds": 0.135,
+      "seconds": 0.303,
       "status": "passed",
       "test": "test_trial_suite.PostbootAuditTests.test_audit_requires_explicit_apsd_handoff_property"
     },
     {
-      "seconds": 0.167,
+      "seconds": 0.189,
+      "status": "passed",
+      "test": "test_trial_suite.PostbootAuditTests.test_audit_requires_guard_carrier_readback_for_same_boot"
+    },
+    {
+      "seconds": 0.223,
       "status": "passed",
       "test": "test_trial_suite.PostbootAuditTests.test_good_postboot_audit_is_read_only_and_passes"
     }

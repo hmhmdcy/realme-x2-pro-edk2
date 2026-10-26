@@ -15,28 +15,30 @@ python tests\run_tests.py
 Copy the package to the private root named by the manifest, then run:
 
 ```text
-adb shell su -c "python3 -B /root/charging-management-20261023/charging-integration-trial-20261026-02/trial_stage.py --serial 62bc28a1"
+adb shell su -c "python3 -B /root/charging-management-20261023/charging-integration-trial-20261026-03/trial_stage.py --serial 62bc28a1"
 ```
 
 The preflight verifies the old carrier hashes and prints a receipt. It does not
-install files, back up carriers, or reboot.
+install files, back up carriers, patch the main manifest, or reboot.
 
 ## 3. Stage execute
 
 ```text
-adb shell su -c "python3 -B /root/charging-management-20261023/charging-integration-trial-20261026-02/trial_stage.py --serial 62bc28a1 --execute" > stage-receipt.json
+adb shell su -c "python3 -B /root/charging-management-20261023/charging-integration-trial-20261026-03/trial_stage.py --serial 62bc28a1 --execute" > stage-receipt.json
 ```
 
 The explicit serial is an operator assertion recorded as
 `"serial_source": "operator_cli"`; the fastboot operator never trusts it and
 must still see exactly one real `fastboot devices` serial equal to `62bc28a1`.
-This backs up old carriers and the original service, installs guard/service,
-prints a stage receipt, and issues one AArch64 Restart2 syscall
+This backs up old carriers, the original service, and the original main
+manifest. It updates only the main manifest's service pin to the trial wrapper,
+installs guard/service, prints a stage receipt, and issues one AArch64 Restart2 syscall
 (`syscall 142, 0xfee1dead, 672274793, 0xa1b2c3d4, "bootloader"`). It first runs
 `/usr/sbin/samurai-charging stop`, `sync`, and fsyncs the critical backups/plan,
 then fsyncs the installed receipt before the single syscall. It never writes a
 new carrier. BusyBox `reboot bootloader` is not used. Keep
-`stage-receipt.json` on the Windows host.
+`stage-receipt.json` on the Windows host. The receipt must contain
+`"host_fetch_unavailable": true` for this trial.
 
 ## 4. Verify and flash from Windows
 
@@ -48,7 +50,8 @@ $Trial = "E:\RealmeX2Pro edk2\reference\charging-management-20261023\integration
 & "$Trial\fastboot_operator.ps1" `
   -FastbootPath "C:\Users\cy122\Downloads\platform-tools\platform-tools\fastboot.exe" `
   -StageReceipt "E:\path\to\stage-receipt.json" `
-  -ReportPath "E:\path\to\fastboot-validation.json"
+  -ReportPath "E:\path\to\fastboot-validation.json" `
+  -NoFetch
 ```
 
 After the phone is manually confirmed in bootloader mode, execute:
@@ -58,15 +61,17 @@ After the phone is manually confirmed in bootloader mode, execute:
   -FastbootPath "C:\Users\cy122\Downloads\platform-tools\platform-tools\fastboot.exe" `
   -StageReceipt "E:\path\to\stage-receipt.json" `
   -ReportPath "E:\path\to\fastboot-report.json" `
-  -Execute
+  -Execute -NoFetch
 ```
 
 The operator checks one device with serial `62bc28a1`, product `msmnile`, and
-the pinned partition sizes. It also checks the pinned DTB file and #510 boot
+the pinned partition sizes. It also checks the pinned DTB file and #513 boot
 package receipt: boot hash, DTB hash/path, and DTB before/after input hashes
 must agree. The DTB is embedded in boot and is not flashed separately. It
-verifies the currently installed pair is the exact old pair, flashes logdump
-then boot, fetches and hashes each write, and issues one `fastboot reboot`.
+flashes logdump then boot and issues one `fastboot reboot`. With `-NoFetch`,
+there are no host-side `fetch` commands; the guard must hash the actual
+boot/logdump pair after boot. A missing or mismatching guard readback fails the
+postboot audit.
 
 Any write/readback failure triggers one restoration of the pinned old boot and
 old logdump, followed by one reboot if restoration is verified. The operator
@@ -75,10 +80,10 @@ not issue a reboot.
 
 ## 5. Read-only postboot audit
 
-Run as root on the #510 boot with the phone on the normal SDP/5 V link:
+Run as root on the #513 boot with the phone on the normal SDP/5 V link:
 
 ```text
-adb shell su -c "python3 -B /root/charging-management-20261023/charging-integration-trial-20261026-02/postboot_audit.py" > acceptance.json
+adb shell su -c "python3 -B /root/charging-management-20261023/charging-integration-trial-20261026-03/postboot_audit.py" > acceptance.json
 ```
 
 The report must contain `"passed": true`, `"read_only": true`, and
@@ -93,8 +98,8 @@ passed report and before the watchdog deadline.
 
 ```powershell
 $Report = Get-Content -LiteralPath "E:\path\to\acceptance.json" -Raw | ConvertFrom-Json
-adb push "E:\path\to\acceptance.json" /root/charging-management-20261023/charging-integration-trial-20261026-02/acceptance.json
-adb shell su -c "python3 -B /root/charging-management-20261023/charging-integration-trial-20261026-02/acknowledge_trial.py --report /root/charging-management-20261023/charging-integration-trial-20261026-02/acceptance.json --confirm-boot-id $($Report.boot_id) --execute"
+adb push "E:\path\to\acceptance.json" /root/charging-management-20261023/charging-integration-trial-20261026-03/acceptance.json
+adb shell su -c "python3 -B /root/charging-management-20261023/charging-integration-trial-20261026-03/acknowledge_trial.py --report /root/charging-management-20261023/charging-integration-trial-20261026-03/acceptance.json --confirm-boot-id $($Report.boot_id) --execute"
 ```
 
 The token records the current `boot_id`, manifest hash, and audit report hash.
@@ -103,7 +108,8 @@ It is rejected on any other boot.
 ## 7. Failure handling
 
 - Guard timeout or wrong expected state: do not issue a token. The guard restores
-  old boot, old logdump, and the original init service, then reboots.
+  old boot, old logdump, the original main manifest, and the original init
+  service, then reboots.
 - Host flash failure: let the operator's single old-pair restoration finish.
   Do not manually replay a new flash.
 - Operator restoration failure: stop. Do not improvise a write sequence.

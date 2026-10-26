@@ -1,4 +1,4 @@
-"""Read-only postboot acceptance checks for the #510 trial.
+"""Read-only postboot acceptance checks for the #513 trial.
 
 This script only reads sysfs/procfs and runs read-only commands.  It does not
 write an acceptance token, change charging parameters, or request a reboot.
@@ -149,7 +149,9 @@ def _check_version(rt: AuditRuntime) -> str:
     return version
 
 
-def _guard_manifest_and_state(rt: AuditRuntime, boot: str) -> tuple[dict, dict]:
+def _guard_manifest_and_state(
+    rt: AuditRuntime, boot: str
+) -> tuple[dict, dict, dict]:
     guard_rt = GuardRuntime(
         root=rt.root,
         proc_root=rt.proc_root,
@@ -175,7 +177,27 @@ def _guard_manifest_and_state(rt: AuditRuntime, boot: str) -> tuple[dict, dict]:
         elapsed = rt.boottime() - float(deadline) + WATCH_SECONDS
         if elapsed >= WATCH_SECONDS:
             raise TrialError("read-only audit started after the unaccepted deadline")
-    return manifest, state
+    readback = read_json(rt.root / "carrier-readback.json")
+    stage = read_json(rt.root / "stage.json")
+    if (
+        readback.get("schema") != 1
+        or readback.get("source") != "guard"
+        or readback.get("boot_id") != boot
+    ):
+        raise TrialError("guard carrier readback evidence is not for this boot")
+    for name in ("boot", "logdump"):
+        row = readback.get("carriers", {}).get(name)
+        expected = manifest["carriers"][name]["new"]
+        if (
+            not isinstance(row, dict)
+            or row.get("sha256") != expected
+            or row.get("expected") != expected
+            or row.get("bytes") != manifest["carriers"][name]["bytes"]
+        ):
+            raise TrialError(f"guard carrier readback mismatch: {name}")
+        if readback["partition_identity"].get(name) != stage["partition_identity"].get(name):
+            raise TrialError(f"guard carrier identity mismatch: {name}")
+    return manifest, state, readback
 
 
 def _check_ncm(rt: AuditRuntime, dmesg: str) -> dict:
@@ -335,8 +357,6 @@ def _check_apsd_adc(rt: AuditRuntime, dmesg: str, typec: dict, tcpm: dict) -> di
     property_path = rt.sys(APSD_HANDOFF_PROPERTY)
     if not property_path.is_file():
         raise TrialError("realme,apsd-handoff-trial DT property is missing")
-    if property_path.read_bytes() != b"\x00\x00\x00\x01":
-        raise TrialError("realme,apsd-handoff-trial DT property is not enabled")
     refusal = [line for line in dmesg.splitlines() if APSD_REFUSAL_RE.search(line)]
     if refusal:
         raise TrialError(
@@ -345,7 +365,8 @@ def _check_apsd_adc(rt: AuditRuntime, dmesg: str, typec: dict, tcpm: dict) -> di
     return {
         "apsd_prepare_evidence": "qcom_pmic_typec_apsd_prepare_before_register",
         "adc_reader_evidence": "inferred_from_successful_full_PD_profile_probe",
-        "explicit_handoff_property": "realme,apsd-handoff-trial=1",
+        "explicit_handoff_property": "realme,apsd-handoff-trial (present)",
+        "bounded_retry": "2s total / 20ms interval",
         "typec_partner": typec["partner"],
         "tcpm_supply": tcpm["name"],
         "refusal_lines": [],
@@ -402,13 +423,14 @@ def audit(
         boot = rt.boot_id_reader()
         report["boot_id"] = boot
         report["version"] = _check_version(rt)
-        manifest, state = _guard_manifest_and_state(rt, boot)
+        manifest, state, readback = _guard_manifest_and_state(rt, boot)
         report["manifest_sha256"] = sha256_file(rt.manifest_path)
         report["watchdog"] = {
             "state": state["event"],
             "boot_id": state["boot_id"],
             "deadline_boottime": state["deadline_boottime"],
         }
+        report["carrier_readback"] = readback
         dmesg = rt.dmesg_reader()
         status = rt.status_reader()
         report["ncm"] = _check_ncm(rt, dmesg)

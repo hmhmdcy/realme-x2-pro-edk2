@@ -23,7 +23,7 @@ class ProductionManifestTests(unittest.TestCase):
         self.assertIs(manifest["high_voltage_permitted"], False)
         self.assertEqual(
             manifest["device_root"],
-            "/root/charging-management-20261023/charging-integration-trial-20261026-02",
+            "/root/charging-management-20261023/charging-integration-trial-20261026-03",
         )
         self.assertEqual(manifest["image"]["sha256"], trial_common.IMAGE_SHA256)
         self.assertEqual(manifest["image"]["bytes"], trial_common.IMAGE_BYTES)
@@ -39,6 +39,8 @@ class ProductionManifestTests(unittest.TestCase):
         )
         self.assertEqual(manifest["fastboot"]["serial"], "62bc28a1")
         self.assertEqual(manifest["fastboot"]["product"], "msmnile")
+        self.assertIs(manifest["fastboot"]["host_fetch_unavailable"], True)
+        self.assertIs(manifest["fastboot"]["guard_carrier_readback_required"], True)
         self.assertEqual(
             manifest["fastboot"]["path"],
             r"C:\Users\cy122\Downloads\platform-tools\platform-tools\fastboot.exe",
@@ -55,6 +57,14 @@ class ProductionManifestTests(unittest.TestCase):
             self.assertTrue(source.is_file(), source)
             self.assertEqual(trial_common.sha256_file(source), row["sha256"])
             self.assertIn(row["target"], required_targets)
+        self.assertEqual(
+            manifest["main_manifest"],
+            {
+                "old_sha256": trial_common.MAIN_MANIFEST_SHA256,
+                "service_target": trial_common.SERVICE_PATH.as_posix(),
+                "target": trial_common.MAIN_MANIFEST_PATH.as_posix(),
+            },
+        )
 
         for name, size in trial_common.PARTITION_BYTES.items():
             row = manifest["carriers"][name]

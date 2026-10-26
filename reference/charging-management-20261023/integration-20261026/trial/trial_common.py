@@ -1,4 +1,4 @@
-"""Shared constants and filesystem primitives for the #510 trial.
+"""Shared constants and filesystem primitives for the #513 trial.
 
 This module is intentionally free of device discovery and command execution so
 the guard, stage helper, and local control tests can all use the same rules.
@@ -13,20 +13,24 @@ import stat
 from pathlib import Path
 
 
-TRIAL_ID = "charging-integration-510-20261026-02"
-TOKEN = "0a67db6cb999ecfdd30edb279e96ae0d19514ad721d9b861496dbc7c941141ce"
-VERSION = "#510 SMP PREEMPT Mon Oct 26 16:22:08 CST 2026"
+TRIAL_ID = "charging-integration-513-20261026-03"
+TOKEN = "6f8755dfd4f5238eb4ad7003e6ddbe8ebd93c8404c64972d7251236933ab9756"
+VERSION = "#513 SMP PREEMPT Mon Oct 26 16:51:54 CST 2026"
 RELEASE = "7.3.0-rc6-rmx1931-samurai-k363+"
 WATCH_SECONDS = 300
 EXPECTED_TAINTED = 4096
 
 DEVICE_ROOT = Path(
-    "/root/charging-management-20261023/charging-integration-trial-20261026-02"
+    "/root/charging-management-20261023/charging-integration-trial-20261026-03"
 )
 GUARD_PATH = Path("/usr/lib/samurai-charging/trial_guard.py")
 COMMON_PATH = Path("/usr/lib/samurai-charging/trial_common.py")
 SERVICE_PATH = Path("/etc/init.d/samurai-charging")
+MAIN_MANIFEST_PATH = Path("/usr/share/samurai-charging/manifest.json")
 MANIFEST_PATH = Path("/usr/share/samurai-charging/trial-manifest.json")
+MAIN_MANIFEST_SHA256 = (
+    "8b402e1c37ca390ec2be4949738badb670e9b5c54cbcf6941c895935ed90bc0a"
+)
 
 PARTITION_BYTES = {
     "boot": 100663296,
@@ -35,14 +39,14 @@ PARTITION_BYTES = {
 
 NEW_CARRIER_SHA256 = {
     "boot": "8af84ca536c9d4e1f09d7395adb303ba6f2ed6fa9138adef074df95e68e56680",
-    "logdump": "7551d34623eb082ae37de3cd18a1a1c395305dcd4dbe69c341014c17197ff954",
+    "logdump": "074518a70b23d8fe7380355af174a5c42da0fdba4e1f19f95f0bf1c77e45df58",
 }
 OLD_CARRIER_SHA256 = {
     "boot": "5c8d23d4d5e834593dd3a24537044af8b57e2df53ed3a91fb7880ad7541f8311",
     "logdump": "b29ea41a7a076555f5f6848c9f343dbd8fb0f9271adbd4d3acd4fff9d092b0ff",
 }
 
-IMAGE_SHA256 = "df9644bd8946a4d066937549aefbe6b552ca18715cc1a745efac6ca41bb8f910"
+IMAGE_SHA256 = "3893a1c29a143325e7067e1d88fdf539332ae7ec11ac83fea263a86956d372b5"
 IMAGE_BYTES = 59374080
 NEW_DTB_SHA256 = "9aa3e6fce7833f294a2dd7dc9b8f9d4fc95f3627d0c2386ba2ce183bc4316cd6"
 NEW_DTB_BYTES = 116966

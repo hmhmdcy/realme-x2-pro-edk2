@@ -1,4 +1,4 @@
-"""Fail-closed userspace guard for the #510 charging trial.
+"""Fail-closed userspace guard for the #513 charging trial.
 
 The guard is called from the OpenRC wrapper's start_pre hook.  It starts one
 300-second watchdog for the current boot.  If a boot-bound acceptance token is
@@ -28,6 +28,8 @@ from trial_common import (
     COMMON_PATH,
     DEVICE_ROOT,
     GUARD_PATH,
+    MAIN_MANIFEST_PATH,
+    MAIN_MANIFEST_SHA256,
     MANIFEST_PATH,
     OLD_CARRIER_SHA256,
     NEW_CARRIER_SHA256,
@@ -148,6 +150,18 @@ def load_manifest(rt: Runtime) -> dict:
             raise TrialError("invalid device file entry")
         if not isinstance(row.get("sha256"), str) or len(row["sha256"]) != 64:
             raise TrialError("invalid device file hash")
+    main_manifest = manifest.get("main_manifest")
+    if not isinstance(main_manifest, dict):
+        raise TrialError("main_manifest metadata missing")
+    if main_manifest.get("target") != str(MAIN_MANIFEST_PATH):
+        raise TrialError("unexpected main manifest target")
+    if main_manifest.get("service_target") != str(SERVICE_PATH):
+        raise TrialError("unexpected main manifest service target")
+    if (
+        rt.strict_carrier_pins
+        and main_manifest.get("old_sha256") != MAIN_MANIFEST_SHA256
+    ):
+        raise TrialError("unexpected main manifest pin")
     carriers = manifest.get("carriers")
     if not isinstance(carriers, dict) or set(carriers) != set(rt.partition_bytes):
         raise TrialError("carrier metadata missing")
@@ -169,6 +183,15 @@ def verify_installed(rt: Runtime, manifest: dict) -> None:
         require_regular(target, require_root=rt.require_root)
         if sha256_file(target) != row["sha256"]:
             raise TrialError(f"installed file hash mismatch: {target}")
+    main_target = rt.target(MAIN_MANIFEST_PATH)
+    require_regular(main_target, require_root=rt.require_root, max_mode=0o644)
+    main_value = read_json(main_target)
+    installed = main_value.get("installed_files")
+    if not isinstance(installed, dict):
+        raise TrialError("main manifest installed_files missing")
+    expected_service = manifest["device_files"][str(SERVICE_PATH)]["sha256"]
+    if installed.get(str(SERVICE_PATH)) != expected_service:
+        raise TrialError("main manifest does not pin the trial service")
 
 
 def current_boot(rt: Runtime) -> str:
@@ -346,6 +369,26 @@ def write_carrier_from_backup(rt: Runtime, stage: dict, name: str, expected_sha2
 
 
 def restore_original_service(rt: Runtime, manifest: dict, stage: dict) -> None:
+    main_backup = rt.root / "original/main-manifest.json"
+    main_info = require_regular(main_backup, require_root=rt.require_root)
+    original_main = stage["original_main_manifest"]
+    if sha256_file(main_backup) != original_main["sha256"]:
+        raise TrialError("original main manifest backup hash mismatch")
+    original_main_value = read_json(main_backup)
+    installed = original_main_value.get("installed_files")
+    if not isinstance(installed, dict):
+        raise TrialError("original main manifest installed_files missing")
+    original_service_sha256 = stage["original_service"]["sha256"]
+    service_target = manifest["main_manifest"]["service_target"]
+    if installed.get(service_target) != original_service_sha256:
+        raise TrialError("original main manifest service binding mismatch")
+    main_target = rt.target(MAIN_MANIFEST_PATH)
+    atomic_write(main_target, main_backup.read_bytes(), stat.S_IMODE(main_info.st_mode))
+    if _is_root():
+        os.chown(main_target, main_info.st_uid, main_info.st_gid)
+    if sha256_file(main_target) != original_main["sha256"]:
+        raise TrialError("original main manifest readback mismatch")
+
     backup = rt.root / "original/samurai-charging"
     info = require_regular(backup, require_root=rt.require_root)
     expected = stage["original_service"]["sha256"]
@@ -400,6 +443,10 @@ def rollback(rt: Runtime, manifest: dict, stage: dict, reason: str, *, reboot: b
         "carriers_restored": {
             name: sha256_file(_device_for(rt, name)) for name in ("boot", "logdump")
         },
+        "main_manifest_restored": True,
+        "main_manifest_sha256": sha256_file(
+            rt.target(MAIN_MANIFEST_PATH)
+        ),
         "original_service_restored": True,
         "reboot_requested": bool(reboot),
     }
@@ -414,13 +461,28 @@ def rollback(rt: Runtime, manifest: dict, stage: dict, reason: str, *, reboot: b
     return evidence
 
 
-def verify_new_pair(rt: Runtime, manifest: dict, stage: dict) -> None:
+def verify_new_pair(rt: Runtime, manifest: dict, stage: dict) -> dict:
+    readback = {
+        "schema": 1,
+        "source": "guard",
+        "boot_id": current_boot(rt),
+        "partition_identity": {},
+        "carriers": {},
+    }
     for name in ("boot", "logdump"):
         _verify_partition_identity(rt, stage, name)
         actual = sha256_file(_device_for(rt, name))
         expected = manifest["carriers"][name]["new"]
         if actual != expected:
             raise TrialError(f"host carrier write is not the expected new {name}")
+        readback["partition_identity"][name] = stage["partition_identity"][name]
+        readback["carriers"][name] = {
+            "path": str(_device_for(rt, name)),
+            "sha256": actual,
+            "expected": expected,
+            "bytes": rt.partition_bytes[name],
+        }
+    return readback
 
 
 def start_watch(rt: Runtime, deadline_boottime: float) -> None:
@@ -493,7 +555,12 @@ def prestart(rt: Runtime, *, version_reader=None) -> None:
         rollback(rt, manifest, stage, "unexpected-kernel", reboot=True)
         return
     ensure_old_backups(rt, manifest, stage)
-    verify_new_pair(rt, manifest, stage)
+    readback = verify_new_pair(rt, manifest, stage)
+    atomic_write(
+        rt.root / "carrier-readback.json",
+        (json.dumps(readback, sort_keys=True) + "\n").encode("utf-8"),
+    )
+    state_write(rt, "carrier-readback-verified", carrier_readback=readback)
     if accepted_token(rt, manifest):
         state_write(rt, "accepted")
         return

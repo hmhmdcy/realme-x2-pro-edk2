@@ -20,6 +20,8 @@ from trial_common import (
     COMMON_PATH,
     DEVICE_ROOT,
     GUARD_PATH,
+    MAIN_MANIFEST_PATH,
+    MAIN_MANIFEST_SHA256,
     MANIFEST_PATH,
     OLD_CARRIER_SHA256,
     PARTITION_BYTES,
@@ -233,6 +235,18 @@ def load_package_manifest(rt: StageRuntime) -> dict:
         require_regular(source, require_root=rt.require_root)
         if sha256_file(source) != row["sha256"]:
             raise TrialError(f"package file hash mismatch: {source}")
+    main_manifest = manifest.get("main_manifest")
+    if not isinstance(main_manifest, dict):
+        raise TrialError("main_manifest metadata missing")
+    if main_manifest.get("target") != str(MAIN_MANIFEST_PATH):
+        raise TrialError("unexpected main manifest target")
+    if main_manifest.get("service_target") != str(SERVICE_PATH):
+        raise TrialError("unexpected main manifest service target")
+    if (
+        rt.strict_carrier_pins
+        and main_manifest.get("old_sha256") != MAIN_MANIFEST_SHA256
+    ):
+        raise TrialError("unexpected main manifest pin")
     for name, size in rt.partition_bytes.items():
         row = manifest["carriers"][name]
         if row["bytes"] != size:
@@ -306,6 +320,147 @@ def _inspect_original_service(rt: StageRuntime) -> dict:
         "uid": info.st_uid,
         "gid": info.st_gid,
     }
+
+
+def _inspect_original_main_manifest(
+    rt: StageRuntime, manifest: dict, service_sha256: str
+) -> tuple[dict, dict]:
+    pin = manifest["main_manifest"]
+    source = rt.target(Path(pin["target"]))
+    info = require_regular(source, require_root=rt.require_root)
+    digest = sha256_file(source)
+    if digest != pin["old_sha256"]:
+        raise TrialError("main manifest hash mismatch")
+    value = read_json(source)
+    installed = value.get("installed_files")
+    if not isinstance(installed, dict):
+        raise TrialError("main manifest installed_files missing")
+    if installed.get(pin["service_target"]) != service_sha256:
+        raise TrialError("main manifest does not pin the original service")
+    return (
+        {
+            "target": pin["target"],
+            "sha256": digest,
+            "mode": stat.S_IMODE(info.st_mode),
+            "uid": info.st_uid,
+            "gid": info.st_gid,
+            "service_target": pin["service_target"],
+        },
+        value,
+    )
+
+
+def _backup_original_main_manifest(
+    rt: StageRuntime,
+    inspected: dict,
+    value: dict,
+    service_sha256: str,
+) -> dict:
+    source = rt.target(Path(inspected["target"]))
+    destination = rt.root / "original/main-manifest.json"
+    installed = value.get("installed_files")
+    if not isinstance(installed, dict):
+        raise TrialError("original main manifest changed before backup")
+    if installed.get(inspected["service_target"]) != service_sha256:
+        raise TrialError("original main manifest service binding changed")
+    if destination.exists() or destination.is_symlink():
+        raise TrialError("refusing to overwrite original main manifest backup")
+    copy_verified(
+        source,
+        destination,
+        expected_sha256=inspected["sha256"],
+        mode=inspected["mode"],
+    )
+    return {**inspected, "backup": str(destination)}
+
+
+def _patched_main_manifest(
+    manifest: dict, value: dict, service_sha256: str
+) -> tuple[bytes, str]:
+    pin = manifest["main_manifest"]
+    patched = json.loads(json.dumps(value))
+    installed = patched.get("installed_files")
+    if not isinstance(installed, dict):
+        raise TrialError("main manifest installed_files missing")
+    installed[pin["service_target"]] = service_sha256
+    raw = (json.dumps(patched, sort_keys=True, separators=(",", ":")) + "\n").encode(
+        "utf-8"
+    )
+    return raw, hashlib.sha256(raw).hexdigest()
+
+
+def _restore_main_manifest(rt: StageRuntime, original: dict) -> None:
+    backup = rt.root / "original/main-manifest.json"
+    info = require_regular(backup, require_root=rt.require_root)
+    if sha256_file(backup) != original["sha256"]:
+        raise TrialError("original main manifest backup hash mismatch")
+    target = rt.target(Path(original["target"]))
+    atomic_write(target, backup.read_bytes(), stat.S_IMODE(info.st_mode))
+    if _is_root():
+        os.chown(target, info.st_uid, info.st_gid)
+    if sha256_file(target) != original["sha256"]:
+        raise TrialError("original main manifest readback mismatch")
+
+
+def _restore_stage_files(
+    rt: StageRuntime,
+    manifest: dict,
+    original_service: dict,
+    original_main_manifest: dict,
+) -> None:
+    _restore_main_manifest(rt, original_main_manifest)
+    service_backup = rt.root / "original/samurai-charging"
+    info = require_regular(service_backup, require_root=rt.require_root)
+    if sha256_file(service_backup) != original_service["sha256"]:
+        raise TrialError("original service backup hash mismatch")
+    service_target = rt.target(SERVICE_PATH)
+    atomic_write(service_target, service_backup.read_bytes(), stat.S_IMODE(info.st_mode))
+    if _is_root():
+        os.chown(service_target, info.st_uid, info.st_gid)
+    for row in manifest["device_files"].values():
+        target = rt.target(Path(row["target"]))
+        if target == service_target:
+            continue
+        try:
+            if target.is_file() and not target.is_symlink():
+                if sha256_file(target) == row["sha256"]:
+                    target.unlink()
+        except FileNotFoundError:
+            continue
+    trial_manifest = rt.target(MANIFEST_PATH)
+    try:
+        if trial_manifest.is_file() and not trial_manifest.is_symlink():
+            trial_manifest.unlink()
+    except FileNotFoundError:
+        pass
+    rt.syncer()
+
+
+def _record_stage_failure(
+    rt: StageRuntime, *, boot_id: str, error: BaseException
+) -> None:
+    atomic_write(
+        rt.root / "stage-failure.json",
+        (
+            json.dumps(
+                {
+                    "schema": 1,
+                    "trial_id": TRIAL_ID,
+                    "boot_id": boot_id,
+                    "restored_original_files": True,
+                    "error": f"{type(error).__name__}: {error}",
+                },
+                sort_keys=True,
+            )
+            + "\n"
+        ).encode("utf-8"),
+    )
+    for name in ("stage.json", "stage-result.json"):
+        try:
+            (rt.root / name).unlink()
+        except FileNotFoundError:
+            pass
+    rt.syncer()
 
 
 def _backup_old_carriers(rt: StageRuntime, expected_hashes: dict[str, str]) -> dict[str, str]:
@@ -386,13 +541,26 @@ def stage(rt: StageRuntime, *, execute: bool, operator_serial: str | None = None
         identities = {}
         for name in rt.partition_bytes:
             _, identities[name] = _partition_size(rt, name)
+        original_service = _inspect_original_service(rt)
+        original_main_manifest, original_main_value = _inspect_original_main_manifest(
+            rt, manifest, original_service["sha256"]
+        )
+        service_row = manifest["device_files"][str(SERVICE_PATH)]
+        patched_main_bytes, patched_main_sha256 = _patched_main_manifest(
+            manifest, original_main_value, service_row["sha256"]
+        )
         if execute:
             original_service = _backup_original_service(rt)
+            original_main_manifest = _backup_original_main_manifest(
+                rt,
+                original_main_manifest,
+                original_main_value,
+                original_service["sha256"],
+            )
             old_hashes = _backup_old_carriers(
                 rt, {name: manifest["carriers"][name]["old"] for name in rt.partition_bytes}
             )
         else:
-            original_service = _inspect_original_service(rt)
             old_hashes = {}
             for name in rt.partition_bytes:
                 actual = sha256_file(rt.device(name))
@@ -410,8 +578,19 @@ def stage(rt: StageRuntime, *, execute: bool, operator_serial: str | None = None
             "partition_identity": identities,
             "old_carriers": old_hashes,
             "original_service": original_service,
+            "original_main_manifest": original_main_manifest,
+            "main_manifest_patch": {
+                "target": str(MAIN_MANIFEST_PATH),
+                "old_sha256": original_main_manifest["sha256"],
+                "new_sha256": patched_main_sha256,
+                "service_target": str(SERVICE_PATH),
+                "service_sha256": service_row["sha256"],
+            },
             "installs_carriers": False,
             "execute_requested": bool(execute),
+            "host_fetch_unavailable": bool(
+                manifest["fastboot"].get("host_fetch_unavailable", False)
+            ),
         }
         service_stop = None
         preinstall_fsync_paths = []
@@ -423,6 +602,7 @@ def stage(rt: StageRuntime, *, execute: bool, operator_serial: str | None = None
             plan["preinstall_fsync_paths"] = [
                 str(rt.root / "stage-plan.json"),
                 str(rt.root / "original/samurai-charging"),
+                str(rt.root / "original/main-manifest.json"),
                 str(rt.root / "old/boot.img"),
                 str(rt.root / "old/logdump.img"),
                 str(rt.manifest_path),
@@ -436,6 +616,7 @@ def stage(rt: StageRuntime, *, execute: bool, operator_serial: str | None = None
             preinstall_fsync_paths = [
                 Path(rt.root / "stage-plan.json"),
                 rt.root / "original/samurai-charging",
+                rt.root / "original/main-manifest.json",
                 rt.root / "old/boot.img",
                 rt.root / "old/logdump.img",
                 rt.manifest_path,
@@ -446,17 +627,39 @@ def stage(rt: StageRuntime, *, execute: bool, operator_serial: str | None = None
             rt.fsyncer(preinstall_fsync_paths)
 
         installed = []
-        ordered = sorted(
-            manifest["device_files"].items(),
-            key=lambda item: item[1]["target"] == str(MANIFEST_PATH),
-        )
         if execute:
-            for _, row in ordered:
-                installed.append(_install_file(rt, row))
-            manifest_target = rt.target(MANIFEST_PATH)
-            manifest_target.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
-            atomic_write(manifest_target, rt.manifest_path.read_bytes(), 0o644)
-            installed.append(str(manifest_target))
+            try:
+                for row in manifest["device_files"].values():
+                    installed.append(_install_file(rt, row))
+                main_target = rt.target(MAIN_MANIFEST_PATH)
+                main_target.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
+                atomic_write(
+                    main_target,
+                    patched_main_bytes,
+                    original_main_manifest["mode"],
+                )
+                if _is_root():
+                    os.chown(
+                        main_target,
+                        original_main_manifest["uid"],
+                        original_main_manifest["gid"],
+                    )
+                if sha256_file(main_target) != patched_main_sha256:
+                    raise TrialError("patched main manifest readback mismatch")
+                installed.append(str(main_target))
+                manifest_target = rt.target(MANIFEST_PATH)
+                manifest_target.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
+                atomic_write(manifest_target, rt.manifest_path.read_bytes(), 0o644)
+                installed.append(str(manifest_target))
+            except BaseException as error:
+                _restore_stage_files(
+                    rt,
+                    manifest,
+                    original_service,
+                    original_main_manifest,
+                )
+                _record_stage_failure(rt, boot_id=boot, error=error)
+                raise
         manifest_hash = sha256_file(rt.manifest_path)
         receipt = {
             "schema": 1,
@@ -470,14 +673,27 @@ def stage(rt: StageRuntime, *, execute: bool, operator_serial: str | None = None
             "watch_seconds": WATCH_SECONDS,
             "guard_installed": bool(execute),
             "original_service_installed": bool(execute),
+            "main_manifest_patched": bool(execute),
             "old_carriers_backed_up": bool(execute),
             "old_carrier_sha256": old_hashes,
             "partition_identity_recorded": True,
             "partition_identity": identities,
             "original_service": original_service,
+            "original_main_manifest": original_main_manifest,
+            "main_manifest_patch": {
+                "target": str(MAIN_MANIFEST_PATH),
+                "old_sha256": original_main_manifest["sha256"],
+                "new_sha256": patched_main_sha256,
+                "service_target": str(SERVICE_PATH),
+                "service_sha256": service_row["sha256"],
+            },
             "manifest_sha256": manifest_hash,
             "installed_file_sha256": {
-                row["target"]: row["sha256"] for row in manifest["device_files"].values()
+                **{
+                    row["target"]: row["sha256"]
+                    for row in manifest["device_files"].values()
+                },
+                str(MAIN_MANIFEST_PATH): patched_main_sha256,
             },
             "new_carrier_written": False,
             "host_carrier_write_required": True,
@@ -488,6 +704,9 @@ def stage(rt: StageRuntime, *, execute: bool, operator_serial: str | None = None
                 str(path) for path in preinstall_fsync_paths
             ],
             "restart_method": "restart2_syscall_142",
+            "host_fetch_unavailable": bool(
+                manifest["fastboot"].get("host_fetch_unavailable", False)
+            ),
             "restart2": {
                 "syscall": RESTART2_SYSCALL,
                 "magic1": RESTART2_MAGIC1,
@@ -511,6 +730,7 @@ def stage(rt: StageRuntime, *, execute: bool, operator_serial: str | None = None
             Path(rt.root / "stage.json"),
             Path(rt.root / "stage-result.json"),
             rt.target(MANIFEST_PATH),
+            rt.target(MAIN_MANIFEST_PATH),
             *(rt.target(Path(row["target"])) for row in manifest["device_files"].values()),
         ]
         receipt["postinstall_sync_fsync"] = [
@@ -530,15 +750,16 @@ def stage(rt: StageRuntime, *, execute: bool, operator_serial: str | None = None
         _sync()
         try:
             rt.bootloader_restarter()
-        except BaseException:
-            # No carrier was written.  Put the original wrapper back before
-            # returning failure so the failed stage is not left armed.
-            original = rt.root / "original/samurai-charging"
-            target = rt.target(SERVICE_PATH)
-            info = require_regular(original, require_root=rt.require_root)
-            atomic_write(target, original.read_bytes(), stat.S_IMODE(info.st_mode))
-            if _is_root():
-                os.chown(target, info.st_uid, info.st_gid)
+        except BaseException as error:
+            # No carrier was written. Restore the exact service and main
+            # manifest before returning so the failed stage is not left armed.
+            _restore_stage_files(
+                rt,
+                manifest,
+                original_service,
+                original_main_manifest,
+            )
+            _record_stage_failure(rt, boot_id=boot, error=error)
             raise
         return receipt
     finally:
