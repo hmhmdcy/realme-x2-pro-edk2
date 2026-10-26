@@ -169,6 +169,53 @@ function Assert-PartitionSizes {
     [pscustomobject]@{ boot = $boot; logdump = $logdump }
 }
 
+function Normalize-Path {
+    param([string]$Value)
+    $Value.Replace('\', '/').TrimEnd('/')
+}
+
+function Assert-DtbAndBootReceipt {
+    param([Parameter(Mandatory = $true)]$ManifestData)
+    $dtb = $ManifestData.dtb
+    Assert-FilePin -Path $dtb.path -Sha256 $dtb.sha256 -Bytes ([long]$dtb.bytes) -Label 'DTB'
+    if ($dtb.embedded_in_boot -ne $true) {
+        throw 'manifest must declare that the DTB is embedded in boot'
+    }
+
+    $receiptPin = $ManifestData.boot_receipt
+    Assert-FilePin `
+        -Path $receiptPin.path `
+        -Sha256 $receiptPin.sha256 `
+        -Bytes ([long]$receiptPin.bytes) `
+        -Label 'boot package receipt'
+    $receipt = Get-Content -LiteralPath $receiptPin.path -Raw | ConvertFrom-Json
+    Assert-True $receipt.passed 'boot receipt passed'
+    if ($receipt.boot_sha256 -ne $ManifestData.carriers.boot.new) {
+        throw 'boot receipt boot hash does not match the pinned new boot'
+    }
+    if ($receipt.native_DTB_sha256 -ne $dtb.sha256) {
+        throw 'boot receipt DTB hash does not match the pinned DTB'
+    }
+    $bootSuffix = Normalize-Path $receiptPin.boot_path_suffix
+    if (-not (Normalize-Path $receipt.boot_path).EndsWith($bootSuffix)) {
+        throw 'boot receipt boot path does not match the pinned suffix'
+    }
+    $dtbSuffix = Normalize-Path $receiptPin.dtb_path_suffix
+    foreach ($side in @('parent_inputs_before', 'parent_inputs_after')) {
+        $match = @(
+            $receipt.$side.PSObject.Properties |
+                Where-Object {
+                    (Normalize-Path $_.Name).EndsWith($dtbSuffix) -and
+                    $_.Value.ToLowerInvariant() -eq $dtb.sha256.ToLowerInvariant()
+                }
+        )
+        if ($match.Count -ne 1) {
+            throw "boot receipt $side lacks the exact pinned DTB path/hash"
+        }
+    }
+    $receipt
+}
+
 function Fetch-And-Verify {
     param(
         [Parameter(Mandatory = $true)][string]$Partition,
@@ -327,6 +374,13 @@ function Assert-Manifest {
         Assert-FilePin -Path $row.old_path -Sha256 $row.old -Bytes ([long]$row.bytes) -Label "old $name"
         Assert-FilePin -Path $row.new_path -Sha256 $row.new -Bytes ([long]$row.bytes) -Label "new $name"
     }
+    if ($null -ne $manifest.image) {
+        if ($manifest.image.sha256 -ne 'df9644bd8946a4d066937549aefbe6b552ca18715cc1a745efac6ca41bb8f910' -or
+            [long]$manifest.image.bytes -ne 59374080) {
+            throw 'manifest Image pin is not the #510 Image'
+        }
+    }
+    $null = Assert-DtbAndBootReceipt -ManifestData $manifest
     $manifest
 }
 
@@ -347,12 +401,19 @@ try {
         throw "fastboot executable is missing: $FastbootPath"
     }
     $Manifest = Assert-Manifest
+    $report.pinned_inputs = [pscustomobject]@{
+        boot = $Manifest.carriers.boot.new
+        logdump = $Manifest.carriers.logdump.new
+        dtb = $Manifest.dtb.sha256
+        boot_receipt = $Manifest.boot_receipt.sha256
+        dtb_embedded_in_boot_not_flashed = $true
+    }
     $receipt = Test-StageReceipt -Path $StageReceipt
     $report.stage_receipt = $receipt
 
     if ([string]::IsNullOrWhiteSpace($WorkDirectory)) {
         $WorkDirectory = Join-Path ([System.IO.Path]::GetTempPath()) (
-            'charging-trial-509-' + [guid]::NewGuid().ToString('N')
+            'charging-trial-510-' + [guid]::NewGuid().ToString('N')
         )
     }
     if (Test-Path -LiteralPath $WorkDirectory) {

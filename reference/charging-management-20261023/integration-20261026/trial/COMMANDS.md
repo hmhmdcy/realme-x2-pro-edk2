@@ -15,7 +15,7 @@ python tests\run_tests.py
 Copy the package to the private root named by the manifest, then run:
 
 ```text
-adb shell su -c "python3 -B /root/charging-management-20261023/charging-integration-trial-20261026-01/trial_stage.py --serial 62bc28a1"
+adb shell su -c "python3 -B /root/charging-management-20261023/charging-integration-trial-20261026-02/trial_stage.py --serial 62bc28a1"
 ```
 
 The preflight verifies the old carrier hashes and prints a receipt. It does not
@@ -24,7 +24,7 @@ install files, back up carriers, or reboot.
 ## 3. Stage execute
 
 ```text
-adb shell su -c "python3 -B /root/charging-management-20261023/charging-integration-trial-20261026-01/trial_stage.py --serial 62bc28a1 --execute" > stage-receipt.json
+adb shell su -c "python3 -B /root/charging-management-20261023/charging-integration-trial-20261026-02/trial_stage.py --serial 62bc28a1 --execute" > stage-receipt.json
 ```
 
 The explicit serial is an operator assertion recorded as
@@ -62,9 +62,11 @@ After the phone is manually confirmed in bootloader mode, execute:
 ```
 
 The operator checks one device with serial `62bc28a1`, product `msmnile`, and
-the pinned partition sizes. It verifies the currently installed pair is the
-exact old pair, flashes logdump then boot, fetches and hashes each write, and
-issues one `fastboot reboot`.
+the pinned partition sizes. It also checks the pinned DTB file and #510 boot
+package receipt: boot hash, DTB hash/path, and DTB before/after input hashes
+must agree. The DTB is embedded in boot and is not flashed separately. It
+verifies the currently installed pair is the exact old pair, flashes logdump
+then boot, fetches and hashes each write, and issues one `fastboot reboot`.
 
 Any write/readback failure triggers one restoration of the pinned old boot and
 old logdump, followed by one reboot if restoration is verified. The operator
@@ -73,10 +75,10 @@ not issue a reboot.
 
 ## 5. Read-only postboot audit
 
-Run as root on the #509 boot with the phone on the normal SDP/5 V link:
+Run as root on the #510 boot with the phone on the normal SDP/5 V link:
 
 ```text
-adb shell su -c "python3 -B /root/charging-management-20261023/charging-integration-trial-20261026-01/postboot_audit.py" > acceptance.json
+adb shell su -c "python3 -B /root/charging-management-20261023/charging-integration-trial-20261026-02/postboot_audit.py" > acceptance.json
 ```
 
 The report must contain `"passed": true`, `"read_only": true`, and
@@ -91,8 +93,8 @@ passed report and before the watchdog deadline.
 
 ```powershell
 $Report = Get-Content -LiteralPath "E:\path\to\acceptance.json" -Raw | ConvertFrom-Json
-adb push "E:\path\to\acceptance.json" /root/charging-management-20261023/charging-integration-trial-20261026-01/acceptance.json
-adb shell su -c "python3 -B /root/charging-management-20261023/charging-integration-trial-20261026-01/acknowledge_trial.py --report /root/charging-management-20261023/charging-integration-trial-20261026-01/acceptance.json --confirm-boot-id $($Report.boot_id) --execute"
+adb push "E:\path\to\acceptance.json" /root/charging-management-20261023/charging-integration-trial-20261026-02/acceptance.json
+adb shell su -c "python3 -B /root/charging-management-20261023/charging-integration-trial-20261026-02/acknowledge_trial.py --report /root/charging-management-20261023/charging-integration-trial-20261026-02/acceptance.json --confirm-boot-id $($Report.boot_id) --execute"
 ```
 
 The token records the current `boot_id`, manifest hash, and audit report hash.

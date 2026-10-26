@@ -55,7 +55,13 @@ def snapshot(root: Path) -> dict[str, str]:
     return result
 
 
-def build_manifest(package: Path, old_paths: dict[str, Path], new_paths: dict[str, Path]) -> dict:
+def build_manifest(
+    package: Path,
+    old_paths: dict[str, Path],
+    new_paths: dict[str, Path],
+    dtb_path: Path,
+    boot_receipt_path: Path,
+) -> dict:
     device_files = {
         str(trial_common.COMMON_PATH): {
             "source": "trial_common.py",
@@ -102,6 +108,19 @@ def build_manifest(package: Path, old_paths: dict[str, Path], new_paths: dict[st
         },
         "device_files": device_files,
         "carriers": carriers,
+        "dtb": {
+            "path": str(dtb_path),
+            "sha256": sha(dtb_path),
+            "bytes": dtb_path.stat().st_size,
+            "embedded_in_boot": True,
+        },
+        "boot_receipt": {
+            "path": str(boot_receipt_path),
+            "sha256": sha(boot_receipt_path),
+            "bytes": boot_receipt_path.stat().st_size,
+            "boot_path_suffix": new_paths["boot"].as_posix(),
+            "dtb_path_suffix": dtb_path.as_posix(),
+        },
     }
 
 
@@ -144,7 +163,24 @@ def make_fixture(base: Path) -> dict:
         "boot": write(base / "devices/boot.img", old_paths["boot"].read_bytes()),
         "logdump": write(base / "devices/logdump.img", old_paths["logdump"].read_bytes()),
     }
-    manifest = build_manifest(package, old_paths, new_paths)
+    dtb_path = write(base / "images/new.dtb", blob("new-dtb", 160))
+    boot_receipt_path = write(
+        base / "images/boot-receipt.json",
+        json.dumps(
+            {
+                "passed": True,
+                "boot_path": str(new_paths["boot"]),
+                "boot_sha256": sha(new_paths["boot"]),
+                "native_DTB_sha256": sha(dtb_path),
+                "parent_inputs_before": {str(dtb_path): sha(dtb_path)},
+                "parent_inputs_after": {str(dtb_path): sha(dtb_path)},
+            }
+        )
+        + "\n",
+    )
+    manifest = build_manifest(
+        package, old_paths, new_paths, dtb_path, boot_receipt_path
+    )
     manifest_path = write(
         package / "manifest.json",
         json.dumps(manifest, indent=2, sort_keys=True) + "\n",
@@ -171,6 +207,8 @@ def make_fixture(base: Path) -> dict:
         / Path(str(trial_common.MANIFEST_PATH)).relative_to("/"),
         "devices": devices,
         "identities": identities,
+        "dtb_path": dtb_path,
+        "boot_receipt_path": boot_receipt_path,
         "root": base / "evidence",
         "original_service": original_service,
         "original_service_bytes": original_service.read_bytes(),
@@ -255,6 +293,11 @@ def make_audit_tree(fixture: dict) -> dict:
     write(sys_root / "class/net/usb0/device/driver/name", "cdc_ncm\n")
     typec_binding = sys_root / "test-typec-binding"
     write(typec_binding / "marker", "bound\n")
+    write(
+        sys_root
+        / "firmware/devicetree/base/soc@0/spmi@c440000/pmic@2/typec@1500/realme,apsd-handoff-trial",
+        b"\x00\x00\x00\x01",
+    )
     port = sys_root / "class/typec/port0"
     write(port / "power_role", "[sink] source\n")
     write(port / "data_role", "[device] host\n")
@@ -813,6 +856,18 @@ class PostbootAuditTests(unittest.TestCase):
             self.assertFalse(report["passed"])
             self.assertIn("refused", report["error"])
 
+    def test_audit_requires_explicit_apsd_handoff_property(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture, tree = self._ready(temporary)
+            property_path = (
+                tree["sys_root"]
+                / "firmware/devicetree/base/soc@0/spmi@c440000/pmic@2/typec@1500/realme,apsd-handoff-trial"
+            )
+            property_path.write_bytes(b"\x00\x00\x00\x00")
+            report = postboot_audit.audit(audit_runtime(fixture, tree))
+            self.assertFalse(report["passed"])
+            self.assertIn("apsd-handoff-trial", report["error"])
+
     def test_audit_rejects_new_taint_and_warning(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             fixture, tree = self._ready(temporary)
@@ -1066,6 +1121,16 @@ class FastbootOperatorTests(unittest.TestCase):
             self.assertTrue(report["passed"])
             self.assertEqual(report["outcome"], "new_pair_verified_and_rebooted")
             self.assertEqual(report["reboot_count"], 1)
+            self.assertEqual(
+                report["pinned_inputs"]["dtb"], sha(fixture["dtb_path"])
+            )
+            self.assertEqual(
+                report["pinned_inputs"]["boot_receipt"],
+                sha(fixture["boot_receipt_path"]),
+            )
+            self.assertTrue(
+                report["pinned_inputs"]["dtb_embedded_in_boot_not_flashed"]
+            )
             commands = fixture["commands_log"].read_text().splitlines()
             flashes = [line for line in commands if line.startswith("flash ")]
             self.assertEqual(len(flashes), 2)
@@ -1153,6 +1218,33 @@ class FastbootOperatorTests(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 3)
             self.assertFalse(report["writes_attempted"])
+
+    def test_dtb_tamper_prevents_fastboot_execution(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = make_fastboot_fixture(Path(temporary))
+            fixture["dtb_path"].write_bytes(b"X" * fixture["dtb_path"].stat().st_size)
+            result, report = run_fastboot_operator(
+                fixture, fixture["base"] / "work"
+            )
+            self.assertEqual(result.returncode, 3)
+            self.assertIn("DTB hash mismatch", report["error"])
+            self.assertFalse(fixture["commands_log"].exists())
+
+    def test_boot_receipt_tamper_prevents_fastboot_execution(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = make_fastboot_fixture(Path(temporary))
+            receipt = json.loads(fixture["boot_receipt_path"].read_text())
+            receipt["native_DTB_sha256"] = "0" * 64
+            write(
+                fixture["boot_receipt_path"],
+                json.dumps(receipt, sort_keys=True) + "\n",
+            )
+            result, report = run_fastboot_operator(
+                fixture, fixture["base"] / "work"
+            )
+            self.assertEqual(result.returncode, 3)
+            self.assertIn("boot package receipt hash mismatch", report["error"])
+            self.assertFalse(fixture["commands_log"].exists())
 
     def test_fastboot_rejects_a_different_real_device_serial(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

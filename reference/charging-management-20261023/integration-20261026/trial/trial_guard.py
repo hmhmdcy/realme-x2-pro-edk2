@@ -1,4 +1,4 @@
-"""Fail-closed userspace guard for the #509 charging trial.
+"""Fail-closed userspace guard for the #510 charging trial.
 
 The guard is called from the OpenRC wrapper's start_pre hook.  It starts one
 300-second watchdog for the current boot.  If a boot-bound acceptance token is

@@ -1,11 +1,16 @@
-# Charging integration #509 rollback trial
+# Charging integration #510 explicit APSD-handoff trial
 
 This package is prepared for a later on-device trial. It was not executed
 against a phone, and no carrier was flashed or rebooted while preparing it.
 
 ## Scope
 
-- Kernel version pin: `#509 SMP PREEMPT Mon Oct 26 15:50:11 CST 2026`
+- Kernel version pin: `#510 SMP PREEMPT Mon Oct 26 16:22:08 CST 2026`
+- Image: `df9644bd8946a4d066937549aefbe6b552ca18715cc1a745efac6ca41bb8f910`
+  (59374080 bytes)
+- Trial id: `charging-integration-510-20261026-02`
+- Private staging root:
+  `/root/charging-management-20261023/charging-integration-trial-20261026-02`
 - Device: serial `62bc28a1`, product `msmnile`
 - Fixed 5 V only. High voltage, PPS, PD voltage changes, and charger register
   writes are not part of this trial.
@@ -16,8 +21,9 @@ against a phone, and no carrier was flashed or rebooted while preparing it.
 
 | Carrier | Bytes | Old | New |
 | --- | ---: | --- | --- |
-| boot | 100663296 | `5c8d23d4d5e834593dd3a24537044af8b57e2df53ed3a91fb7880ad7541f8311` | `3c00240da208c4b2caf34b4b6f95f2a8c8b82a70ab5a45267569fd0a8b5ff325` |
-| logdump | 67108864 | `b29ea41a7a076555f5f6848c9f343dbd8fb0f9271adbd4d3acd4fff9d092b0ff` | `7c2029e7c06e708682f4de6da1f4a45b2a188a5202cd20c17aef494f543c677d` |
+| boot | 100663296 | `5c8d23d4d5e834593dd3a24537044af8b57e2df53ed3a91fb7880ad7541f8311` | `8af84ca536c9d4e1f09d7395adb303ba6f2ed6fa9138adef074df95e68e56680` |
+| logdump | 67108864 | `b29ea41a7a076555f5f6848c9f343dbd8fb0f9271adbd4d3acd4fff9d092b0ff` | `7551d34623eb082ae37de3cd18a1a1c395305dcd4dbe69c341014c17197ff954` |
+| DTB (embedded in boot) | 116966 | n/a | `9aa3e6fce7833f294a2dd7dc9b8f9d4fc95f3627d0c2386ba2ce183bc4316cd6` |
 
 ## Files
 
@@ -31,6 +37,10 @@ against a phone, and no carrier was flashed or rebooted while preparing it.
 - `acknowledge_trial.py`: separate, explicit token issuance after review.
 - `fastboot_operator.ps1`: Windows host operator. Flashes logdump first, then
   boot, verifies every write with `fastboot fetch`, and sends one reboot.
+- The operator also pins the DTB file and the #510 boot-package receipt. It
+  verifies that the receipt names the same boot hash, DTB hash/path, and DTB
+  input before and after packaging. The DTB is embedded in boot and is not
+  flashed as a separate partition.
 - `manifest.json`: source, target, carrier, fastboot, and postboot pins.
 - `tests/`: local controls using synthetic small carriers and fake fastboot.
 
@@ -76,7 +86,7 @@ The private evidence tree is retained after rollback for inspection.
 
 The audit checks:
 
-- exact #509 version string and the same boot as the guard state;
+- exact #510 version string and the same boot as the guard state;
 - `cdc_ncm` interface binding and NCM dmesg evidence;
 - `qcom,pmic-typec` binding, one TCPM supply, one Type-C port, and its partner;
 - native SDP and TCPM both at 500000 uA, 5 V, Type-C, sink/device roles;
@@ -86,6 +96,8 @@ The audit checks:
   Type-C partner, and TCPM supply, with no
   `full-PD APSD/QC takeover refused` line. No successful startup log string is
   required; the source only prints `fixed5V callbacks joined` at shutdown.
+- The explicit `realme,apsd-handoff-trial=1` DT property must be present on the
+  Type-C node.
 - no new critical warning lines and no taint bits beyond `baseline_tainted`;
 - fixed 5 V sink PDO `04019032`.
 
@@ -126,4 +138,7 @@ fake `fastboot` PowerShell script. It never opens a real device.
 - Strict dmesg matching and the `4096` taint baseline can produce a false
   negative. Treat a failed audit as no acceptance, not as permission to relax
   checks.
+
+The host private mirror for this package is
+`E:\edk2-samurai-out\charging-management-20261023\charging-integration-trial-20261026-02`.
 

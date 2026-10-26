@@ -1,4 +1,4 @@
-"""Read-only postboot acceptance checks for the #509 trial.
+"""Read-only postboot acceptance checks for the #510 trial.
 
 This script only reads sysfs/procfs and runs read-only commands.  It does not
 write an acceptance token, change charging parameters, or request a reboot.
@@ -40,6 +40,10 @@ CRITICAL_DMESG = re.compile(
 NCM_RE = re.compile(r"(?i)(cdc_ncm|CDC[ -]?NCM)")
 TYPEC_BIND_RE = re.compile(r"(?i)(qcom,pmic-typec|qcom-pmic-typec)")
 APSD_REFUSAL_RE = re.compile(r"(?i)full-PD APSD/QC takeover refused")
+APSD_HANDOFF_PROPERTY = (
+    "firmware/devicetree/base/soc@0/spmi@c440000/pmic@2/typec@1500/"
+    "realme,apsd-handoff-trial"
+)
 
 
 def _default_dmesg() -> str:
@@ -328,6 +332,11 @@ def _check_apsd_adc(rt: AuditRuntime, dmesg: str, typec: dict, tcpm: dict) -> di
     # the handoff at shutdown, so no successful startup log may be required.
     if not typec.get("partner") or not tcpm.get("name"):
         raise TrialError("APSD/ADC preparation is not proven by Type-C/TCPM setup")
+    property_path = rt.sys(APSD_HANDOFF_PROPERTY)
+    if not property_path.is_file():
+        raise TrialError("realme,apsd-handoff-trial DT property is missing")
+    if property_path.read_bytes() != b"\x00\x00\x00\x01":
+        raise TrialError("realme,apsd-handoff-trial DT property is not enabled")
     refusal = [line for line in dmesg.splitlines() if APSD_REFUSAL_RE.search(line)]
     if refusal:
         raise TrialError(
@@ -336,6 +345,7 @@ def _check_apsd_adc(rt: AuditRuntime, dmesg: str, typec: dict, tcpm: dict) -> di
     return {
         "apsd_prepare_evidence": "qcom_pmic_typec_apsd_prepare_before_register",
         "adc_reader_evidence": "inferred_from_successful_full_PD_profile_probe",
+        "explicit_handoff_property": "realme,apsd-handoff-trial=1",
         "typec_partner": typec["partner"],
         "tcpm_supply": tcpm["name"],
         "refusal_lines": [],

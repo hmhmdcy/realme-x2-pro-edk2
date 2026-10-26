@@ -1,4 +1,4 @@
-"""Shared constants and filesystem primitives for the #509 trial.
+"""Shared constants and filesystem primitives for the #510 trial.
 
 This module is intentionally free of device discovery and command execution so
 the guard, stage helper, and local control tests can all use the same rules.
@@ -13,15 +13,15 @@ import stat
 from pathlib import Path
 
 
-TRIAL_ID = "charging-integration-509-20261026-01"
-TOKEN = "5da7c53eb35c2e8d4f73a0b1e3c64e0f6ab8a2c6c0de27f7f1c1d4b0a7d1b8e9"
-VERSION = "#509 SMP PREEMPT Mon Oct 26 15:50:11 CST 2026"
+TRIAL_ID = "charging-integration-510-20261026-02"
+TOKEN = "0a67db6cb999ecfdd30edb279e96ae0d19514ad721d9b861496dbc7c941141ce"
+VERSION = "#510 SMP PREEMPT Mon Oct 26 16:22:08 CST 2026"
 RELEASE = "7.3.0-rc6-rmx1931-samurai-k363+"
 WATCH_SECONDS = 300
 EXPECTED_TAINTED = 4096
 
 DEVICE_ROOT = Path(
-    "/root/charging-management-20261023/charging-integration-trial-20261026-01"
+    "/root/charging-management-20261023/charging-integration-trial-20261026-02"
 )
 GUARD_PATH = Path("/usr/lib/samurai-charging/trial_guard.py")
 COMMON_PATH = Path("/usr/lib/samurai-charging/trial_common.py")
@@ -34,13 +34,18 @@ PARTITION_BYTES = {
 }
 
 NEW_CARRIER_SHA256 = {
-    "boot": "3c00240da208c4b2caf34b4b6f95f2a8c8b82a70ab5a45267569fd0a8b5ff325",
-    "logdump": "7c2029e7c06e708682f4de6da1f4a45b2a188a5202cd20c17aef494f543c677d",
+    "boot": "8af84ca536c9d4e1f09d7395adb303ba6f2ed6fa9138adef074df95e68e56680",
+    "logdump": "7551d34623eb082ae37de3cd18a1a1c395305dcd4dbe69c341014c17197ff954",
 }
 OLD_CARRIER_SHA256 = {
     "boot": "5c8d23d4d5e834593dd3a24537044af8b57e2df53ed3a91fb7880ad7541f8311",
     "logdump": "b29ea41a7a076555f5f6848c9f343dbd8fb0f9271adbd4d3acd4fff9d092b0ff",
 }
+
+IMAGE_SHA256 = "df9644bd8946a4d066937549aefbe6b552ca18715cc1a745efac6ca41bb8f910"
+IMAGE_BYTES = 59374080
+NEW_DTB_SHA256 = "9aa3e6fce7833f294a2dd7dc9b8f9d4fc95f3627d0c2386ba2ce183bc4316cd6"
+NEW_DTB_BYTES = 116966
 
 _CHUNK = 1024 * 1024
 
