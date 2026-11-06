@@ -1,0 +1,638 @@
+{
+  "schema": "samurai-dts-source-lock-v3",
+  "superseded_by": "linux-port/dts/v731/source-lock.json",
+  "superseded_on": "2026-11-06",
+  "checked_at": "2026-11-05",
+  "status": "historical_k363_identity; current_deployment_is_linux_v731",
+  "canonical_source": {
+    "path": "reference/kernel276/sm8150-samurai.dts",
+    "source_path_in_commit": "arch/arm64/boot/dts/qcom/sm8150-samurai.dts",
+    "kernel_build_commit": "ba61a62293e0f6bc5838c06f2e85e033e3d702a8",
+    "project_archive_commit": "0d69276125ec8e7d0cc083ac421e2ad7fe79a3c8",
+    "kernel_stage": 363,
+    "sha256": "428e20b3fe06a8b4ea85617cd2db3da9528e4edb0276647e7c7ed15c3737338b",
+    "bytes": 29161,
+    "lines": 1094,
+    "source_identity": "The kernel DTS at ba61 is byte-identical to the kernel276 archive blob."
+  },
+  "historical_repository_snapshot": {
+    "path": "linux-port/dts/sm8150-samurai.dts",
+    "role": "early bring-up snapshot; not the current canonical source",
+    "observed_kernel_stage": 77,
+    "sha256": "6e6c592b612712f7528841f0a3f918546e9bd5f348e3f516310b2f4145f9462c",
+    "bytes": 12714,
+    "lines": 487
+  },
+  "locked_kernel_dtb_rebuild": {
+    "worktree": "/home/cy122/x2pro-linux/l2-source-ba61",
+    "build_output": "E:/edk2-samurai-out/layer-adaptation-20261105/dtb-rebuild-ba61",
+    "config": "E:/edk2-samurai-out/kernel450/live-lens/Image363-extracted.config",
+    "config_sha256": "23e088a90736bbbc442c672d82b35c11bf04f7dc489f1c6afb1b03dc0d8f30ed",
+    "config_unchanged_after_olddefconfig": true,
+    "dtb_sha256": "dcdd74ec903520c7023fa28badcb293b2e4e26ee5bac639497c63d53536b2c8d",
+    "dtb_bytes": 114556,
+    "matches_kernel363_build_record": true,
+    "build_record": "reference/kernel363/boot-candidate-build-validation.json"
+  },
+  "source_split_ba61": {
+    "generator": "linux-port/scripts/split-canonical-dts.py",
+    "output_dir": "linux-port/dts/split-ba61",
+    "outputs": {
+      "sm8150-samurai-common.dtsi": {
+        "sha256": "d119d7d995ec49d173814ceed0b94026ac484a4b77ed7325a62b5402bc75a4cf",
+        "bytes": 28652
+      },
+      "sm8150-samurai-os.dts": {
+        "sha256": "d3d165f293c5588db1cbf2bee5916d9bbc0b15b6f31bbb0f03dc08cd65aa1583",
+        "bytes": 272
+      },
+      "sm8150-samurai-vendor.dts": {
+        "sha256": "0509160404457b65498472260962241a02c89131b4a0987b19f4a85d16c21602",
+        "bytes": 359
+    },
+    "imx319.dtsi": {
+      "sha256": "dbdd3735bd3ad3a4d73c5eeece4e44819d807d4471cf834a172fc5d68d88620c",
+      "bytes": 2199
+    },
+    "s5k3m5-samurai.dtsi": {
+      "sha256": "b68270e977a614a281f5122abf0ca96c9214b2a4a1d5a8a149a78bb7c908c4ec",
+      "bytes": 2024
+    },
+    "s5kgw1-samurai.dtsi": {
+      "sha256": "ec1b61a44f0142e2d98f978f6b60950206198487ca3df8c1d452e208646dccda",
+      "bytes": 2390
+      }
+    },
+  "board_fragments_local": {
+    "status": "self_contained_rebuild_matches",
+    "source": "copied from the locked k363 board source",
+    "output_dtb_sha256": "f7959f8a0f8bd3b89dcd67db2f1362b746cc3c4b43f403edbf6fa5347143a3f0",
+    "build_result": "E:/edk2-samurai-out/layer-adaptation-20261105/dual-kernel-matrix/local-sensor-build/build-result.json",
+    "build_result_sha256": "4912ee701458f8046513a533f2059e0da5fa95de13898dfcb0aa37d3f767b756"
+  },
+    "built_os_dtb": {
+      "sha256": "f7959f8a0f8bd3b89dcd67db2f1362b746cc3c4b43f403edbf6fa5347143a3f0",
+      "bytes": 114461
+    },
+    "built_vendor_dtb": {
+      "sha256": "dcdd74ec903520c7023fa28badcb293b2e4e26ee5bac639497c63d53536b2c8d",
+      "bytes": 114556,
+      "byte_identical_to_canonical": true
+    },
+    "semantic_result": {
+      "os_vs_canonical_only_removed_properties": [
+        "qcom,msm-id",
+        "qcom,board-id",
+        "oppo,dtsi_no"
+      ],
+      "other_os_changes": false,
+      "vendor_vs_canonical_changes": false
+    },
+    "limitations": [
+      "The source vendor wrapper is a semantic control, not the 450826-byte stock ABL compat DTB.",
+      "The debug bootargs remains in the shared source.",
+      "No runtime activation of the source-built split has been performed."
+    ]
+  },
+  "deployed_firmware_dtb": {
+    "pre_probe_boot_embedded_sha256": "9736b861ae73a045dcc032963b81b680f3f2662623b4e1175c2bcea1d29f9352",
+    "bytes": 116962,
+    "equal_to_k363_build_dtb": false,
+    "post_probe_boot_os_dtb_sha256": "e3db4fa94ae722f5dac4c363190d7a710621e75c42e3d58c2c3e38da7ba7850a",
+    "post_probe_runtime_fdt_sha256": "7051a6bcc8659a24055f06b6070e590706a966cb65b6d866df503421cbe3fc37",
+    "provenance_chain": [
+      {
+        "path": "E:/edk2-samurai-out/charging-management-20261023/charging-integration-20261026-dtb-private-01/samurai-integration509-apsd-private.dtb",
+        "sha256": "9aa3e6fce7833f294a2dd7dc9b8f9d4fc95f3627d0c2386ba2ce183bc4316cd6",
+        "bytes": 116966
+      },
+      {
+        "path": "E:/edk2-samurai-out/charging-management-20261023/charging-integration-20261026-dtb-private-02/samurai-eud-off-route-okay.dtb",
+        "sha256": "d7d8a7da7a3fc68b37faceda0fd7c7f506fbbd17b7a510c15cb978b9160acf1b",
+        "bytes": 116962
+      },
+      {
+        "path": "E:/edk2-samurai-out/charging-management-20261023/charging-integration-20261027-dtb-private-03/samurai-5v1500-eud-off-route.dtb",
+        "sha256": "9736b861ae73a045dcc032963b81b680f3f2662623b4e1175c2bcea1d29f9352",
+        "bytes": 116962
+      }
+    ],
+    "classification": "charging experiment and firmware integration DTB; not the canonical k363 source build",
+    "provenance_stages": [
+      {
+        "id": "canonical-to-integration509",
+        "from_sha256": "dcdd74ec903520c7023fa28badcb293b2e4e26ee5bac639497c63d53536b2c8d",
+        "to_sha256": "9aa3e6fce7833f294a2dd7dc9b8f9d4fc95f3627d0c2386ba2ce183bc4316cd6",
+        "semantic_diff": "E:/edk2-samurai-out/layer-adaptation-20261105/source-lock-ba61/canonical-to-integration509-semantic.json",
+        "semantic_diff_sha256": "8ebd4dd8c9d9edddb5ec7e0035d925339d68d27a7722b18f0fb71045938993a3",
+        "summary": {
+          "changed_properties": [
+            "chosen/bootargs",
+            "serial@88e0000/status",
+            "typec@1500/status"
+          ],
+          "added_nodes": 10,
+          "added_properties": 7,
+          "added_phandle_links": 4
+        }
+      },
+      {
+        "id": "integration509-to-eud-off-route",
+        "from_sha256": "9aa3e6fce7833f294a2dd7dc9b8f9d4fc95f3627d0c2386ba2ce183bc4316cd6",
+        "to_sha256": "d7d8a7da7a3fc68b37faceda0fd7c7f506fbbd17b7a510c15cb978b9160acf1b",
+        "semantic_diff": "E:/edk2-samurai-out/layer-adaptation-20261105/source-lock-ba61/integration-to-eud-route-semantic.json",
+        "semantic_diff_sha256": "7a25aeb2869359e16e7d1e21805b0b8a18f5565a8e2d371a820f10864d3237f9",
+        "changes": [
+          {
+            "path": "/soc@0/eud-off-route",
+            "property": "status",
+            "before": "disabled",
+            "after": "okay"
+          }
+        ]
+      },
+      {
+        "id": "eud-off-route-to-5v1500",
+        "from_sha256": "d7d8a7da7a3fc68b37faceda0fd7c7f506fbbd17b7a510c15cb978b9160acf1b",
+        "to_sha256": "9736b861ae73a045dcc032963b81b680f3f2662623b4e1175c2bcea1d29f9352",
+        "semantic_diff": "E:/edk2-samurai-out/layer-adaptation-20261105/source-lock-ba61/eud-route-to-5v1500-semantic.json",
+        "semantic_diff_sha256": "c246b92180636dbc331e4823e7451aa8e419ccc69b6c6120b45c2da800a8a8d3",
+        "changes": [
+          {
+            "path": "/soc@0/spmi@c440000/pmic@2/typec@1500/connector",
+            "property": "op-sink-microwatt",
+            "before_hex": "002625a0",
+            "after_hex": "007270e0",
+            "before_value": 2500000,
+            "after_value": 7500000
+          },
+          {
+            "path": "/soc@0/spmi@c440000/pmic@2/typec@1500/connector",
+            "property": "sink-pdos",
+            "before_hex": "04019032",
+            "after_hex": "04019096",
+            "note": "5V fixed PDO; current limit changes from 500 mA to 1500 mA, no high-voltage PDO"
+          }
+        ]
+      }
+    ]
+  },
+  "deployed_difference_ledger": {
+    "status": "classified_offline_no_runtime_change",
+    "canonical_os_dtb": {
+      "path": "E:/edk2-samurai-out/layer-adaptation-20261105/dtb-rebuild-ba61/arch/arm64/boot/dts/qcom/sm8150-samurai.dtb",
+      "sha256": "dcdd74ec903520c7023fa28badcb293b2e4e26ee5bac639497c63d53536b2c8d",
+      "bytes": 114556
+    },
+    "pre_probe_semantic_diff": {
+      "input": "E:/edk2-samurai-out/layer-adaptation-20261105/source-lock-ba61/boot-embedded-os.dtb",
+      "input_sha256": "9736b861ae73a045dcc032963b81b680f3f2662623b4e1175c2bcea1d29f9352",
+      "semantic_diff": "E:/edk2-samurai-out/layer-adaptation-20261105/source-lock-ba61/canonical-vs-deployed-semantic-v2.json",
+      "semantic_diff_sha256": "d22141ae06933264512b50e24a63bda9d6ade60d51619bfe0bd97b2a06b82359",
+      "ledger": "E:/edk2-samurai-out/layer-adaptation-20261105/source-lock-ba61/deployed-dtb-difference-ledger.json",
+      "ledger_sha256": "5170ba9ec7cd32baf5b6930f8fcd3c25a6b1119857b9b0497582fd720f93d351",
+      "semantic_items": 24,
+      "classified_items": 24,
+      "unclassified_items": 0
+    },
+    "current_os_semantic_diff": {
+      "input": "E:/edk2-samurai-out/layer-adaptation-20261105/candidate-l2-vendor-split/os-dtb-v1.dtb",
+      "input_sha256": "e3db4fa94ae722f5dac4c363190d7a710621e75c42e3d58c2c3e38da7ba7850a",
+      "semantic_diff": "E:/edk2-samurai-out/layer-adaptation-20261105/source-lock-ba61/canonical-vs-current-os-semantic-v2.json",
+      "semantic_diff_sha256": "9e01c9c96d9f696c0f1072f4d3a2b004754ebcc09d6e2c8f50dfa0852afce703",
+      "ledger": "E:/edk2-samurai-out/layer-adaptation-20261105/source-lock-ba61/current-os-dtb-difference-ledger.json",
+      "ledger_sha256": "0c9026ae11293a55c0c3aa8e66019749e1e2a81cadc1508c422faf572304089c",
+      "semantic_items": 27,
+      "classified_items": 27,
+      "unclassified_items": 0
+    },
+    "categories": {
+      "camera_icp_experiment": {
+        "pre_probe_items": 7,
+        "public_abi": false,
+        "disposition": "optional_overlay_not_in_samurai_dt_v1"
+      },
+      "charging_usb_input_experiment": {
+        "pre_probe_items": 12,
+        "public_abi": false,
+        "disposition": "optional_overlay_not_in_samurai_dt_v1"
+      },
+      "usb_controller_linkage": {
+        "pre_probe_items": 1,
+        "public_abi": false,
+        "disposition": "linkage_only_not_a_hardware_policy"
+      },
+      "eud_debug_route": {
+        "pre_probe_items": 3,
+        "public_abi": false,
+        "disposition": "debug_only_exclude_from_production_dtb"
+      },
+      "debug_and_test_bootargs": {
+        "pre_probe_items": 1,
+        "public_abi": false,
+        "disposition": "move_to_debug_startup_entry"
+      },
+      "vendor_compat_fields": {
+        "pre_probe_items": 0,
+        "current_items": 3,
+        "public_abi": false,
+        "disposition": "vendor_compat_only_exclude_from_os_dtb"
+      }
+    },
+    "normalization_context": {
+      "phandle_value_only_count": 299,
+      "reference_normalized_property_count": 679,
+      "note": "Phandle renumbering and known reference properties are normalized before classification; they are not semantic differences."
+    },
+    "experiment_source_reconstruction": {
+      "status": "semantic_identity_except_one_unused_phandle",
+      "wrapper": "linux-port/dts/experiments/sm8150-samurai-experiment-os.dts",
+      "wrapper_sha256": "ff2746803d094cd9af1ea37ae38c11c123186abb52106e1fe1efbb9a332947de",
+      "fragments": [
+        "linux-port/dts/experiments/samurai-camera-icp.dtsi",
+        "linux-port/dts/experiments/samurai-charging-usb-input.dtsi",
+        "linux-port/dts/experiments/samurai-eud-off-route.dtsi",
+        "linux-port/dts/experiments/samurai-5v1500-policy.dtsi",
+        "linux-port/dts/experiments/samurai-debug-bootargs.dtsi"
+      ],
+      "build_script": "linux-port/scripts/build-dtb-experiment.py",
+      "build_script_sha256": "cee076987eeac6e00318007ed3e0ceec52f2894749203a75d3ef20f223914dd5",
+      "build_result": "E:/edk2-samurai-out/layer-adaptation-20261105/experiment-dtb-build/build-result.json",
+      "build_result_sha256": "cc2e22b5f4544efa4883dbe39cfdc7a44ea43d50e8a6970c4664bbd03848bc25",
+      "output_dtb": "E:/edk2-samurai-out/layer-adaptation-20261105/experiment-dtb-build/sm8150-samurai-experiment-os.dtb",
+      "output_dtb_sha256": "c582dd7cf36e9a3796533674edddea1fc55a30f44b605bf9e8161b015d77a64f",
+      "output_dtb_bytes": 116843,
+      "deployed_dtb_sha256": "9736b861ae73a045dcc032963b81b680f3f2662623b4e1175c2bcea1d29f9352",
+      "semantic_diff": "E:/edk2-samurai-out/layer-adaptation-20261105/experiment-dtb-build/deployed-vs-source-reconstruction.json",
+      "semantic_diff_sha256": "6a48a2d0bfb482df524ed26c4474ce884990863b8ec8dadef00c7adb1c38fac7",
+      "semantic_result": {
+        "changed_properties": 0,
+        "added_nodes": 0,
+        "removed_nodes": 0,
+        "added_properties": 0,
+        "removed_properties": 0,
+        "deployed_only_phandle_properties": [
+          "/soc@0/eud-off-route"
+        ],
+        "note": "One unused eud-off-route phandle remains in the deployed carrier; it has no semantic consumer in the reconstructed source."
+      },
+      "profiles": {
+        "charging_500ma": {
+          "wrapper": "linux-port/dts/experiments/profile-charging-500ma.dts",
+          "dtb": "E:/edk2-samurai-out/layer-adaptation-20261105/profile-charging-500ma/sm8150-samurai-experiment-os.dtb",
+          "dtb_sha256": "3afcaceb5508cac313094a8c2f6be01ed54fd4f46b6f71ca955ae77f0faa564e",
+          "ledger": "E:/edk2-samurai-out/layer-adaptation-20261105/profile-charging-500ma/ledger.json",
+          "ledger_sha256": "b91b1821363c35ea13224741cbfe7571aac903af538a9db43a906cca36fb860e",
+          "semantic_items": 15
+        },
+        "charging_5v1500": {
+          "wrapper": "linux-port/dts/experiments/profile-charging-5v1500.dts",
+          "dtb": "E:/edk2-samurai-out/layer-adaptation-20261105/profile-charging-5v1500/sm8150-samurai-experiment-os.dtb",
+          "dtb_sha256": "70f5e0f02bb12ef6b6fcb5affeb2d197e859c441fa4f828e6db64dea55f99953",
+          "ledger": "E:/edk2-samurai-out/layer-adaptation-20261105/profile-charging-5v1500/ledger.json",
+          "ledger_sha256": "01ae605825fafb94af7d2ff69ab31788da4e13eb313bd8d36e87d09010a89380",
+          "semantic_items": 15
+        },
+        "camera_icp": {
+          "wrapper": "linux-port/dts/experiments/profile-camera-icp.dts",
+          "dtb": "E:/edk2-samurai-out/layer-adaptation-20261105/profile-camera-icp/sm8150-samurai-experiment-os.dtb",
+          "dtb_sha256": "83f4e286d0eeee4ce0cd743109b50de5c14d5f77ac7f085c3f194c0e32c6e6ca",
+          "ledger": "E:/edk2-samurai-out/layer-adaptation-20261105/profile-camera-icp/ledger.json",
+          "ledger_sha256": "73ef350c7ff7b979a3d326d6e6e20a99525916521efd1ee1c59a16eebd65a409",
+          "semantic_items": 10
+        },
+        "eud_debug": {
+          "wrapper": "linux-port/dts/experiments/profile-eud-debug.dts",
+          "dtb": "E:/edk2-samurai-out/layer-adaptation-20261105/profile-eud-debug/sm8150-samurai-experiment-os.dtb",
+          "dtb_sha256": "0d8e701bcc6d6789ded2e16224d2b6f8787ab497053d500f9e90225748d55148",
+          "ledger": "E:/edk2-samurai-out/layer-adaptation-20261105/profile-eud-debug/ledger.json",
+          "ledger_sha256": "6d6c9086aa744636ccb1d2379ab97c46afed767af17a2211831676d3d02da741",
+          "semantic_items": 8
+        }
+      },
+      "not_activated": true
+    },
+    "public_abi_promotions": 0,
+    "unclassified_items": 0,
+    "tooling": {
+      "diff": "linux-port/scripts/diff-dtb.py",
+      "diff_sha256": "26b0c25e975b7631f43ad1e9d7bd053651ce68ebdeac7af1a45ef1a701042dca",
+      "build_experiment": "linux-port/scripts/build-dtb-experiment.py",
+      "build_experiment_sha256": "cee076987eeac6e00318007ed3e0ceec52f2894749203a75d3ef20f223914dd5",
+      "ledger": "linux-port/scripts/dtb-diff-ledger.py",
+      "ledger_sha256": "85a6f8f881b9a77ba9920ea30669c30c4f95a854c9830c28c9759cd1d4105f96",
+      "semantic_diff_schema": "samurai-dtb-semantic-diff-v2",
+      "ledger_schema": "samurai-dtb-difference-ledger-v1"
+    }
+  },
+  "runtime_probe_20261105": {
+    "status": "passed_limited",
+    "evidence": "E:/edk2-samurai-out/layer-adaptation-20261105/boot-dtb-inplace/runtime-result.json",
+    "entry_point": "DTB embedded in the boot image; the logdump samurai.dtb did not change the runtime OS DTB",
+    "baseline_runtime_fdt_sha256": "3fea02c9272cc9317d835b020ceb67ba793bae64b0afcb29412c98373cfeec4e",
+    "candidate_dtb_sha256": "e3db4fa94ae722f5dac4c363190d7a710621e75c42e3d58c2c3e38da7ba7850a",
+    "boot_before_sha256": "758694a1959656d7a97fa91104151a58925f3ab13b46ab25c4ae8553430a4acd",
+    "boot_candidate_sha256": "66dbe2348b36a4de68429fc05929920c1c396b335537cc28a17cfbaa7efa23ae",
+    "removed_root_properties": [
+      "qcom,msm-id",
+      "qcom,board-id",
+      "oppo,dtsi_no"
+    ],
+    "runtime_boot_id": "b0a79144-9309-46e2-901c-a6cfee7c21b1",
+    "runtime_fdt_sha256": "7051a6bcc8659a24055f06b6070e590706a966cb65b6d866df503421cbe3fc37",
+    "runtime_stable_tree_diff": "only the three removed vendor root properties",
+    "candidate_vs_runtime_diff": "only UEFI mmap and system-table fields under /chosen",
+    "modules_manifest_sha256": "b34226537e0e15d3bd586b505e8e1553331e15141377fb05de0bda7dc587daf0",
+    "logdump_sha256": "3e406243f00a5ebdd4faaa7f09c83c329a3f4b23c881665b5f99c1663f8d9bb5"
+  },
+  "source_built_boot_candidate_20261105": {
+    "status": "rejected_offline_non_dtb_module_changes",
+    "source_boot": "E:/edk2-samurai-out/layer-adaptation-20261105/baseline/boot-before.img",
+    "source_boot_sha256": "758694a1959656d7a97fa91104151a58925f3ab13b46ab25c4ae8553430a4acd",
+    "candidate_dtb": "E:/edk2-samurai-out/layer-adaptation-20261105/production-os-dtb-build/sm8150-samurai-experiment-os.dtb",
+    "candidate_dtb_sha256": "f7959f8a0f8bd3b89dcd67db2f1362b746cc3c4b43f403edbf6fa5347143a3f0",
+    "candidate_boot": "E:/edk2-samurai-out/layer-adaptation-20261105/production-boot-candidate/boot-dtb-vendor-split.img",
+    "candidate_boot_sha256": "aa93d14dc3356721d8b130827e6fb2d1dd21fe9208fc976652b6878086bd1c55",
+    "candidate_boot_bytes": 100663296,
+    "result": "E:/edk2-samurai-out/layer-adaptation-20261105/production-boot-candidate/result.json",
+    "result_sha256": "531de2ebb989d59d799d8bb151f76f24b0db096a7edfbcceacd4b59d2b7c39cc",
+    "builder": "linux-port/scripts/build-dtb-boot-candidate.py",
+    "builder_sha256": "b4318029cdaddf1ad3e8204140a90ac1aa09850e5ad5ce38484c6caeb0353a7e",
+    "metadata_review": "E:/edk2-samurai-out/layer-adaptation-20261105/production-boot-candidate/metadata-review-v2.json",
+    "metadata_review_sha256": "af40cd116c079da05468b6ecdeedd7cab74384931cacf783ec67bffd61bf86f3",
+    "checks": {
+      "only_embedded_dtb_payload_changed": false,
+      "bootshim_unchanged": true,
+      "ramdisk_unchanged": true,
+      "other_fv_modules_unchanged": false,
+      "android_header_unchanged_except_size_and_hash": true,
+      "repository_fdtblob_restored": true,
+      "repository_build_outputs_restored": true,
+      "non_dtb_module_changes_blocking_flash": {
+        "BdsDxe": "length changed 110690 -> 114786 bytes",
+        "PlatformSmbiosDxe": "11 bytes changed across 9 ranges",
+        "UiApp": "312 bytes changed across 149 ranges"
+      }
+    },
+    "activation": false,
+    "rejected_reason": "The offline candidate is not a single-variable DTB replacement: BdsDxe changed length and UiApp contains binary code changes."
+  },
+  "minimal_boot_candidate_inplace_20261105": {
+    "status": "offline_verified_not_flashed",
+    "source_boot": "E:/edk2-samurai-out/layer-adaptation-20261105/baseline/boot-before.img",
+    "source_boot_sha256": "758694a1959656d7a97fa91104151a58925f3ab13b46ab25c4ae8553430a4acd",
+    "candidate_dtb": "E:/edk2-samurai-out/layer-adaptation-20261105/production-os-dtb-build/sm8150-samurai-experiment-os.dtb",
+    "candidate_dtb_sha256": "f7959f8a0f8bd3b89dcd67db2f1362b746cc3c4b43f403edbf6fa5347143a3f0",
+    "compressed_main": "E:/edk2-samurai-out/layer-adaptation-20261105/production-boot-candidate-inplace/main.modified.edk2.lzma",
+    "compressed_main_sha256": "fd07b3f2932ee725aef385672ca180e4bf800908d29279defb85f4e04e6a933e",
+    "candidate_boot": "E:/edk2-samurai-out/layer-adaptation-20261105/production-boot-candidate-inplace/boot-dtb-vendor-split-inplace.img",
+    "candidate_boot_sha256": "3e83798e519c877f9d5f8ef1759973e94d6e57a7a5558e0cbfbc141b92a4d412",
+    "candidate_boot_bytes": 100663296,
+    "result": "E:/edk2-samurai-out/layer-adaptation-20261105/production-boot-candidate-inplace/result.json",
+    "result_sha256": "5cef8468f74f4ab046c5f485164cff606844c3764e5a92d9402340de40ab92d3",
+    "metadata_review": "E:/edk2-samurai-out/layer-adaptation-20261105/production-boot-candidate-inplace/metadata-review.json",
+    "metadata_review_sha256": "b1088a80448bb52a695008ed73b7d9368c269912433a9748c801d8d74aa17581",
+    "semantic_diff_vs_canonical": "E:/edk2-samurai-out/layer-adaptation-20261105/production-boot-candidate-inplace/canonical-vs-candidate-dtb-semantic.json",
+    "semantic_diff_vs_canonical_sha256": "05c9831ffc4842280db9a8ac83ff6b3b615c6d41dc828b4d46340f3a3ceddc8a",
+    "embedded_vs_source_semantic_diff": "E:/edk2-samurai-out/layer-adaptation-20261105/production-boot-candidate-inplace/embedded-vs-source-semantic.json",
+    "embedded_vs_source_semantic_diff_sha256": "d79e9b32ed9e41bafe70e6f5cfbc8d956a1cbae2bf07824a9285d7adbe4d740b",
+    "builder": "linux-port/scripts/patch-dtb-boot-in-place.py",
+    "builder_sha256": "cf66ca367dd5bacb9916d94f645dc4ffe4b148e2b849961fe13e164cbee7405d",
+    "reviewer": "linux-port/scripts/review-boot-metadata.py",
+    "reviewer_sha256": "c9a93fc1c694d82edb584923d3a6e80f62824df4119832eca7e9afaebbe53907",
+    "checks": {
+      "only_embedded_dtb_payload_changed": true,
+      "changed_ffs_guids": [
+        "25462cda-221f-47df-ac1d-259cfaa4e326"
+      ],
+      "non_dtb_ffs_body_changes": 0,
+      "metadata_review_passed": true,
+      "bootshim_unchanged": true,
+      "compat_tail_unchanged": true,
+      "ramdisk_unchanged": true,
+      "android_header_changes": [
+        "kernel_size",
+        "id"
+      ],
+      "known_size_lzma_stream": true,
+      "embedded_dtb_trimmed_matches_source_dtb": true,
+      "embedded_dtb_trimmed_sha256": "f7959f8a0f8bd3b89dcd67db2f1362b746cc3c4b43f403edbf6fa5347143a3f0",
+      "old_embedded_dtb_sha256": "9736b861ae73a045dcc032963b81b680f3f2662623b4e1175c2bcea1d29f9352",
+      "semantic_changes_vs_canonical": {
+        "changed_properties": 0,
+        "only_before_properties": 3,
+        "only_before_property_names": [
+          "oppo,dtsi_no",
+          "qcom,board-id",
+          "qcom,msm-id"
+        ]
+      }
+    },
+    "activation": false,
+    "runtime_behavior_caution": "This candidate replaces the deployed experiment DTB 9736b861... with the canonical OS DTB f7959f8a..., so charging 5V1500, camera ICP, EUD route, and experiment bootargs are not preserved. Do not flash during the charging long test; create a separate experiment profile if those behaviors must remain."
+  },
+  "dual_kernel_matrix_20261105": {
+    "status": "offline_additive_only_runtime_pending",
+    "report": "linux-port/docs/L2-DUAL-KERNEL-MATRIX.md",
+    "k270": {
+      "release": "7.3.0-rc6-rmx1931-samurai-k132+",
+      "kernel_build": 183,
+      "boot_image": "E:/edk2-samurai-out/kernel270/boot-partition-k270-telephoto.img",
+      "boot_image_sha256": "0904b3b6616652e08709891cfdee34f1f733ff1e7022b7749bedea758108e4e8",
+      "kernel_image_sha256": "bfa72dd920c8376ceefc458fe7202a73ddb364b6727556471d70c8d0e7ade469",
+      "dtb": "E:/edk2-samurai-out/layer-adaptation-20261105/dual-kernel-matrix/k270-embedded-trimmed.dtb",
+      "dtb_sha256": "429db1faee1eef25abc64d8ca58e3b5db82b834de926d401343f8e05752e36e6",
+      "dtb_bytes": 113133
+    },
+    "k363": {
+      "release": "7.3.0-rc6-rmx1931-samurai-k363+",
+      "kernel_image_sha256": "15746aab311eed32478cdee4e13c1677716ff48c8a04316c9c15cf606c9d6468",
+      "canonical_dtb_sha256": "dcdd74ec903520c7023fa28badcb293b2e4e26ee5bac639497c63d53536b2c8d",
+      "candidate_dtb_sha256": "f7959f8a0f8bd3b89dcd67db2f1362b746cc3c4b43f403edbf6fa5347143a3f0"
+    },
+    "semantic_diff": {
+      "k270_to_candidate": "E:/edk2-samurai-out/layer-adaptation-20261105/dual-kernel-matrix/k270-vs-candidate-semantic.json",
+      "k270_to_candidate_sha256": "fac14db38f6501b44977391c35cd444f3675fa7eac37a6fa36ef66b0bc99d410",
+      "changed_properties": 0,
+      "only_after_nodes": 12,
+      "only_after_properties": 3,
+      "only_before_properties": 3,
+      "legacy_to_candidate": "E:/edk2-samurai-out/layer-adaptation-20261105/dual-kernel-matrix/legacy-vs-candidate-semantic.json",
+      "legacy_to_candidate_sha256": "7e2376656d1934a14ce47917ee66cb5b75ad5367edfae28cffb90d9d43d06db7"
+    },
+    "sku_static_audit": {
+      "script": "linux-port/scripts/audit-dtb-sku.py",
+      "script_sha256": "2a72741bcc982d85e7e7bce0781935159b555e45de49a1974430c76842be5ac0",
+      "result": "E:/edk2-samurai-out/layer-adaptation-20261105/dual-kernel-matrix/sku-static-audit.json",
+      "result_sha256": "7c9ea11c7f61c298fb9e4a14281d7cca5cd4c05ab735bf5c4a952b9ad5e43a7d",
+      "passed": true,
+      "memory_placeholder": "/memory@80000000 reg = <0 0x80000000 0 0>",
+      "hardcoded_ram_size_bytes": 0,
+      "storage_capacity_property_hits": 0
+    },
+    "conclusion": "The canonical candidate is additive relative to the actual k270 boot DTB: zero changed properties, 12 added camera nodes, 3 added CCI properties, and 3 removed vendor root properties. This is offline compatibility evidence only; runtime boot with k270 and k363 remains pending.",
+    "runtime_pending": [
+      "k270 Image + candidate DTB",
+      "k363 Image + candidate DTB",
+      "k270 Image + k270 DTB rollback baseline",
+      "6/8/12 GiB and 64/128/256 GB SKU startup matrix"
+    ]
+  },
+  "l3_sensor_power_candidate_20261105": {
+    "status": "offline_candidates_ready_not_deployed",
+    "runtime_verified": false,
+    "patch": {
+      "path": "linux-port/patches/0018-misc-samurai-sensor-power-optional-dt-data.patch",
+      "sha256": "3248bc0e1e81f364fbf3ebf6ad2a3f50251b65bb0d83dee8e48a7275fabb7a37",
+      "applies_to_exact_k363_source": true
+    },
+    "os_only_dtb_overlay": {
+      "overlay": "linux-port/dts/l3/sensor-power-data.dtsi",
+      "overlay_sha256": "e0ef62ad8b6c6285db633d2d89b6f28d97aae646fa8576cc27aa3b40a136c4e5",
+      "wrapper": "linux-port/dts/l3/sm8150-samurai-os-sensor-data.dts",
+      "wrapper_sha256": "c89f51876ab8ab37566da4887cfbf63342145baca53d45a4fd50b0f2728575b1",
+      "candidate_dtb_sha256": "89604b9ce7ea1502dc3a73f1523fc48d46044166792dbbd2d5c2aa4f9d66d570",
+      "candidate_dtb_bytes": 114709,
+      "semantic_diff_to_locked_os": {
+        "changed_properties": 0,
+        "added_properties": 6,
+        "removed_properties": 0,
+        "added_or_removed_nodes": 0,
+        "receipt": "E:/edk2-samurai-out/layer-adaptation-20261105/l3-sensor-power-dt/dtb-build-exact-k363/os-vs-sensor-power-dt.json",
+        "receipt_sha256": "4903a89228a83eb4efc30f146ca88393eb42fe6f5ec0b269b42f578cdee365b0"
+      }
+    },
+    "g2_kernel": {
+      "release": "7.3.0-rc6-rmx1931-samurai-k363+",
+      "config": "E:/edk2-samurai-out/layer-adaptation-20261105/l3-sensor-power-dt/g2-image-candidate/config-sensor-power-k363",
+      "config_sha256": "69b3ce74120fb42f3e04d80bf23a440878aa6289e414a3119b7366e121083236",
+      "image": "E:/edk2-samurai-out/layer-adaptation-20261105/l3-sensor-power-dt/g2-image-candidate/Image-sensor-power-k363",
+      "image_sha256": "9ee6d800468235c32761896f00c1ec7b352ab4aaa877dd9e5a425e566241ef17",
+      "image_bytes": 59243008,
+      "initramfs_gzip_sha256": "12fbc52d5f4cbea7dcda53eb1b043b54f30e727ad7a62b63db79f8322925ae3a",
+      "initramfs_gzip_bytes": 15063641,
+      "initramfs_matches_k363_baseline": true,
+      "vmlinux_export_symbols_match_baseline": true,
+      "vmlinux_export_symbol_rows": 15097,
+      "vmlinux_export_symbols_sorted_sha256": "c3a41b1e030417e570360c5e539336b553f1dda267a9ec8ce8c34eb659fd4861",
+      "compile_only_module": {
+        "path": "E:/edk2-samurai-out/layer-adaptation-20261105/l3-sensor-power-dt/samurai-sensor-power.exact-k363.candidate.ko",
+        "sha256": "d3d602165a0a8d76a4392b71f507152edc0c6e9603e04f4acd34c7457bc6eeb5",
+        "deployable": false,
+        "reason": "CONFIG_SAMURAI_SENSOR_POWER=y"
+      },
+      "build_log": "E:/edk2-samurai-out/layer-adaptation-20261105/l3-sensor-power-dt/exact-k363-image-build.log",
+      "build_log_sha256": "b199c5e3371ab61a1a66ba09e3f0d3e3b67fb955b371de7bdde852722d23a3e2"
+    },
+    "g2_logdump": {
+      "path": "E:/edk2-samurai-out/layer-adaptation-20261105/l3-sensor-power-dt/g2-image-candidate/logdump-sensor-power-k363.img",
+      "sha256": "008104d0ec55b4fa929fd08480b4eb12e8c3ffee3ffb877ceed244752967020f",
+      "bytes": 67108864,
+      "embedded_image_sha256": "9ee6d800468235c32761896f00c1ec7b352ab4aaa877dd9e5a425e566241ef17",
+      "embedded_samurai_dtb_sha256": "dcdd74ec903520c7023fa28badcb293b2e4e26ee5bac639497c63d53536b2c8d"
+    },
+    "g3_boot_candidate": {
+      "path": "E:/edk2-samurai-out/layer-adaptation-20261105/production-boot-candidate-l3-sensor/boot-dtb-vendor-split-inplace.img",
+      "sha256": "15f9e4d568b9785c10b98eb36a00b061068f6c911c9b64446783f634a713443f",
+      "source_boot_sha256": "758694a1959656d7a97fa91104151a58925f3ab13b46ab25c4ae8553430a4acd",
+      "old_embedded_dtb_sha256": "9736b861ae73a045dcc032963b81b680f3f2662623b4e1175c2bcea1d29f9352",
+      "new_embedded_dtb_sha256": "89604b9ce7ea1502dc3a73f1523fc48d46044166792dbbd2d5c2aa4f9d66d570",
+      "changed_ffs_guids": [
+        "25462cda-221f-47df-ac1d-259cfaa4e326"
+      ],
+      "non_dtb_ffs_body_changes": 0,
+      "metadata_review": "E:/edk2-samurai-out/layer-adaptation-20261105/production-boot-candidate-l3-sensor/metadata-review.json",
+      "metadata_review_sha256": "bb3a3e0a074e9a7b6087ab4d726460ceb62a05aa134756eb59bdd803854d95ff",
+      "metadata_review_passed": true,
+      "removes_deployed_experiment_dtb": true
+    },
+    "required_order": [
+      "Deploy and verify the G2 Image in an independent kernel-only window.",
+      "Do not combine G2 Image deployment with G3 boot DTB activation.",
+      "Before G3, decide whether charging 5V1500, camera ICP, EUD route, and experiment bootargs must be retained as separate profiles."
+    ]
+  },
+  "platform_contract_v1_20261105": {
+    "status": "draft_offline_checked_not_runtime_verified",
+    "contract": "samurai-dt-v1",
+    "manifest": "linux-port/dts/samurai-dt-v1-abi.json",
+    "manifest_sha256": "f0892d3107f186b8bfc70e9ecccb9e7fb25c7fe572d030127aea83bffe5ab6f8",
+    "checker": "linux-port/scripts/check-dtb-contract.py",
+    "checker_sha256": "9afffc8667e286c15ac7abb5133a457b42a998d9646be3258f6a3d36b9417df2",
+    "test": "linux-port/scripts/test-dtb-contract.py",
+    "test_sha256": "e14cf7c993052d52153bfcceee1eecfcfe0143bfd7e5172ae27f2f98731c54bd",
+    "summary": "E:/edk2-samurai-out/layer-adaptation-20261105/l2-abi-contract/test-summary.json",
+    "summary_sha256": "b933582bf4f2d05fe8588b8dc3709bbf2124775f7bbe6acda637e375fdebfb7a",
+    "run_log": "E:/edk2-samurai-out/layer-adaptation-20261105/l2-abi-contract/test-run.log",
+    "run_log_sha256": "b933582bf4f2d05fe8588b8dc3709bbf2124775f7bbe6acda637e375fdebfb7a",
+    "covered_resources": [
+      "ufs-host",
+      "ufs-phy",
+      "display-panel",
+      "touchscreen",
+      "volume-keys",
+      "fuel-gauge",
+      "haptics",
+      "audio-card",
+      "sensor-power",
+      "usb-dwc3",
+      "typec-port"
+    ],
+    "reserved_memory_nodes_checked": 24,
+    "allowed_additive_properties_checked": 6,
+    "cases": {
+      "baseline_identity": {
+        "dtb_sha256": "f7959f8a0f8bd3b89dcd67db2f1362b746cc3c4b43f403edbf6fa5347143a3f0",
+        "expected": "pass",
+        "actual": "pass"
+      },
+      "l3_sensor_power_additive": {
+        "dtb_sha256": "89604b9ce7ea1502dc3a73f1523fc48d46044166792dbbd2d5c2aa4f9d66d570",
+        "expected": "pass",
+        "actual": "pass"
+      },
+      "experiment_profile_rejected": {
+        "dtb_sha256": "c582dd7cf36e9a3796533674edddea1fc55a30f44b605bf9e8161b015d77a64f",
+        "expected": "reject",
+        "actual": "reject",
+        "failure_count": 35
+      },
+      "vendor_dtb_rejected_as_os": {
+        "dtb_sha256": "dcdd74ec903520c7023fa28badcb293b2e4e26ee5bac639497c63d53536b2c8d",
+        "expected": "reject",
+        "actual": "reject",
+        "failure_count": 6
+      },
+      "stable_ufs_property_rejected": {
+        "candidate_sha256": "f407e1eb757913eb26ebb52be2a38ad2148cfcaa888d94430c574497bef225b5",
+        "expected": "reject",
+        "actual": "reject",
+        "failure_codes": [
+          "semantic_property_changed",
+          "stable_property_changed"
+        ]
+      }
+    },
+    "report": "linux-port/docs/L2-DTB-ABI-GATE.md",
+    "limitations": [
+      "The gate is offline and does not prove runtime boot, driver binding, or SKU behavior.",
+      "The contract remains draft until k270/k363 runtime and SKU matrices pass.",
+      "The Type-C charging profile and camera ICP remain separate non-v1 profiles."
+    ]
+  },
+  "blockers": [
+    "The deployed experiment DTB now has a source reconstruction with zero semantic property changes, but it is not activated on the device and still has one unused eud-off-route phandle difference.",
+    "The source split's vendor wrapper is only a semantic control; the stock ABL compat DTB remains a separate 450826-byte firmware input.",
+    "The debug bootargs remains in the shared OS source and must move to LoadOptions or a separate debug entry before v1 freeze.",
+    "The k270-to-candidate DTB semantic matrix is additive-only offline, but neither k270 nor k363 has booted with the candidate DTB; the multi-SKU startup matrix is also unproven.",
+    "The minimal in-place candidate 3e83798e... is offline verified but not flashed. Its activation replaces the deployed charging/camera/EUD experiment DTB with the canonical OS DTB; it must wait for a deliberate G3 window after the charging long test."
+  ],
+  "required_order": [
+    "Keep reference/kernel276/sm8150-samurai.dts as the canonical k363 source and verify its SHA before each derived build.",
+    "Use the classified ledger to keep public hardware ABI in the canonical OS DTB and move charging/camera/EUD policy into separately versioned overlays or firmware inputs.",
+    "Keep the reconstructed experiment profile separate from the production OS wrapper; do not promote any ledger item to public ABI without separate verification.",
+    "Build the OS-facing DTB from the source split and run a two-kernel compatibility matrix offline and at runtime; the minimal in-place candidate 3e83798e... has completed the offline carrier check, but runtime activation remains a separate G3 step.",
+    "Use the additive k270-to-candidate semantic result as the runtime matrix baseline; boot k270 and k363 separately with candidate DTB only in an approved G3 window.",
+    "Only then freeze samurai-dt-v1 and publish one OS DTB hash per supported firmware/kernel combination."
+  ]
+}

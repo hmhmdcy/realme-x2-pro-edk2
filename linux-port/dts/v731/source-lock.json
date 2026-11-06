@@ -1,0 +1,255 @@
+{
+  "schema": "samurai-linux-standard-arm64-source-lock-v1",
+  "status": "runtime_verified_single_device",
+  "updated": "2026-11-06",
+  "target": {
+    "device": "Realme X2 Pro",
+    "model": "RMX1931",
+    "codename": "samurai",
+    "soc": "Qualcomm SM8150",
+    "arch": "arm64"
+  },
+  "upstream": {
+    "project": "Linux",
+    "version": "v7.3.1",
+    "tarball": {
+      "path": "/home/cy122/linux-sources/linux-7.3.1.tar.xz",
+      "bytes": 162406920,
+      "sha256": "fa595aad93734f829c963c2a90ef7c3673224fd7fdae7b49406e397cde2de231"
+    }
+  },
+  "git": {
+    "source_tree": "/home/cy122/standard-arm64-v7.3.1",
+    "branch": "codex/v7.3.1-samurai",
+    "baseline_commit": "09455be5a5c3421019315de48a32c9ded91d0030",
+    "baseline_subject": "baseline: Linux v7.3.1",
+    "platform_commit": "824dc0a56143d8bf1cc1d20adb877abced48b336",
+    "platform_subject": "arm64: add standard samurai platform glue on Linux v7.3.1",
+    "platform_tree": "fbbf939a98426cd45e08b4d7a42bcadfbf900d39",
+    "platform_commit_time": "2026-11-06T12:43:10+08:00"
+  },
+  "source_inputs": {
+    "patch": {
+      "repo_path": "linux-port/patches/v7.3.1/0001-arm64-add-standard-samurai-platform-glue.patch",
+      "external_path": "/home/cy122/standard-arm64-v7.3.1.patch",
+      "bytes": 367749,
+      "lines": 11523,
+      "sha256": "11e97a17342ac13989686683bd8bc1e4269b41b050a7914c57c055b186390063",
+      "files_changed": 96,
+      "insertions": 7674,
+      "deletions": 708
+    },
+    "config": {
+      "repo_path": "linux-port/configs/v7.3.1/samurai.config",
+      "build_path": "/home/cy122/samurai-v731-build/.config",
+      "bytes": 234824,
+      "sha256": "5c7ea3eec1bb0efca473f3032390fff0368fc8dbc4f826c4b614863300004ffc"
+    },
+    "production_dts_wrapper": {
+      "repo_path": "linux-port/dts/v731/sm8150-samurai.dts",
+      "kernel_path": "arch/arm64/boot/dts/qcom/sm8150-samurai.dts",
+      "bytes": 682,
+      "sha256": "dc2aa5c618f007c729737b18fec310239676549fd6bcb233aa0ab003dcff370e"
+    },
+    "shared_board_dtsi": {
+      "kernel_path": "arch/arm64/boot/dts/qcom/sm8150-samurai-common.dtsi",
+      "sha256": "82f1d53e796eb5dfc2b429ff8207417fbdc4c4568acecc32bca0c869a43cf699"
+    },
+    "sensor_power_data_dtsi": {
+      "kernel_path": "arch/arm64/boot/dts/qcom/samurai-sensor-power-data.dtsi",
+      "sha256": "e0ef62ad8b6c6285db633d2d89b6f28d97aae646fa8576cc27aa3b40a136c4e5"
+    }
+  },
+  "build": {
+    "build_tree": "/home/cy122/samurai-v731-build",
+    "release": "7.3.1-rmx1931-samurai-v731",
+    "artifacts": {
+      "Image": {
+        "local_path": "E:/edk2-samurai-out/standard-arm64-v731/Image-v731",
+        "bytes": 59308544,
+        "sha256": "dc4c5623551824d170397cd93a01256dfc0eadb0d13b949c54e64f6e0ea61eda"
+      },
+      "dtb": {
+        "local_path": "E:/edk2-samurai-out/standard-arm64-v731/sm8150-samurai-v731.dtb",
+        "bytes": 114371,
+        "sha256": "3261908efb6730f43f41e9ab752b03a107ab583d451f433c7eb648760ed79ebb"
+      },
+      "modules_tarball": {
+        "local_path": "E:/edk2-samurai-out/standard-arm64-v731/modules-v731.tar.gz",
+        "bytes": 7009059,
+        "sha256": "fc1607efc672b047318936fdada05f33a286815fac46ee6efac05291c6376bbb"
+      }
+    }
+  },
+  "firmware": {
+    "edk2_source_tree": "/home/cy122/edk2-samurai/repo",
+    "edk2_head": "e6bc7dcc6c4eba7415c9530e7f650e67f3bb925a",
+    "source_patch": {
+      "repo_path": "linux-port/patches/edk2/0001-samurai-production-bds.patch",
+      "external_path": "/home/cy122/edk2-samurai-bds-production.patch",
+      "base_head": "517b726c12fb5b26cbecf66ad69a9ae9b0e2ebd6",
+      "bytes": 2029,
+      "sha256": "e05a5e9c154794c76cfd554b3b43aa367754ee3d61193da1b60af53177b7eee1"
+    },
+    "platform_bm_source": "Platform/RenegadePkg/Library/PlatformBootManagerLib/PlatformBm.c",
+    "platform_bm_sha256": "2a3a90fbb4ba42e9a2dad38f4b9282940db7236d7ee07373a29fde0a5471bba5",
+    "cmdline_tokens": [
+      "console=tty0",
+      "loglevel=4",
+      "panic=15",
+      "clk_ignore_unused"
+    ],
+    "cmdline_padding": {
+      "char16_elements": 57,
+      "reason": "Padding preserves the 108-CHAR16 metadata allocation so the same-toolchain EDK2 LTO rebuild differs only in printable LoadOptions bytes."
+    },
+    "bds": {
+      "build_script": "linux-port/scripts/build-eud-off-bds.py",
+      "build_script_sha256": "2367e5d3e44a26ecf438d7ddf044a16bda006a3f6ca3dec20b53835a5597d87d",
+      "local_path": "E:/edk2-samurai-out/standard-arm64-v731/final-source-bds5/BdsDxe.efi",
+      "bytes": 110592,
+      "sha256": "f3b946b1660cd444048aba7e5fe434e08a6f41d8dd11cc83f944455fea6855ac",
+      "staging_tree": "/home/cy122/edk2-samurai-build/bds-source-rebuild",
+      "staging_reproducible": true
+    },
+    "boot": {
+      "build_script": "linux-port/scripts/build-boot-larger.py",
+      "build_script_sha256": "563044c81e0820131bee486064a828be5f271d909fe1211a3314154d02118ade",
+      "source_boot": "E:/edk2-samurai-out/standard-arm64-v731/cmdline-a/boot/boot-eud-production-off.img",
+      "source_boot_sha256": "173b7751ddc6c800979c0f624a3b65d11c356ad9f7a3d16461dffc2f16d6700d",
+      "local_path": "E:/edk2-samurai-out/standard-arm64-v731/source-final-boot/boot-eud-production-off.img",
+      "bytes": 100663296,
+      "sha256": "c8a6c616f60c8ee8f314bfc9e1329c61af3eb070b0cee3724b99080ad3444eaf",
+      "changed_main_ffs": [
+        "6d33944a-ec75-4855-a54d-809c75241f6c"
+      ],
+      "unchanged_main_ffs": 100,
+      "metadata_review": {
+        "tool": "linux-port/scripts/review-boot-metadata.py",
+        "tool_sha256": "c9a93fc1c694d82edb584923d3a6e80f62824df4119832eca7e9afaebbe53907",
+        "local_path": "E:/edk2-samurai-out/standard-arm64-v731/source-final-boot/metadata-review.json",
+        "sha256": "81c411434e53f7e0d194b3821220cd205f605ced97d2e28d081f4ea6f781dc3a",
+        "passed": true,
+        "classification": "printable_metadata_only",
+        "comparison": "old command line source and final source rebuilt with the same fixed EDK2 staging tree"
+      }
+    },
+    "logdump": {
+      "local_path": "E:/edk2-samurai-out/standard-arm64-v731/logdump-v731-preflash.img",
+      "bytes": 67108864,
+      "sha256": "31049b6c328c0ad4716189ed20854cf3839b656edb17f6fd6c60e47205fe38a4"
+    }
+  },
+  "runtime": {
+    "evidence_time_utc": "2026-11-06T06:06:50Z",
+    "ssh_endpoint": "root@192.168.0.114:22",
+    "release": "7.3.1-rmx1931-samurai-v731",
+    "taint": 0,
+    "cmdline_observed": "console=tty0 loglevel=4 panic=15 clk_ignore_unused",
+    "boot_partition_sha256": "c8a6c616f60c8ee8f314bfc9e1329c61af3eb070b0cee3724b99080ad3444eaf",
+    "logdump_partition_sha256": "31049b6c328c0ad4716189ed20854cf3839b656edb17f6fd6c60e47205fe38a4",
+    "boot_ids": [
+      "a38fc278-644b-4387-97cf-f5c0c06aa541",
+      "3df82213-3f55-4ab6-b6af-a8a54e73645d"
+    ],
+    "ordinary_reboot_passed": true,
+    "checks": {
+      "remoteproc_running": 3,
+      "sensor_power": "vdd=1 vddio=1",
+      "udc": "configured",
+      "power_supply": [
+        "bq28z610-0:Discharging",
+        "mp2650-input:Charging"
+      ],
+      "dsi": "connected/enabled/On",
+      "services": [
+        "tinydm",
+        "sshd",
+        "samurai-usb",
+        "samurai-sleep-inhibitor"
+      ],
+      "desktop": [
+        "kwin_wayland",
+        "plasmashell"
+      ],
+      "legacy_charging_runlevel": "absent"
+    }
+  },
+  "command_line_experiments": {
+    "baseline_boot_sha256": "173b7751ddc6c800979c0f624a3b65d11c356ad9f7a3d16461dffc2f16d6700d",
+    "removed_ignore_loglevel_and_set_loglevel_4": {
+      "passed": true,
+      "boot_sha256": "173b7751ddc6c800979c0f624a3b65d11c356ad9f7a3d16461dffc2f16d6700d"
+    },
+    "removed_clk_ignore_unused": {
+      "passed": false,
+      "boot_sha256": "84d18d26d03ee1d441e86041975a702454d83e9072f0207e55e8bbf8ecbcec53",
+      "observed": "stopped in fastboot",
+      "disposition": "rolled back; clk_ignore_unused is a measured necessary board constraint"
+    },
+    "removed_pd_ignore_unused": {
+      "passed": true,
+      "boot_sha256": "3c27106a84cc8ea99ce5076dfdc3c98e38951786c8f093e467cf73a0c21baf8a"
+    },
+    "removed_regulator_ignore_unused": {
+      "passed": true,
+      "boot_sha256": "d565d7dc914648d77ed878ea27b7a5a11cf385b830aa0a0d52a3a8b73baf0d48"
+    },
+    "removed_pd_and_regulator_ignore_unused": {
+      "passed": true,
+      "boot_sha256": "236360a31ce397ddceec2eca91b0a4c606d93f754ced0c19325b4c288568ec5e"
+    },
+    "final_source_rebuild": {
+      "passed": true,
+      "boot_sha256": "c8a6c616f60c8ee8f314bfc9e1329c61af3eb070b0cee3724b99080ad3444eaf"
+    }
+  },
+  "dtb_contract": {
+    "manifest": "linux-port/dts/samurai-dt-v1-abi.json",
+    "manifest_sha256": "3097c6a636b939c709e5b183357464e4fe0839ff1aad8720573ce505201c9c0a",
+    "checker": "linux-port/scripts/check-dtb-contract.py",
+    "checker_sha256": "2f1d217b2e79d3b8bba9f496ec6503dc3201db36fa7ee65b9b801742d8c630c8",
+    "self_test": "linux-port/scripts/test-dtb-contract.py",
+    "self_test_sha256": "f112dbd4bc95b5c6d514d10239718f4eb1bf228bb03e2e93153466a8fcbebbc2",
+    "check_passed": true,
+    "check_report_sha256": "5ae60af524786883d6a7a6c249ca286ca261d60bc9f26da970c89f8fc3cf7c63",
+    "self_test_passed": true,
+    "self_test_report_sha256": "ef303983f37c4c0234eda3f1f150649240baae34861ebe48cc7c010b160aecf8"
+  },
+  "standardization_boundary": {
+    "standard_linux_models_and_apis": [
+      "mps,mp2650 power_supply charger",
+      "ti,bq28z610 fuel gauge",
+      "qcom,sm8150-dwc3 and qcom,snps-dwc3 USB controller",
+      "Linux UDC class and configfs gadget",
+      "DRM/KMS panel and backlight class",
+      "remoteproc prepare/unprepare subdevice lifecycle",
+      "ASoC, ALSA PCM and UCM",
+      "input evdev and force feedback",
+      "IIO and SensorProxy userspace"
+    ],
+    "thin_board_glue_retained": [
+      "SM8150 DTS wiring and board pin/regulator data",
+      "samurai sensor-power regulator sequencer",
+      "sofef03f panel description",
+      "AW8697 haptics board driver",
+      "MAX98937 and samurai ASoC board glue"
+    ],
+    "excluded_from_standard_image": [
+      "camera ICP/CAMSS experiment stack",
+      "APSD and private USB-input charging experiments",
+      "samurai private managed charging kernel modules",
+      "EUD serial ownership on the production USB port",
+      "vendor root compatibility properties",
+      "private samurai_diag trace dependencies"
+    ]
+  },
+  "open_items": [
+    "The embedded test initramfs contains local test credentials and must not be published as a generic image.",
+    "Cold power-loss boot, suspend/resume and 90 Hz switching were not re-verified in this source-controlled image.",
+    "The same DTB was not booted across RAM/UFS SKU variants.",
+    "RPMh ret=-95 read diagnostics remain noisy even though boot and runtime are healthy.",
+    "The probe-independent standard ESP/BDS fallback path and persistent UEFI variables are not implemented.",
+    "Camera and managed high-voltage charging remain separate future profiles."
+  ]
+}

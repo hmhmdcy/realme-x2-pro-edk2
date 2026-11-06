@@ -1,10 +1,14 @@
 # Linux 移植工作区：Realme X2 Pro / RMX1931 / samurai
 
-用途：Linux源码、补丁、设备树、rootfs及工具导航。文档整理：2026-10-23；部署身份与实机验收以[当前检查点](../NEXT-SESSION.md)和[硬件清单](docs/HARDWARE-STATUS.md)为准。
+用途：Linux源码、补丁、设备树、rootfs及工具导航。文档整理：2026-11-05；部署身份与实机验收以[当前检查点](../NEXT-SESSION.md)和[硬件清单](docs/HARDWARE-STATUS.md)为准。
 
 ## 续作入口
 
 先读[检查点](../NEXT-SESSION.md)与[操作边界](../WORKING-BOUNDARIES.md)，再按[适配工作流](docs/PORTING-WORKFLOW.md)选择本轮资料和验证范围。硬件/校准优先提取原厂固件或公开仓库的数据、文件与算法，缺项再实测；复用已有提取物和增量构建。目录名、内核release、工作区Image或固件文件名不能单独证明它们与实际运行组合一致；源码路径、部署包和回退收据由检查点指路。
+
+当前部署基线是 Linux v7.3.1；源码锁、镜像哈希、标准接口边界与两次
+实机启动记录见
+[STANDARD-ARM64-V731](docs/STANDARD-ARM64-V731.md)。
 
 ## 内容与来源
 
@@ -26,6 +30,8 @@
 ## 构建与部署参考
 
 - [EDK2内核嵌入](docs/EDK2-KERNEL-EMBED.md)：早期引导路径与打包方法。
+- [适配分层、标准 ESP 与 DTB ABI](docs/LINUX-ADAPTATION-LAYERS.md)：七层边界、ESP 类型转换、DTB 冻结和同型号安装策略。
+- [L2-L4 收敛计划](docs/LAYER-CONVERGENCE-PLAN.md)：工作包、飞轮闸门、基线快照和停止规则。
 - [F2FS完整rootfs](docs/ROOTFS-F2FS-IMAGE.md)、[保留Android的研究](docs/ROOTFS-PRESERVE-ANDROID.md)：方案与历史边界，结合后续会话核对部署范围。
 - [USB NCM/SSH](docs/USB-NCM-SSH.md)：通信路径与验收。
 - [测试飞轮](../FLYWHEEL.md)：按本次设备、源码和镜像身份实施一轮验证。

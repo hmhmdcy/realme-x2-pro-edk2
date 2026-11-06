@@ -1,6 +1,6 @@
 # Realme X2 Pro 文档导航与维护
 
-用途：阅读入口、专题证据、历史位置和维护方法。最后整理：2026-10-25；实际硬件结果和未验收范围见功能清单与当前检查点。
+用途：阅读入口、专题证据、历史位置和维护方法。最后整理：2026-11-05；实际硬件结果和未验收范围见功能清单与当前检查点。
 
 ## 入口与职责
 
@@ -11,6 +11,11 @@
 | 历史清理、保留产物与重建方法 | [2026-10-19交接](reference/maintenance-2026-10-19/README.md) |
 | 当前有效操作规则 | [WORKING-BOUNDARIES](WORKING-BOUNDARIES.md) |
 | 原厂固件/公开仓库提取优先与快速迭代 | [PORTING-WORKFLOW](linux-port/docs/PORTING-WORKFLOW.md) |
+| 手机适配分层、标准 ESP、DTB ABI 与同型号安装边界 | [LINUX-ADAPTATION-LAYERS](linux-port/docs/LINUX-ADAPTATION-LAYERS.md) |
+| L2/L3/L4 工作包、闸门和不打断飞轮的执行顺序 | [LAYER-CONVERGENCE-PLAN](linux-port/docs/LAYER-CONVERGENCE-PLAN.md) |
+| DTB 稳定字段、驱动消费者、允许加法与离线 ABI 闸门 | [L2-DTB-ABI-GATE](linux-port/docs/L2-DTB-ABI-GATE.md)、[manifest](linux-port/dts/samurai-dt-v1-abi.json) |
+| Linux v7.3.1 标准 ARM64 镜像、源码锁、刷入与重启验收 | [STANDARD-ARM64-V731](linux-port/docs/STANDARD-ARM64-V731.md) |
+| 传感器电源标准生命周期 | [rproc_subdev 真机验收](linux-port/docs/L3-02-RPROC-SUBDEV-CANDIDATE.md) |
 | 各功能已证明能力、缺陷及待验收范围 | [HARDWARE-STATUS](linux-port/docs/HARDWARE-STATUS.md) |
 | 项目介绍与通用构建说明 | [README](README.md) |
 | Linux源码、补丁、rootfs和工具导航 | [Linux README](linux-port/README.md)、[技术文档索引](linux-port/docs/00-INDEX.md) |

@@ -1,0 +1,41 @@
+maintainer="hmhmdcy <hmhmdcy@users.noreply.github.com>"
+pkgname=samurai-charging
+pkgver=0.1.0
+pkgrel=2
+pkgdesc="Legacy Realme X2 Pro managed MP2650 charging experiment"
+url="https://github.com/hmhmdcy/edk2-realme-x2-pro"
+arch="aarch64"
+license="LicenseRef-Local-Project"
+options="!check"
+depends="kmod python3 openrc"
+install="$pkgname.post-install"
+source="samurai-charging
+	samurai-charging.initd
+	samurai-charging.post-install
+	installed-manifest.json
+	artifacts/samurai-mp2650.ko
+	artifacts/samurai-usb-input.ko
+	artifacts/samurai-gauge-protection.ko"
+
+package() {
+	install -Dm755 "$srcdir"/samurai-charging \
+		"$pkgdir"/usr/sbin/samurai-charging
+	install -Dm755 "$srcdir"/samurai-charging.initd \
+		"$pkgdir"/etc/init.d/samurai-charging
+	install -Dm644 "$srcdir"/installed-manifest.json \
+		"$pkgdir"/usr/share/samurai-charging/manifest.json
+	for module in samurai-mp2650 samurai-usb-input samurai-gauge-protection; do
+		install -Dm644 "$srcdir"/artifacts/$module.ko \
+			"$pkgdir"/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/$module.ko
+	done
+}
+
+sha512sums="
+0358f856159ab6f8ea91da3fc100143db1d922bed1742ee5334d373b8b056caf6552f6afe0e560463139300909af5da951e58e397f979c70dd68542c239c1f88  samurai-charging
+394f7cca29688ca96a6c9e00cf046e12ad7c252690e46dc3e72936a6a892fc4247571a4f625f0493010b4ea48e892a7502c6f211ffc2da79c35cbde4a8ae2872  samurai-charging.initd
+afca840dc2f82f4ba45ee28d3e87811e6a9e1d9d537a94c64b45e2d5dd5e68292e1b3d874a7fa5a76c0f020ded11fd09d0fdf15a21caaf411a75280129ad6aff  samurai-charging.post-install
+0171ec7cf8d4e92a646d4870bfaa04400987dd682541f18866e35e9166306dcf77275441ec7f5fa8a12d7aba3d42df589964d5bca2812c47d924e2604af1be11  installed-manifest.json
+a0baf5ec19bda7bcc47db9603250f5e7235d4c59a949c188e024c96a4c6e53a7541f26a85a1cb2a518898c7f0b6f6f96ff0271a6887cf8fffc721f71191c01f3  artifacts/samurai-mp2650.ko
+698a2a91c0ad743ebbc054a30d29c55dc205d7a056a4b7dfb145b8ccf8d46f1babd15c7cb9d58ec5844d5d4a53a5347577dbedaebfecc6c33a2d670bcd84fd33  artifacts/samurai-usb-input.ko
+5c5b87f60bfe9dad61293628c6575b75adc9a00a04e02b778828b4d8d7c7fbf66ed5847a7430a8f492ed1f6c5aaca5a1839508a07e78df7f596a8188e7090dac  artifacts/samurai-gauge-protection.ko
+"

@@ -1,0 +1,713 @@
+{
+  "schema": "samurai-platform-contract-v1",
+  "contract": "samurai-dt-v1",
+  "status": "runtime_verified_v731_single_sku_not_frozen",
+  "updated": "2026-11-06",
+  "source_lock": "linux-port/dts/v731/source-lock.json",
+  "source_commit": "824dc0a56143d8bf1cc1d20adb877abced48b336",
+  "scope": {
+    "board": "Realme X2 Pro (RMX1931)",
+    "soc": "Qualcomm SM8150",
+    "os_facing_dtb_only": true,
+    "vendor_compat_dtb_checked": false,
+    "runtime_verified": true,
+    "runtime_scope": "The v7.3.1 OS-facing DTB booted twice on the deployed RMX1931 device, including one ordinary reboot. Multi-SKU, cold power-loss and suspend/resume coverage remain open.",
+    "statement": "This file is the machine-readable contract for the OS-facing platform. Runtime verification is limited to the deployed hardware and functions listed in the v7.3.1 source lock."
+  },
+  "delivery": {
+    "current": "OS-facing DTB embedded in the UEFI boot image and passed to Linux by UEFI",
+    "future": "The same OS-facing DTB contract may be delivered by an ESP loader or another standard boot path",
+    "logdump_fat_dtb_is_runtime_source": false,
+    "rule": "Do not change the delivery mechanism and the DTB contents in the same runtime window."
+  },
+  "compatibility": {
+    "policy": "additive_only",
+    "phandle_renumbering": "ignored_after_semantic_normalization",
+    "stable_property_change": "forbidden_without_new_contract_version",
+    "node_removal": "forbidden",
+    "unlisted_node_addition": "forbidden",
+    "unlisted_property_addition": "forbidden",
+    "vendor_root_properties_in_os_dtb": "forbidden",
+    "new_public_abi_item": "requires_manifest_update_and_runtime_verification"
+  },
+  "identity": {
+    "root_path": "/",
+    "root_compatible": [
+      "realme,samurai",
+      "qcom,sm8150"
+    ],
+    "model": "Realme X2 Pro (RMX1931CN)",
+    "chassis_type": "handset",
+    "forbidden_root_properties": [
+      "qcom,msm-id",
+      "qcom,board-id",
+      "oppo,dtsi_no"
+    ]
+  },
+  "dynamic_paths": [
+    "/chosen",
+    "/memory",
+    "/memory@80000000"
+  ],
+  "forbidden_compatibles": [
+    "qcom,sm8150-camss-icp",
+    "realme,rmx1931-usb-input",
+    "realme,rmx1931-eud-off-route",
+    "realme,samurai-mp2650-managed",
+    "realme,samurai-a5-icp-boot-test",
+    "realme,samurai-a5-icp-memory-test",
+    "realme,samurai-a5-icp-power-test"
+  ],
+  "forbidden_properties": [
+    {
+      "path": "/soc@0/usb@a600000",
+      "property": "usb-psy-name",
+      "reason": "charging experiment integration knob; not a v1 hardware ABI"
+    }
+  ],
+  "allowed_additive_properties": [
+    {
+      "selector": {
+        "compatible": "realme,samurai-sensor-power"
+      },
+      "property": "realme,vdd-min-microvolt",
+      "expected_u32": 2856000,
+      "default_if_absent": 2856000,
+      "reason": "L3-02 optional board data; missing property keeps the current driver constant"
+    },
+    {
+      "selector": {
+        "compatible": "realme,samurai-sensor-power"
+      },
+      "property": "realme,vdd-max-microvolt",
+      "expected_u32": 3104000,
+      "default_if_absent": 3104000,
+      "reason": "L3-02 optional board data; missing property keeps the current driver constant"
+    },
+    {
+      "selector": {
+        "compatible": "realme,samurai-sensor-power"
+      },
+      "property": "realme,vddio-min-microvolt",
+      "expected_u32": 1800000,
+      "default_if_absent": 1800000,
+      "reason": "L3-02 optional board data; missing property keeps the current driver constant"
+    },
+    {
+      "selector": {
+        "compatible": "realme,samurai-sensor-power"
+      },
+      "property": "realme,vddio-max-microvolt",
+      "expected_u32": 1800000,
+      "default_if_absent": 1800000,
+      "reason": "L3-02 optional board data; missing property keeps the current driver constant"
+    },
+    {
+      "selector": {
+        "compatible": "realme,samurai-sensor-power"
+      },
+      "property": "realme,vddio-delay-us",
+      "expected_u32": 10000,
+      "default_if_absent": 10000,
+      "reason": "L3-02 optional board data; missing property keeps the current driver constant"
+    },
+    {
+      "selector": {
+        "compatible": "realme,samurai-sensor-power"
+      },
+      "property": "realme,rail-load-microamp",
+      "expected_u32": 200000,
+      "default_if_absent": 200000,
+      "reason": "L3-02 optional board data; missing property keeps the current driver constant"
+    },
+    {
+      "selector": {
+        "compatible": "realme,samurai-sensor-power"
+      },
+      "property": "qcom,rproc",
+      "reason": "standard phandle link to the SLPI remoteproc; replaces the legacy remoteproc property"
+    }
+  ],
+  "allowed_removed_properties": [
+    {
+      "path": "/sensor-power",
+      "property": "remoteproc",
+      "reason": "legacy phandle name migrated to qcom,rproc"
+    }
+  ],
+  "reserved_memory": {
+    "path": "/reserved-memory",
+    "direct_children_only": true,
+    "allow_additional_nodes": false,
+    "stable_properties": [
+      "reg",
+      "size",
+      "no-map",
+      "compatible",
+      "alignment",
+      "alloc-ranges",
+      "qcom,client-id",
+      "qcom,use-guard-pages",
+      "qcom,vmid",
+      "record-size",
+      "console-size",
+      "ftrace-size",
+      "pmsg-size"
+    ],
+    "ignored_properties": [
+      "phandle",
+      "linux,phandle",
+      "iommu-addresses"
+    ],
+    "rule": "Changing a carveout base, size, no-map state, alloc range, or record layout requires a new contract version and a cold-boot recovery test."
+  },
+  "resources": [
+    {
+      "id": "ufs-host",
+      "subsystem": "UFS/storage",
+      "selector": {
+        "compatible": "qcom,ufshc"
+      },
+      "required_properties": [
+        "reg",
+        "reg-names",
+        "interrupts",
+        "phys",
+        "phy-names",
+        "lanes-per-direction",
+        "resets",
+        "reset-names",
+        "iommus",
+        "clock-names",
+        "clocks",
+        "freq-table-hz",
+        "status",
+        "reset-gpios",
+        "vcc-supply",
+        "vcc-max-microamp",
+        "vccq-supply",
+        "vccq-max-microamp",
+        "vccq2-supply",
+        "vccq2-max-microamp"
+      ],
+      "stable_properties": [
+        "reg",
+        "reg-names",
+        "interrupts",
+        "lanes-per-direction",
+        "reset-names",
+        "clock-names",
+        "status",
+        "vcc-max-microamp",
+        "vccq-max-microamp",
+        "vccq2-max-microamp"
+      ],
+      "consumer_sources": [
+        "drivers/ufs/host/ufs-qcom.c"
+      ],
+      "uapi_contracts": [
+        "block-device",
+        "ufs-sysfs"
+      ],
+      "verification_gates": [
+        "G2",
+        "G3"
+      ],
+      "notes": "UFS capacity and SKU are discovered at runtime; do not encode userdata or storage size in the DTB."
+    },
+    {
+      "id": "ufs-phy",
+      "subsystem": "UFS PHY",
+      "selector": {
+        "compatible": "qcom,sm8150-qmp-ufs-phy"
+      },
+      "required_properties": [
+        "reg",
+        "clocks",
+        "clock-names",
+        "power-domains",
+        "resets",
+        "reset-names",
+        "#phy-cells",
+        "status",
+        "vdda-phy-supply",
+        "vdda-pll-supply"
+      ],
+      "stable_properties": [
+        "reg",
+        "clock-names",
+        "reset-names",
+        "#phy-cells",
+        "status"
+      ],
+      "consumer_sources": [
+        "drivers/phy/qualcomm/phy-qcom-qmp-ufs.c"
+      ],
+      "uapi_contracts": [
+        "block-device"
+      ],
+      "verification_gates": [
+        "G2",
+        "G3"
+      ]
+    },
+    {
+      "id": "display-panel",
+      "subsystem": "display/DSI",
+      "selector": {
+        "compatible": "samsung,sofef03f-m"
+      },
+      "required_properties": [
+        "reg",
+        "vddio-supply",
+        "vdda-supply",
+        "reset-gpios",
+        "vci-enable-gpios",
+        "vddd-enable-gpios",
+        "pinctrl-names",
+        "pinctrl-0"
+      ],
+      "stable_properties": [
+        "reg"
+      ],
+      "consumer_sources": [
+        "drivers/gpu/drm/panel/panel-samsung-sofef03f.c",
+        "drivers/pinctrl/qcom/pinctrl-sm8150.c"
+      ],
+      "uapi_contracts": [
+        "drm-kms",
+        "backlight-class"
+      ],
+      "verification_gates": [
+        "G2",
+        "G3",
+        "G4"
+      ],
+      "legacy_names": [
+        "DSI-1",
+        "ae94000.dsi.0"
+      ],
+      "notes": "Connector and backlight names are discovery hints, not stable ABI."
+    },
+    {
+      "id": "touchscreen",
+      "subsystem": "input/touch",
+      "selector": {
+        "compatible": "syna,rmi4-i2c"
+      },
+      "required_properties": [
+        "reg",
+        "interrupt-parent",
+        "interrupts",
+        "reset-gpios",
+        "pinctrl-names",
+        "pinctrl-0",
+        "vdd-supply",
+        "vio-supply",
+        "syna,startup-delay-ms",
+        "syna,reset-delay-ms"
+      ],
+      "stable_properties": [
+        "reg",
+        "interrupts",
+        "syna,startup-delay-ms",
+        "syna,reset-delay-ms"
+      ],
+      "consumer_sources": [
+        "drivers/input/rmi4/rmi_i2c.c"
+      ],
+      "uapi_contracts": [
+        "input-evdev"
+      ],
+      "verification_gates": [
+        "G2",
+        "G3",
+        "G4"
+      ]
+    },
+    {
+      "id": "volume-keys",
+      "subsystem": "input/keys",
+      "selector": {
+        "compatible": "gpio-keys"
+      },
+      "required_properties": [
+        "label",
+        "pinctrl-names",
+        "pinctrl-0"
+      ],
+      "stable_properties": [
+        "label"
+      ],
+      "required_children": [
+        "key-vol-up",
+        "key-vol-down"
+      ],
+      "consumer_sources": [
+        "drivers/input/keyboard/gpio_keys.c"
+      ],
+      "uapi_contracts": [
+        "input-evdev"
+      ],
+      "verification_gates": [
+        "G2",
+        "G3",
+        "G4"
+      ]
+    },
+    {
+      "id": "fuel-gauge",
+      "subsystem": "battery/power_supply",
+      "selector": {
+        "compatible": "ti,bq28z610"
+      },
+      "required_properties": [
+        "reg"
+      ],
+      "stable_properties": [
+        "reg"
+      ],
+      "consumer_sources": [
+        "drivers/power/supply/bq27xxx_battery_i2c.c"
+      ],
+      "uapi_contracts": [
+        "power-supply"
+      ],
+      "verification_gates": [
+        "G2",
+        "G3",
+        "G4"
+      ]
+    },
+    {
+      "id": "charger",
+      "subsystem": "battery/charging power_supply",
+      "selector": {
+        "compatible": "mps,mp2650"
+      },
+      "required_properties": [
+        "reg"
+      ],
+      "stable_properties": [
+        "reg"
+      ],
+      "consumer_sources": [
+        "drivers/power/supply/mp2650_charger.c"
+      ],
+      "uapi_contracts": [
+        "power-supply"
+      ],
+      "verification_gates": [
+        "G2",
+        "G3",
+        "G4"
+      ],
+      "notes": "The board uses the standard mps,mp2650 binding and power_supply class. Vendor charging policy, private sysfs and forced module rebinding are not part of this contract."
+    },
+    {
+      "id": "haptics",
+      "subsystem": "input/ff",
+      "selector": {
+        "compatible": "realme,samurai-aw8697"
+      },
+      "required_properties": [
+        "reg",
+        "reset-gpios",
+        "interrupt-parent",
+        "interrupts",
+        "pinctrl-names",
+        "pinctrl-0"
+      ],
+      "stable_properties": [
+        "reg",
+        "interrupts"
+      ],
+      "consumer_sources": [
+        "drivers/input/misc/aw8697-samurai.c"
+      ],
+      "uapi_contracts": [
+        "input-ff",
+        "feedbackd"
+      ],
+      "verification_gates": [
+        "G2",
+        "G3",
+        "G4"
+      ]
+    },
+    {
+      "id": "audio-card",
+      "subsystem": "audio/ASoC",
+      "selector": {
+        "compatible": "realme,samurai-audio"
+      },
+      "required_properties": [
+        "model",
+        "widgets",
+        "audio-routing",
+        "pin-switches"
+      ],
+      "stable_properties": [
+        "model"
+      ],
+      "consumer_sources": [
+        "sound/soc/qcom/samurai-audio.c"
+      ],
+      "uapi_contracts": [
+        "alsa-pcm",
+        "alsa-ucm"
+      ],
+      "verification_gates": [
+        "G2",
+        "G3",
+        "G4"
+      ],
+      "notes": "The ALSA card ID and control names must be discovered; the board package supplies UCM, not a desktop-specific mixer path."
+    },
+    {
+      "id": "sensor-power",
+      "subsystem": "sensors/remoteproc power",
+      "selector": {
+        "compatible": "realme,samurai-sensor-power"
+      },
+      "required_properties": [
+        "vdd-supply",
+        "vddio-supply"
+      ],
+      "required_any_properties": [
+        [
+          "remoteproc",
+          "qcom,rproc"
+        ]
+      ],
+      "stable_properties": [],
+      "consumer_sources": [
+        "drivers/misc/samurai-sensor-power.c"
+      ],
+      "uapi_contracts": [
+        "sensor-power-legacy"
+      ],
+      "verification_gates": [
+        "G2",
+        "G3",
+        "G4"
+      ],
+      "notes": "The board-local sequencer consumes the generic rproc_subdev lifecycle through qcom,rproc; the state sysfs path is read-only compatibility, not a control ABI. The six legacy realme,* additive properties are retained only for the superseded L3-02-A experiment."
+    },
+    {
+      "id": "usb-dwc3",
+      "subsystem": "USB/device",
+      "selector": {
+        "path": "/soc@0/usb@a600000"
+      },
+      "required_properties": [
+        "reg",
+        "interrupts-extended",
+        "iommus",
+        "snps,dis_u2_susphy_quirk",
+        "snps,dis_u3_susphy_quirk",
+        "snps,dis_enblslpm_quirk",
+        "snps,dis-u1-entry-quirk",
+        "snps,dis-u2-entry-quirk",
+        "phys",
+        "phy-names",
+        "dr_mode",
+        "maximum-speed",
+        "qcom,select-utmi-as-pipe-clk"
+      ],
+      "stable_properties": [
+        "reg",
+        "interrupts-extended",
+        "dr_mode",
+        "maximum-speed"
+      ],
+      "required_children": [
+        "ports"
+      ],
+      "consumer_sources": [
+        "drivers/usb/dwc3/core.c",
+        "drivers/usb/dwc3/dwc3-qcom.c"
+      ],
+      "uapi_contracts": [
+        "usb-gadget"
+      ],
+      "verification_gates": [
+        "G2",
+        "G3",
+        "G4"
+      ],
+      "legacy_names": [
+        "a600000.usb"
+      ],
+      "notes": "The wrapper uses the standard qcom,sm8150-dwc3/qcom,snps-dwc3 model. The UDC class is the interface; the controller name is a legacy discovery hint only. USB 3/DisplayPort is intentionally disabled because this phone exposes USB 2.0 only."
+    },
+    {
+      "id": "typec-port",
+      "subsystem": "USB Type-C",
+      "selector": {
+        "compatible": "qcom,pm8150b-typec"
+      },
+      "required_properties": [
+        "reg",
+        "interrupts",
+        "interrupt-names",
+        "status"
+      ],
+      "stable_properties": [
+        "reg",
+        "interrupts",
+        "interrupt-names",
+        "status"
+      ],
+      "consumer_sources": [
+        "drivers/usb/typec/tcpm/qcom/qcom_pmic_typec.c"
+      ],
+      "uapi_contracts": [
+        "typec-class",
+        "power-supply"
+      ],
+      "verification_gates": [
+        "G2",
+        "G3",
+        "G4"
+      ],
+      "notes": "v1 freezes the current disabled state. Enabling the Type-C policy or adding the charging connector requires a separate charging profile and a contract revision."
+    }
+  ],
+  "uapi_contracts": [
+    {
+      "id": "drm-kms",
+      "interface": "DRM/KMS",
+      "resource_ids": [
+        "display-panel"
+      ],
+      "discovery": "enumerate /sys/class/drm and use connector/mode properties",
+      "legacy_hint": "DSI-1"
+    },
+    {
+      "id": "backlight-class",
+      "interface": "backlight class",
+      "resource_ids": [
+        "display-panel"
+      ],
+      "discovery": "enumerate /sys/class/backlight/*",
+      "legacy_hint": "ae94000.dsi.0"
+    },
+    {
+      "id": "input-evdev",
+      "interface": "evdev",
+      "resource_ids": [
+        "touchscreen",
+        "volume-keys"
+      ],
+      "discovery": "enumerate /dev/input/event* and use evtest/capabilities",
+      "legacy_hint": null
+    },
+    {
+      "id": "input-ff",
+      "interface": "input force feedback",
+      "resource_ids": [
+        "haptics"
+      ],
+      "discovery": "use the input FF device and feedbackd",
+      "legacy_hint": null
+    },
+    {
+      "id": "feedbackd",
+      "interface": "feedbackd D-Bus",
+      "resource_ids": [
+        "haptics"
+      ],
+      "discovery": "udev FEEDBACKD_TYPE and the feedbackd D-Bus API",
+      "legacy_hint": null
+    },
+    {
+      "id": "power-supply",
+      "interface": "power_supply class",
+      "resource_ids": [
+        "fuel-gauge",
+        "charger",
+        "typec-port"
+      ],
+      "discovery": "enumerate /sys/class/power_supply",
+      "legacy_hint": null
+    },
+    {
+      "id": "block-device",
+      "interface": "block device",
+      "resource_ids": [
+        "ufs-host",
+        "ufs-phy"
+      ],
+      "discovery": "enumerate block devices and UFS host attributes",
+      "legacy_hint": null
+    },
+    {
+      "id": "ufs-sysfs",
+      "interface": "UFS host sysfs",
+      "resource_ids": [
+        "ufs-host"
+      ],
+      "discovery": "enumerate the UFS host device attributes",
+      "legacy_hint": null
+    },
+    {
+      "id": "usb-gadget",
+      "interface": "UDC class and configfs",
+      "resource_ids": [
+        "usb-dwc3"
+      ],
+      "discovery": "enumerate /sys/class/udc, prefer the current controller, require explicit selection for multiple UDCs",
+      "legacy_hint": "a600000.usb"
+    },
+    {
+      "id": "alsa-pcm",
+      "interface": "ALSA PCM",
+      "resource_ids": [
+        "audio-card"
+      ],
+      "discovery": "enumerate /proc/asound/cards and use the ALSA device API",
+      "legacy_hint": null
+    },
+    {
+      "id": "alsa-ucm",
+      "interface": "ALSA UCM",
+      "resource_ids": [
+        "audio-card"
+      ],
+      "discovery": "select UCM by the enumerated card identity",
+      "legacy_hint": null
+    },
+    {
+      "id": "sensor-power-legacy",
+      "interface": "private platform sysfs (legacy)",
+      "resource_ids": [
+        "sensor-power"
+      ],
+      "discovery": "/sys/devices/platform/sensor-power/state",
+      "target_interface": "generic remoteproc prepare/unprepare subdevice; read-only compatibility state",
+      "legacy_hint": "/sys/devices/platform/sensor-power/state"
+    }
+  ],
+  "known_artifact_hashes": {
+    "os_dtb_baseline": "3261908efb6730f43f41e9ab752b03a107ab583d451f433c7eb648760ed79ebb",
+    "os_dtb_pre_v731": "f7959f8a0f8bd3b89dcd67db2f1362b746cc3c4b43f403edbf6fa5347143a3f0",
+    "vendor_dtb_control": "dcdd74ec903520c7023fa28badcb293b2e4e26ee5bac639497c63d53536b2c8d",
+    "l3_sensor_power_candidate": "89604b9ce7ea1502dc3a73f1523fc48d46044166792dbbd2d5c2aa4f9d66d570",
+    "l3_sensor_power_rproc_subdev_dtb": "754a13b0716b97948ef855f1aedb22b5c90e2fffadcdc7113dcebab37096ab65",
+    "l3_sensor_power_rproc_subdev_boot": "ad48e3434192343b7738818fd2166787774138c87c3f7a0c04c6f611b16eb226",
+    "experiment_profile": "c582dd7cf36e9a3796533674edddea1fc55a30f44b605bf9e8161b015d77a64f",
+    "linux_v731_image": "dc4c5623551824d170397cd93a01256dfc0eadb0d13b949c54e64f6e0ea61eda",
+    "linux_v731_modules": "fc1607efc672b047318936fdada05f33a286815fac46ee6efac05291c6376bbb",
+    "linux_v731_boot": "c8a6c616f60c8ee8f314bfc9e1329c61af3eb070b0cee3724b99080ad3444eaf",
+    "linux_v731_bds": "f3b946b1660cd444048aba7e5fe434e08a6f41d8dd11cc83f944455fea6855ac",
+    "linux_v731_config": "5c7ea3eec1bb0efca473f3032390fff0368fc8dbc4f826c4b614863300004ffc",
+    "linux_v731_patch": "11e97a17342ac13989686683bd8bc1e4269b41b050a7914c57c055b186390063"
+  },
+  "freeze_blockers": [
+    "The same OS DTB has not been booted across the supported RAM and UFS SKU variants.",
+    "Only ordinary reboot has been verified; cold power-loss startup and suspend/resume remain open.",
+    "The camera ICP path and managed high-voltage charging policy remain separate profiles, not part of this v1 contract.",
+    "The private sensor-power state sysfs path still exists as a read-only compatibility view; the lifecycle itself uses the generic remoteproc subdevice API."
+  ]
+}

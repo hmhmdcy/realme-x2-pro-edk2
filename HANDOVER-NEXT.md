@@ -10,7 +10,7 @@
 
 ## 1. 下一步
 
-按用户任务和[检查点的续作项](NEXT-SESSION.md#未闭环与操作)推进；相机按用户要求暂停，当前进展及恢复步骤见[491交接](reference/kernel491/HANDOFF.md)。标准单次AF与早期四摄回归见[278](reference/kernel278/README.md)，此前RAW统计见[277](reference/kernel277/README.md)，标准镜头/CCI见[276](reference/kernel276/README.md)。历史阶段的active和健康值不代表当前部署。音频任务读[音频提示词](AUDIO-NEXT-SESSION-PROMPT.txt)，完整导航见[DOCS-INDEX](DOCS-INDEX.md)。
+按用户任务和[检查点的续作项](NEXT-SESSION.md#未完成)推进；相机按用户要求暂停，当前进展及恢复步骤见[491交接](reference/kernel491/HANDOFF.md)。标准单次AF与早期四摄回归见[278](reference/kernel278/README.md)，此前RAW统计见[277](reference/kernel277/README.md)，标准镜头/CCI见[276](reference/kernel276/README.md)。历史阶段的active和健康值不代表当前部署。音频任务读[音频提示词](AUDIO-NEXT-SESSION-PROMPT.txt)，完整导航见[DOCS-INDEX](DOCS-INDEX.md)。
 
 ## 2. 硬件与协议资料
 
@@ -44,7 +44,7 @@
 | 仓库文档镜像 | `Platform/Realme/sm8150` |
 | 镜像与备份输出 | `E:\edk2-samurai-out`；具体包按检查点证据选择 |
 | EUD主机工具 | `E:\eud-host` |
-| Linux源码/产物身份 | [检查点正式基线](NEXT-SESSION.md#正式基线与新候选)、[相机交接](reference/kernel491/HANDOFF.md) |
+| Linux源码/产物身份 | [检查点当前镜像身份](NEXT-SESSION.md#当前镜像身份)、[相机交接](reference/kernel491/HANDOFF.md) |
 
 ## 5. 工具使用依据
 

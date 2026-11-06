@@ -1,0 +1,27 @@
+#!/bin/sh
+
+legacy_release="7.3.0-rc6-rmx1931-samurai-k363+"
+running_release="$(uname -r 2>/dev/null || true)"
+
+if [ "$running_release" != "$legacy_release" ]; then
+	echo "samurai-charging is a legacy experiment for $legacy_release."
+	echo "It was not enabled on the running kernel ($running_release)."
+	exit 0
+fi
+
+if [ "${SAMURAI_ENABLE_LEGACY_CHARGING:-0}" != "1" ]; then
+	echo "samurai-charging is opt-in on its legacy kernel."
+	echo "The standard kernel uses the mps,mp2650 power_supply driver."
+	echo "Set SAMURAI_ENABLE_LEGACY_CHARGING=1 to enable the experiment."
+	exit 0
+fi
+
+if command -v rc-update >/dev/null 2>&1; then
+	rc-update add samurai-charging boot default >/dev/null 2>&1 || true
+fi
+
+if command -v rc-service >/dev/null 2>&1; then
+	rc-service samurai-charging start >/dev/null 2>&1 || true
+fi
+
+exit 0

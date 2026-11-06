@@ -1,6 +1,6 @@
 # EDK2 / UEFI firmware for the realme X2 Pro (RMX1931 · "samurai")
 
-用途：项目介绍、构建入口与移植说明。文档整理：2026-10-23；部署与实机状态以[当前检查点](NEXT-SESSION.md)的最后核对记录为准。
+用途：项目介绍、构建入口与移植说明。文档整理：2026-11-06；部署与实机状态以[当前检查点](NEXT-SESSION.md)的最后核对记录为准。
 
 This fork brings EDK2/UEFI and mainline Linux to the realme X2 Pro. UEFI Boot Manager, EFI Shell, the framebuffer console, side buttons and UFS enumeration have historical hardware validation. Linux hardware acceptance and remaining work are maintained in the [hardware checklist](linux-port/docs/HARDWARE-STATUS.md).
 
@@ -9,7 +9,10 @@ This fork brings EDK2/UEFI and mainline Linux to the realme X2 Pro. UEFI Boot Ma
 | Need | Document |
 | --- | --- |
 | Continue development; identify deployed images, sources and rollback | [NEXT-SESSION](NEXT-SESSION.md) |
+| Standard Linux v7.3.1 ARM64 image, source lock and boot receipt | [STANDARD-ARM64-V731](linux-port/docs/STANDARD-ARM64-V731.md) |
 | Fast porting workflow; factory data and incremental validation | [PORTING-WORKFLOW](linux-port/docs/PORTING-WORKFLOW.md) |
+| Hardware adaptation layers, standard ESP and DTB ABI | [Linux adaptation layers](linux-port/docs/LINUX-ADAPTATION-LAYERS.md) |
+| L2/L3/L4 work packages and flywheel gates | [Layer convergence plan](linux-port/docs/LAYER-CONVERGENCE-PLAN.md) |
 | Current operating boundaries | [WORKING-BOUNDARIES](WORKING-BOUNDARIES.md) |
 | Hardware capabilities and acceptance gaps | [HARDWARE-STATUS](linux-port/docs/HARDWARE-STATUS.md) |
 | Find documentation and maintenance commands | [DOCS-INDEX](DOCS-INDEX.md) |
@@ -28,10 +31,15 @@ The Linux port has partial hardware acceptance. Passing a specific test does not
 | Codename | **samurai** |
 | SoC | Qualcomm **Snapdragon 855+** (SM8150-AC), msmnile |
 | PMICs | PM8150 / PM8150L / PM8150B (SPMI) |
-| RAM | 8 GiB (also sold with 12 GiB) |
-| Storage | UFS 3.0, 6 LUNs, GPT |
+| RAM | 6 / 8 / 12 GiB SKUs; project hardware evidence is on an 8 GiB unit |
+| Storage | 64 GB UFS 2.1; 128/256 GB UFS 3.0; 6 LUNs, GPT observed on the project unit |
 | Display | 6.5" 1080x2400 Super AMOLED, 90 Hz (Samsung `sofef03f_m`) |
 | Bootloader | realme/OPPO ABL (XBL). Unlocked bootloader required. **No `fastboot boot` support** - the image has to be flashed. |
+
+Public SKU data: [realme X2 Pro EU specifications](https://www.realme.com/eu/realme-x2-pro/specs)
+and [GSMArena](https://www.gsmarena.com/realme_x2_pro-9904.php). Not every
+RAM/storage variant has been validated by this project; see
+[Linux adaptation layers](linux-port/docs/LINUX-ADAPTATION-LAYERS.md).
 
 ---
 

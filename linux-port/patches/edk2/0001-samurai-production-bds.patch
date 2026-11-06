@@ -1,0 +1,38 @@
+diff --git a/Platform/RenegadePkg/Library/PlatformBootManagerLib/PlatformBm.c b/Platform/RenegadePkg/Library/PlatformBootManagerLib/PlatformBm.c
+index 9e54b875..91dac707 100644
+--- a/Platform/RenegadePkg/Library/PlatformBootManagerLib/PlatformBm.c
++++ b/Platform/RenegadePkg/Library/PlatformBootManagerLib/PlatformBm.c
+@@ -153,15 +153,27 @@ SamuraiDisarmPanelHandoff (
+ #define SAMURAI_KERNEL_FILE  L"\\Image"
+ 
+ //
+-// SAMURAI: same string as /chosen/bootargs of the device tree in
+-// FdtBlob/samurai/.  It is passed as the LoadOptions of the boot option so
+-// the log channel survives even if the device tree reaches the kernel
+-// without bootargs.  CHAR16 on purpose: the EFI stub reads LoadOptions as
+-// UTF-16 and an ASCII buffer would be decoded into garbage that *replaces*
+-// the device tree's bootargs.
++// SAMURAI: this is also the production Linux command line.  EUD owns the only
++// USB port, so it must not be enabled by the default firmware or passed to
++// Linux.  A debug build may still opt in with SAMURAI_ENABLE_EUD.  CHAR16 on
++// purpose: the EFI stub reads LoadOptions as UTF-16 and an ASCII buffer would
++// be decoded into garbage that *replaces* the device tree's bootargs.
+ //
++#ifdef SAMURAI_ENABLE_EUD
+ STATIC CHAR16  mSamuraiLinuxCmdLine[] =
+   L"earlycon=eud,mmio,0x88e0000 console=tty0 console=eud loglevel=7 ignore_loglevel panic=15 clk_ignore_unused pd_ignore_unused regulator_ignore_unused";
++#else
++//
++// Keep the allocation at the legacy 108-CHAR16 size.  EDK2's GCC LTO layout
++// otherwise shifts unrelated code when this metadata string changes, which
++// prevents review from proving that the command line is the only difference.
++// The trailing spaces are ignored by the kernel command-line parser.
++//
++STATIC CHAR16  mSamuraiLinuxCmdLine[] =
++  L"console=tty0 loglevel=4 panic=15 clk_ignore_unused"
++  L"          " L"          " L"          " L"          " L"          "
++  L"       ";
++#endif
+ 
+ /**
+   SAMURAI: register the mainline Linux kernel that lives on a file system.

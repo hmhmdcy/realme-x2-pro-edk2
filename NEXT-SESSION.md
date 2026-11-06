@@ -1,41 +1,103 @@
-# 当前：506长测中；充电离线交接已更新
+# 当前：Linux v7.3.1 标准 ARM64 镜像已刷入并通过重启
 
-[充电交接](reference/charging-management-20261023/charging-adaptation-handoff-20261025.md)；[规则](WORKING-BOUNDARIES.md)，相机暂停，手机/SDK串行。
+核对日期：2026-11-06。设备当前运行
+`7.3.1-rmx1931-samurai-v731`，Wi-Fi SSH 可用。详细源锁、构建命令、
+实验矩阵和剩余边界见
+[STANDARD-ARM64-V731](linux-port/docs/STANDARD-ARM64-V731.md)。
 
-[508三项与回退、预充1299条通过；EUD串口问题见交接。额度消费者](reference/charging-oem-audit-20261023/tcpm-charger-input-candidate/README.md)离线38例/KO过，未装；PD/APSD未验。
+## 本轮完成
 
-[10小时观察](reference/charging-management-20261023/timeout-live-candidate/README.md)：supervisor6483/68160、worker6484/68170、CPU6485/6/68240；8643/36000秒、31%、26.2℃、平均+65mA、AUTO/Good、fault0、duty0.3。只读status；勿刷写/重启/切USB。
+- Linux 正式稳定版 `v7.3.1` 已成为唯一部署基线，不再部署
+  `7.3.0-rc6` bring-up 镜像；
+- 源码为官方 tarball
+  `fa595aad93734f829c963c2a90ef7c3673224fd7fdae7b49406e397cde2de231`
+  解包后的两提交树：
+  `09455be5a`（v7.3.1 baseline）和
+  `824dc0a56`（samurai standard glue）；
+- 内核补丁、精确配置和生产 DTS wrapper 已落入
+  [`linux-port/patches/v7.3.1`](linux-port/patches/v7.3.1/)、
+  [`linux-port/configs/v7.3.1`](linux-port/configs/v7.3.1/) 和
+  [`linux-port/dts/v731`](linux-port/dts/v731/)；
+- 最终 boot 已刷入 `boot` 分区，设备内回读哈希与候选一致；
+- 两次启动均成功：首次 `a38fc278-644b-4387-97cf-f5c0c06aa541`，
+  普通重启后 `3df82213-3f55-4ab6-b6af-a8a54e73645d`；
+- `taint=0`，三路 remoteproc `running`，`sensor-power` 为
+  `vdd=1 vddio=1`，UDC `configured`，DSI `On`，Wi-Fi SSH、KWin、
+  plasmashell、USB 和 OpenRC 服务正常；
+- 标准 `power_supply` 绑定为 `bq28z610-0` 与 `mp2650-input`，不再加载
+  私有 managed-charging 模块；
+- 旧 `samurai-charging` 已从 runlevel 移除，源码安装钩子改为旧内核上的
+  显式 opt-in；`samurai-platform` 5-r14 不再依赖它；
+- `samurai-dt-v1-abi.json` 已改到 v7.3.1 基线，声明 MP2650 与标准
+  DWC3 绑定；12 个资源全部通过契约检查。
 
-## 正式基线与新候选
+## 当前镜像身份
 
-[484](reference/kernel484/README.md)：五包99990.7.2-r33、config/stack0.1.0-r28 → 原r32/r27精确回退 → r33/r28保留，三次native APK add exit0。当前441三KO＋468 sensor，443/468/440四原厂profile；core a21fcedd…97b、451 proxy35526054…、444 IPA6/原签名。默认640×480／RAW原生，未刷Image/重启。
+| 项 | SHA-256 |
+| --- | --- |
+| boot | `c8a6c616f60c8ee8f314bfc9e1329c61af3eb070b0cee3724b99080ad3444eaf` |
+| BdsDxe | `f3b946b1660cd444048aba7e5fe434e08a6f41d8dd11cc83f944455fea6855ac` |
+| Image | `dc4c5623551824d170397cd93a01256dfc0eadb0d13b949c54e64f6e0ea61eda` |
+| DTB | `3261908efb6730f43f41e9ab752b03a107ab583d451f433c7eb648760ed79ebb` |
+| modules | `fc1607efc672b047318936fdada05f33a286815fac46ee6efac05291c6376bbb` |
+| logdump | `31049b6c328c0ad4716189ed20854cf3839b656edb17f6fd6c60e47205fe38a4` |
 
-两forward14例：四摄Gst256张640 NV12、RAW-only24、dual12，268IPE＝242math＋26bootstrap；RAW-only零IPE、24负回执为未排队观察。实际/usr maps/有效签名native、UID10000/CapEff0、Manager lease/回执过。每相停服务、无liveFD/idle，CAMSS先卸/sensor先装；961 DB entry中954非cohort不变，回退全部逻辑entry精确。DB只用native APK恢复，原world/repo/属性/信任及回退包保持。原厂数学/系数不变，未重跑LTM矩阵。
+产物目录：`E:\edk2-samurai-out\standard-arm64-v731\`。
+当前源码 boot：
+`source-final-boot\boot-eud-production-off.img`。
 
-[481](reference/kernel481/README.md)/[482](reference/kernel482/README.md)/[483](reference/kernel483/README.md)准备冻结；worker28188/start2003163终态passed/absent。stage Windows长参数及health-r1泛deleted误判失败保留；仅修传输/合法非exec PipeWire memfd验收，载荷不变。health-r2两样本1.126s过，实际库inode/SHA、保护/限制和fault0/taint0保持；非长稳/净充电/光学证明。
+## 命令行边界
 
-[489](reference/kernel489/README.md)仅两个core对象增量：487原厂三sensor属性／菜单＋488总线0x2027映射，485 Meson去构建RUNPATH，最终b345af8b…8bdd/51262920B。IPA6/签名/proxy/base/数学/KO/profile未改，rotation/delays未猜填。ARM SDK默认loader/5组件RTLD_NOW、验签、系统profile/worker解析及UID10000合成HOME三分支通过，未start CM/exec worker。SDK已还；r1/r2测试失败保留。
+最终运行时命令行：
 
-[486](reference/kernel486/README.md)真实pwd HOME/XDG启动器本地过；[490](reference/kernel490/README.md)r34/r29七签名包＋精确r33/r28回退、缓存961 DB仅7升级模拟通过，未上机。[491交接](reference/kernel491/HANDOFF.md)：package-only一次forward/8例短验/必恢复r33，23文件归档、本地进程/传输及独审通过，deployable=false、未绑定/上传/安装。手机仍归充电，恢复相机须用户明确指示。
+```text
+console=tty0 loglevel=4 panic=15 clk_ignore_unused
+```
 
-恢复时先从充电取得届时boot/endpoint/guard/正式基线，核476旧363 uname pin后再复用。fresh476需 --formal-expected 私有481/formal-expected-private.json（SHA1c458491…4705），不可用默认440；新namespace/owner，481r1及终态事务不重放。原安装/交回证据在private481。475/480原solver及缺provider失败保持。
+`ignore_loglevel`、`pd_ignore_unused`、`regulator_ignore_unused` 已移除。
+单独移除 `clk_ignore_unused` 实测停在 fastboot 并已回滚，因此这一项是
+当前板级必要约束，不是通用默认值。后续应定位缺失的 clock consumer，
+再删除该约束。
 
-## 同帧PD10／LTM与原厂模式
+EDK2 `PlatformBm.c` 已同步为最终字符串。EDK2 GCC LTO 对命令行数组尺寸
+敏感，所以源码保留历史 108-`CHAR16` 分配并用 57 个尾随空格填充；内核
+忽略空格。用固定 staging 树重编旧/新源码后，BDS 审查为
+`passed=true`、`printable_metadata_only`，Smbios/UiApp 逐字节相同。
 
-[441](reference/kernel441/README.md)/[442](reference/kernel442/README.md)主摄720/1080、普通/隔离自动双遍与固定FULL/参数的真实→黑→白→同真实PD10因果证据复用。441 r7整轮失败/积压根因不改成功；442只修停止取消状态，仍保留运行错误和失败不提交。469长焦720及[474](reference/kernel474/HARDWARE.md)组合1080原厂mode2通过；未变范围不重采。
+## 回退
 
-474 native/隔离各32，64 IPE＝60math+4boot，原回执无重复/负/未决；动态Manager mask4–7/stop恢复。隔离SOF12/rev11固定FULL/6008B参数，仅换真实/黑/白/同真实PD10，三输出互异、真实重复3110400B相等、实际消费采样hash匹配；非全消费图比较。scratch不作SRAM证明，含保存I/O不作纯性能比较，正式已恢复。
+- 上一已验证 boot：
+  `E:\edk2-samurai-out\standard-arm64-v731\cmdline-final\boot\boot-eud-production-off.img`
+  `236360a31ce397ddceec2eca91b0a4c606d93f754ced0c19325b4c288568ec5e`；
+- 更早生产回滚 boot：
+  `E:\edk2-samurai-out\runtime-20261106-eud-default-off\boot\boot-eud-production-off.img`
+  `8d1d6de2a3c63599080a16ded6ced1e410c9434e4e411a969e19b25ff03e690b`；
+- 刷写入口为 fastboot `62bc28a1` / `msmnile`；进入 bootloader 必须使用
+  设备上的 `RESTART2("bootloader")` 脚本，不能依赖 BusyBox
+  `reboot bootloader`。
 
-[473](reference/kernel473/README.md)只扩processed IPE的Manager gate，旧/新/旧96消费严格、B动态mask/stop过；串行38.272/29.403/38.389ms、gap3/0/3仅短段证据，不归因worker CPU。465/466原厂写入/IQ和SX时钟冻结；[468](reference/kernel468/README.md)4208×2368、LL4848/FLL3312、link723.2MHz，修S_FMT FLL2504/吞错。原厂mode3/IQ/个体保持；两尺寸64消费/IPE与LSC上下文过，旧1080仍3gap，失败保留。
+## 标准边界
 
-## mode2控制响应
+已切到主线已有模型的接口包括 `mps,mp2650`、`bq28z610`、
+`qcom,sm8150-dwc3`/`qcom,snps-dwc3`、UDC class/configfs、DRM/KMS、
+backlight、remoteproc subdevice、ASoC/ALSA/UCM、evdev/input-ff 和 IIO。
 
-[476](reference/kernel476/README.md)得240消费/Pair、233SOF/9写；仍passed=false（错误零IPE断言），worker23019终态，正式sensor/栈/R8/服务恢复。[478更正](reference/kernel478/ipe-r1-correction.md)：pd10=false不等于IPE关闭，实际240 queue/成功receipt/completion、空参数；BHIST在IPE排队前按SOF保存，有额外负载。原快审/476失败保留，不改成功。
+保留的板级极薄部分只有 DTS 接线、sensor-power regulator 时序、
+sofef03f 面板描述、AW8697 触觉板级驱动、MAX98937 与 samurai ASoC glue。
+相机 ICP/CAMSS 实验、APSD/私有 USB-input、私有 managed-charging KO、
+生产 EUD serial、vendor 根属性和 `samurai_diag` trace 依赖均未进入该镜像。
 
-[479独审](reference/kernel479/HARDWARE.md)：曝光升2/降3、gain升2/降2，9步达原10倍MAD/5%且方向一致，首变化/三帧平台SOF+2，pending/缺SOF/失败/跨SOF为0；依据pre-IPE BHIST，不用恒定startup metadata，无独立读回/物理锁存证明。468 mode2原有2/2与范围内响应一致；本测关闭AE/DelayedControls，不填sensor全局delay。477旧owner超时在写前拒绝、480新授权、原件不重放。
+## 未完成
 
-## 未闭环与操作
+1. 当前 boot 内嵌本地测试 initramfs（含测试凭据），只能用于本机测试，
+   不能作为通用发布镜像；
+2. 只验证了普通重启，尚未做断电冷启动、实际 suspend/resume、90Hz 模式
+   切换和长期稳定性；
+3. 尚未覆盖 RAM/UFS SKU，也未做 k270 旧内核回归；
+4. RPMh 日志仍有 `ret=-95` 读噪声，启动与运行健康，但根因未清；
+5. 标准 ESP/BDS 回退路径、持久 UEFI 变量尚未实现；
+6. 相机与受管高压充电仍是独立未来 profile，不混入当前 v1 契约。
 
-461重入UAF修复/六周期285消费286IPE、463 FULL角色/FD、464断供观察保留。449重复/450五gap/452缺168/459长测未复现后充电false不改根因关闭，用MONOTONIC。455 BU64253寿命/456 Image仅软件ABI，需0064+r2内建mux+462r3旧FD延后析构组合，未部署；原363缺mux exports。460默认AF原厂值保持。454/458第五OV02A1B时钟/PHY/初始帧/共享资源和RAW未完。
-
-同Manager重开/共享lease、精确crop/LSC光学、AWB锁定/AF、编码录像/长期热功耗、多摄同步及第五仍待验，见[完整范围](reference/kernel363/REMAINING-CAMERA-SCOPE.md)。WSL源码/build/ext4先461 storage的mounted_build，原32GiB卷不格式化/改锁/卸卷，留2GiB。原厂/个体/样本/二进制私存，selected镜像脱敏、不动index/无关项、不push；429及终态事务不重放。
+下一轮优先顺序：先解决 `clk_ignore_unused` 对应的真实 clock consumer，
+再做断电冷启动与 suspend/resume；随后把测试 initramfs 与设备私钥从
+发布镜像中剥离，并实现标准 ESP/BDS 回退。

@@ -7,13 +7,18 @@
 | [apk3](apk3/) | 固定版本 APK 构建、签名和仓库生成工具 |
 | [geoclue](geoclue/) | ModemManager GNSS 生命周期补丁与桌面定位依赖 |
 | [gst-plugin-pipewire](gst-plugin-pipewire/) | 相机 GStreamer/PipeWire 缓冲修复 |
+| [gst-plugins-bad](gst-plugins-bad/) | `viewfinderbin` 预览缩放顺序与 854x480 BGRx 输出 |
 | [libcamera](libcamera/) | 相机驱动、IPA、ISP 与颜色处理补丁 |
 | [modemmanager](modemmanager/) | 固定 ModemManager 版本及 GNSS 相关补丁 |
 | [pipewire-common](pipewire-common/) | PipeWire 与相机客户端生命周期修复 |
 | [samurai-camera-config](samurai-camera-config/) | 四摄 libcamera 配置、调校与堆规则 |
-| [samurai-desktop](samurai-desktop/) | Phosh/greetd 桌面启动顺序配方 |
+| [samurai-charging](samurai-charging/) | 旧 k363 充电实验包；标准 v7.3.1 不使用，默认不启用 |
+| [samurai-snapshot-preview](samurai-snapshot-preview/) | 四摄命名、默认主摄与 Snapshot 720p60 取景 caps 覆盖 |
+| [samurai-desktop](samurai-desktop/) | Plasma Mobile/tinydm 桌面依赖、自动登录和会话默认配置 |
 | [samurai-gnss-assist](samurai-gnss-assist/) | GNSS 辅助数据与无 SIM 电源管理服务 |
-| [samurai-platform](samurai-platform/) | 音频、Wi-Fi、Modem、USB、蓝牙和桌面集成 |
+| [samurai-platform](samurai-platform/) | noarch 板级公共层：ALSA UCM、Wi-Fi、Modem、USB、蓝牙；PulseAudio 为可选子包 |
+| [samurai-refresh](samurai-refresh/) | Phoc/wlr-output-management 历史工具；Plasma 使用 KScreen |
+| [phoc](phoc/) | 修复 Phoc 对非首选固定输出模式的处理 |
 
 ## GNSS 软件包
 

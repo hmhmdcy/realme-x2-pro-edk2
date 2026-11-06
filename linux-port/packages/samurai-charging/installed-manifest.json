@@ -1,0 +1,41 @@
+{
+  "schema": "samurai-daily-charging-manifest-v1",
+  "release": "7.3.0-rc6-rmx1931-samurai-k363+",
+  "board": "realme,samurai",
+  "installed_files": {
+    "/etc/init.d/samurai-charging": "ba73af6bc7ddf0ef5558f4e3f09e2ca827af0032e3f87dd258a26c1675f98dcb",
+    "/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-gauge-protection.ko": "f6bef8a239d5101dbb710f1dd5da9642bdc7ac5e4e568e2e1193de6233a31d7e",
+    "/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-mp2650.ko": "f96922737dcb3700a931a9b8801d12462137b2c712bc146dcdc464f1218b26ae",
+    "/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-usb-input.ko": "22604106772b89758ea745531e99dd70a6ab696b7740705107a767599e9a6529",
+    "/usr/sbin/samurai-charging": "f0342f2e9c97daf4fae2e4f1fac9ed0f5f8c75c42720a7e0e9bbb222435df675"
+  },
+  "modules": {
+    "samurai-gauge-protection": {
+      "target": "/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-gauge-protection.ko"
+    },
+    "samurai-mp2650": {
+      "target": "/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-mp2650.ko"
+    },
+    "samurai-usb-input": {
+      "target": "/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-usb-input.ko"
+    }
+  },
+  "protected_boot": {
+    "boot_sha256": "758694a1959656d7a97fa91104151a58925f3ab13b46ab25c4ae8553430a4acd",
+    "logdump_sha256": "705aacb90b836c02be49e47c2389800bc56312e58ab43e8309a2e85bfb550fee"
+  },
+  "rollback": {
+    "device_dir": "/root/charging-daily-20261028-02-before",
+    "previous_modules": [
+      "samurai-gauge-protection.ko",
+      "samurai-mp2650.ko",
+      "samurai-usb-input.ko"
+    ]
+  },
+  "notes": [
+    "No trial guard, watchdog, or trial-only Python module is loaded.",
+    "sdp_boost_ua is root-writable at runtime; write 0 to disable the SDP override without reloading the module.",
+    "TCPM zero current before an explicit PD contract falls back to the input provider CURRENT_MAX or INPUT_CURRENT_LIMIT. 5V/2A sources are capped at 2A input; SDP remains at its reported ceiling.",
+    "The board programs 2A input / 1.1A charge ceilings. The driver applies the live source allowance and scales battery current from 5V input power with 15% converter margin."
+  ]
+}
