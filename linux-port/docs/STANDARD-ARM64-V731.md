@@ -21,7 +21,8 @@ The source-controlled boot image is now flashed and booted:
 - boot partition SHA-256:
   `c8a6c616f60c8ee8f314bfc9e1329c61af3eb070b0cee3724b99080ad3444eaf`;
 - first boot ID: `a38fc278-644b-4387-97cf-f5c0c06aa541`;
-- ordinary-reboot ID: `3df82213-3f55-4ab6-b6af-a8a54e73645d`;
+- first ordinary-reboot ID: `3df82213-3f55-4ab6-b6af-a8a54e73645d`;
+- second ordinary-reboot ID: `9183a664-475e-46f6-b850-ad35aa99a93b`;
 - `taint=0`;
 - three remoteprocs `running`;
 - `sensor-power` reports `vdd=1 vddio=1`;
@@ -29,10 +30,12 @@ The source-controlled boot image is now flashed and booted:
 - `bq28z610-0` and `mp2650-input` bind through `power_supply`;
 - DSI `connected/enabled/On`;
 - `tinydm`, `sshd`, `samurai-usb`, `samurai-sleep-inhibitor`, KWin and
-  plasmashell start after both boots.
+  plasmashell start after all three boots.
 
 The boot partition and logdump were read back on the device and match the
-candidate hashes. The runtime evidence endpoint is the local Wi-Fi SSH link;
+candidate hashes. The third boot also verified that the legacy
+`samurai-charging` runlevel link is absent and no release-mismatched charging
+module is loaded. The runtime evidence endpoint is the local Wi-Fi SSH link;
 the test image is not a distributable generic image.
 
 ## Kernel source identity

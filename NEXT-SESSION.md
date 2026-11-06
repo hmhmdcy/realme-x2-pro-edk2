@@ -19,15 +19,17 @@
   [`linux-port/configs/v7.3.1`](linux-port/configs/v7.3.1/) 和
   [`linux-port/dts/v731`](linux-port/dts/v731/)；
 - 最终 boot 已刷入 `boot` 分区，设备内回读哈希与候选一致；
-- 两次启动均成功：首次 `a38fc278-644b-4387-97cf-f5c0c06aa541`，
-  普通重启后 `3df82213-3f55-4ab6-b6af-a8a54e73645d`；
+- 三次启动均成功：首次 `a38fc278-644b-4387-97cf-f5c0c06aa541`，
+  两次普通重启后分别为 `3df82213-3f55-4ab6-b6af-a8a54e73645d`、
+  `9183a664-475e-46f6-b850-ad35aa99a93b`；
 - `taint=0`，三路 remoteproc `running`，`sensor-power` 为
   `vdd=1 vddio=1`，UDC `configured`，DSI `On`，Wi-Fi SSH、KWin、
   plasmashell、USB 和 OpenRC 服务正常；
 - 标准 `power_supply` 绑定为 `bq28z610-0` 与 `mp2650-input`，不再加载
   私有 managed-charging 模块；
-- 旧 `samurai-charging` 已从 runlevel 移除，源码安装钩子改为旧内核上的
-  显式 opt-in；`samurai-platform` 5-r14 不再依赖它；
+- 旧 `samurai-charging` 已从所有 runlevel 移除，并在第三次启动确认不再
+  尝试加载；源码安装钩子改为旧内核上的显式 opt-in，
+  `samurai-platform` 5-r14 不再依赖它；
 - `samurai-dt-v1-abi.json` 已改到 v7.3.1 基线，声明 MP2650 与标准
   DWC3 绑定；12 个资源全部通过契约检查。
 
