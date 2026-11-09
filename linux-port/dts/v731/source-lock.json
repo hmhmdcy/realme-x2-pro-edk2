@@ -1,13 +1,82 @@
 {
   "schema": "samurai-linux-standard-arm64-source-lock-v1",
-  "status": "runtime_verified_single_device",
-  "updated": "2026-11-06",
+  "status": "thin_private_image_deployed_two_ordinary_reboots_passed_suspend_test_unrecovered_settings_provenance_candidates_pending",
+  "updated": "2026-11-09",
   "target": {
     "device": "Realme X2 Pro",
     "model": "RMX1931",
     "codename": "samurai",
     "soc": "Qualcomm SM8150",
-    "arch": "arm64"
+    "arch": "arm64",
+    "current_objective": "Wi-Fi, CDC NCM and SSH remain mandatory regression gates. Production settings must be separated into postmarketOS/KDE official defaults, the irreducible board layer, and debug-only transient overrides. The installed 5-r22/4-r10 packages still carry the historical board sleep-inhibitor and tinydm overrides; 5-r23/4-r11 are offline candidates that remove them and restore the official sleep-inhibitor/PowerDevil baseline. The thin-private Image removes all three custom MAX98937/AW8697 status attributes on the handset, and two ordinary reboots passed the full 777-module camera, flash/V4L2, Bluetooth, NFC, thermal and network gate with taint 0. A short loginctl-suspend test using a direct sysfs RTC alarm left the handset unreachable and USB-unenumerated; this is not a suspend pass. Continue only mainline Linux v7.3.1 models and APIs, keep the irreducible board layer, and recover the handset before repeating suspend with the previously proven rtcwake path. Physical NFC tag I/O, external PAN/HID peers and external-power-removed cold boot remain unverified.",
+    "goal_update_2026_11_09": "Wi-Fi, CDC NCM and SSH are no longer active backlog items. They remain mandatory regression gates, but hardware adaptation continues with the remaining standardizable blocks without waiting for another dedicated network pass.",
+    "execution_order": [
+      "Wi-Fi, CDC NCM and SSH (closed; retained only as regression gates)",
+      "camera Selection API and ordinary-reboot RAW/userspace regression (closed)",
+      "PM8150L rear flash/V4L2: Linux-side boot+FAT write, runtime gate, optical torch capture and ordinary reboot passed; external-power cold boot pending",
+      "private status sysfs removal: final Image/FAT deployed from Linux; two ordinary reboots, standard ALSA/input/ff, three status-node removals and the full runtime gate passed",
+      "suspend/sleep: policy and services verified; a loginctl/direct-wakealarm test caused an unrecovered suspend, so a physical wake and rtcwake-based retest are required before claiming resume",
+      "NFC: official neard package, OpenRC service, nfc0, D-Bus properties and poll-loop boundary verified after ordinary reboot; physical tag I/O pending",
+      "Bluetooth PAN/HID kernel path: signed mainline BNEP/UHID/uinput package installed; modules auto-loaded, devices opened, BNEP socket and full runtime gate passed after ordinary reboot; external peers pending",
+      "remaining display, audio, sensor, camera-userspace, charging and fingerprint work",
+      "external-power-removed and repeated cold-boot acceptance when the handset is physically available"
+    ]
+  },
+  "settings_provenance": {
+    "schema": "samurai-settings-provenance-v1",
+    "doc": "linux-port/docs/SETTINGS-PROVENANCE.md",
+    "manifest": "linux-port/dts/v731/settings-provenance.json",
+    "status": "offline_candidates_not_installed",
+    "official_baseline": {
+      "pmaports_commit": "b5810eb2f3b24ce380a00c54569236f5559f78b1",
+      "sleep_inhibitor_plugins": [
+        "ssh-session-open",
+        "apk-running"
+      ],
+      "tinydm_optional_hardware_rc_need": false,
+      "powerdevil_pmos_override": false,
+      "powerdevil_upstream_mobile_defaults": {
+        "auto_suspend": "Sleep",
+        "AC_idle_seconds": 900,
+        "Battery_idle_seconds": 300,
+        "LowBattery_idle_seconds": 300
+      }
+    },
+    "production_candidates": {
+      "samurai-platform": "5-r23",
+      "samurai-desktop": "4-r11",
+      "changes": [
+        "remove samurai-sleep-inhibitor service and /etc/samurai/sleep-inhibitor.conf",
+        "remove installed samurai-usb-sleep-guard from the production package",
+        "restore the upstream sleep-inhibitor service",
+        "remove tinydm rc_need/rc_use overrides"
+      ]
+    },
+    "debug_only": [
+      "linux-port/scripts/test-usb-ncm-stability.py elogind sleep block",
+      "linux-port/debug/sleep-policy/usb-sleep-guard",
+      "linux-port/scripts/test-suspend-rtcwake.sh with SAMURAI_ALLOW_SUSPEND=1",
+      "verbose tracing and packet capture"
+    ],
+    "production_forbidden": [
+      "samurai-sleep-inhibitor service",
+      "/etc/samurai/sleep-inhibitor.conf",
+      "/usr/libexec/samurai-usb-sleep-guard",
+      "tinydm rc_need/rc_use overrides",
+      "powerdevilrc AutoSuspendAction=0"
+    ],
+    "current_device_overrides_to_remove": [
+      "samurai-sleep-inhibitor service and config",
+      "installed USB carrier guard",
+      "tinydm rc_need/rc_use lines",
+      "PowerDevil AutoSuspendAction=0 if a local powerdevilrc exists",
+      "sshd boot runlevel is a debug-era early-SSH choice; restore official default separately"
+    ],
+    "checks": [
+      "linux-port/scripts/check-settings-provenance.sh",
+      "linux-port/scripts/check-usb-sleep-guard.sh",
+      "linux-port/scripts/clear-powerdevil-debug-override.py"
+    ]
   },
   "upstream": {
     "project": "Linux",
@@ -26,30 +95,153 @@
     "platform_commit": "824dc0a56143d8bf1cc1d20adb877abced48b336",
     "platform_subject": "arm64: add standard samurai platform glue on Linux v7.3.1",
     "platform_tree": "fbbf939a98426cd45e08b4d7a42bcadfbf900d39",
-    "platform_commit_time": "2026-11-06T12:43:10+08:00"
+    "platform_commit_time": "2026-11-06T12:43:10+08:00",
+    "worktree_tree": "87db16a1c9e145662a11feae2dfdd54fdfe65065",
+    "worktree_tree_scope": "Tracked and untracked kernel worktree files, including the camera/flash patch and the separate private-status-removal patch.",
+    "camera_patch_applied_to_worktree": true
   },
   "source_inputs": {
     "patch": {
       "repo_path": "linux-port/patches/v7.3.1/0001-arm64-add-standard-samurai-platform-glue.patch",
       "external_path": "/home/cy122/standard-arm64-v7.3.1.patch",
-      "bytes": 367749,
-      "lines": 11523,
-      "sha256": "11e97a17342ac13989686683bd8bc1e4269b41b050a7914c57c055b186390063",
+      "bytes": 368245,
+      "lines": 11537,
+      "sha256": "dcdb7c70f74bfa75888733aa20a836530635ff788e137d9a073364d847d2dbcf",
       "files_changed": 96,
-      "insertions": 7674,
+      "insertions": 7688,
       "deletions": 708
+    },
+    "camera_patch": {
+      "repo_path": "linux-port/patches/v7.3.1/0002-arm64-standardize-samurai-camera-stack.patch",
+      "bytes": 367953,
+      "lines": 8465,
+      "sha256": "964cd13b3bb52d0b4977b94cbcd1aeea454fbb368dd4b34818ab821be913b38f",
+      "files_changed": 26,
+      "insertions": 6860,
+      "deletions": 285,
+      "selection_api_fix": "IMX471 now reports the analogue crop selected by its mode; S5K3M5 reports CROP, CROP_DEFAULT and CROP_BOUNDS for active and try formats.",
+      "flash_api_fix": "The PM8150L flash node is labelled and linked from S5KGW1 with the standard flash-leds property so v4l2-flash-led-class can attach to the CAMSS media graph."
+    },
+    "private_status_removal_patch": {
+      "repo_path": "linux-port/patches/v7.3.1/0004-samurai-remove-private-status-sysfs.patch",
+      "bytes": 5309,
+      "lines": 161,
+      "sha256": "f69ffecd482d11c19f25f074ed5d2ccc48ac765acbf22c54956701bdd0497a5c",
+      "files_changed": [
+        "sound/soc/codecs/max98937-samurai.c",
+        "drivers/input/misc/aw8697-samurai.c"
+      ],
+      "removes_findings": [
+        "MAX98937 private /status sysfs diagnostic",
+        "AW8697 private /status sysfs diagnostic"
+      ],
+      "status": "applied_to_worktree_and_built_into_independent_offline_image_not_deployed",
+      "object_build": {
+        "build_dir": "/home/cy122/samurai-v731-build-archive-20261108",
+        "config_sha256": "35b71dd2125b2cd4489d9e80fbba6d1a4bede9f16c4d19634421f41bb3577dc7",
+        "release_override": "LOCALVERSION=",
+        "objects": [
+          {
+            "path": "sound/soc/codecs/max98937-samurai.o",
+            "bytes": 50736,
+            "sha256": "494b21e7aea0d8ec5d9b9018e08d873ed96a40b19f9ddae5c68af345a81f87fb"
+          },
+          {
+            "path": "drivers/input/misc/aw8697-samurai.o",
+            "bytes": 66912,
+            "sha256": "0385b69283c2e4b03fc70b5bb677d415da38c3f64e450a9701ece9f363c25d65"
+          }
+        ],
+        "image": {
+          "path": "E:/edk2-samurai-out/standard-arm64-v731/private-surface-removal-20261109/Image-v731-thin-private",
+          "bytes": 59308544,
+          "sha256": "f8d8962197827dafbe50e551f5df03391c43ec0269449fa87b833e57799656a5"
+        },
+        "kernel_fat": {
+          "path": "E:/edk2-samurai-out/standard-arm64-v731/private-surface-removal-20261109/recovery-kernel-fat-thin-private.img",
+          "bytes": 67108864,
+          "sha256": "ca205192bc639e803291b78ebf7c1588a2d5815cf2a12ea3e1b06d083cba873f"
+        }
+      }
+    },
+    "thin_private_layer_audit": {
+      "auditor": {
+        "repo_path": "linux-port/scripts/audit-thin-private-layer.py",
+        "bytes": 15845,
+        "sha256": "143cc2d2146981232a74999186bad5d60cd415ec411da3ae9f0e04b71fb24c6a"
+      },
+      "report": "E:/edk2-samurai-out/standard-arm64-v7.3.1/thin-private-layer-audit.json",
+      "report_bytes": 16653,
+      "report_sha256": "c3148782f9b44fd882db57e31eb5db3c0c90aaf33196a2fe426df177af003475",
+      "passed": true,
+      "kernel_head": "824dc0a56143d8bf1cc1d20adb877abced48b336",
+      "code_file_count": 14,
+      "data_file_count": 11,
+      "code_bytes": 116007,
+      "data_bytes": 265454,
+      "forbidden_private_api_findings": 0,
+      "missing_standard_api_failures": 0,
+      "allowed_legacy_surfaces": [
+        "drivers/misc/samurai-sensor-power.c:DEVICE_ATTR_RO(state)"
+      ],
+      "platform_patch_base": "09455be5a5c3421019315de48a32c9ded91d0030",
+      "platform_patch_head": "824dc0a56143d8bf1cc1d20adb877abced48b336",
+      "platform_patch_changed_files": 96,
+      "platform_patch_forbidden_added_lines": 0,
+      "scope": "Static audit of the remaining board-private C/H and board-data files plus removal of the two custom status sysfs diagnostics. It proves absence of private ioctl/user-copy/Android entry points and presence of the expected standard subsystem markers; it does not prove upstream acceptance or runtime correctness."
     },
     "config": {
       "repo_path": "linux-port/configs/v7.3.1/samurai.config",
       "build_path": "/home/cy122/samurai-v731-build/.config",
-      "bytes": 234824,
-      "sha256": "5c7ea3eec1bb0efca473f3032390fff0368fc8dbc4f826c4b614863300004ffc"
+      "bytes": 234857,
+      "sha256": "9c99cfc3a14c075586c39692ae92fd6975f49a5afa1ee8a510cead4206cb39d1",
+      "generated_config_sha256": "f6b3442a005bc0cb3531c55ec0ed67ce43f71418ae60199abb53b948b1187fe9",
+      "v4l2_flash_delta": "CONFIG_V4L2_FLASH_LED_CLASS: n -> m"
+    },
+    "standard_config": {
+      "repo_path": "linux-port/configs/v7.3.1/samurai-standard.config",
+      "build_path": "/home/cy122/samurai-v731-standard/.config",
+      "bytes": 234692,
+      "sha256": "3782156ba0359c41367b2a9797a8f4bf25d2574c1ab433db869e607ac783b708",
+      "generated_config_sha256": "d3dc6f072055a7d9da50de7c1e5416da837c680c00126f9a8f25b379f9984097",
+      "generated_tree_refreshed_after_v4l2_delta": false,
+      "purpose": "Direct-rootfs candidate: removes the diagnostic initramfs payload and embedded ftrace bootconfig. The generated kernel still contains the 512-byte mainline default archive (/dev/console and /root only)."
     },
     "production_dts_wrapper": {
       "repo_path": "linux-port/dts/v731/sm8150-samurai.dts",
       "kernel_path": "arch/arm64/boot/dts/qcom/sm8150-samurai.dts",
-      "bytes": 682,
-      "sha256": "dc2aa5c618f007c729737b18fec310239676549fd6bcb233aa0ab003dcff370e"
+      "bytes": 1693,
+      "sha256": "e877bb39c53e0878d60f33160de3c7f14e81c8005caeaf684eda03fb9992cb59",
+      "flash_led_candidate_dts": "E:/edk2-samurai-out/standard-arm64-v731/flash-led-candidate-20261109/sm8150-samurai-flash-led-candidate.dts",
+      "flash_led_candidate_dts_sha256": "dcc6fe191071915d139c8e53f820f335f96726295aa06009890b5e575b35b270",
+      "flash_led_candidate_scope": "Historical first flash candidate; superseded by the deployed v4l2 final pair."
+    },
+    "tx_fifo_resize": {
+      "binding": "Documentation/devicetree/bindings/usb/snps,dwc3-common.yaml",
+      "driver": "drivers/usb/dwc3/core.c",
+      "property": "tx-fifo-resize",
+      "model": "standard DWC3 device property consumed with device_property_read_bool",
+      "dtb_sha256": "c9f948cdac6e58b23ba5bd9bb29137d6266154ce22540fb4d585e24826649fc5",
+      "production_source_rebuild": "E:/edk2-samurai-out/standard-arm64-v731/usb-fifo-production-source-20261108",
+      "scope": "the production wrapper differs from the previous source only by the standard boolean under &usb_1_dwc3"
+    },
+    "wifi_supply_binding": {
+      "stock_decompiled_dts": "linux-port/artifacts/sm8150-samurai.dts.decompiled",
+      "stock_supplies": [
+        "vdd-0.8-cx-mx-supply = ldo1 750mV",
+        "vdd-1.8-xo-supply = ldo7 1.8V",
+        "vdd-1.3-rfa-supply = ldo2 1.3V",
+        "vdd-3.3-ch0-supply = ldo11 3.0-3.3V"
+      ],
+      "current_dtb_has_the_same_four_phandles": true,
+      "candidate_dtb": "E:/edk2-samurai-out/standard-arm64-v731/wifi-supply-dtb-candidate-r2/sm8150-samurai-experiment-os.dtb",
+      "candidate_dtb_sha256": "3799ec6c7d3e0c67a657859a37b2fe147fa21a9dedc84d49c8eb83fd8debc805",
+      "build_result": "E:/edk2-samurai-out/standard-arm64-v731/wifi-supply-dtb-candidate-r2/build-result.json",
+      "build_result_sha256": "ebee7473fe74c30dc0e0d55acaeb9a2059d65bfe4925754c978df6ea3b9e78d8",
+      "semantic_diff_report": "E:/edk2-samurai-out/standard-arm64-v731/wifi-supply-dtb-candidate-r2/deployed-vs-source-reconstruction.json",
+      "semantic_diff_sha256": "7a187e01e2a182325d35cc5e6507f04ea4e361309dad28b6a99fce5a5da43af2",
+      "semantic_diff": "none: the explicit wrapper now reproduces the regulator binding already present in the deployed DTB",
+      "vdd_3_3_ch1": "absent in the stock DTB; ath10k_snoc requests it as an optional fifth supply and falls back to a dummy regulator on this board"
     },
     "shared_board_dtsi": {
       "kernel_path": "arch/arm64/boot/dts/qcom/sm8150-samurai-common.dtsi",
@@ -65,21 +257,320 @@
     "release": "7.3.1-rmx1931-samurai-v731",
     "artifacts": {
       "Image": {
-        "local_path": "E:/edk2-samurai-out/standard-arm64-v731/Image-v731",
+        "local_path": "E:/edk2-samurai-out/standard-arm64-v731/camera-final-boot/Image-v731-camera",
         "bytes": 59308544,
-        "sha256": "dc4c5623551824d170397cd93a01256dfc0eadb0d13b949c54e64f6e0ea61eda"
+        "sha256": "aa6c4b6b43ec45f4c41d3d420b980e35876860537cb6f2cb96ec5063aab8432a"
       },
       "dtb": {
-        "local_path": "E:/edk2-samurai-out/standard-arm64-v731/sm8150-samurai-v731.dtb",
-        "bytes": 114371,
-        "sha256": "3261908efb6730f43f41e9ab752b03a107ab583d451f433c7eb648760ed79ebb"
+        "local_path": "E:/edk2-samurai-out/standard-arm64-v731/flash-led-v4l2-20261109/sm8150-samurai-v731-flash-led-v4l2.dtb",
+        "bytes": 114656,
+        "sha256": "b244b3f10a14811dca2e808efa8c840f432cac69020e66b60eba97d02794a18e"
       },
       "modules_tarball": {
-        "local_path": "E:/edk2-samurai-out/standard-arm64-v731/modules-v731.tar.gz",
-        "bytes": 7009059,
-        "sha256": "fc1607efc672b047318936fdada05f33a286815fac46ee6efac05291c6376bbb"
+        "local_path": "E:/edk2-samurai-out/standard-arm64-v731/flash-led-v4l2-20261109/modules-v731-flash-led-v4l2.tar.gz",
+        "bytes": 7033282,
+        "sha256": "c12a0513caf664200e1df47da5061b227090ffe8cf8d3586030cdbb9241a8b30",
+        "module_count": 774,
+        "stripped": true
+      },
+      "camera_selection_modules_tarball": {
+        "local_path": "E:/edk2-samurai-out/standard-arm64-v731/camera-selection-fix-20261109/modules-v731-camera-selection.tar.gz",
+        "bytes": 6745121,
+        "sha256": "c656fe1f16c7e7ffed0e10d00dc0e00f41f863f92151e0078917232237f9cd4a",
+        "module_count": 773,
+        "stripped": true,
+        "changed_modules": [
+          "drivers/media/i2c/imx471.ko",
+          "drivers/media/i2c/s5k3m5.ko"
+        ],
+        "module_hash_diff": "E:/edk2-samurai-out/standard-arm64-v731/camera-selection-fix-20261109/modules-diff.txt",
+        "module_hash_diff_sha256": "8a62103a9a4603cf5bb0311f5057bf802629e8618b788a878062f8952cff6f8f"
       }
     }
+  },
+  "offline_rebuild_probe": {
+    "repo_path": "linux-port/dts/v731/offline-rebuild-probe-20261108.json",
+    "sha256": "bd67444e66a9fbf459760c618ee7eb9b1bd8aeaf76be91a49445a83ec855d37a",
+    "status": "corrected_full_config_probe_not_bit_identical",
+    "deployed_image_remains_runtime_authority": true
+  },
+  "standard_rootfs_candidate": {
+    "status": "flashed_booted_runtime_verified",
+    "candidate_dir": "E:/edk2-samurai-out/standard-arm64-v731/standard-rootfs-candidate",
+    "manifest": {
+      "path": "E:/edk2-samurai-out/standard-arm64-v731/standard-rootfs-candidate/MANIFEST.json",
+      "bytes": 3560,
+      "sha256": "5964daeb5fe8fb642a731a4f0dafcc02c6a7f484fa4906e430e48fc11b332a94"
+    },
+    "readme": {
+      "path": "E:/edk2-samurai-out/standard-arm64-v731/standard-rootfs-candidate/README.md",
+      "bytes": 2025,
+      "sha256": "b17c6655ac334867157c479e7dacca04bb7a350cbda4c977ffcf9301cfd6cfee"
+    },
+    "command_line": "console=tty0 loglevel=4 panic=15 root=PARTLABEL=userdata rootfstype=f2fs rootwait rw clk_ignore_unused",
+    "standardization_changes": {
+      "diagnostic_initramfs_payload": false,
+      "embedded_bootconfig": false,
+      "diagnostic_ftrace_bootconfig": false,
+      "default_initramfs_archive_bytes": 512,
+      "default_initramfs_entries": [
+        "/dev/console",
+        "/root"
+      ],
+      "root_device_selection": "PARTLABEL=userdata",
+      "root_filesystem": "f2fs",
+      "root_mount": "rw with rootwait",
+      "ufs_driver_builtin": true,
+      "f2fs_builtin": true,
+      "devtmpfs_mount": true
+    },
+    "artifacts": {
+      "image": {
+        "local_path": "E:/edk2-samurai-out/standard-arm64-v731/standard-rootfs-candidate/Image-v731-standard",
+        "bytes": 44300800,
+        "sha256": "5069b1b47d453b11f11ce4a831de6821971b064184452303d4373ae7c8fbd2bd"
+      },
+      "dtb": {
+        "local_path": "E:/edk2-samurai-out/standard-arm64-v731/camera-final-boot/sm8150-samurai-v731-camera.dtb",
+        "bytes": 114395,
+        "sha256": "3799ec6c7d3e0c67a657859a37b2fe147fa21a9dedc84d49c8eb83fd8debc805"
+      },
+      "modules_tarball": {
+        "local_path": "E:/edk2-samurai-out/standard-arm64-v731/standard-rootfs-candidate/modules-v731-standard.tar.gz",
+        "bytes": 6855561,
+        "sha256": "22f50f56a4e912a6d6fc4f07785b1c02acbf536a96b3328edb3743f1d9bf7636",
+        "module_count": 773,
+        "reused_from_validated_camera_module_tree": true
+      },
+      "bds": {
+        "local_path": "E:/edk2-samurai-out/standard-arm64-v731/standard-rootfs-candidate/bds/BdsDxe.efi",
+        "bytes": 110592,
+        "sha256": "54a56caa564a90f573e3bf7bbf5e12c9261c85c754bfeaff274ad8c05a1224d9"
+      },
+      "platform_bm_source": {
+        "local_path": "E:/edk2-samurai-out/standard-arm64-v731/standard-rootfs-candidate/PlatformBm.c",
+        "bytes": 37190,
+        "sha256": "b401a57e7d8af446b2d242509879f65170f9a5462e14d65bb4cde831b190b1bc"
+      },
+      "boot": {
+        "local_path": "E:/edk2-samurai-out/standard-arm64-v731/standard-rootfs-candidate/boot-eud-standard-rootfs.img",
+        "bytes": 100663296,
+        "sha256": "e1cccd9d3d1119c2b40bda4d15834ea857ca8ec897e611f9af28b1e66050bd19"
+      },
+      "kernel_fat": {
+        "local_path": "E:/edk2-samurai-out/standard-arm64-v731/standard-rootfs-candidate/recovery-kernel-fat.img",
+        "bytes": 67108864,
+        "sha256": "8a684871daa9b32d38c0c514e21b7d6b5076a280b35f9ae236821d040ffa46cf",
+        "contents": {
+          "/Image": "5069b1b47d453b11f11ce4a831de6821971b064184452303d4373ae7c8fbd2bd",
+          "/samurai.dtb": "3799ec6c7d3e0c67a657859a37b2fe147fa21a9dedc84d49c8eb83fd8debc805"
+        }
+      }
+    },
+    "offline_checks": {
+      "metadata_review": {
+        "local_path": "E:/edk2-samurai-out/standard-arm64-v731/standard-rootfs-candidate/metadata-review.json",
+        "bytes": 9655,
+        "sha256": "3ca0bf240be9af48cf5c16a7ab5da3da8841fe8e4edd5ee99729d44528fce0a6",
+        "passed": true,
+        "classification": "printable_metadata_only",
+        "comparison": "Only BdsDxe command-line metadata changed; PlatformSmbiosDxe and UiApp are byte-identical."
+      },
+      "kernel_fat_fsck_clean": true,
+      "kernel_fat_contents_match": true,
+      "boot_cmdline_utf16le_present": true,
+      "initramfs_source_empty": true,
+      "image_contains_ftrace_bootconfig_strings": false,
+      "image_contains_diagnostic_initramfs_payload": false,
+      "rootfs_uuid_or_partuuid_embedded_in_image": false
+    },
+    "flash_contract": {
+      "helper": "linux-port/scripts/flash-v731-standard-rootfs.ps1",
+      "helper_sha256": "cde3c081253e4d4460cfeb43bad88438d9e541586204bdba0c4a868258e373b0",
+      "paired_partitions": [
+        "boot",
+        "logdump"
+      ],
+      "boot_only_allowed": false,
+      "partial_flash_allowed": false,
+      "dry_run_passed": true,
+      "boot_only_guard_passed": true,
+      "flashed_partitions": [
+        "boot",
+        "logdump"
+      ],
+      "device_flash_completed": true,
+      "reason": "The boot image supplies root=PARTLABEL=userdata; the logdump FAT supplies the matching no-diagnostic-initramfs Image."
+    },
+    "runtime": {
+      "boot_id": "efdffee4-f31e-4077-a568-8c9440d50524",
+      "boot_partition_sha256": "e1cccd9d3d1119c2b40bda4d15834ea857ca8ec897e611f9af28b1e66050bd19",
+      "kernel_fat_sha256": "8a684871daa9b32d38c0c514e21b7d6b5076a280b35f9ae236821d040ffa46cf",
+      "runtime_json": "E:/edk2-samurai-out/standard-arm64-v731/standard-rootfs-flash-20261108/runtime-final.json",
+      "runtime_json_bytes": 3268,
+      "runtime_json_sha256": "2badaee45cbe415902fe39baa8c3bb9d68dc0de60961d1fe25d5c8da39e6fc6a",
+      "verify_log": "E:/edk2-samurai-out/standard-arm64-v731/standard-rootfs-flash-20261108/standard-rootfs-final-verify.log",
+      "verify_log_bytes": 6795,
+      "verify_log_sha256": "834950da3c5b4327f6719e8474f867ea04ed409af39ffa270a0568367adf3e4f",
+      "root": "/dev/sda16 F2FS",
+      "pid1": "/sbin/init",
+      "taint": 0,
+      "runtime_verifier_passed": true
+    },
+    "verifier": {
+      "repo_path": "linux-port/scripts/verify-v731-final-runtime.py",
+      "sha256": "f06cfe05e452226acbe2b43fb1d8aa8a478b4c4bd290323abc6ed16c2f0d5568",
+      "invocation": "python3 linux-port/scripts/verify-v731-final-runtime.py --standard-rootfs --output /tmp/v731-standard-runtime.json",
+      "requires": "exact standard command line, boot/e1cccd9d and FAT Image/5069b1b4 hashes, F2FS userdata root, /sbin/init PID1, release, taint, modules, CAMSS/media, runtime PM, power supply, display, USB, Wi-Fi and services"
+    },
+    "required_on_device_checks": [
+      "boot ID, release and taint=0",
+      "root mounted from PARTLABEL=userdata as F2FS, not from an initramfs switch_root",
+      "Wi-Fi SSH and USB NCM services",
+      "CAMSS/CCI/PM8008/sensor/lens probe",
+      "NFC controller, power_supply, DSI and desktop services",
+      "four-camera RAW acceptance",
+      "rollback to the currently deployed boot and FAT if root mount fails"
+    ],
+    "rollback": {
+      "boot": "E:/edk2-samurai-out/standard-arm64-v731/camera-final-boot/boot-eud-production-off.img",
+      "boot_sha256": "9b9be136bd3ee2328f0c4273a829471ad0cd73a7fe7d718825ac024f7af3ae54",
+      "kernel_fat": "E:/edk2-samurai-out/standard-arm64-v731/camera-final-boot/recovery-kernel-fat.img",
+      "kernel_fat_sha256": "6a6aa520e4adda750450c3fd9b80a553c1988d6d76803c674c279b3a5df4f562"
+    }
+  },
+  "uefi_standard_boot_candidate": {
+    "status": "offline_built_not_flashed",
+    "candidate_dir": "E:/edk2-samurai-out/standard-arm64-v731/uefi-standard-boot-candidate",
+    "manifest": {
+      "path": "E:/edk2-samurai-out/standard-arm64-v731/uefi-standard-boot-candidate/MANIFEST.json",
+      "bytes": 6023,
+      "sha256": "603f90ce630e47ca1e83f700072b4100312b9964b3f896adfbcaf6b8124ce7c4"
+    },
+    "readme": {
+      "path": "E:/edk2-samurai-out/standard-arm64-v731/uefi-standard-boot-candidate/README.md",
+      "bytes": 3179,
+      "sha256": "d63001c752be17a54ae6e45970119b3bf5b74f0f4b86f0e907ccd32fec939e23"
+    },
+    "verification": {
+      "path": "E:/edk2-samurai-out/standard-arm64-v731/uefi-standard-boot-candidate/verification.json",
+      "bytes": 3936,
+      "sha256": "ce00566ee147033461285cd22d1346d8b3427d4734df3fdd3e422d286ce3c6bc",
+      "offline_check": "E:/edk2-samurai-out/standard-arm64-v731/uefi-standard-boot-candidate/offline-check.json",
+      "offline_check_sha256": "d6128d1f554e3bc5bf76afcbf9e02b557fbc73a673708af469623c9bbd357394",
+      "offline_verifier": "linux-port/scripts/verify-uefi-standard-candidate.py",
+      "offline_verifier_sha256": "73d79eb0937fbf9db560fc2a2e459e3e172172528f8242420c6a8e503f16b01c"
+    },
+    "command_line": "console=tty0 loglevel=4 panic=15 root=PARTLABEL=userdata rootfstype=f2fs rootwait rw clk_ignore_unused",
+    "boot_chain": [
+      "ABL",
+      "BootShim/EDK2",
+      "BdsDxe",
+      "FAT containing /Image \\EFI\\BOOT\\BOOTAA64.EFI",
+      "GRUB standalone",
+      "Linux EFI stub /Image plus /samurai.dtb",
+      "root=PARTLABEL=userdata rootfstype=f2fs"
+    ],
+    "boot_priority": {
+      "standard_path": "\\EFI\\BOOT\\BOOTAA64.EFI",
+      "fallback_path": "\\Image",
+      "standard_path_has_no_bds_load_options": true,
+      "fallback_uses_board_command_line": true,
+      "volume_discovery": "search_fs_file /Image",
+      "volume_label_dependency": false
+    },
+    "artifacts": {
+      "platform_bm_source": {
+        "local_path": "E:/edk2-samurai-out/standard-arm64-v731/uefi-standard-boot-candidate/PlatformBm.c",
+        "bytes": 37639,
+        "sha256": "4c3e653865d970638bec2c0a2d67158c1b0e875ea420dc0e31c72868c18537c0"
+      },
+      "bds": {
+        "local_path": "E:/edk2-samurai-out/standard-arm64-v731/uefi-standard-boot-candidate/bds/BdsDxe.efi",
+        "bytes": 110592,
+        "sha256": "f5cf8a7efcce6208ef48250928880214ae25807ea92c17e0d896547f87f57206",
+        "build_result": "E:/edk2-samurai-out/standard-arm64-v731/uefi-standard-boot-candidate/bds/result.json",
+        "build_result_sha256": "b5334ab34ac4941766d1d347335c97cbf97c1e86603c8357733c743f37c98cb7"
+      },
+      "boot": {
+        "local_path": "E:/edk2-samurai-out/standard-arm64-v731/uefi-standard-boot-candidate/boot-image/boot-eud-production-off.img",
+        "bytes": 100663296,
+        "sha256": "c5e856d5ac06a42fb55df909dae26fe26293517aa65fd67570730f6de068690c",
+        "build_result": "E:/edk2-samurai-out/standard-arm64-v731/uefi-standard-boot-candidate/boot-image/result.json",
+        "build_result_sha256": "c0104b4b07d4a6c612e49eee689678e43e60dd4bc90ea74c78127238b4d31dac"
+      },
+      "grub": {
+        "local_path": "E:/edk2-samurai-out/standard-arm64-v731/uefi-standard-boot-candidate/BOOTAA64.EFI",
+        "bytes": 1007616,
+        "sha256": "97ef936d2b44c3ed69504d9a5ec1e15c525ba3ba3a1053fa457788f191886170",
+        "config": "E:/edk2-samurai-out/standard-arm64-v731/uefi-standard-boot-candidate/grub.cfg",
+        "config_source": "linux-port/uefi-standard/grub.cfg",
+        "config_sha256": "f0f9911b10bfd5884157c50350bd4ac36fd82cf12a9573d25658c4bc5fe4d4f9",
+        "source_package_sha256": "532decc2dfd16f475cb5fbef0435c1c446cad822f519dcbc9f36b80f785e410d",
+        "host_tool_package_sha256": "588adef32c4e4cb41f3cb82a0d0d24e5200e69071f4febeda91a84889217b2d1",
+        "format": "PE32+ EFI application, ARM64"
+      },
+      "kernel_fat": {
+        "local_path": "E:/edk2-samurai-out/standard-arm64-v731/uefi-standard-boot-candidate/kernel-fat-standard-uefi.img",
+        "bytes": 67108864,
+        "sha256": "7c326ad4dd6f3c3682bd047554534bb4cb94eddec818b7cbbe69a0ada7ed3131",
+        "contents": {
+          "/Image": "5069b1b47d453b11f11ce4a831de6821971b064184452303d4373ae7c8fbd2bd",
+          "/samurai.dtb": "3799ec6c7d3e0c67a657859a37b2fe147fa21a9dedc84d49c8eb83fd8debc805",
+          "/EFI/BOOT/BOOTAA64.EFI": "97ef936d2b44c3ed69504d9a5ec1e15c525ba3ba3a1053fa457788f191886170"
+        }
+      },
+      "image": {
+        "local_path": "E:/edk2-samurai-out/standard-arm64-v731/uefi-standard-boot-candidate/Image-v731-standard",
+        "bytes": 44300800,
+        "sha256": "5069b1b47d453b11f11ce4a831de6821971b064184452303d4373ae7c8fbd2bd"
+      },
+      "dtb": {
+        "local_path": "E:/edk2-samurai-out/standard-arm64-v731/uefi-standard-boot-candidate/sm8150-samurai-v731.dtb",
+        "bytes": 114395,
+        "sha256": "3799ec6c7d3e0c67a657859a37b2fe147fa21a9dedc84d49c8eb83fd8debc805"
+      }
+    },
+    "checks": {
+      "bds_build_passed": true,
+      "boot_build_passed": true,
+      "only_bds_ffs_changed": true,
+      "unchanged_main_ffs": 100,
+      "bds_pe32_in_boot_matches": true,
+      "platform_smbios_identical": true,
+      "ui_app_identical": true,
+      "grub_script_check_passed": true,
+      "grub_arm64_efi_check_passed": true,
+      "kernel_fat_fsck_clean": true,
+      "kernel_fat_readback_matches": true,
+      "standard_grub_config_embedded": true,
+      "grub_volume_label_dependency": false,
+      "device_boot_tested": false
+    },
+    "flash_contract": {
+      "helper": "linux-port/scripts/flash-v731-uefi-standard.ps1",
+      "helper_sha256": "f92575799474e919db6b90756199da84a0fe5b3ecab09067b6a37b80fa619328",
+      "paired_partitions": [
+        "boot",
+        "logdump"
+      ],
+      "partial_flash_allowed": false,
+      "boot_only_allowed": false
+    },
+    "rollback": {
+      "production_boot_sha256": "9b9be136bd3ee2328f0c4273a829471ad0cd73a7fe7d718825ac024f7af3ae54",
+      "production_kernel_fat_sha256": "6a6aa520e4adda750450c3fd9b80a553c1988d6d76803c674c279b3a5df4f562",
+      "direct_rootfs_boot_sha256": "e1cccd9d3d1119c2b40bda4d15834ea857ca8ec897e611f9af28b1e66050bd19",
+      "direct_rootfs_kernel_fat_sha256": "8a684871daa9b32d38c0c514e21b7d6b5076a280b35f9ae236821d040ffa46cf"
+    },
+    "known_limits": [
+      "Not flashed or booted on the handset.",
+      "GRUB execution and file-based volume discovery on the handset are unproven.",
+      "The FAT remains labelled KERNEL for compatibility, but boot discovery no longer depends on that label.",
+      "Persistent UEFI variables are still not implemented; the direct-kernel fallback remains in BDS.",
+      "The private boot shim, EDK2 platform and board DTB remain outside upstream.",
+      "clk_ignore_unused remains a measured board constraint."
+    ]
   },
   "firmware": {
     "edk2_source_tree": "/home/cy122/edk2-samurai/repo",
@@ -115,55 +606,111 @@
     "boot": {
       "build_script": "linux-port/scripts/build-boot-larger.py",
       "build_script_sha256": "563044c81e0820131bee486064a828be5f271d909fe1211a3314154d02118ade",
-      "source_boot": "E:/edk2-samurai-out/standard-arm64-v731/cmdline-a/boot/boot-eud-production-off.img",
-      "source_boot_sha256": "173b7751ddc6c800979c0f624a3b65d11c356ad9f7a3d16461dffc2f16d6700d",
-      "local_path": "E:/edk2-samurai-out/standard-arm64-v731/source-final-boot/boot-eud-production-off.img",
+      "source_boot": "E:/edk2-samurai-out/standard-arm64-v731/source-final-boot/boot-eud-production-off.img",
+      "source_boot_sha256": "c8a6c616f60c8ee8f314bfc9e1329c61af3eb070b0cee3724b99080ad3444eaf",
+      "local_path": "E:/edk2-samurai-out/standard-arm64-v731/camera-final-boot/boot-eud-production-off.img",
       "bytes": 100663296,
-      "sha256": "c8a6c616f60c8ee8f314bfc9e1329c61af3eb070b0cee3724b99080ad3444eaf",
+      "sha256": "9b9be136bd3ee2328f0c4273a829471ad0cd73a7fe7d718825ac024f7af3ae54",
       "changed_main_ffs": [
-        "6d33944a-ec75-4855-a54d-809c75241f6c"
+        "25462cda-221f-47df-ac1d-259cfaa4e326"
       ],
       "unchanged_main_ffs": 100,
       "metadata_review": {
         "tool": "linux-port/scripts/review-boot-metadata.py",
         "tool_sha256": "c9a93fc1c694d82edb584923d3a6e80f62824df4119832eca7e9afaebbe53907",
-        "local_path": "E:/edk2-samurai-out/standard-arm64-v731/source-final-boot/metadata-review.json",
-        "sha256": "81c411434e53f7e0d194b3821220cd205f605ced97d2e28d081f4ea6f781dc3a",
+        "local_path": "E:/edk2-samurai-out/standard-arm64-v731/camera-final-boot/metadata-review.json",
+        "sha256": "a8e089419c12eb5a572376e2e08500aa965dfb98eccb1affbffb4c04e5b2932a",
         "passed": true,
         "classification": "printable_metadata_only",
-        "comparison": "old command line source and final source rebuilt with the same fixed EDK2 staging tree"
+        "comparison": "same tested BDS; only the mainline DTB FFS and boot carrier framing changed"
+      },
+      "flash_tool": {
+        "repo_path": "linux-port/scripts/flash-v731-camera.ps1",
+      "sha256": "fec297a74cceb1d7a323a23a90137887151ee6c8a7db3091949d7b0b1e3b1a41",
+        "guards": "Serial, fastboot product, candidate SHA-256 and explicit -Flash switch are all checked before writing."
       }
     },
-    "logdump": {
-      "local_path": "E:/edk2-samurai-out/standard-arm64-v731/logdump-v731-preflash.img",
-      "bytes": 67108864,
-      "sha256": "31049b6c328c0ad4716189ed20854cf3839b656edb17f6fd6c60e47205fe38a4"
+    "kernel_store": {
+      "device_partition": "/dev/sde32",
+      "filesystem": "vfat",
+      "image": {
+        "device_path": "/Image",
+        "bytes": 59308544,
+        "sha256": "aa6c4b6b43ec45f4c41d3d420b980e35876860537cb6f2cb96ec5063aab8432a"
+      },
+      "dtb": {
+        "device_path": "/samurai.dtb",
+        "bytes": 114395,
+        "sha256": "3799ec6c7d3e0c67a657859a37b2fe147fa21a9dedc84d49c8eb83fd8debc805"
+      },
+      "recovery_fat": {
+        "local_path": "E:/edk2-samurai-out/standard-arm64-v731/camera-final-boot/recovery-kernel-fat.img",
+        "bytes": 67108864,
+        "sha256": "6a6aa520e4adda750450c3fd9b80a553c1988d6d76803c674c279b3a5df4f562",
+        "flash_partition": "logdump",
+        "contents": {
+          "/Image": "aa6c4b6b43ec45f4c41d3d420b980e35876860537cb6f2cb96ec5063aab8432a",
+          "/samurai.dtb": "3799ec6c7d3e0c67a657859a37b2fe147fa21a9dedc84d49c8eb83fd8debc805"
+        },
+        "validation": "fsck.vfat -n clean; mdir sizes match; not yet flashed"
+      }
     }
   },
   "runtime": {
-    "evidence_time_utc": "2026-11-06T06:34:42Z",
+    "evidence_time_utc": "2026-11-07T17:59:50Z",
     "ssh_endpoint": "root@192.168.0.114:22",
     "release": "7.3.1-rmx1931-samurai-v731",
     "taint": 0,
     "cmdline_observed": "console=tty0 loglevel=4 panic=15 clk_ignore_unused",
-    "boot_partition_sha256": "c8a6c616f60c8ee8f314bfc9e1329c61af3eb070b0cee3724b99080ad3444eaf",
-    "logdump_partition_sha256": "31049b6c328c0ad4716189ed20854cf3839b656edb17f6fd6c60e47205fe38a4",
+    "boot_partition_sha256": "9b9be136bd3ee2328f0c4273a829471ad0cd73a7fe7d718825ac024f7af3ae54",
+    "logdump_partition_sha256": "9affd9ea53786b0ff4d946995d3de9ed74be98d3818b1f0f93199d0260691231",
     "boot_ids": [
-      "a38fc278-644b-4387-97cf-f5c0c06aa541",
-      "3df82213-3f55-4ab6-b6af-a8a54e73645d",
-      "9183a664-475e-46f6-b850-ad35aa99a93b"
+      "c97a0a52-60e7-41fc-bf49-59c7ff0d3fc5",
+      "9b93d2c2-7bd9-45aa-90a2-1af71c32d6b3",
+      "35915162-7912-4cb2-a766-88691cbd44bc"
     ],
-    "ordinary_reboot_count": 2,
+    "ordinary_reboot_count": 1,
     "ordinary_reboot_passed": true,
+    "evidence": [
+      {
+        "boot_id": "c97a0a52-60e7-41fc-bf49-59c7ff0d3fc5",
+        "repo_path": "E:/edk2-samurai-out/standard-arm64-v731/camera-final-boot/final-runtime.json",
+        "sha256": "345d630d04c2897f36e165ecf9d8bcfd42a2d76c8a93babd7b8f4a1cc3bfbf14",
+        "camera_capture_passed": true,
+        "passed": true
+      },
+      {
+        "boot_id": "9b93d2c2-7bd9-45aa-90a2-1af71c32d6b3",
+        "repo_path": "E:/edk2-samurai-out/standard-arm64-v731/camera-final-boot/final-runtime-reboot.json",
+        "sha256": "812c7064969d602f5bfa58725a7f3e906f127c3d4d9949f54902de3799abbc4d",
+        "camera_capture_passed": true,
+        "passed": true
+      },
+      {
+        "boot_id": "35915162-7912-4cb2-a766-88691cbd44bc",
+        "repo_path": "E:/edk2-samurai-out/standard-arm64-v731/camera-final-boot/final-runtime-powercycle.json",
+        "sha256": "78348acbc3514220e7e142236c31624bc01740e09ce1106fa8078ec72d9b3dcb",
+        "camera_capture_passed": true,
+        "poweroff_initiated": true,
+        "external_power_removed_during_off": false,
+        "passed": true
+      }
+    ],
     "checks": {
       "remoteproc_running": 3,
       "sensor_power": "vdd=1 vddio=1",
       "udc": "configured",
       "power_supply": [
-        "bq28z610-0:Discharging",
+        "bq28z610-0:Charging",
         "mp2650-input:Charging"
       ],
-      "dsi": "connected/enabled/On",
+      "dsi": "connected; compositor wakes it for tests; normal timeout-off accepted",
+      "camss_idle": "suspended",
+      "mmcx_perf": "128 with display on, 64 with display off",
+      "nfc_controller": "nfc0 bound; no tag I/O claim",
+      "poweroff_cycle": "passed after poweroff; USB stayed attached, so full power-source removal and manual power-key start are not yet proven",
+      "display_modes": "1080x2400@60 and @90 switched through KWin/KMS with zero fault-pattern matches",
+      "s2idle": "historical camera-final boot: clean 15-second rtcwake s2idle passed with the same boot ID; the current thin-private direct-wakealarm attempt is not accepted and remains unrecovered",
       "services": [
         "tinydm",
         "sshd",
@@ -176,6 +723,575 @@
       ],
       "legacy_charging_runlevel": "absent"
     }
+  },
+  "post_reboot_recheck": {
+    "boot_id": "6df4a965-4ca2-4a1b-97c5-35b60dac14c3",
+    "collected_at_utc": "2026-11-08T06:46:00.871760+00:00",
+    "release": "7.3.1-rmx1931-samurai-v731",
+    "taint": 0,
+    "cmdline": "console=tty0 loglevel=4 panic=15 clk_ignore_unused",
+    "runtime": {
+      "profile": "camera",
+      "camera_skipped": true,
+      "passed": true,
+      "local_path": "E:/edk2-samurai-out/standard-arm64-v731/camera-final-boot/current-runtime-skip-camera-20261108.json",
+      "bytes": 3109,
+      "sha256": "ad672c601fee7acc501e876bedf49e482f293c7f88f316513a6b985ee06435e2",
+      "boot_partition_sha256": "9b9be136bd3ee2328f0c4273a829471ad0cd73a7fe7d718825ac024f7af3ae54",
+      "image_sha256": "aa6c4b6b43ec45f4c41d3d420b980e35876860537cb6f2cb96ec5063aab8432a",
+      "dtb_sha256": "3799ec6c7d3e0c67a657859a37b2fe147fa21a9dedc84d49c8eb83fd8debc805",
+      "module_count": 773,
+      "camss_idle": "suspended",
+      "mmcx_idle": "64 with display off",
+      "warnings": 0,
+      "failures": 0
+    },
+    "after_service_fix": {
+      "collected_at_utc": "2026-11-08T07:31:14.254721+00:00",
+      "profile": "camera",
+      "camera_skipped": true,
+      "passed": true,
+      "local_path": "E:/edk2-samurai-out/standard-arm64-v731/camera-final-boot/current-runtime-after-service-fix-20261108.json",
+      "bytes": 3016,
+      "sha256": "6fcf5b0da5ec96a93f75ac271e6a58ba8684a91a43574e31dea3f85b09d67746",
+      "boot_partition_sha256": "9b9be136bd3ee2328f0c4273a829471ad0cd73a7fe7d718825ac024f7af3ae54",
+      "image_sha256": "aa6c4b6b43ec45f4c41d3d420b980e35876860537cb6f2cb96ec5063aab8432a",
+      "dtb_sha256": "3799ec6c7d3e0c67a657859a37b2fe147fa21a9dedc84d49c8eb83fd8debc805",
+      "module_count": 773,
+      "camss_idle": "suspended",
+      "mmcx_idle": "128 with display on",
+      "warnings": 0,
+      "failures": 0
+    },
+    "after_service_fix_reboot": {
+      "boot_id": "3f9f8649-931e-40f2-b0da-60a1f889ae29",
+      "restart": "controlled ordinary reboot initiated over Wi-Fi SSH after samurai-platform 5-r15 and samurai-desktop 4-r8 were installed",
+      "external_power_removed": false,
+      "wifi_ssh": "reconnected after about 80 seconds",
+      "usb_ncm_ssh": "UDC configured from boot; Windows link-local NCM enumeration needed roughly four minutes before strict-host-key SSH succeeded",
+      "boundary_check": {
+        "path": "E:/edk2-samurai-out/standard-arm64-v731/post-service-fix-reboot-20261108/boundary-check.txt",
+        "bytes": 1256,
+        "sha256": "d4a1b024fc59986f7b4539bdd1291f15b98a428830195518cbcefe4fc05c8d88",
+        "passed": true
+      },
+      "runtime": {
+        "path": "E:/edk2-samurai-out/standard-arm64-v731/post-service-fix-reboot-20261108/runtime.json",
+        "bytes": 3015,
+        "sha256": "31328c32914077c04fe2afc9bb00bd88772293a3845cfe9ecfb684c463802534",
+        "profile": "camera",
+        "camera_skipped": true,
+        "passed": true,
+        "taint": 0,
+        "module_count": 773,
+        "camss_idle": "suspended",
+        "mmcx_idle": "128 with display on",
+        "warnings": 0,
+        "failures": 0
+      },
+      "service_status": {
+        "path": "E:/edk2-samurai-out/standard-arm64-v731/post-service-fix-reboot-20261108/service-status.txt",
+        "bytes": 817,
+        "sha256": "786086f8e98e3ba3d77ca842790a04ce2e2df3a190f4b8310d50b56074a87c1c",
+        "networkmanager": "started",
+        "sshd": "started",
+        "samurai-radio": "started",
+        "samurai-ssc": "started",
+        "samurai-usb": "started",
+        "iio-sensor-proxy": "started",
+        "tinydm": "started",
+        "samurai-sleep-inhibitor": "started",
+        "udc": "configured",
+        "usb0_carrier": 1
+      },
+      "ncm_quick_matrix": {
+        "matrix": "64K, 256K, 1M and 4M in both directions; one iteration",
+        "transfers": 8,
+        "passed_transfers": 8,
+        "failed_transfers": 0,
+        "heartbeat_seconds": 60,
+        "heartbeat_passed": true,
+        "result_path": "E:/edk2-samurai-out/standard-arm64-v731/ncm-post-reboot-20261108/result.json",
+        "result_bytes": 71505,
+        "result_sha256": "4a1025706aec82c73387f732ce3ca4ce33d7d92bfbf8dd974e189980fcaab2dd",
+        "verdict_path": "E:/edk2-samurai-out/standard-arm64-v731/ncm-post-reboot-20261108/verdict.json",
+        "verdict_bytes": 657,
+        "verdict_sha256": "08227441dd30514237e8c4212f1a64656a38def2577d94d7ae2a3ea6995a3708"
+      },
+      "observed_warnings": {
+        "networkmanager": "two startup <warn> lines: ModemManager D-Bus activation raced OpenRC, and p2p-dev-wlan0 IPv4-forwarding sysctl was temporarily unavailable; NetworkManager still reached CONNECTED_GLOBAL and Wi-Fi SSH recovered",
+        "ath10k": "periodic 'chan info: invalid frequency 0 (idx 41 out of bounds)' follows the 300-second background scan; upstream ath10k freq_to_idx() returns the channel count when firmware reports frequency 0. It is a noisy telemetry warning, not a disconnect or data-path failure",
+        "unrelated": "ModemManager MTK plugin relocation warnings and qrtr0 no-SIM messages remain; no SIM was present and they did not affect Wi-Fi or NCM"
+      },
+      "camera_regression": {
+        "boot_id": "3f9f8649-931e-40f2-b0da-60a1f889ae29",
+        "passed": true,
+        "cameras": 4,
+        "frames_per_camera": 2,
+        "all_frames_nonzero": true,
+        "no_saturation": true,
+        "frame_diff_percent_range": [
+          38.144,
+          59.854
+        ],
+        "post_capture": {
+          "camss": "suspended",
+          "mmcx_perf": 64,
+          "taint": 0
+        },
+        "private_evidence": "E:/edk2-samurai-out/standard-arm64-v731/camera-post-service-fix-20261108/raw",
+        "raw_files_published": false
+      },
+      "status": "controlled_ordinary_reboot_passed_external_power_cold_boot_pending"
+    },
+    "network": {
+      "wifi_ssh": "root@192.168.0.114:22 passed with strict known_hosts",
+      "usb_ncm_ssh": "root@169.254.42.1:22 reached with the current rootfs host key after retry",
+      "wifi_ipv4": "192.168.0.114/24",
+      "usb0_ipv4": "169.254.42.1/16 and 10.42.0.1/24",
+      "udc": "configured",
+      "usb0_carrier": 1,
+      "usb_speed": "high-speed",
+      "ncm_initial_window": "Windows host needed tens of seconds and repeated probes before the link-local ARP/SSH path became reachable",
+      "ncm_host_key": "the current rootfs ED25519 key matches the Wi-Fi host key; the old 169.254.42.1 key belongs to a historical initramfs"
+    },
+    "power_policy": {
+      "powerdevil_auto_suspend_action": {
+        "AC": 0,
+        "Battery": 0,
+        "LowBattery": 0
+      },
+      "powerdevil_auto_suspend_meaning": "NoAction",
+      "sleep_inhibitor": "USB NCM attached block lock held",
+      "suspend_entries_this_boot": 0,
+      "display": "KWin DPMS can turn off independently of system sleep"
+    },
+    "previous_boot_rc_failure": {
+      "source": "/var/log/rc.log",
+      "local_extract": "E:/edk2-samurai-out/standard-arm64-v731/camera-final-boot/previous-boot-rc-network-errors.txt",
+      "local_extract_bytes": 8223,
+      "local_extract_sha256": "48dc64cc271368405bb6d74af55e684117ea541cb0296501af9c0b87a31ac448",
+      "failed_services": [
+        "samurai-radio",
+        "samurai-usb",
+        "samurai-ssc"
+      ],
+      "blocked_services": [
+        "networkmanager",
+        "bluetooth",
+        "modemmanager",
+        "chronyd",
+        "routewrangler",
+        "sshd",
+        "iio-sensor-proxy",
+        "tinydm"
+      ],
+      "radio_error": "Could not find a wireless interface",
+      "ssc_error": "No SDSP FastRPC device",
+      "usb_error": "missing /sys/devices/soc0/serial_number",
+      "status": "root_cause_addressed_in_package_series_5r15_5r16_controlled_ordinary_reboot_passed_external_power_cold_boot_pending"
+    },
+    "qrtr_warning": "qrtr0: error setting IPv4 forwarding to '0': No error information; recorded with no SIM and not treated as a Wi-Fi failure"
+  },
+  "boot_service_recovery": {
+    "status": "controlled_ordinary_reboot_passed_external_power_cold_boot_pending",
+    "root_cause": "OpenRC hard dependencies propagated a transient radio/USB/SSC initialization failure into NetworkManager, sshd and the desktop; hardware-ready windows were shorter than UFS, ath10k/MPSS and FastRPC enumeration.",
+    "package": {
+      "name": "samurai-platform",
+      "version": "5-r16",
+      "superseded_by": "r17_fast_wifi_and_latency",
+      "apk_sha256": "a8be746614bb5dad3fd773ac109f042b260b48d13d027cdf08724ccdf8d4c923",
+      "desktop_version": "4-r8",
+      "desktop_apk_sha256": "48730e82a72f7e9047069a1b9fd908282639b72fbe422be882d5f1145aa2675d",
+      "package_manifest": "E:/edk2-samurai-out/board-packages-20261108-ncm-dhcp-r1/package-manifest.json",
+      "package_manifest_sha256": "15ed4078dbc3b6c01f961649048123c7e12c10d35d6f9001da49a96f8e65cf98",
+      "device_install": "apk add --network=no completed with RC=0 and post-upgrade hooks"
+    },
+    "changes": {
+      "samurai_usb": {
+        "repo_path": "linux-port/packages/samurai-platform/usr_sbin_samurai-usb",
+        "bytes": 4930,
+        "sha256": "975c6ded58bb4689d0318cb91b385ccea8a02696f70b2bb2efde03d5cf8f83e3",
+        "change": "load the standard socinfo driver on demand, wait up to 60 seconds for the numeric SoC serial number, and manage the standard USB NCM dnsmasq DHCP lifecycle"
+      },
+      "usb_dhcp": {
+        "repo_path": "linux-port/packages/samurai-platform/etc_samurai_usb-dhcp.conf",
+        "bytes": 186,
+        "sha256": "b6352283a726ba9ecc79eaf0873cadff364289fbc4af65ca39675aa06c5480c8",
+        "change": "use the distribution dnsmasq on usb0 to serve 10.42.0.1/24 while keeping 169.254.42.1/16 and a classless route for the legacy link-local address"
+      },
+      "samurai_wifi": {
+        "repo_path": "linux-port/packages/samurai-platform/usr_sbin_samurai-wifi",
+        "bytes": 5697,
+        "sha256": "925d41c20bc4aa22faa2f7788c3b314d5569058d444c34b491d92a289ed4e3b7",
+        "change": "bounded 120-second waits for UFS/radio sources and wlan0 enumeration; managed mode remains unchanged"
+      },
+      "samurai_radio": {
+        "repo_path": "linux-port/packages/samurai-platform/etc_init.d_samurai-radio",
+        "bytes": 641,
+        "sha256": "db85024e7e1e14ee7cb10aba2170fbdeefc675d3374e167601b3496d7c193ec3",
+        "change": "persist the radio bootstrap log on failure for the next cold-boot diagnosis"
+      },
+      "network_manager_dependency": {
+        "config": "/etc/conf.d/networkmanager",
+        "change": "samurai-radio moved from rc_need to rc_use plus rc_after; NetworkManager is no longer hard-blocked by an optional radio bootstrap failure"
+      },
+      "sshd_dependency": {
+        "config": "/etc/conf.d/sshd",
+        "change": "samurai-usb moved from rc_need to rc_use plus rc_after; SSH can start over Wi-Fi when the NCM gadget is unavailable"
+      },
+      "sensor_proxy_dependency": {
+        "repo_path": "linux-port/ssc/iio-sensor-proxy.initd",
+        "bytes": 156,
+        "sha256": "9b9f70e3a3b44386d65f953c12b237d0473309d1db3211640b1dca899cdfd059",
+        "change": "samurai-ssc is a soft use dependency; SensorProxy and the desktop still start if sensor firmware is not ready"
+      },
+      "ssc_fastrpc_wait": {
+        "repo_path": "linux-port/ssc/samurai-ssc.py",
+        "bytes": 13813,
+        "sha256": "a47c0fc5e0ae80c2e29b604f06b1240870b334f35e92a0e882888fb469f28ddd",
+        "change": "wait up to 30 seconds for SLPI running, up to 90 seconds for /dev/fastrpc-sdsp, and replace the fixed 20-second readiness sleep with QRTR service 400 plus bounded real sensor probes"
+      },
+      "desktop_dependency": {
+        "version": "4-r8",
+        "change": "tinydm keeps sensor proxy as an optional rc_use service instead of blocking the desktop on it"
+      }
+    },
+    "device_smoke": {
+      "apk_verify": "both packages OK against the phone's samurai-linux-203 public key",
+      "samurai_usb_start_idempotent": true,
+      "samurai_usb_state": "configured high-speed carrier=1",
+      "ssc_python_compile": true,
+      "service_status": "networkmanager, sshd, samurai-radio, samurai-ssc, samurai-usb, iio-sensor-proxy, tinydm and samurai-sleep-inhibitor all started after the controlled reboot",
+      "controlled_reboot": "boot 3f9f8649-931e-40f2-b0da-60a1f889ae29 passed the service-boundary check and skip-camera runtime verifier; Wi-Fi SSH recovered in about 80 seconds",
+      "usb_sleep_guard": "passed",
+      "desktop_boundary_check": "passed after checking the board-owned samurai-sleep-inhibitor service"
+    },
+    "r17_fast_wifi_and_latency": {
+      "package": {
+        "name": "samurai-platform",
+        "version": "5-r17",
+        "apk": "E:/edk2-samurai-out/standard-arm64-v731/wifi-fast-ready-20261108/samurai-platform-5-r17.apk",
+        "apk_sha256": "35b39b78ff101955f67f73591a9da07a1fa9c86b9a9449fd1a44d6414fb5c0b5",
+        "package_manifest": "E:/edk2-samurai-out/standard-arm64-v731/wifi-fast-ready-20261108/package-manifest.json",
+        "package_manifest_sha256": "d3c8f82e9444498c180600d7d73a2b03d766179683dd1fdeda633fbc37cf1fd5",
+        "packages_index_sha256": "aa4d706b6c2cb923106b9b45b3115cf408ff489af3363fdd5ef527ea4c5338ea",
+        "source_archive": "E:/edk2-samurai-out/standard-arm64-v731/wifi-fast-ready-20261108/packages-r17-source-20261108.tar.gz",
+        "source_archive_sha256": "f5d49c1f843650236346965c3fcdda461b1d2c220271a492a29c7d78a7cd1f94",
+        "samurai_wifi_sha256": "b6db019983adfe73c45b0df7dfe237bdf7cc6625151d6048b104e1dc1c873778",
+        "samurai_wifi_sha512": "06cff98056368a3f09951dc78a45c17842a4263eb54628cb20cd8a308c577cbae36ea97806bab31810ad948795e40920fbef91b434f9829bcc6c26fec1e7061",
+        "device_install": "apk verify OK; apk --no-network add samurai-platform-5-r17.apk completed with post-upgrade hook; rc-service samurai-usb and sshd remained started"
+      },
+      "root_cause": "samurai-wifi had an unconditional sleep 45 after starting MPSS/WLAN. The radio service therefore held wpa_supplicant and NetworkManager behind 45 seconds even when the standard remoteproc was already running.",
+      "change": "replaced the fixed soak with a bounded poll of the standard MPSS state, retaining a 45-second failure bound and the existing TFTP/RMTFS/NV checks",
+      "readiness_measurement_script": {
+        "repo_path": "linux-port/scripts/measure-network-reboot-readiness.ps1",
+        "sha256": "24a2da8ec25ffe63845b1c7d1be8db8373f13cb686521c571783b13959051d1b"
+      },
+      "network_timeline_script": {
+        "repo_path": "linux-port/scripts/collect-network-startup-timeline.sh",
+        "bytes": 3054,
+        "sha256": "1bbf8cc93461c3ac97ac5d298352067c317f746d71386dbc0f5654122fc7c7c0",
+        "scope": "read-only post-boot evidence collection for Wi-Fi association, NetworkManager, DHCP, USB NCM and SSH; it does not reboot or reconfigure the device"
+      },
+      "ordinary_reboot_readiness": {
+        "pre_fix": {
+          "evidence": "E:/edk2-samurai-out/standard-arm64-v731/network-reboot-readiness-20261108-r2.json",
+          "evidence_sha256": "47ea181cebbb20a3a618594b1b8a4fae0a0d6b9660bb94e0f6ca87ce5b3a5e3",
+          "old_boot_id": "e9554ced-3579-4beb-b7ac-e931b5d0957d",
+          "new_boot_id": "1281dacd-d8d4-40b0-b766-4d92c8ddc418",
+          "wifi_ssh_seconds_after_request": 100.863,
+          "ncm_ssh_seconds_after_request": 35.862
+        },
+        "direct_candidate": {
+          "evidence": "E:/edk2-samurai-out/standard-arm64-v731/network-reboot-readiness-fast-ready-20261108.json",
+          "evidence_sha256": "38bb4052b8330c2ea9148b41c40747a7588d30174c10a5c9f6aa8997e337406e",
+          "old_boot_id": "1281dacd-d8d4-40b0-b766-4d92c8ddc418",
+          "new_boot_id": "804c6930-b257-45f2-ac54-1d098fd5602e",
+          "wifi_ssh_seconds_after_request": 54.301,
+          "ncm_ssh_seconds_after_request": 33.705,
+          "wifi_ssh_at_device_uptime_seconds": 27,
+          "ncm_ssh_at_device_uptime_seconds": 7
+        },
+        "r17_package": {
+          "evidence": "E:/edk2-samurai-out/standard-arm64-v731/network-reboot-readiness-r17-20261108.json",
+          "evidence_sha256": "860d60365e6c014e33a2bd69725b9d25559681e14d48fd340ac0f7947f973795",
+          "old_boot_id": "804c6930-b257-45f2-ac54-1d098fd5602e",
+          "new_boot_id": "1b9dacbc-7ac1-4600-8738-8dfee46f5206",
+          "wifi_ssh_seconds_after_request": 57.288,
+          "ncm_ssh_seconds_after_request": 36.689,
+          "wifi_ssh_at_device_uptime_seconds": 26,
+          "ncm_ssh_at_device_uptime_seconds": 7,
+          "host_pnp_last_arrival": "2026-11-08T19:52:15.810311+08:00",
+          "host_dhcp_lease_obtained": "2026-11-08T19:52:15+08:00"
+        },
+        "scope": "ordinary reboot with the normal persistent boot/FAT; not an external-power-removed cold boot"
+      },
+      "r17_runtime_and_regression": {
+        "boot_id": "1b9dacbc-7ac1-4600-8738-8dfee46f5206",
+        "runtime_camera_json": "E:/edk2-samurai-out/standard-arm64-v731/wifi-fast-ready-20261108/runtime-camera-r17.json",
+        "runtime_camera_sha256": "41842ca39a1eb24b5753bdecc49701ea88874515df549bc726fa36dab88df291",
+        "full_runtime_passed": true,
+        "ncm_five_minute_result": "E:/edk2-samurai-out/standard-arm64-v731/ncm-r17-5min-20261108/result.json",
+        "ncm_five_minute_result_sha256": "228a87684fe469849b18a8b53cb66e6420e2050a34743f484c8de93f46f9ac7b",
+        "ncm_five_minute_verdict": "E:/edk2-samurai-out/standard-arm64-v731/ncm-r17-5min-20261108/verdict.json",
+        "ncm_five_minute_verdict_sha256": "33c4167c2884eed03c810e5fa4e8e12844db3b3b927865057f7a2d78586586f3",
+        "wifi_five_minute_log": "E:/edk2-samurai-out/standard-arm64-v731/wifi-r17-5min-20261108/wifi-heartbeat.log",
+        "wifi_five_minute_log_sha256": "4af9fdb322137f4c5ffb9d9313f646c59b75910c2a1ce70096e064a63e182f84",
+        "wifi_five_minute_verdict": "E:/edk2-samurai-out/standard-arm64-v731/wifi-r17-5min-20261108/verdict.json",
+        "wifi_five_minute_verdict_sha256": "772f3971d3f95870f67320861e5f88d3f506844c655cdcd8a4e7a0c2ba6307d1",
+        "boundary_log": "E:/edk2-samurai-out/standard-arm64-v731/wifi-fast-ready-20261108/boundary-r17.log",
+        "boundary_log_sha256": "f29025ccd17d5e8e530513956410b7af8356a3f9efa9dba94fd7a846f401fc80",
+        "sleep_guard_log": "E:/edk2-samurai-out/standard-arm64-v731/wifi-fast-ready-20261108/sleep-guard-r17.log",
+        "sleep_guard_log_sha256": "380df1b27c6dc5e2b449d9cecd9cb0d4e9d7803eecb0403ae09179934901987f"
+      },
+      "ssc_fast_readiness": {
+        "boot_id": "f6113e67-cee2-4708-b2cd-c004344e0eb0",
+        "repo_path": "linux-port/ssc/samurai-ssc.py",
+        "bytes": 13813,
+        "sha256": "a47c0fc5e0ae80c2e29b604f06b1240870b334f35e92a0e882888fb469f28ddd",
+        "change": "replace the fixed 20-second post-FastRPC sleep with a bounded QRTR SSC service 400 wait and retrying accelerometer/light readiness probes",
+        "before": {
+          "fastrpc_device_local": "1970-02-08T03:32:32.424+08:00",
+          "accelerometer_probe_local": "1970-02-08T03:32:54.536+08:00",
+          "fastrpc_to_first_probe_seconds": 22.112,
+          "default_runlevel_seconds": 42
+        },
+        "after": {
+          "fastrpc_device_local": "1970-02-08T03:49:13.408+08:00",
+          "accelerometer_probe_local": "1970-02-08T03:49:19.084+08:00",
+          "light_probe_local": "1970-02-08T03:49:21.088+08:00",
+          "fastrpc_to_first_probe_seconds": 5.676,
+          "default_runlevel_seconds": 26
+        },
+        "started": true,
+        "taint": 0,
+        "boundary_log": "E:/edk2-samurai-out/standard-arm64-v731/ssc-fast-20261108/boundary-ssc-fast-20261108.log",
+        "boundary_log_sha256": "2b3085b1aec05a2ace6840c549c1246479838ab46898f0e29eb1fb9b599d8b23",
+        "runtime_verifier": "E:/edk2-samurai-out/standard-arm64-v731/ssc-fast-20261108/runtime-ssc-fast-20261108.json",
+        "runtime_verifier_sha256": "df2c1bb444c3a384728f9d58265dbd57775f24aedda446ec9addeae324f5e562",
+        "device_wifi_ready_uptime_seconds": [
+          18.53,
+          18.21,
+          18.75
+        ],
+        "host_wifi_first_ssh_seconds_after_request": [
+          88.737,
+          86.617,
+          117.04
+        ],
+        "host_ncm_first_ssh_seconds_after_request": [
+          33.745,
+          33.73,
+          33.778
+        ],
+        "network_readiness_evidence": [
+          {
+            "path": "E:/edk2-samurai-out/standard-arm64-v731/network-reboot-ssc-fast-20261108.json",
+            "sha256": "09610b17b8fa220c62abf0722a189050cb1b8d98f40f8de5cd7e7ef05f912c34"
+          },
+          {
+            "path": "E:/edk2-samurai-out/standard-arm64-v731/network-reboot-ssc-fast-r2-20261108.json",
+            "sha256": "f8a7e6d3644092b6e2513a7c843918b0659c502fa76ba7f04ef3eeb63511822a"
+          },
+          {
+            "path": "E:/edk2-samurai-out/standard-arm64-v731/network-reboot-ssc-final-20261108.json",
+            "sha256": "6dbfcd1fecba04d3f1d86ab3050d98ba67b402467fef0dcfdfd358613d6105d8"
+          }
+        ],
+        "scope": "three ordinary reboots; device-side Wi-Fi readiness is stable, but host first-SSH timing still varies and one boot showed a local Choice deauth followed by reassociation"
+      },
+      "r18_bluetooth_fast_path": {
+        "status": "offline_built_signed_not_installed",
+        "package": {
+          "name": "samurai-platform",
+          "version": "5-r18",
+          "apk": "E:/edk2-samurai-out/standard-arm64-v731/bluetooth-fast-20261108-r4/samurai-platform-5-r18.apk",
+          "apk_sha256": "81fa68c3806d13d0ab5d63d1b71ce95cb45d22faef15bf064d6b3c8e4f404fc2",
+          "package_manifest": "E:/edk2-samurai-out/standard-arm64-v731/bluetooth-fast-20261108-r4/package-manifest.json",
+          "package_manifest_sha256": "58f18864ac45a6f0d6d0a65edcff7e022936666b6d01caeb76d8f553a68313a6",
+          "packages_index_sha256": "f8246dac23c1d933183fde78cf06cc95746dcd6dec01de4011b8d90459740ab4"
+        },
+        "source": {
+          "repo_path": "linux-port/packages/samurai-platform/usr_sbin_samurai-bluetooth",
+          "bytes": 2999,
+          "sha256": "a39f103e109c5ba584567b5c179a22e3fa80801ee8bbd13c02870b3cf2652669",
+          "change": "remove fixed uptime-60 and 10-second boot isolation; require Wi-Fi bootstrap completion and display registration, with optional SAMURAI_BT_BOOT_MIN_UPTIME/SETTLE overrides"
+        },
+        "verification": {
+          "apk_verify": "OK",
+          "packages_index_verify": "OK",
+          "python_package_manifest_valid": true,
+          "device_install": false,
+          "boot_verified": false
+        },
+        "scope": "offline candidate only; the installed r17 bluetooth init still calls start(), so this does not change the current device until r18 is installed and boot-tested"
+      },
+      "r19_official_policy_candidates": {
+        "status": "offline_built_signed_not_installed",
+        "official_reference": {
+          "project": "postmarketOS/Nura pmaports",
+          "commit": "b5810eb2f3b24ce380a00c54569236f5559f78b1",
+          "commit_date": "2026-11-07",
+          "base_ui_apkbuild": "https://gitlab.postmarketos.org/postmarketOS/pmaports/-/blob/b5810eb2f3b24ce380a00c54569236f5559f78b1/main/postmarketos-base-ui/APKBUILD",
+          "sleep_policy": "https://gitlab.postmarketos.org/postmarketOS/pmaports/-/blob/b5810eb2f3b24ce380a00c54569236f5559f78b1/main/postmarketos-base-ui/rootfs-etc-sleep-inhibitor.conf",
+          "openrc_services": "unudhcpd.usb0 boot; sshd default; wpa_supplicant and NetworkManager added by the UI/base packages; pmOS initramfs defaults to 172.16.42.1/.2 while the rootfs unudhcpd init defaults to 172.16.41.1/.42.2 unless overridden",
+          "default_sleep_plugins": [
+            "ssh-session-open",
+            "apk-running"
+          ],
+          "tinydm": "no rc_need or rc_after ordering behind optional hardware services"
+        },
+        "packages": {
+          "samurai-platform": {
+            "version": "5-r19",
+            "apk": "E:/edk2-samurai-out/standard-arm64-v731/official-policy-20261108-r19/samurai-platform-5-r19.apk",
+            "apk_sha256": "dbb3d447f6f8bde3e37efff7b4592a8480dfa26da73446567293ee587003252f",
+            "bytes": 17385
+          },
+          "samurai-desktop": {
+            "version": "4-r9",
+            "apk": "E:/edk2-samurai-out/standard-arm64-v731/official-policy-20261108-r19/samurai-desktop-4-r9.apk",
+            "apk_sha256": "1470961d916af3b22a9a61e9768e84bfb81df41e875f844b8d6c9438adc41efa",
+            "bytes": 8396
+          },
+          "package_manifest": "E:/edk2-samurai-out/standard-arm64-v731/official-policy-20261108-r19/package-manifest.json",
+          "package_manifest_sha256": "7cfdb9316833d62fb8d2e633963790c64588f11e8663aabe4054215c07526fb9",
+          "packages_index_sha256": "6a77aa9a0585b640fb3fbdbea3f2390eaa2b3d7d7cc29f0bcef053204654beeb",
+          "source_archive": "E:/edk2-samurai-out/standard-arm64-v731/official-policy-20261108-r19/packages-r19-source-20261108.tar.gz",
+          "source_archive_sha256": "4d22fd1ca12bebf5a1c01277bba2c0ba3adb138c325482c05cc2ab48ddeb61ce",
+          "source_archive_bytes": 450841
+        },
+        "changes": {
+          "sleep_policy": {
+            "repo_path": "linux-port/packages/samurai-platform/etc_samurai_sleep-inhibitor.conf",
+            "bytes": 935,
+            "sha256": "a51f5deb86677ae0dbf8288c7b845b44006a2d7c455647460053e3be0636c623",
+            "change": "remove the default carrier-only USB guard; keep the standard ssh-session-open and apk-running plugins, with the USB guard documented as explicit opt-in"
+          },
+          "usb_guard": {
+            "repo_path": "linux-port/packages/samurai-platform/usr_libexec_samurai-usb-sleep-guard",
+            "bytes": 2096,
+            "sha256": "2a9e58965627fac046ed6c3706e7cff4217b1246dd511c320d892a6d73233b6e",
+            "change": "mark the helper as optional and leave it out of the default sleep-inhibitor config"
+          },
+          "desktop_ordering": {
+            "repo_path": "linux-port/packages/samurai-desktop/samurai-desktop.post-install",
+            "bytes": 3136,
+            "sha256": "2d000fdc8344b878011f7f04e94f793cde038642bb8c7ff1f4f922beb69ea82f",
+            "change": "remove tinydm rc_after ordering behind ModemManager, Bluetooth and SensorProxy; keep dbus/elogind as needs and optional hardware as rc_use"
+          }
+        },
+        "verification": {
+          "apk_verify": "OK for all four APKs and packages.adb",
+          "package_manifest_valid": true,
+          "source_archive_valid": true,
+          "offline_post_install_fixture": {
+            "method": "bubblewrap isolated /etc/conf.d fixtures populated with r17-like rc_use/rc_after lines; host commands stubbed",
+            "networkmanager_after": "rc_need=\"dbus\" only; samurai-radio rc_use/rc_after removed",
+            "sshd_after": "rc_need=\"dbus\" only; samurai-usb rc_use/rc_after removed",
+            "modemmanager_after": "samurai-radio rc_need removed; optional rc_use/rc_after retained",
+            "wpa_supplicant_after": "samurai-radio optional ordering unchanged",
+            "mixed_dependency_case": "dbus/other dependencies are preserved when samurai-radio or samurai-usb is removed"
+          },
+          "offline_boundary_fixture": "passed 30/30 checks against an isolated r20-like /etc and /usr/sbin fixture",
+          "device_install": false,
+          "boot_verified": false
+        },
+        "scope": "offline signed candidates only; the installed r17/r8 combination remains the device-proven state until the handset is back online and the new ordinary-reboot boundary/runtime gates pass"
+      },
+      "r20_independent_services": {
+        "status": "offline_built_signed_not_installed",
+        "superseded_by": "official_reference_audit.packages_r20_r10",
+        "packages": {
+          "samurai-platform": {
+            "version": "5-r20",
+            "apk": "E:/edk2-samurai-out/standard-arm64-v731/official-policy-20261108-r20/samurai-platform-5-r20.apk",
+            "apk_sha256": "c7481c502cfb0b59dbb9fbeb64a37914b6edace0aad32a4d86a01d24d7a4dcdc",
+            "bytes": 17410
+          },
+          "samurai-desktop": {
+            "version": "4-r9",
+            "apk": "E:/edk2-samurai-out/standard-arm64-v731/official-policy-20261108-r20/samurai-desktop-4-r9.apk",
+            "apk_sha256": "1470961d916af3b22a9a61e9768e84bfb81df41e875f844b8d6c9438adc41efa",
+            "bytes": 8396
+          },
+          "package_manifest": "E:/edk2-samurai-out/standard-arm64-v731/official-policy-20261108-r20/package-manifest.json",
+          "package_manifest_sha256": "2f12e32c3ac774a29ede14dc55a3c62cea0bc4f6708ebb7cc8f482bbfcafd901",
+          "packages_index_sha256": "91e55bca78a3526347e3716a9ee0275cb61246d796c3ce3570dd699eab508d4b",
+          "source_archive": "E:/edk2-samurai-out/standard-arm64-v731/official-policy-20261108-r20/packages-r20-source-20261108.tar.gz",
+          "source_archive_sha256": "516c0fdcfc65855b72ada3c16de17a5f2bf61e6c9369415271afb0c8080ae140",
+          "source_archive_bytes": 451094
+        },
+        "changes": {
+          "sshd_independent": {
+            "repo_path": "linux-port/packages/samurai-platform/samurai-platform.post-install",
+            "bytes": 5537,
+            "sha256": "652a0d6b3f1f2dad02572a528ad1d962374bdbfe90571a0f2846651d9f4416f3",
+            "change": "remove rc_use/rc_after ordering between sshd and samurai-usb; sshd starts independently"
+          },
+          "networkmanager_independent": {
+            "repo_path": "linux-port/packages/samurai-platform/samurai-platform.post-install",
+            "bytes": 5537,
+            "sha256": "652a0d6b3f1f2dad02572a528ad1d962374bdbfe90571a0f2846651d9f4416f3",
+            "change": "remove rc_use/rc_after ordering between NetworkManager and samurai-radio; NetworkManager starts independently"
+          },
+          "modemmanager_soft_dependency": {
+            "repo_path": "linux-port/packages/samurai-platform/samurai-platform.post-install",
+            "bytes": 5537,
+            "sha256": "652a0d6b3f1f2dad02572a528ad1d962374bdbfe90571a0f2846651d9f4416f3",
+            "change": "replace ModemManager rc_need=samurai-radio with optional rc_use/rc_after ordering"
+          },
+          "samurai_radio_init": {
+            "repo_path": "linux-port/packages/samurai-platform/etc_init.d_samurai-radio",
+            "bytes": 615,
+            "sha256": "906d0a0cdf23b30b38584662768bc180b87cf4a5e3d8a4798911a444174bb856",
+            "change": "remove before networkmanager so the radio service cannot gate NetworkManager"
+          },
+          "samurai_usb_init": {
+            "repo_path": "linux-port/packages/samurai-platform/etc_init.d_samurai-usb",
+            "bytes": 341,
+            "sha256": "ff41d445878b40171941b91a9e24898d29357c575c08f699b88e92476455f658",
+            "change": "remove before sshd so the NCM gadget cannot gate SSH"
+          }
+        },
+        "verification": {
+          "apk_verify": "OK for all four APKs and packages.adb",
+          "package_manifest_valid": true,
+          "source_archive_valid": true,
+          "device_install": false,
+          "boot_verified": false
+        },
+        "scope": "offline signed candidate only; the r17/r8 combination remains device-proven until the r20 ordinary reboot, boundary check, runtime verifier and network timeline collector pass"
+      },
+      "remaining_slow_paths": [
+        "KWin/Plasma still needs the normal desktop startup interval; the full runtime gate must run after OpenRC default completes, not at the first SSH response",
+        "samurai-bluetooth boot() fixed uptime-60 plus 10-second window is removed in the offline r18/r20 source candidate, but the installed r17 package still has the historical code and the current init calls start(), not boot()",
+        "tinydm was ordered after ModemManager and Bluetooth in the installed 4-r8 package; the 4-r9 candidate removes that artificial desktop startup blocker",
+        "the installed r17 package still enables the carrier-only USB sleep guard by default; the 5-r20 candidate changes it to explicit opt-in",
+        "the pipewire launcher now uses a bounded 15-second readiness wait in the offline pipewire-common 1.6.9-r4 source; it is not part of the measured SSH/NCM path and the package is not rebuilt or installed"
+      ]
+    },
+    "verification_script": {
+      "repo_path": "linux-port/scripts/check-boot-service-boundaries.sh",
+      "bytes": 5983,
+      "sha256": "ff848e46770c5fbb3260642be0ce57cae468190131b845cb3d45e4d864db352d",
+      "device_result": "passed after the r17 package installation and ordinary reboot",
+      "checks": "package versions, independent sshd/NetworkManager startup, rc_need/rc_use policy, bounded waits, persisted failure log, standard SSH sleep lock, optional hardware ordering, USB guard opt-in, service start state, UDC state and usb0 carrier"
+    },
+    "controlled_reboot_validation": {
+      "boot_id": "3f9f8649-931e-40f2-b0da-60a1f889ae29",
+      "passed": true,
+      "evidence": "post_reboot_recheck.after_service_fix_reboot",
+      "scope": "ordinary reboot after package installation; external-power removal and multiple cold boots remain open"
+    },
+    "required_after_next_cold_boot": [
+      "boot ID changes while boot/FAT hashes stay 9b9be136 and 9affd9ea",
+      "NetworkManager and sshd remain started even if samurai-radio or samurai-usb exits nonzero",
+      "tinydm starts if samurai-ssc is slow or unavailable",
+      "no new WARN/Oops or KDE suspend entries",
+      "Wi-Fi and NCM SSH both return after the boot"
+    ]
   },
   "command_line_experiments": {
     "baseline_boot_sha256": "173b7751ddc6c800979c0f624a3b65d11c356ad9f7a3d16461dffc2f16d6700d",
@@ -206,17 +1322,1692 @@
       "boot_sha256": "c8a6c616f60c8ee8f314bfc9e1329c61af3eb070b0cee3724b99080ad3444eaf"
     }
   },
+  "kexec_safety_probe": {
+    "status": "transition_works_not_runtime_acceptable",
+    "watchdog": {
+      "device": "/dev/watchdog",
+      "identity": "qcom_wdt",
+      "timeout_seconds": 30,
+      "magic_close_supported": false,
+      "test_before_boot_id": "1b9dacbc-7ac1-4600-8738-8dfee46f5206",
+      "test_after_boot_id": "7a1b5d79-b02f-43dc-a18f-4c7e6dbfccaa",
+      "result": "hardware watchdog expired and reset the handset; ordinary production boot returned"
+    },
+    "production_image_kexec": {
+      "before_boot_id": "7a1b5d79-b02f-43dc-a18f-4c7e6dbfccaa",
+      "kexec_boot_id": "a7f86ffb-1079-4cec-a933-e448b85a13af",
+      "image_sha256": "5069b1b47d453b11f11ce4a831de6821971b064184452303d4373ae7c8fbd2bd",
+      "image_source": "/var/tmp/Image-v731-standard-kexec",
+      "command_line": "console=tty0 loglevel=4 panic=15 root=PARTLABEL=userdata rootfstype=f2fs rootwait rw clk_ignore_unused",
+      "taint": 512,
+      "observations": [
+        "DSI PHY clock disable/unprepare WARN",
+        "SLPI crash SMEM watchdog and start timed out with -110",
+        "GPU/GMU HFI and OOB initialization timeouts"
+      ],
+      "recovery_boot_id": "4f95b334-610a-46b0-b442-ed27b4526a1f",
+      "recovery_taint": 0
+    },
+    "clock_noclock_preflight": {
+      "image_sha256": "9d50f46424a64c9ce7ff5277ea2abab18480df1b23a78c7d2199a9bc261d925e",
+      "fdt": "E:/edk2-samurai-out/standard-arm64-v731/clock-direct-standard-rootfs-20261108/live-fdt-noclock-20261108.dtb",
+      "fdt_sha256": "1bccb9276996fb3dcbd7e7810c43364e76db6944b368166ae647172eca7ab12a",
+      "bootargs": "console=tty0 loglevel=4 panic=15 root=PARTLABEL=userdata rootfstype=f2fs rootwait rw",
+      "loader": "kexec_loaded=1; watchdog=armed",
+      "result": "no Wi-Fi, NCM, fastboot or USB return after more than 255 seconds; physical power cycle required",
+      "persistent_boot_fat_changed": false,
+      "safe_for_unattended_retry": false
+    },
+    "harness": {
+      "repo_path": "linux-port/diagnostics/run-kexec-standard-smoke.sh",
+      "bytes": 1271,
+      "sha256": "854336dd6a81e43c339bcdd968bd3b0b78b6c4eb4aae3d4e610ec660a9be82b6"
+    },
+    "evidence": {
+      "dmesg": "E:/edk2-samurai-out/standard-arm64-v731/kexec-smoke-20261108/kexec-standard-smoke.dmesg",
+      "dmesg_sha256": "1a875800d6a7b74a7b7ccad49de8d52cf618412a8b283032a9b65a2e0aaba298",
+      "runner_log": "E:/edk2-samurai-out/standard-arm64-v731/kexec-smoke-20261108/kexec-standard-smoke.log",
+      "runner_log_sha256": "c732363db747f4bfd8d7157625f3f2f8c10cecf5ba61fcbe9e4e5c4912f24bb9",
+      "watchdog_log": "E:/edk2-samurai-out/standard-arm64-v731/kexec-smoke-20261108/arm-watchdog.log",
+      "watchdog_log_sha256": "622c332cea8adc12b2133b690e27fc02f626a1722eb20a7db5c8faf6a6899df8"
+    },
+    "disposition": "kexec is preflight only; do not use its tainted runtime as clock, camera, or cold-boot acceptance, and do not retry without physical power-cycle access"
+  },
+  "clk_ignore_unused_candidate": {
+    "status": "offline_built_not_flashed",
+    "candidate_dir": "E:/edk2-samurai-out/standard-arm64-v731/clock-rbcpr-candidate",
+    "manifest": {
+      "path": "E:/edk2-samurai-out/standard-arm64-v731/clock-rbcpr-candidate/MANIFEST.json",
+      "bytes": 7080,
+      "sha256": "db3600241e694915e9135d4aff23f988c18c01bdf7a2ee777e803bf4926a3854"
+    },
+    "readme": {
+      "path": "E:/edk2-samurai-out/standard-arm64-v731/clock-rbcpr-candidate/README.md",
+      "bytes": 2969,
+      "sha256": "2755a4e37d0cc9bd11df0476d9dac8b5bc5ac33923de042387f0b4ad9e6ba61b"
+    },
+    "verification": {
+      "path": "E:/edk2-samurai-out/standard-arm64-v731/clock-rbcpr-candidate/verification.json",
+      "bytes": 3186,
+      "sha256": "0a2c1bbf61ca9b8fb375d318de1d28bf4e59695d53d9ba5ee98d93a4066442f5"
+    },
+    "offline_check": {
+      "path": "E:/edk2-samurai-out/standard-arm64-v731/clock-rbcpr-candidate/offline-check.json",
+      "bytes": 3881,
+      "sha256": "76d4dd5e84c97959951273aaf84c955149af77e34a4017ad74fdaf38942a88af"
+    },
+    "patch": {
+      "repo_path": "linux-port/patches/v7.3.1/0003-clk-qcom-gcc-sm8150-keep-cpuss-rbcpr-critical.patch",
+      "sha256": "3955ff1e889a0ae8c42e8356615bcbc6bcbafe900a615fb958080bf4982ff203",
+      "source_file": "drivers/clk/qcom/gcc-sm8150.c",
+      "change": "mark gcc_cpuss_rbcpr_clk CLK_IS_CRITICAL"
+    },
+    "evidence": {
+      "observed_clk_summary": "0 enable / 0 prepare, hardware enable asserted, deviceless",
+      "adjacent_gates": [
+        "gcc_cpuss_dvm_bus_clk",
+        "gcc_cpuss_gnoc_clk"
+      ],
+      "adjacent_gates_already_critical": true,
+      "reason": "candidate for the measured failure when clk_ignore_unused is removed"
+    },
+    "build": {
+      "arch": "arm64",
+      "object_compile_passed": true,
+      "source_head": "824dc0a56143d8bf1cc1d20adb877abced48b336",
+      "config_sha256": "d3dc6f072055a7d9da50de7c1e5416da837c680c00126f9a8f25b379f9984097",
+      "image_sha256": "9d50f46424a64c9ce7ff5277ea2abab18480df1b23a78c7d2199a9bc261d925e",
+      "vmlinux_sha256": "322516df6941b01242560da07fc8036731c87f19d48ec5fa28342a3019ed468c",
+      "baseline_object_sha256": "c81064b8615976ebbe713c8287c8bb512310de0d5efe32aa3ee8090e6e4de8d1",
+      "patched_object_sha256": "38c36a14102706fe524049803d5f59b0e9d9ec2ff6d1658ef2b803fe86745e71",
+      "flags_offset": "0x7118",
+      "baseline_flags_hex": "0000000000000000",
+      "patched_flags_hex": "0008000000000000",
+      "clock_is_critical_bit": 11,
+      "patched_rebuild_identical": true,
+      "source_clean_after": true,
+      "clock_source_clean_after": true
+    },
+    "artifacts": {
+      "image": {
+        "bytes": 44300800,
+        "sha256": "9d50f46424a64c9ce7ff5277ea2abab18480df1b23a78c7d2199a9bc261d925e"
+      },
+      "grub": {
+        "bytes": 1007616,
+        "sha256": "81fba9922e74259001495ae1ae7368744f940d6b9e2d4c3feeaf173fd0459887"
+      },
+      "grub_config": {
+        "bytes": 697,
+        "sha256": "2cce9fa843c64956a72f124c22e77284e550395ef496195e4c5cce8bc99a9b6b"
+      },
+      "kernel_fat": {
+        "bytes": 67108864,
+        "sha256": "3e788ccbf9fa598f43c25be7747a0571742e21df18b4bb8f5917def2ed65117a",
+        "contents": {
+          "/Image": "9d50f46424a64c9ce7ff5277ea2abab18480df1b23a78c7d2199a9bc261d925e",
+          "/samurai.dtb": "3799ec6c7d3e0c67a657859a37b2fe147fa21a9dedc84d49c8eb83fd8debc805",
+          "/EFI/BOOT/BOOTAA64.EFI": "81fba9922e74259001495ae1ae7368744f940d6b9e2d4c3feeaf173fd0459887"
+        }
+      },
+      "boot": {
+        "bytes": 100663296,
+        "sha256": "c5e856d5ac06a42fb55df909dae26fe26293517aa65fd67570730f6de068690c",
+        "bds_pe32_sha256": "f5cf8a7efcce6208ef48250928880214ae25807ea92c17e0d896547f87f57206"
+      }
+    },
+    "runtime_verifier": {
+      "repo_path": "linux-port/scripts/verify-v731-final-runtime.py",
+      "sha256": "f06cfe05e452226acbe2b43fb1d8aa8a478b4c4bd290323abc6ed16c2f0d5568",
+      "invocation": "python3 linux-port/scripts/verify-v731-final-runtime.py --clock-rbcpr",
+      "observes": "exact command line without clk_ignore_unused, F2FS userdata root, /sbin/init PID1, CLK_IS_CRITICAL flags, prepare/enable counts 1, hardware enable Y, and the normal board/camera runtime checks"
+    },
+    "flash_contract": {
+      "helper": "linux-port/scripts/flash-v731-clock-rbcpr.ps1",
+      "helper_sha256": "878caaaf0889b82326364bc6c18d708be0d3577b18c1c8b591edd044b970dd3f",
+      "paired_partitions": [
+        "boot",
+        "logdump"
+      ],
+      "boot_only_allowed": false,
+      "partial_flash_allowed": false,
+      "dry_run_passed": true
+    },
+    "not_tested": {
+      "flashed": false,
+      "booted": false,
+      "clk_ignore_unused_removed_from_candidate": true,
+      "clk_ignore_unused_removed_on_boot": false,
+      "offline_verified": true,
+      "full_image_built": true
+    },
+    "direct_bds_isolated_candidate": {
+      "status": "offline_built_kexec_smoke_pending",
+      "candidate_dir": "E:/edk2-samurai-out/standard-arm64-v731/clock-direct-standard-rootfs-20261108",
+      "purpose": "Test the RBCPR clock fix without changing the direct BDS boot path or the FIFO DTB",
+      "source_boot": "E:/edk2-samurai-out/standard-arm64-v731/standard-rootfs-candidate/boot-eud-standard-rootfs.img",
+      "source_boot_sha256": "e1cccd9d3d1119c2b40bda4d15834ea857ca8ec897e611f9af28b1e66050bd19",
+      "bds": "E:/edk2-samurai-out/standard-arm64-v731/clock-direct-standard-rootfs-20261108/bds/BdsDxe.efi",
+      "bds_sha256": "a70285a143e1442b4cd5b3753fe506248ed027b59533b8ddd4e5c70addd625f4",
+      "bds_command_line": "console=tty0 loglevel=4 panic=15 root=PARTLABEL=userdata rootfstype=f2fs rootwait rw",
+      "bds_padding": "the removed clk_ignore_unused token is replaced by spaces; /proc/cmdline strips the trailing padding",
+      "boot": "E:/edk2-samurai-out/standard-arm64-v731/clock-direct-standard-rootfs-20261108/boot/boot-eud-production-off.img",
+      "boot_sha256": "cee198cd509c86752800d2a1a7618abf998f6d5455b92964608b465f38c713cf",
+      "kernel_fat": "E:/edk2-samurai-out/standard-arm64-v731/clock-direct-standard-rootfs-20261108/kernel-fat-clock-direct.img",
+      "kernel_fat_sha256": "16da9f151fbe0fd9986dc2bd31f17852c5ba7d363a821436ecc6d6ff40f351b4",
+      "contents": {
+        "/Image": "9d50f46424a64c9ce7ff5277ea2abab18480df1b23a78c7d2199a9bc261d925e",
+        "/samurai.dtb": "c9f948cdac6e58b23ba5bd9bb29137d6266154ce22540fb4d585e24826649fc5"
+      },
+      "build_result": "E:/edk2-samurai-out/standard-arm64-v731/clock-direct-standard-rootfs-20261108/boot/result.json",
+      "build_result_sha256": "638ac0b6f1aa5a7971bfeadd3971e5ca724207062ac7f30c25fb6a78892a97ee",
+      "metadata_review": "E:/edk2-samurai-out/standard-arm64-v731/clock-direct-standard-rootfs-20261108/metadata-review.json",
+      "metadata_review_sha256": "4ea449cd70753c02ab1c0d63172852af7bdf58c9bf5d212f94eaa0773001eb88",
+      "metadata_review_result": "passed: only the printable BDS command-line bytes changed; PlatformSmbiosDxe and UiApp are identical",
+      "fat_fsck_passed": true,
+      "kexec_load_test": {
+        "passed": true,
+        "image": "/var/tmp/Image-v731-clock-rbcpr",
+        "image_sha256": "9d50f46424a64c9ce7ff5277ea2abab18480df1b23a78c7d2199a9bc261d925e",
+        "live_fdt": "E:/edk2-samurai-out/standard-arm64-v731/clock-direct-standard-rootfs-20261108/live-fdt-clock-load-test.dtb",
+        "live_fdt_sha256": "68bac628f981fc252c176e3c928f897c7fad3d9c7374948df68b2fb199ee704d",
+        "command_line": "console=tty0 loglevel=4 panic=15 root=PARTLABEL=userdata rootfstype=f2fs rootwait rw",
+        "loaded_state": 1,
+        "unloaded_state": 0
+      },
+      "not_tested": "kexec execution, cold boot and ordinary reboot are not yet run"
+    }
+  },
   "dtb_contract": {
     "manifest": "linux-port/dts/samurai-dt-v1-abi.json",
-    "manifest_sha256": "3b02fab3b05b5ab93a2c76aa56c60d66257c2f4b70212d0e2f7880b369ee3a56",
+    "manifest_sha256": "46d5e46d64eb4925b61ca34f62931c9c47b678e0e41e94eda56185accd0e16b5",
     "checker": "linux-port/scripts/check-dtb-contract.py",
     "checker_sha256": "2f1d217b2e79d3b8bba9f496ec6503dc3201db36fa7ee65b9b801742d8c630c8",
     "self_test": "linux-port/scripts/test-dtb-contract.py",
-    "self_test_sha256": "f112dbd4bc95b5c6d514d10239718f4eb1bf228bb03e2e93153466a8fcbebbc2",
+    "self_test_sha256": "b20828730e70a709c8fe5875a961ce98f7f82b7e5613ae4e40bf8b53d9938ea6",
     "check_passed": true,
-    "check_report_sha256": "306202606afbc847bbf6160ed48a9578326a568a1fdc2e7c5ed46b586c099372",
+    "resources_declared": 23,
+    "allowed_additive_properties": 8,
+    "check_baseline": "E:/edk2-samurai-out/standard-arm64-v731/flash-led-candidate-20261109/baseline.dtb",
+    "check_candidate": "E:/edk2-samurai-out/standard-arm64-v731/flash-led-candidate-20261109/sm8150-samurai-v731-flash-led.dtb",
+    "check_report": "E:/edk2-samurai-out/standard-arm64-v731/flash-led-candidate-20261109/dtb-contract-offline.json",
+    "check_report_sha256": "a29c62d14ca96f89956575c14fe5feebb6470abe9b69f662c31a941e530a6e8c",
     "self_test_passed": true,
-    "self_test_report_sha256": "7bbc21f430addf05dbb08dde9feb79b1752634e4b9dbbbf91c332fd6c3422ab9"
+    "self_test_report": "E:/edk2-samurai-out/standard-arm64-v731/flash-led-candidate-20261109/dtb-contract-self-test.json",
+    "self_test_report_sha256": "79cb5436708fd74b75c3002708d81bb6dc4bd4103e9e503e9f7a419f150e1cf3"
+  },
+  "next_hardware_probe": {
+    "date": "2026-11-09",
+    "boot_id": "668b8d20-d22f-44d9-908c-68070eea0147",
+    "scope": "Userspace preflight after the camera Selection API fix and ordinary reboot; not a replacement for user-presence, accessory, thermal, audio-quality or cold-boot acceptance.",
+    "libcamera": {
+      "version": "0.7.2",
+      "pipeline": "simple",
+      "cameras_enumerated": 4,
+      "format": "RGB888 640x480",
+      "captures_passed": 4,
+      "captures_failed": 0,
+      "evidence": "E:/edk2-samurai-out/standard-arm64-v731/camera-selection-fix-20261109/runtime/libcamera",
+      "summary": "E:/edk2-samurai-out/standard-arm64-v731/camera-selection-fix-20261109/runtime/libcamera/summary.json",
+      "summary_sha256": "c27215a9c5edcec1e33d94a979591aa77d3028ff76190922c97d9e1c9a85b662",
+      "image_content": "Private frames were retained. The unattended scene remained dark: the front frame had visible non-black detail, the wide frame had sparse detail, and the telephoto/rear frames were black. This proves the standard libcamera path and absence of Selection API errors, not image quality or calibration.",
+      "images_published": false
+    },
+    "audio_capture": {
+      "backend": "PulseAudio",
+      "source": "alsa_input.platform-sound.HiFi__Mic__source",
+      "duration_seconds": 3,
+      "format": "s16le 48000 Hz mono",
+      "bytes": 284158,
+      "rms": 68.781,
+      "nonzero_fraction": 0.554917,
+      "raw_audio_retained": false,
+      "passed": true
+    },
+    "audio_capture_60s": {
+      "backend": "PulseAudio",
+      "user": "cy122",
+      "runtime_dir": "/run/user/10000",
+      "source": "alsa_input.platform-sound.HiFi__Mic__source",
+      "duration_seconds": 61.979979,
+      "format": "s16le 48000 Hz mono",
+      "bytes": 5950078,
+      "samples": 2975039,
+      "rms": 15.053,
+      "min": -5991,
+      "max": 43,
+      "nonzero_percent": 55.644212,
+      "clipped_percent": 0.0,
+      "longest_zero_run_seconds": 0.029604,
+      "stderr_bytes": 0,
+      "summary": "E:/edk2-samurai-out/standard-arm64-v731/hardware-next-20261109/audio/mic60.json",
+      "summary_sha256": "984cd7e11e556b9a958c2f723b27583fa4fa5d557719f8f58b187789e2c96012",
+      "sources": "E:/edk2-samurai-out/standard-arm64-v731/hardware-next-20261109/audio/sources.txt",
+      "sources_sha256": "633b5dd17e6f3604c4cebcf523f00e375c4178d6fdab7cd23e012a9bd9b355f1",
+      "analyzer": "linux-port/scripts/analyze-pcm-s16le.py",
+      "analyzer_sha256": "c7bd884a04e55ae4facc3183e96579b14fcbbb8a248921b4a496b81898b8e37c",
+      "raw_audio_retained": false,
+      "passed": true,
+      "quality_claim": false
+    },
+    "clk_unused_audit": {
+      "scope": "read-only inventory on boot 668b8d20; no clk_ignore_unused removal attempted",
+      "clk_summary": "E:/edk2-samurai-out/standard-arm64-v731/hardware-next-20261109/clocks/clk-summary.txt",
+      "clk_summary_sha256": "7057f49e8ee374f0eb0e8ff8c9bb6eb9a63183944c0f42676d0c83e1295b4f72",
+      "audit": "E:/edk2-samurai-out/standard-arm64-v731/hardware-next-20261109/clocks/audit.json",
+      "audit_sha256": "d1ac93e332ba3fc75485475dd2e30c69c1bb32785d4a92fdd528a4828494cb89",
+      "audit_tool": "linux-port/scripts/audit-unused-clocks.py",
+      "audit_tool_sha256": "c38034b869a594bccc2d764c69ed508d3114d05b3776348faff6102abb3dbd17",
+      "clock_count": 358,
+      "hardware_enabled_without_consumer_count": 55,
+      "known_boot_constraint": "gcc_cpuss_rbcpr_clk remains hardware-enabled with zero logical consumers",
+      "boot_test": "not run without physical recovery access",
+      "note": "Parent clocks and PLLs can remain enabled beneath active children; this inventory does not justify marking every entry critical."
+    },
+    "sensor_proxy": {
+      "has_accelerometer": true,
+      "has_ambient_light": true,
+      "has_proximity": true,
+      "orientation": "right-up",
+      "light_level": 0.0,
+      "proximity_near": false,
+      "note": "A root-side monitor-sensor claim was denied by the active-session policy; this does not change the already validated SensorProxy/desktop claim path."
+    },
+    "nfc": "nfc0 remains bound to nxp-nci_i2c; no tag was attached, so tag I/O is still unverified.",
+    "fingerprint": "No Linux functional node or mainline authentication path is exposed."
+  },
+  "flash_led_v4l2_final": {
+    "status": "deployed_from_linux_runtime_verified_ordinary_reboot_passed_cold_boot_pending",
+    "date": "2026-11-09",
+    "deployment": {
+      "method": "The running Linux system wrote the paired boot and logdump block devices after exact size, SHA-256, mount and read-only preflight checks; no fastboot command was used.",
+      "helper": "linux-port/scripts/flash-pair-linux.sh",
+      "helper_bytes": 4701,
+      "helper_sha256": "7a5c58e4231353a5fd1adaa4339e5fd1999e8be1a373518a049e804dae4b707c",
+      "windows_ssh_wrapper": "linux-port/scripts/flash-v731-pair-linux.ps1",
+      "windows_ssh_wrapper_bytes": 7260,
+      "windows_ssh_wrapper_sha256": "112c86b38d9ed59b9d644345e00f4176be4b504795945349d0193d018904c07e",
+      "boot_device": "/dev/sde11",
+      "logdump_device": "/dev/sde32",
+      "write_order": [
+        "logdump",
+        "boot"
+      ],
+      "readback_verified": true,
+      "flash_log": "E:/edk2-samurai-out/standard-arm64-v731/flash-led-v4l2-20261109/flash.log",
+      "flash_log_bytes": 1849,
+      "flash_log_sha256": "e43a4efdeb41edff0950d3b1271a862ebc91bf422cdfc0b43c8997039ed8b898"
+    },
+    "artifacts": {
+      "boot": {
+        "path": "E:/edk2-samurai-out/standard-arm64-v731/flash-led-v4l2-20261109/boot-build/boot-eud-production-off.img",
+        "bytes": 100663296,
+        "sha256": "5b4dd4871f6856710ff58e722ffd8b2c30d04baf0104b262adcb02e46a7651bf"
+      },
+      "kernel_fat": {
+        "path": "E:/edk2-samurai-out/standard-arm64-v731/flash-led-v4l2-20261109/recovery-kernel-fat-flash-led-v4l2.img",
+        "bytes": 67108864,
+        "sha256": "c99c690ee923238b0954975682c0e40ce99ae63afd048d40b5059fea70e5862e",
+        "image_sha256": "aa6c4b6b43ec45f4c41d3d420b980e35876860537cb6f2cb96ec5063aab8432a",
+        "dtb_sha256": "b244b3f10a14811dca2e808efa8c840f432cac69020e66b60eba97d02794a18e"
+      },
+      "dtb": {
+        "path": "E:/edk2-samurai-out/standard-arm64-v731/flash-led-v4l2-20261109/sm8150-samurai-v731-flash-led-v4l2.dtb",
+        "bytes": 114656,
+        "sha256": "b244b3f10a14811dca2e808efa8c840f432cac69020e66b60eba97d02794a18e"
+      },
+      "modules_tarball": {
+        "path": "E:/edk2-samurai-out/standard-arm64-v731/flash-led-v4l2-20261109/modules-v731-flash-led-v4l2.tar.gz",
+        "bytes": 7033282,
+        "sha256": "c12a0513caf664200e1df47da5061b227090ffe8cf8d3586030cdbb9241a8b30",
+        "module_count": 774,
+        "stripped": true,
+        "two_independent_archives_byte_identical": true,
+        "archive_owner_uid_gid": 0,
+        "archive_mtime": 0
+      },
+      "flash_modules": {
+        "v4l2-flash-led-class.ko": {
+          "bytes": 13568,
+          "sha256": "4d89be85856854b404b220c19865b2392f0ce8462810e7566558b11b65581ab4"
+        },
+        "leds-qcom-flash.ko": {
+          "bytes": 19672,
+          "sha256": "fbc26126e885c5682c8d282b9657ed77c23098438c853eff6e36bb73876653b1"
+        }
+      }
+    },
+    "dtb_contract": {
+      "manifest": "linux-port/dts/samurai-dt-v1-abi.json",
+      "manifest_sha256": "4718c03414c385072041ebb89f7504aeb743b93d1898c51c0c20827c456774ce",
+      "checker": "linux-port/scripts/check-dtb-contract.py",
+      "checker_sha256": "c1837f0fb721e5619249b1c492e853173b29bc0a5c3441a779c7cc3f25b61e85",
+      "semantic_normalizer": "linux-port/scripts/diff-dtb.py",
+      "semantic_normalizer_sha256": "3d5d304014df0c7508aded77d1a0cdc7901a68abd512157e54b84896be7aa0d4",
+      "report": "E:/edk2-samurai-out/standard-arm64-v731/flash-led-v4l2-20261109/dtb-contract-current.json",
+      "report_bytes": 1753,
+      "report_sha256": "103fec07a46ee160d22c248cf5694a3f408c37ede0132587c58f16c212d21715",
+      "self_test": "E:/edk2-samurai-out/standard-arm64-v731/flash-led-v4l2-20261109/dtb-contract-self-test.json",
+      "self_test_bytes": 6446,
+      "self_test_sha256": "1d1275a4c21c13cee99a2adbe64a803e8e76f74f578b7843e4d215310a7beb6d",
+      "resources_checked": 24,
+      "semantic_changes": "one allowed controller status change, one allowed led-0 node, one allowed flash-leds property; qcom,rproc phandle renumbering normalizes to the same SLPI target",
+      "passed": true
+    },
+    "runtime_gate": {
+      "verifier": "linux-port/scripts/verify-v731-final-runtime.py",
+      "verifier_bytes": 35971,
+      "verifier_sha256": "e5e0ff4de28954fc4060079fa1002cf1c6b509f04d0ba340efd519b84851bb5b",
+      "verifier_at_report_sha256": "e48146ca4dd73f3a7e54566c362badad91538b3a02b191ee4f9a32f943b487d6",
+      "profile": "flash-led-v4l2",
+      "report": "E:/edk2-samurai-out/standard-arm64-v731/flash-led-v4l2-20261109/v731-flash-led-v4l2-post-reboot.json",
+      "report_bytes": 22515,
+      "report_sha256": "c73fd0217e41862e2cc052cc2f6624cd3888a00aab17931f2f738a5e056312e7",
+      "boot_id": "364abb2c-8521-49a5-957e-77bdc37e426a",
+      "tainted": 0,
+      "passed": true,
+      "warning_lines": 0,
+      "runtime_faults": {
+        "oops": 0,
+        "bug": 0,
+        "panic": 0,
+        "serror": 0,
+        "call_trace": 0,
+        "gpu_fault": 0
+      },
+      "module_count": 774,
+      "camss_after_capture": "suspended",
+      "mmcx_after_capture": 128,
+      "camera_frames_per_sensor": 2,
+      "camera_frames_nonzero_percent": 100.0,
+      "camera_frames_saturated_percent": 0.0,
+      "camera_frame_diff_percent": {
+        "front": 39.894,
+        "rear": 26.012,
+        "tele": 39.28,
+        "wide": 48.634
+      }
+    },
+    "network_reboot": {
+      "measurement": "E:/edk2-samurai-out/standard-arm64-v731/flash-led-v4l2-20261109/network-reboot-readiness.json",
+      "bytes": 2486,
+      "sha256": "88d5ed6596c0f5229416d944f3d10367561bb2c0109afc73bd3c70cfb77fcbf3",
+      "old_boot_id": "5a9ddaa2-ec68-4e28-ae59-28f10fbe5136",
+      "new_boot_id": "364abb2c-8521-49a5-957e-77bdc37e426a",
+      "ncm_ssh_ready_seconds": 36.761,
+      "wifi_ssh_ready_seconds": 59.327,
+      "passed": true,
+      "scope": "ordinary reboot only; this is not an external-power cold boot"
+    },
+    "flash_led_test": {
+      "probe": "linux-port/scripts/test-flash-led.py",
+      "probe_bytes": 11356,
+      "probe_sha256": "04eeea7dd47e1bca516abf64521e270a6dc2f65ad5543513405a1ec8ceeb42d8",
+      "report": "E:/edk2-samurai-out/standard-arm64-v731/flash-led-v4l2-20261109/flash-led-final.json",
+      "report_bytes": 10987,
+      "report_sha256": "cb519bea40e8a46858f65842e368718c65986a75ba9cc5436537dbb639ca3777",
+      "led_class": "/sys/class/leds/white:flash",
+      "media_entity": "white:flash",
+      "v4l2_controls": [
+        "led_mode",
+        "strobe_source",
+        "strobe",
+        "stop_strobe",
+        "strobe_status",
+        "strobe_timeout",
+        "intensity_flash_mode",
+        "intensity_torch_mode",
+        "faults"
+      ],
+      "brightness_on": 26,
+      "max_brightness": 255,
+      "torch_intensity_ua": 200000,
+      "led_mode_on": 2,
+      "led_mode_off": 0,
+      "strobe_off": true,
+      "faults": 0,
+      "taint_unchanged": true,
+      "passed": true
+    },
+    "optical_torch": {
+      "camera": "S5KGW1 wide",
+      "capture_count": 2,
+      "torch_intensity_ua": 200000,
+      "off_mean": 177.04,
+      "on_mean": 407.147,
+      "mean_delta": 230.107,
+      "mean_ratio": 2.3,
+      "median_off": 16.0,
+      "median_on": 528.0,
+      "changed_percent": 93.851,
+      "saturated_percent_on": 0.0,
+      "private_evidence": "E:/edk2-samurai-out/standard-arm64-v731/flash-led-v4l2-20261109/private-torch-200ma",
+      "private_raw_hashes_omitted_from_public_lock": true
+    },
+    "thermal_probe": {
+      "script": "linux-port/scripts/test-thermal-uapi.py",
+      "script_bytes": 7132,
+      "script_sha256": "044fde8cdee44c531d27b221094e31b87066d367d6cd190d631564a1afb24c3e",
+      "report": "E:/edk2-samurai-out/standard-arm64-v731/flash-led-v4l2-20261109/thermal-uapi.json",
+      "report_bytes": 18061,
+      "report_sha256": "638a25610d291abd21a2ba4f213a3d5facd6f986f5eae531a2bdfa1acd5b1a11",
+      "runtime_gate_zones": 28,
+      "reported_dtb_zones": 31,
+      "unregistered_dtb_zones": [
+        "gpu-bottom",
+        "modem-scl",
+        "modem-vec",
+        "npu"
+      ],
+      "cooling_devices": 4,
+      "trip_types": [
+        "critical",
+        "hot",
+        "passive"
+      ],
+      "passed": true
+    },
+    "rollback": {
+      "previous_flash_pair": {
+        "boot_sha256": "9196b22ce55bf7459c95576c85e33280bd9b1452f983dac20dbefd6047a541f0",
+        "kernel_fat_sha256": "74804f420a4969da99e123ec6eb48c7834e7c074fbb0609bb52aa5dca2750cd2"
+      },
+      "camera_final_pair": {
+        "boot_sha256": "9b9be136bd3ee2328f0c4273a829471ad0cd73a7fe7d718825ac024f7af3ae54",
+        "kernel_fat_sha256": "6a6aa520e4adda750450c3fd9b80a553c1988d6d76803c674c279b3a5df4f562"
+      },
+      "method": "Reuse flash-v731-pair-linux.ps1 with an explicitly re-locked baseline pair; do not use the stale -Baseline default.",
+      "partial_flash_allowed": false
+    },
+    "not_tested": [
+      "external power removal followed by a physical-key cold boot",
+      "repeated cold boots and long-duration suspend/resume",
+      "flash and camera concurrent high-load thermal endurance",
+      "Multi-SKU DTB coverage"
+    ]
+  },
+  "flash_led_candidate": {
+    "status": "superseded_by_flash_led_v4l2_final",
+    "date": "2026-11-09",
+    "device_boot_before_attempt": "668b8d20-d22f-44d9-908c-68070eea0147",
+    "hardware_identification": {
+      "stock_camera_source": "/home/cy122/workspace/realmeX2pro-AndroidR-droidspaces/source/arch/arm64/boot/dts/19781/sm8150-camera-sensor-mtp.dtsi",
+      "stock_flash_nodes": [
+        "pm8150l_flash0 id=0",
+        "pm8150l_flash1 id=1"
+      ],
+      "stock_camera_flash": "flash-source = <&pm8150l_flash0 &pm8150l_flash1>; torch-source = <&pm8150l_torch0 &pm8150l_torch1>; switch-source = <&pm8150l_switch3>;",
+      "pmic": "PM8150L",
+      "regmap_debug_path": "/sys/kernel/debug/regmap/0-05/registers",
+      "type_register_0xd304": "0x18",
+      "subtype_register_0xd305": "0x04",
+      "mainline_subtype_match": "FLASH_SUBTYPE_3CH_PM8150_VAL = 0x04",
+      "hardware_present_without_dtb_enable": true,
+      "current_budget": {
+        "vendor_flash_each_default_ua": 1000000,
+        "vendor_flash_each_max_ua": 1500000,
+        "vendor_torch_each_default_ua": 300000,
+        "vendor_torch_each_max_ua": 500000,
+        "vendor_flash_duration_us": 1280000,
+        "vendor_switch": "pm8150l_switch3",
+        "logical_dual_channel_flash_default_ua": 2000000,
+        "logical_dual_channel_torch_default_ua": 600000,
+        "mainline_flash_total_clamp_ua": 2000000,
+        "mainline_torch_per_channel_clamp_ua": 500000,
+        "mainline_timeout_clamp_us": 1280000,
+        "candidate_within_vendor_and_mainline_limits": true
+      }
+    },
+    "driver": {
+      "compatible": [
+        "qcom,pm8150l-flash-led",
+        "qcom,spmi-flash-led"
+      ],
+      "mainline_driver": "drivers/leds/flash/leds-qcom-flash.c",
+      "mainline_uapi": [
+        "LED flash class",
+        "V4L2 flash subdevice"
+      ],
+      "module": "leds-qcom-flash.ko",
+      "module_sha256": "b90a9b19ca3e13bc4ed879134ffa9aba81659a42faa89e02447630a5edd354a7",
+      "module_present_on_device": true,
+      "private_driver_added": false
+    },
+    "dts": {
+      "candidate_source": "E:/edk2-samurai-out/standard-arm64-v731/flash-led-candidate-20261109/sm8150-samurai-flash-led-candidate.dts",
+      "candidate_source_bytes": 1665,
+      "candidate_source_sha256": "dcc6fe191071915d139c8e53f820f335f96726295aa06009890b5e575b35b270",
+      "dtb": "E:/edk2-samurai-out/standard-arm64-v731/flash-led-candidate-20261109/sm8150-samurai-v731-flash-led.dtb",
+      "dtb_bytes": 114586,
+      "dtb_sha256": "c585ffdf0fd3714524bfad3c0b7005f40803816e31f50cbd8398a4979a2edbbd",
+      "baseline_dtb_sha256": "3799ec6c7d3e0c67a657859a37b2fe147fa21a9dedc84d49c8eb83fd8debc805",
+      "controller_path": "/soc@0/spmi@c440000/pmic@5/led-controller@d300",
+      "led_child_path": "/soc@0/spmi@c440000/pmic@5/led-controller@d300/led-0",
+      "led_sources": [
+        1,
+        2
+      ],
+      "led_max_microamp": 600000,
+      "flash_max_microamp": 2000000,
+      "flash_max_timeout_us": 1280000,
+      "semantic_diff": "one status change and one additive led-0 child only",
+      "semantic_diff_report": "E:/edk2-samurai-out/standard-arm64-v731/flash-led-candidate-20261109/dtb-semantic-diff.json",
+      "semantic_diff_report_sha256": "9b4538e95507a63c2b3deace4780717346cf999277bf12f274ba2db99db8bf34"
+    },
+    "boot_candidate": {
+      "source_boot_sha256": "9b9be136bd3ee2328f0c4273a829471ad0cd73a7fe7d718825ac024f7af3ae54",
+      "bds_sha256": "f3b946b1660cd444048aba7e5fe434e08a6f41d8dd11cc83f944455fea6855ac",
+      "builder": "linux-port/scripts/build-eud-off-boot.py",
+      "builder_sha256": "2c3468fc3c6185f3d0abe433e15fd2c5a4621648f32d7cd3290a972a47ef2c51",
+      "build_result": "E:/edk2-samurai-out/standard-arm64-v731/flash-led-candidate-20261109/boot-build-2/result.json",
+      "build_result_bytes": 1316,
+      "build_result_sha256": "96538f6c3b3c9a4eb553ccaf70d7e4d5659e81d92d6180d3b4bbf93af6cb40ec",
+      "metadata_review": "E:/edk2-samurai-out/standard-arm64-v731/flash-led-candidate-20261109/metadata-review.json",
+      "metadata_review_bytes": 2061,
+      "metadata_review_sha256": "72ef2d31782710b9ef541585204361ca8d4e978e17116ac347f6633086891fb5",
+      "metadata_modules_identical": [
+        "PlatformSmbiosDxe",
+        "BdsDxe",
+        "UiApp"
+      ],
+      "path": "E:/edk2-samurai-out/standard-arm64-v731/flash-led-candidate-20261109/boot-build-2/boot-eud-production-off.img",
+      "bytes": 100663296,
+      "sha256": "9196b22ce55bf7459c95576c85e33280bd9b1452f983dac20dbefd6047a541f0",
+      "changed_main_ffs": [
+        "25462cda-221f-47df-ac1d-259cfaa4e326"
+      ],
+      "unchanged_main_ffs": 100,
+      "old_used_bytes": 6682624,
+      "new_used_bytes": 6684672,
+      "partition_bytes": 100663296,
+      "reason_for_growth": "The 191-byte larger DTB crosses a 2 KiB payload boundary; the boot partition has 100663296 bytes and the old used-size guard was unnecessarily strict."
+    },
+    "kernel_fat": {
+      "path": "E:/edk2-samurai-out/standard-arm64-v731/flash-led-candidate-20261109/recovery-kernel-fat-flash-led.img",
+      "bytes": 67108864,
+      "sha256": "74804f420a4969da99e123ec6eb48c7834e7c074fbb0609bb52aa5dca2750cd2",
+      "image_sha256": "aa6c4b6b43ec45f4c41d3d420b980e35876860537cb6f2cb96ec5063aab8432a",
+      "dtb_sha256": "c585ffdf0fd3714524bfad3c0b7005f40803816e31f50cbd8398a4979a2edbbd",
+      "fsck_vfat_clean": true
+    },
+    "offline_verifier": {
+      "repo_path": "linux-port/scripts/verify-flash-led-candidate.py",
+      "bytes": 19345,
+      "sha256": "5fd99568828c49616e03c4d7510e0c190daace6121da58de0d62734940ddd1ea",
+      "report": "E:/edk2-samurai-out/standard-arm64-v731/flash-led-candidate-20261109/candidate-verifier.json",
+      "report_bytes": 9357,
+      "report_sha256": "8a6e42251db250b38fb48cdca2cc3ebb3cf3390a7d89a44b8ce3fd6cdde929eb",
+      "passed": true,
+      "scope": "Independently checks artifact hashes and sizes, exact 23-resource DTB contract scope, additive-only LED DTB semantics, boot FFS scope, FAT Image/DTB contents and source-lock consistency. It does not prove device boot or light output."
+    },
+    "offline_dtb_contract": {
+      "passed": true,
+      "resources_declared": 23,
+      "report": "E:/edk2-samurai-out/standard-arm64-v731/flash-led-candidate-20261109/dtb-contract-offline.json",
+      "report_bytes": 1729,
+      "report_sha256": "a29c62d14ca96f89956575c14fe5feebb6470abe9b69f662c31a941e530a6e8c"
+    },
+    "flasher": {
+      "repo_path": "linux-port/scripts/flash-v731-flash-led-pair.ps1",
+      "bytes": 5185,
+      "sha256": "48634d00cc73a3c3450b519101aed15663bdd99bf2b4b45af8f206b1fc8a1b7a",
+      "sequence": "wait for a stable serial; verify product, both exact hashes and sizes; flash logdump first; flash boot second; reboot only after both succeed; partial writes are rejected by the interface.",
+      "sparse_chunk": "4M"
+    },
+    "runtime_probe": {
+      "repo_path": "linux-port/scripts/test-flash-led.py",
+      "bytes": 8518,
+      "sha256": "d46abe57da4ded2d4d8371f2cf0b5dd71a306b710d915a3d539a28aee72523a2",
+      "scope": "Disable, apply a default 10% torch level, query the standard V4L2 flash subdevice controls, read thermal zones/dmesg, and always disable again in finally. Pass requires brightness restored to zero, untouched taint, successful control queries, strobe off and zero faults. It does not prove camera illumination by itself."
+    },
+    "attempt": {
+      "report": "E:/edk2-samurai-out/standard-arm64-v731/flash-led-candidate-20261109/flash-attempt.json",
+      "report_bytes": 1768,
+      "report_sha256": "ea84f907332216f5e6f94e23028cc52097b82b96b04db87a73d60778da8d6bc3",
+      "fastboot_versions_tested": [
+        "37.0.1-15733141",
+        "34.0.5-10900879"
+      ],
+      "getvar_product": "failed with unknown status code or usb_read/Too many links before any boot write",
+      "logdump_flash": "failed during transport; partial logdump content is possible and must be rewritten by the retry or rollback",
+      "boot_partition_write_started": false,
+      "device_boot_partition_still_baseline": true,
+      "retry_attempts_started": 12,
+      "result": "host fastboot transport is unstable; device was left in bootloader after the reboot request",
+      "device_recovery": "physical replug, alternate direct USB port, or a manual fastboot restart is required before retrying"
+    },
+    "rollback": {
+      "baseline_boot": "E:/edk2-samurai-out/standard-arm64-v731/flash-led-candidate-20261109/rollback/boot-baseline-9b9be136.img",
+      "baseline_boot_sha256": "9b9be136bd3ee2328f0c4273a829471ad0cd73a7fe7d718825ac024f7af3ae54",
+      "baseline_kernel_fat": "E:/edk2-samurai-out/standard-arm64-v731/flash-led-candidate-20261109/rollback/recovery-kernel-fat-baseline.img",
+      "baseline_kernel_fat_sha256": "6a6aa520e4adda750450c3fd9b80a553c1988d6d76803c674c279b3a5df4f562",
+      "helper": "linux-port/scripts/flash-v731-flash-led-pair.ps1 -Baseline",
+      "partial_flash_allowed": false
+    },
+    "not_tested": [
+      "DTB boot and driver probe",
+      "LED class torch on/off and current scaling",
+      "V4L2 flash controls, faults and external strobe behavior",
+      "raw capture with torch on/off and thermal rise",
+      "cold boot and repeated reboot persistence"
+    ]
+  },
+  "thin_private_final": {
+    "status": "deployed_from_linux_two_ordinary_reboots_full_runtime_passed_suspend_attempt_unrecovered",
+    "scope": "Removes the MAX98937 and AW8697 custom read-only status sysfs attributes while holding the deployed boot carrier and camera/flash DTB byte-identical. Only FAT /Image changes from the accepted flash/V4L2 deployment.",
+    "candidate_dir": "E:/edk2-samurai-out/standard-arm64-v731/thin-private-final-20261109",
+    "manifest": {
+      "path": "E:/edk2-samurai-out/standard-arm64-v731/thin-private-final-20261109/MANIFEST.json",
+      "bytes": 4938,
+      "sha256": "883923e5c9910b9250e7f597913a8fb58bcbc1f8b5a1c9971eba86a316a52704"
+    },
+    "readme": {
+      "path": "E:/edk2-samurai-out/standard-arm64-v731/thin-private-final-20261109/README.md",
+      "bytes": 2692,
+      "sha256": "5edbf493dc4d2f51e096f2fc2d25a48e7f16ae03beeff8969255e9e346122583"
+    },
+    "release": "7.3.1-rmx1931-samurai-v731",
+    "release_has_dirty_plus": false,
+    "build": {
+      "source_tree": "/home/cy122/standard-arm64-v7.3.1",
+      "source_head": "824dc0a56143d8bf1cc1d20adb877abced48b336",
+      "output_tree": "/home/cy122/samurai-v731-build-archive-20261108",
+      "command": "make O=/home/cy122/samurai-v731-build-archive-20261108 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LOCALVERSION= -j12 Image",
+      "config_sha256": "35b71dd2125b2cd4489d9e80fbba6d1a4bede9f16c4d19634421f41bb3577dc7",
+      "localversion_override": ""
+    },
+    "patch": {
+      "repo_path": "linux-port/patches/v7.3.1/0004-samurai-remove-private-status-sysfs.patch",
+      "bytes": 5309,
+      "sha256": "f69ffecd482d11c19f25f074ed5d2ccc48ac765acbf22c54956701bdd0497a5c"
+    },
+    "image": {
+      "path": "E:/edk2-samurai-out/standard-arm64-v731/thin-private-final-20261109/Image-v731-thin-private",
+      "bytes": 59308544,
+      "sha256": "f8d8962197827dafbe50e551f5df03391c43ec0269449fa87b833e57799656a5",
+      "baseline_sha256": "aa6c4b6b43ec45f4c41d3d420b980e35876860537cb6f2cb96ec5063aab8432a"
+    },
+    "dtb": {
+      "path": "E:/edk2-samurai-out/standard-arm64-v731/thin-private-final-20261109/sm8150-samurai-v731-flash-led-v4l2.dtb",
+      "bytes": 114656,
+      "sha256": "b244b3f10a14811dca2e808efa8c840f432cac69020e66b60eba97d02794a18e",
+      "changed_from_deployed": false
+    },
+    "boot": {
+      "path": "E:/edk2-samurai-out/standard-arm64-v731/thin-private-final-20261109/boot-eud-production-off.img",
+      "bytes": 100663296,
+      "sha256": "5b4dd4871f6856710ff58e722ffd8b2c30d04baf0104b262adcb02e46a7651bf",
+      "changed_from_deployed": false
+    },
+    "kernel_fat": {
+      "path": "E:/edk2-samurai-out/standard-arm64-v731/thin-private-final-20261109/recovery-kernel-fat-thin-private-final.img",
+      "bytes": 67108864,
+      "sha256": "1f4bbb302a62d1f8a950994ac93b00ca194a41c768d4d11b1b97c69f5702574b",
+      "base_fat": "E:/edk2-samurai-out/standard-arm64-v731/flash-led-v4l2-20261109/recovery-kernel-fat-flash-led-v4l2.img",
+      "base_fat_sha256": "c99c690ee923238b0954975682c0e40ce99ae63afd048d40b5059fea70e5862e",
+      "only_image_replaced": true,
+      "fsck": "clean",
+      "image_readback_sha256": "f8d8962197827dafbe50e551f5df03391c43ec0269449fa87b833e57799656a5",
+      "dtb_readback_sha256": "b244b3f10a14811dca2e808efa8c840f432cac69020e66b60eba97d02794a18e"
+    },
+    "rollback": {
+      "boot": "E:/edk2-samurai-out/standard-arm64-v731/thin-private-final-20261109/rollback/boot-baseline-5b4dd487.img",
+      "boot_sha256": "5b4dd4871f6856710ff58e722ffd8b2c30d04baf0104b262adcb02e46a7651bf",
+      "kernel_fat": "E:/edk2-samurai-out/standard-arm64-v731/thin-private-final-20261109/rollback/recovery-kernel-fat-baseline-c99c690e.img",
+      "kernel_fat_sha256": "c99c690ee923238b0954975682c0e40ce99ae63afd048d40b5059fea70e5862e",
+      "pair_flash_only": true,
+      "restores_previous_deployed_pair": true
+    },
+    "deployment": {
+      "helper": "linux-port/scripts/flash-pair-linux.sh",
+      "helper_sha256": "7a5c58e4231353a5fd1adaa4339e5fd1999e8be1a373518a049e804dae4b707c",
+      "windows_wrapper": "linux-port/scripts/flash-v731-pair-linux.ps1",
+      "windows_wrapper_bytes": 7275,
+      "windows_wrapper_sha256": "b34ab85e03a4b73dc0b8e7b3a7cacec7bb3c30c4cb39245e8d1a68c22480deda",
+      "flash_log": "E:/edk2-samurai-out/standard-arm64-v731/thin-private-final-20261109/flash.log",
+      "flash_log_sha256": "afacf7dd5b0e84294f502a38607193259776f1cc7089b837f397143695019085",
+      "boot_device": "/dev/sde11",
+      "logdump_device": "/dev/sde32",
+      "write_order": "logdump full readback, then boot full readback, then ordinary reboot",
+      "fastboot_used": false
+    },
+    "ordinary_reboots": {
+      "count": 2,
+      "full_runtime_passed_both": true,
+      "boot_ids": [
+        "b61f8dea-4970-44d9-9113-e68d18701a2c",
+        "2b17a67a-841a-4fe5-9db4-ec8daf19d078"
+      ],
+      "ncm_ssh_seconds": [31.905, 38.284],
+      "wifi_ssh_seconds": [47.984, 59.074],
+      "runtime_evidence": [
+        {
+          "path": "E:/edk2-samurai-out/standard-arm64-v731/thin-private-final-20261109/runtime-post-thin-private.json",
+          "bytes": 23396,
+          "sha256": "57c8bccc31f865604f3aa7847d927c72fb566528a61a5673d2fb6817b414417b"
+        },
+        {
+          "path": "E:/edk2-samurai-out/standard-arm64-v731/thin-private-final-20261109/runtime-post-thin-private-reboot2.json",
+          "bytes": 23398,
+          "sha256": "137d6c3adc24fbeb462c21cd2453a5bfb32ced9980c890bfa7a83d0593443cf3"
+        }
+      ]
+    },
+    "runtime_acceptance": {
+      "profile": "thin-private + bluetooth-host",
+      "module_count": 777,
+      "taint": 0,
+      "three_private_status_nodes_absent": true,
+      "standard_alsa_card_present": true,
+      "standard_alsa_playback_and_capture_nodes_present": true,
+      "aw8697_input_and_ff_present": true,
+      "four_cameras_two_complete_raw_frames_each": true,
+      "camera_frames_nonzero_percent": 100.0,
+      "camera_frames_saturated_percent": 0.0,
+      "flash_led_class_and_v4l2_flash_present": true,
+      "bluetooth_bnep_uhid_uinput_loaded": true,
+      "nfc0_and_neard_present": true,
+      "wifi_ncm_ssh_passed": true,
+      "camss_after_capture": "suspended",
+      "mmcx_after_capture": 128,
+      "runtime_faults": "zero Oops/BUG/panic/SERROR/Call trace/GPU fault matches",
+      "runtime_verifier": "linux-port/scripts/verify-v731-final-runtime.py",
+      "runtime_verifier_bytes": 39181,
+      "runtime_verifier_sha256": "df490ca2eae12533ab5f91a2333842343f8144df6028e3d8ea785dde88689a56"
+    },
+    "offline_verifier": {
+      "repo_path": "linux-port/scripts/verify-thin-private-candidate.py",
+      "bytes": 9658,
+      "sha256": "19f320eb6bbb802040bd7dd509835fda5f26b8e69efb4c5a0df4d487ec254099",
+      "report": "E:/edk2-samurai-out/standard-arm64-v731/thin-private-final-20261109/verification.json",
+      "report_sha256": "9ac1d0e49720c061b6091c7133a33bfa224bd93e22b0b37cfa3d943e5066e0fa",
+      "passed": true
+    },
+    "dtb_contract": {
+      "report": "E:/edk2-samurai-out/standard-arm64-v731/thin-private-final-20261109/dtb-contract-report.json",
+      "report_sha256": "3dad48e13d95f07071c7add3f41ac73673c07a4fd82007a9ff8f8816792d3322",
+      "diff": "E:/edk2-samurai-out/standard-arm64-v731/thin-private-final-20261109/dtb-diff.json",
+      "diff_sha256": "c6718b68b875d3d1417d79e2f3ec9442b9eac1ded14a6365262b6a8b1f3639ce",
+      "passed": true,
+      "resources_checked": 24,
+      "semantic_change": "Only the previously accepted flash/V4L2 additive DTB changes relative to the camera DTB; the thin-private operation does not modify the DTB."
+    },
+    "suspend_attempt": {
+      "status": "not_accepted_device_unrecovered",
+      "test_script": "E:/edk2-samurai-out/standard-arm64-v731/thin-private-final-20261109/suspend-test-interactive.sh",
+      "test_script_sha256": "18084ce77b88baa7c4cff75e58e0cfef816fa36aacdac815ed31bb20494476d5",
+      "retest_helper": "linux-port/scripts/test-suspend-rtcwake.sh",
+      "retest_helper_sha256": "6248d5e2fed4832db7f8f4fd66ca46193c77788b0c21e960b3f1a9ed45077048",
+      "evidence": "E:/edk2-samurai-out/standard-arm64-v731/thin-private-final-20261109/suspend-attempt-1.json",
+      "evidence_sha256": "9a77775b525fb1516b0ce8bd139cf9fbc97077f0a79a05dcf2d97a07e8e817ed",
+      "method": "detached loginctl suspend after arming /sys/class/rtc/rtc0/wakealarm from since_epoch+45",
+      "monitor_window_seconds": 140,
+      "ncm_recovered": false,
+      "wifi_recovered": false,
+      "fastboot_recovered": false,
+      "interpretation": "The direct sysfs wakealarm path did not restore the handset. The earlier accepted s2idle result used rtcwake; direct wakealarm is not equivalent and is not a device suspend regression proof by itself.",
+      "required_next_step": "Physically wake the handset, capture /tmp/samurai-suspend-test.log and suspend_stats, then retry only with rtcwake -m mem -s 30 while serial-console or user assistance is available."
+    },
+    "not_tested": [
+      "external-power-removed cold boot and repeated cold boot",
+      "suspend/resume on the thin-private Image with the previously proven rtcwake method",
+      "physical NFC tag read/write and eSE",
+      "external Bluetooth PAN/HID peers",
+      "long-duration thermal and power measurements"
+    ]
+  },
+  "thin_private_historical_candidate": {
+    "status": "superseded_offline_candidate_not_flashed",
+    "reason": "Its FAT used the earlier 114395-byte camera DTB and the previous boot carrier; using it now would regress flash/V4L2. It is retained only as history.",
+    "candidate_dir": "E:/edk2-samurai-out/standard-arm64-v731/private-surface-removal-20261109",
+    "image_sha256": "f8d8962197827dafbe50e551f5df03391c43ec0269449fa87b833e57799656a5",
+    "kernel_fat_sha256": "ca205192bc639e803291b78ebf7c1588a2d5815cf2a12ea3e1b06d083cba873f",
+    "dtb_sha256": "3799ec6c7d3e0c67a657859a37b2fe147fa21a9dedc84d49c8eb83fd8debc805",
+    "boot_sha256": "9b9be136bd3ee2328f0c4273a829471ad0cd73a7fe7d718825ac024f7af3ae54"
+  },
+  "nfc_neard_candidate": {
+    "status": "installed_runtime_verified_without_tag_after_ordinary_reboot",
+    "standard_kernel_path": {
+      "dts_wrapper": "linux-port/dts/v731/sm8150-samurai.dts",
+      "dts_wrapper_sha256": "e877bb39c53e0878d60f33160de3c7f14e81c8005caeaf684eda03fb9992cb59",
+      "common_dtsi": "linux-port/dts/split-ba61/sm8150-samurai-common.dtsi",
+      "common_dtsi_sha256": "82f1d53e796eb5dfc2b429ff8207417fbdc4c4568acecc32bca0c869a43cf699",
+      "node": "/soc@0/.../i2c@.../nfc@28",
+      "compatible": "nxp,nxp-nci-i2c",
+      "driver": "drivers/nfc/nxp-nci/i2c.c",
+      "private_driver_added": false
+    },
+    "official_userspace_source": {
+      "project": "Alpine aports",
+      "repository": "https://gitlab.alpinelinux.org/alpine/aports",
+      "commit": "bd6dd5c256ded7726539c28a7dcd984237d82006",
+      "apkbuild": "community/neard/APKBUILD",
+      "apkbuild_sha256": "bd8c77a5bd87d6b1ec5addf79516ecb9cf08f6e09e5d5082827a6c4e2f9614af",
+      "initd": "community/neard/neard.initd",
+      "initd_sha256": "efee90c44b86fe93a25efb4a978cc71faba858d11fd340a83a03b57d64ed2755",
+      "upstream_release": "neard 0.20",
+      "license": "GPL-2.0-only",
+      "service": "neard",
+      "service_dependency": "dbus",
+      "service_order": "after coldplug"
+    },
+    "board_package": {
+      "name": "samurai-platform",
+      "version": "5-r22",
+      "arch": "noarch",
+      "path": "E:/edk2-samurai-out/standard-arm64-v731/nfc-neard-20261109/samurai-platform-5-r22.apk",
+      "bytes": 17479,
+      "sha256": "bc3f6d59d1aaf5ae800bc512205b1cbd5da71a3412a64ac651396a4d8ba82f51",
+      "dependency_added": "neard-openrc",
+      "index": "E:/edk2-samurai-out/standard-arm64-v731/nfc-neard-20261109/packages.adb",
+      "index_sha256": "273e3992322030d9e006a235778d4831bd8262044d7110ad8d68680410c05a8b",
+      "manifest": "E:/edk2-samurai-out/standard-arm64-v731/nfc-neard-20261109/package-manifest.json",
+      "manifest_sha256": "7337df035195c61058d9c0528301f53356de0db01bdcfd30271c51af112d761a",
+      "signer_public_key": "E:/edk2-samurai-out/standard-arm64-v731/nfc-neard-20261109/samurai-linux-203.rsa.pub",
+      "signer_public_key_sha256": "dbfa32c3c97d5624e558547ec6e47725f77a1f4f0569455288f79ca66269bbc3",
+      "private_signing_key_in_candidate": false
+    },
+    "runtime_packages": {
+      "neard_openrc": {
+        "version": "0.20-r0",
+        "source": "Alpine edge community via the configured package repository",
+        "install_result": "installed; provides /etc/init.d/neard but not the daemon executable"
+      },
+      "neard": {
+        "version": "0.20-r0",
+        "path": "E:/edk2-samurai-out/standard-arm64-v731/nfc-neard-20261109/neard-0.20-r0.apk",
+        "bytes": 139116,
+        "sha256": "027df5f8637a1fd50f34abba456b9c96ec838af53d4f09cb8d7bf16168487069",
+        "source": "https://dl-cdn.alpinelinux.org/alpine/edge/community/aarch64/neard-0.20-r0.apk",
+        "apk_verify": "OK against the installed Alpine key",
+        "install_result": "installed /usr/libexec/nfc/neard and started the OpenRC service"
+      }
+    },
+    "service_boundary": {
+      "post_install": "linux-port/packages/samurai-platform/samurai-platform.post-install",
+      "post_install_sha256": "79b969cc0d41c5916a0c6429cf387620ff5ff9e50196fce6533848d03ca276d1",
+      "action": "add upstream neard to the default OpenRC runlevel",
+      "live_daemon_started_or_restarted_during_install": false,
+      "private_driver": false,
+      "private_ioctl": false,
+      "android_hal": false
+    },
+    "probe": {
+      "repo_path": "linux-port/scripts/test-nfc-neard.py",
+      "bytes": 7225,
+      "sha256": "1ff161c39b96141f486b59dbefa985fa4b35d6b699841d3b6ffb9198dd8ba6f1",
+      "mode": "nfc0 + OpenRC + org.freedesktop.DBus.Properties and org.neard.Adapter methods; optional --expect-tag",
+      "scope": "Queries the standard adapter, starts and stops the standard poll loop, restores power unless requested, and makes no tag claim without --expect-tag."
+    },
+    "verification": {
+      "verifier": "linux-port/scripts/verify-nfc-neard-candidate.py",
+      "verifier_bytes": 8142,
+      "verifier_sha256": "f773f960b09f3f113f6a7288efda92aec292bd25a9a61f9c8d5b8b8ebf16eefc",
+      "report": "E:/edk2-samurai-out/standard-arm64-v731/nfc-neard-20261109/verification.json",
+      "report_sha256": "9391bfaa2106d98afd9222ea5d7efa4786ab818facd21b59db247d6bcbecbec0",
+      "passed": true,
+      "checks": [
+        "samurai-platform 5-r22 package, index and manifest hashes",
+        "neard-openrc dependency in package metadata",
+        "aports commit and APKBUILD/initd hashes",
+        "probe, package-build, post-install and NFC-NEARD documentation hashes",
+        "default runlevel update without live daemon start",
+        "package signature verified with the included public key"
+      ]
+    },
+    "result": {
+      "path": "E:/edk2-samurai-out/standard-arm64-v731/nfc-neard-20261109/result.json",
+      "sha256": "807b6c3940f4da07908edc1c3f94c15817a04001d27faf1a89090d3ab4d15469"
+    },
+    "runtime_checkpoint": {
+      "boot_id": "3331ca80-078d-4dda-935a-902d271cbea1",
+      "first_probe": "E:/edk2-samurai-out/standard-arm64-v731/nfc-neard-20261109/nfc-neard-final.json",
+      "first_probe_bytes": 8786,
+      "first_probe_sha256": "bc85deed81b86031d64d1afdec168e7c5cf70d70104c4b12b6870a6de4dd4c67",
+      "post_reboot_probe": "E:/edk2-samurai-out/standard-arm64-v731/nfc-neard-20261109/nfc-neard-post-reboot.json",
+      "post_reboot_probe_bytes": 8650,
+      "post_reboot_probe_sha256": "908959f97331317c7cf4006518e97a688ee587b563e6edfb84d586f1c7c5a15c",
+      "ncm_background_probe": "E:/edk2-samurai-out/standard-arm64-v731/nfc-neard-20261109/nfc-ncm-bg.json",
+      "ncm_background_probe_bytes": 8650,
+      "ncm_background_probe_sha256": "d908f95098f5fe1c766f662cfffa6f7585d6979b28d1f7da8bf6357815bd0ef4",
+      "network_reboot": "E:/edk2-samurai-out/standard-arm64-v731/nfc-neard-20261109/network-reboot-nfc.json",
+      "network_reboot_bytes": 2485,
+      "network_reboot_sha256": "19532375b526d702b458f2d25164f3fc4284e1d635d7519c0ba535b60b4c0f19",
+      "ncm_ssh_ready_seconds": 34.688,
+      "wifi_ssh_ready_seconds": 55.178,
+      "neard_default_runlevel": true,
+      "neard_service_started_after_reboot": true,
+      "adapter_object": "/org/neard/nfc0",
+      "adapter_properties": "Mode=Idle, Powered=false, Polling=false, Protocols include Felica/MIFARE/Jewel/ISO-DEP/NFC-DEP/ISO-15693",
+      "powered_on_off": true,
+      "poll_loop_start_stop": true,
+      "tag_seen": false,
+      "tag_claim": "not claimed without a physical tag",
+      "taint_after_probe": 0,
+      "transient_ncm_disconnect_during_foreground_probe": "observed once; NCM and Wi-Fi SSH both recovered without reboot, and a background NCM probe completed cleanly",
+      "full_runtime_gate": "E:/edk2-samurai-out/standard-arm64-v731/nfc-neard-20261109/v731-nfc-bt-final.json",
+      "full_runtime_gate_bytes": 23016,
+      "full_runtime_gate_sha256": "0a30b1313580e006d506057e153b684ecf1719e3fe27b9ce5a3dd2734d014f40",
+      "full_runtime_gate_module_count": 777,
+      "full_runtime_gate_passed": true
+    },
+    "not_tested": [
+      "physical TagFound/read/write and eSE/card emulation",
+      "cold boot and NFC power impact",
+      "long-duration NFC polling and concurrent WiFi/Bluetooth/camera load"
+    ]
+  },
+  "bluetooth_host_candidate": {
+    "status": "installed_runtime_verified_after_ordinary_reboot_cold_boot_pending",
+    "scope": "Mainline Linux v7.3.1 BNEP, UHID and uinput modules for Bluetooth PAN and BlueZ HID. No board driver, private ioctl, Android HAL, service file, install hook or modules-load override is added.",
+    "package": {
+      "name": "samurai-bluetooth-host",
+      "version": "0.1.0-r0",
+      "arch": "aarch64",
+      "path": "E:/edk2-samurai-out/standard-arm64-v731/bluetooth-host-20261109/samurai-bluetooth-host-0.1.0-r0.apk",
+      "bytes": 22020,
+      "sha256": "a4cbe10a1a7a5b6e13ba01bf2a27e64663a0e290c2fd168c54e2b17f44a4be5e",
+      "index": "E:/edk2-samurai-out/standard-arm64-v731/bluetooth-host-20261109/packages.adb",
+      "index_sha256": "5d4f43e3f99eabb74d9eff60e94402df05608c1d1065f420a24408fb251c34ae",
+      "manifest": "E:/edk2-samurai-out/standard-arm64-v731/bluetooth-host-20261109/package-manifest.json",
+      "manifest_sha256": "7a12f03f21b03a538448fa5a6bbc1cab8d82f5a00c3c345aa0ae5ad9eae1fbf3",
+      "signer_public_key": "E:/edk2-samurai-out/standard-arm64-v731/bluetooth-host-20261109/samurai-linux-203.rsa.pub",
+      "signer_public_key_sha256": "dbfa32c3c97d5624e558547ec6e47725f77a1f4f0569455288f79ca66269bbc3",
+      "private_signing_key_in_candidate": false,
+      "signed_dependencies": [
+        "bluez",
+        "kmod"
+      ]
+    },
+    "kernel_release": "7.3.1-rmx1931-samurai-v731",
+    "vermagic": "7.3.1-rmx1931-samurai-v731 SMP preempt mod_unload aarch64",
+    "source_commit": "824dc0a56143d8bf1cc1d20adb877abced48b336",
+    "config_delta": {
+      "CONFIG_BT_BNEP": [
+        "n",
+        "m"
+      ],
+      "CONFIG_INPUT_UINPUT": [
+        "n",
+        "m"
+      ],
+      "CONFIG_UHID": [
+        "n",
+        "m"
+      ]
+    },
+    "config_before_sha256": "35b71dd2125b2cd4489d9e80fbba6d1a4bede9f16c4d19634421f41bb3577dc7",
+    "config_after_sha256": "d9645ae9a097b54ff99af6e2f25dcf694c5d7e952277b75faeb843ae8daec182",
+    "config_delta_patch_sha256": "5f3c5744442d81485cce75150ea28d2a4abb3212196f87cc7ad38bbd27b31e65",
+    "module_build_log_sha256": "b41be88d5bac60b983f2da68ffa80acc8b95f8a384861feafd5721200b621293",
+    "module_symvers_sha256": "77338912db077834f4e7762ed49638a64fe5e15defdc9cccc0482f1396cd2583",
+    "modules": {
+      "bnep": {
+        "payload_path": "usr/lib/modules/7.3.1-rmx1931-samurai-v731/kernel/net/bluetooth/bnep/bnep.ko",
+        "bytes": 26696,
+        "sha256": "aa2e7affa0bc7238a61a0bdfc190be533f6382ea21eaebf88b3419301a412b74",
+        "purpose": "Bluetooth PAN/BNEP",
+        "autoload_alias": "bt-proto-4"
+      },
+      "uhid": {
+        "payload_path": "usr/lib/modules/7.3.1-rmx1931-samurai-v731/kernel/drivers/hid/uhid.ko",
+        "bytes": 18232,
+        "sha256": "a5e72e3ed257c978e35fe12dcb18784d790f96c059c37cc09576b813d57ceea0",
+        "purpose": "BlueZ userspace HID transport"
+      },
+      "uinput": {
+        "payload_path": "usr/lib/modules/7.3.1-rmx1931-samurai-v731/kernel/drivers/input/misc/uinput.ko",
+        "bytes": 22896,
+        "sha256": "d5a94b699e33aef2835a0ba5e2f419574f7da3c643ade9d8f2ed4be781029bbb",
+        "purpose": "userspace input injection used by BlueZ HID"
+      }
+    },
+    "official_userspace_loader": {
+      "project": "Alpine aports",
+      "apkbuild": "main/bluez/APKBUILD",
+      "apkbuild_sha256": "5be80828b55c4c025dbaae70b5730cbc34e20a45d8443bf6aa97e9a2cd86ebfd",
+      "modules_load": "main/bluez/modules-load.conf",
+      "modules_load_sha256": "cd595ebf65d1a45b0007dde6343a60b6d34e123ee27f291ce3111c7606d249f7",
+      "modules_load_contents": [
+        "uinput",
+        "uhid"
+      ],
+      "candidate_duplicates_or_overrides_loader": false
+    },
+    "builder": {
+      "repo_path": "linux-port/scripts/build-bluetooth-host-package.py",
+      "bytes": 14540,
+      "sha256": "b60488a53337bdbd6ba9ffe48f8b16fc136e336ae5d6f27b4c882d80cf140466"
+    },
+    "verifier": {
+      "repo_path": "linux-port/scripts/verify-bluetooth-host-package.py",
+      "bytes": 18913,
+      "sha256": "05309d406bb5817d9079b064473621dd42f3763b80be4d16db83b1acad7ee6d6",
+      "report": "E:/edk2-samurai-out/standard-arm64-v731/bluetooth-host-20261109/verification.json",
+      "report_sha256": "32497f8daf5d624afeac860650f0b007808d1b615fe9e06f56460c1dff85cddb",
+      "passed": true,
+      "observes": "APK and index signatures, exact three-module APKv3 data blocks and modes, fresh isolated APK install, root ownership, owner/version, module ELF/vermagic/imports and the exact three-option configuration delta."
+    },
+    "runtime_probe": {
+      "repo_path": "linux-port/scripts/test-bluetooth-host.py",
+      "bytes": 7501,
+      "sha256": "b79d63f3bbd991ca3eb49caedeabbdb26c2b98fd058ddf7c07e2b584b4f07187",
+      "mode": "read-only unless --load; depmod -A then one modprobe invocation per module, BNEP socket family, /dev/uhid and /dev/uinput, BlueZ adapter",
+      "external_peer_claim_without_evidence": false
+    },
+    "independent_build": {
+      "second_dir": "E:/edk2-samurai-out/standard-arm64-v731/bluetooth-host-20261109-r2",
+      "package_index_manifest_and_public_key_byte_identical": true,
+      "second_verification_sha256": "32497f8daf5d624afeac860650f0b007808d1b615fe9e06f56460c1dff85cddb"
+    },
+    "result": {
+      "path": "E:/edk2-samurai-out/standard-arm64-v731/bluetooth-host-20261109/result.json",
+      "sha256": "7b44934040e300e9bb43bf764258dce29d3f63f1ba17ac5dfc8375156466813f"
+    },
+    "documentation": {
+      "repo_path": "linux-port/docs/BLUETOOTH-HOST-MODULES.md",
+      "bytes": 7721,
+      "sha256": "caee42522aea047891c6d7e820fc79e275588ae0ae49d245f3089ac1010552cc"
+    },
+    "device_install": {
+      "status": "installed_from_local_signed_apk",
+      "package_verify": "OK against the existing samurai-linux-203 public key",
+      "install_command": "apk add --no-network /tmp/samurai-bluetooth-host-0.1.0-r0.apk",
+      "installed_version": "samurai-bluetooth-host-0.1.0-r0",
+      "unrelated_package_upgrade": false,
+      "module_count_after_install": 777,
+      "module_load_probe": "E:/edk2-samurai-out/standard-arm64-v731/bluetooth-host-20261109/bluetooth-host-load.json",
+      "module_load_probe_bytes": 4445,
+      "module_load_probe_sha256": "96d956739d4c72dfe4731ad623e9529807b079786ca52a7f5718e0b90bde5dbc",
+      "depmod_after_install_required_for_immediate_load": true,
+      "depmod_boot_path": "OpenRC modloop runs depmod -A before the modules service; after reboot the three modules auto-loaded without a manual depmod"
+    },
+    "ordinary_reboot_runtime": {
+      "boot_id": "071abbb5-88bd-4c8a-879a-ab9906387617",
+      "read_only_probe": "E:/edk2-samurai-out/standard-arm64-v731/bluetooth-host-20261109/bluetooth-host-post-reboot.json",
+      "read_only_probe_bytes": 4137,
+      "read_only_probe_sha256": "2e32bd16cb4f969fb35c262594490f65596ad5254c5a6827899c82c35a5a1988",
+      "network_reboot": "E:/edk2-samurai-out/standard-arm64-v731/bluetooth-host-20261109/network-reboot-bluetooth-host.json",
+      "network_reboot_bytes": 2486,
+      "network_reboot_sha256": "1e1752e52d554840370be3397efe9ab1a860adcbf1760245f720f35b0e2e142e",
+      "ncm_ssh_ready_seconds": 39.764,
+      "wifi_ssh_ready_seconds": 64.487,
+      "bnep_loaded": true,
+      "uhid_loaded": true,
+      "uinput_loaded": true,
+      "uhid_char_device": true,
+      "uinput_char_device": true,
+      "bnep_socket_family": true,
+      "official_bluez_loader_modules": [
+        "uinput",
+        "uhid"
+      ],
+      "bluez_adapter_present": true,
+      "bluez_adapter_powered_after_reboot": false,
+      "full_runtime_gate": "E:/edk2-samurai-out/standard-arm64-v731/bluetooth-host-20261109/v731-flash-bt-post-reboot.json",
+      "full_runtime_gate_bytes": 23014,
+      "full_runtime_gate_sha256": "8e2da5371afc79a73efff20158e58900edd5ddbb777f7ad02427c81d46a39459",
+      "full_runtime_gate_profile": "flash-led-v4l2 + bluetooth-host",
+      "full_runtime_gate_module_count": 777,
+      "full_runtime_gate_passed": true,
+      "full_runtime_gate_failures": 0,
+      "full_runtime_gate_warnings": 0,
+      "camera_frames_per_sensor": 2,
+      "camss_after_capture": "suspended",
+      "taint_after_gate": 0
+    },
+    "not_tested": [
+      "external Bluetooth PAN peer routing",
+      "external HID pairing/input",
+      "cold boot with the package installed",
+      "suspend/resume with active PAN or HID peers"
+    ],
+    "next_device_steps": [
+      "keep Wi-Fi, NCM, SSH, boot hash and taint as mandatory preflight",
+      "pair only with external PAN/HID peers when such equipment is available",
+      "repeat read-only probe and full runtime gate after the next cold boot"
+    ],
+    "rollback": "apk del samurai-bluetooth-host; do not force rmmod while BlueZ or userspace is using a module; no boot, DTB, Image, NV, persist, calibration or userdata change is made."
+  },
+  "camera": {
+    "framework": "Linux media controller + V4L2 subdev + videobuf2",
+    "standardized_components": [
+      "drivers/i2c/busses/i2c-qcom-cci.c",
+      "drivers/media/v4l2-core/v4l2-cci.c",
+      "drivers/media/platform/qcom/camss",
+      "drivers/media/i2c/imx471.c",
+      "drivers/media/i2c/imx319.c",
+      "drivers/media/i2c/s5k3m5.c",
+      "drivers/media/i2c/s5kgw1.c",
+      "drivers/mfd/qcom-pm8008.c",
+      "drivers/regulator/qcom-pm8008-regulator.c"
+    ],
+    "thin_board_components": [
+      "SM8150 CAMSS resource table, C-PHY and MMCX runtime-PM vote",
+      "PM8008 dual-address setup before regulator registration",
+      "four sensor board profiles and the LC898219XI lens binding"
+    ],
+    "capture_script": {
+      "repo_path": "linux-port/scripts/test-camera-four-raw.sh",
+      "bytes": 3489,
+      "sha256": "ba78a38e2c6912e75d542b18f55861683f4238df898562852a9713af0278b561",
+      "observes": "CAMSS media/video nodes and sensor entities are discovered by topology/model, not by probe-order device names or unstable i2c-N addresses; one-second settle follows each stream-off; the boot dmesg is preserved."
+    },
+    "raw_verification_script": {
+      "repo_path": "linux-port/scripts/verify-camera-raw.py",
+      "sha256": "8d85d3867d0a4d1ac6cd5bba4132e6d3b52c4da473e7b7c8e9c3cfa2102ab532",
+      "observes": "Both frames are individually checked for nonzero pixels and 1023 saturation; the pair must also differ. A standard-library decoder is used when numpy is unavailable."
+    },
+    "libcamera_ppm_verifier": {
+      "repo_path": "linux-port/scripts/verify-libcamera-ppm.py",
+      "bytes": 1587,
+      "sha256": "265a1512d25f455f6ea1b344e699020cea1de9e15ac5f85c0e0d1138c67426cc",
+      "observes": "Binary 8-bit RGB PPM payload dimensions and per-channel statistics. It explicitly makes no image-quality claim."
+    },
+    "final_runtime_verifier": {
+      "repo_path": "linux-port/scripts/verify-v731-final-runtime.py",
+      "bytes": 35971,
+      "sha256": "e5e0ff4de28954fc4060079fa1002cf1c6b509f04d0ba340efd519b84851bb5b",
+      "observes": "Boot/Image/DTB/module hashes, release, taint, command-line constraints, CAMSS media topology, runtime PM, power supply, display, USB, NCM qmult=20, usb0 carrier 1, Wi-Fi, desktop services, absence of libcamera Selection API errors and the four-camera RAW path. The --flash-led-v4l2 profile additionally requires 774 modules, the two flash module hashes, the LED class, the white:flash media entity, V4L2 flash controls and idle strobe. The --standard-rootfs profile additionally requires the exact direct-rootfs command line, a F2FS userdata root mount and /sbin/init as PID1."
+    },
+    "post_selection_fix_validation": {
+      "status": "passed_after_ordinary_reboot",
+      "boot_id": "668b8d20-d22f-44d9-908c-68070eea0147",
+      "selection_fix": "IMX471 CROP uses the mode's register-window rectangle; S5K3M5 implements active/try CROP, CROP_DEFAULT and CROP_BOUNDS.",
+      "cam_list_selection_errors": 0,
+      "imx471_selection": {
+        "crop": "8,408 4640x2644",
+        "crop_default": "8,8 4656x3496",
+        "crop_bounds": "8,8 4656x3496"
+      },
+      "s5k3m5_selection": {
+        "crop": "0,0 2104x1560",
+        "crop_default": "0,0 2104x1560",
+        "crop_bounds": "0,0 2104x1560"
+      },
+      "selection_ioctls": "E:/edk2-samurai-out/standard-arm64-v731/camera-selection-fix-20261109/runtime/selection-ioctls.log",
+      "selection_ioctls_sha256": "0a7073326901604aa21cf769c0981a66c104f45903703964869b6efd0bdaa668",
+      "media_topology": "E:/edk2-samurai-out/standard-arm64-v731/camera-selection-fix-20261109/runtime/media-after-selection.txt",
+      "media_topology_sha256": "475b9899deae1343451dd56a00f6548c5ece63d97f8ed16c0d9b342e365e9629",
+      "runtime_json": "E:/edk2-samurai-out/standard-arm64-v731/camera-selection-fix-20261109/runtime/runtime-selection.json",
+      "runtime_json_sha256": "23965aa4f3510eb0376d497954ca6e6689484ab47dfff00a977d627219efa79a",
+      "raw_summary": "E:/edk2-samurai-out/standard-arm64-v731/camera-selection-fix-20261109/runtime/raw-summary.json",
+      "raw_summary_sha256": "dfe93bc0afaa11f470dcbad9aa5e0083244bae26c9ec17b69fe8a0bfee214456",
+      "libcamera_summary": "E:/edk2-samurai-out/standard-arm64-v731/camera-selection-fix-20261109/runtime/libcamera/summary.json",
+      "libcamera_summary_sha256": "c27215a9c5edcec1e33d94a979591aa77d3028ff76190922c97d9e1c9a85b662",
+      "libcamera_captures_passed": 4,
+      "libcamera_captures_failed": 0,
+      "imx471_module_sha256": "53ac75440404fd477aa6dc0751b58b9192a9af05ed545abe9eb15ff72e328425",
+      "s5k3m5_module_sha256": "c65af58edc066fb4167cb0aee0b69b0b2e7061780671f5f873e594d7b30d0b99",
+      "frames_per_sensor": 2,
+      "all_frames_complete": true,
+      "all_frames_nonzero": true,
+      "all_frames_unsaturated": true,
+      "frame_diff_percent": {
+        "front": 43.78,
+        "rear": 27.058,
+        "tele": 39.273,
+        "wide": 50.355
+      },
+      "camss_after_capture": "suspended",
+      "mmcx_after_capture": 128,
+      "taint_after_capture": 0,
+      "runtime_verifier_passed": true,
+      "runtime_verifier_failures": 0,
+      "runtime_verifier_warnings": 0,
+      "ordinary_reboot_seconds_to_ssh": 42,
+      "cold_boot_still_pending": true,
+      "private_raw_retained": true,
+      "private_images_retained": true
+    },
+    "post_v4l2_final_validation": {
+      "status": "passed_before_and_after_ordinary_reboot",
+      "boot_id": "364abb2c-8521-49a5-957e-77bdc37e426a",
+      "boot_partition_sha256": "5b4dd4871f6856710ff58e722ffd8b2c30d04baf0104b262adcb02e46a7651bf",
+      "kernel_fat_sha256": "c99c690ee923238b0954975682c0e40ce99ae63afd048d40b5059fea70e5862e",
+      "image_sha256": "aa6c4b6b43ec45f4c41d3d420b980e35876860537cb6f2cb96ec5063aab8432a",
+      "dtb_sha256": "b244b3f10a14811dca2e808efa8c840f432cac69020e66b60eba97d02794a18e",
+      "module_count": 774,
+      "runtime_json": "E:/edk2-samurai-out/standard-arm64-v731/flash-led-v4l2-20261109/v731-flash-led-v4l2-post-reboot.json",
+      "runtime_json_sha256": "c73fd0217e41862e2cc052cc2f6624cd3888a00aab17931f2f738a5e056312e7",
+      "network_reboot_json": "E:/edk2-samurai-out/standard-arm64-v731/flash-led-v4l2-20261109/network-reboot-readiness.json",
+      "network_reboot_json_sha256": "88d5ed6596c0f5229416d944f3d10367561bb2c0109afc73bd3c70cfb77fcbf3",
+      "ncm_ssh_ready_seconds": 36.761,
+      "wifi_ssh_ready_seconds": 59.327,
+      "flash_led_class": "/sys/class/leds/white:flash",
+      "flash_media_entity": "white:flash",
+      "flash_v4l2_control_queries": "passed",
+      "flash_torch_control": "200000 uA, led_mode 2 -> 0, faults 0, strobe off after cleanup",
+      "flash_optical_torch": "S5KGW1 wide RAW mean 177.04 -> 407.147, +230.107 (+130%), 0% saturated, 93.851% pixels changed",
+      "frames_per_sensor": 2,
+      "all_frames_complete": true,
+      "all_frames_nonzero": true,
+      "all_frames_unsaturated": true,
+      "frame_diff_percent": {
+        "front": 39.894,
+        "rear": 26.012,
+        "tele": 39.28,
+        "wide": 48.634
+      },
+      "camss_after_capture": "suspended",
+      "mmcx_after_capture": 128,
+      "taint_after_capture": 0,
+      "runtime_verifier_failures": 0,
+      "runtime_verifier_warnings": 0,
+      "cold_boot_still_pending": true
+    },
+    "preflash_validation": {
+      "status": "passed_with_final_modules_on_previous_image",
+      "boot_id": "4f982192-6d60-4da3-a117-697824f72311",
+      "sensors": [
+        {
+          "id": "front",
+          "compatible": "sony,imx471",
+          "path": "csiphy2->csid0->vfe0_rdi0",
+          "mbus": "SRGGB10_1X10/1928x1088",
+          "fourcc": "pRAA",
+          "stride": 2416,
+          "two_frame_bytes": 5257216
+        },
+        {
+          "id": "rear",
+          "compatible": "sony,imx319",
+          "path": "csiphy1->csid0->vfe0_rdi0",
+          "mbus": "SRGGB10_1X10/1632x1224",
+          "fourcc": "pRAA",
+          "stride": 2048,
+          "two_frame_bytes": 5013504
+        },
+        {
+          "id": "tele",
+          "compatible": "samsung,s5k3m5",
+          "path": "csiphy3->csid0->vfe0_rdi0",
+          "mbus": "SGRBG10_1X10/2104x1560",
+          "fourcc": "pgAA",
+          "stride": 2640,
+          "two_frame_bytes": 8236800
+        },
+        {
+          "id": "wide",
+          "compatible": "samsung,s5kgw1",
+          "path": "csiphy0(C-PHY)->csid0->vfe0_rdi0",
+          "mbus": "SGBRG10_1X10/4608x3456",
+          "fourcc": "pGAA",
+          "stride": 5760,
+          "two_frame_bytes": 39813120
+        }
+      ],
+      "frames_per_sensor": 2,
+      "all_frames_complete": true,
+      "all_samples_nonzero": true,
+      "saturated_samples": 0,
+      "each_pair_changed_between_frames": true,
+      "camss_idle_after_stream": "suspended",
+      "mmcx_stream_performance_state": 384,
+      "mmcx_idle_performance_state": 128,
+      "taint_after_capture": 0,
+      "private_raw_retained": true,
+      "raw_hashes_not_published": true
+    },
+    "postflash_validation": {
+      "status": "passed_on_two_boot_cycles",
+      "boot_ids": [
+        "c97a0a52-60e7-41fc-bf49-59c7ff0d3fc5",
+        "9b93d2c2-7bd9-45aa-90a2-1af71c32d6b3",
+        "35915162-7912-4cb2-a766-88691cbd44bc"
+      ],
+      "boot_cycles": 3,
+      "frames_per_sensor_per_boot": 2,
+      "total_frames": 24,
+      "all_frames_complete": true,
+      "all_frames_nonzero": true,
+      "all_frames_unsaturated": true,
+      "each_pair_changed_between_frames": true,
+      "verifier_runs_on_device_without_numpy": true,
+      "camss_idle_after_stream": "suspended",
+      "mmcx_stream_performance_state": 384,
+      "mmcx_idle_display_on": 128,
+      "mmcx_idle_display_off": 64,
+      "taint_after_capture": 0,
+      "ordinary_reboot_passed": true,
+      "poweroff_initiated_boot_passed": true,
+      "post_s2idle_camera_passed": true,
+      "post_s2idle_frames": 8,
+      "private_raw_hashes_not_published": true
+    },
+    "extended_runtime_validation": {
+      "display_modes": {
+        "passed": true,
+        "modes": [
+          "1080x2400@60",
+          "1080x2400@90"
+        ],
+        "evidence": "E:/edk2-samurai-out/standard-arm64-v731/camera-final-boot/display-s2idle-evidence/summary.json",
+        "evidence_sha256": "48cf51d32a12fb4dcfb5062c0360842a7c29a30e26ac760aa3eaaeb54a531847"
+      },
+      "s2idle": {
+        "passed": true,
+        "requested_seconds": 15,
+        "suspend_success_count": 3,
+        "suspend_fail_count": 0,
+        "same_boot_id": true,
+        "desktop_survived": true,
+        "post_resume_camera_frames": 8,
+        "post_resume_runtime_json": "E:/edk2-samurai-out/standard-arm64-v731/camera-final-boot/final-runtime-post-s2idle.json",
+        "post_resume_runtime_json_sha256": "e7a0b4e23e2081171d4b057a8787853f586f2cb767f0830d06b8041b5b8882dc"
+      }
+    },
+    "r21_final_runtime": {
+      "boot_id": "d5cfa04f-5f4e-430a-8bc3-472567bd45f7",
+      "runtime_json": "E:/edk2-samurai-out/standard-arm64-v731/camera-r21-final-20261109/runtime-r21.json",
+      "runtime_json_sha256": "d0e8d6059620ae07500ff2e751326fadc8e200f84cf5f0895414e88d45b360a0",
+      "release": "7.3.1-rmx1931-samurai-v731",
+      "taint": 0,
+      "passed": true,
+      "failures": 0,
+      "warnings": 0,
+      "boot_partition_sha256": "9b9be136bd3ee2328f0c4273a829471ad0cd73a7fe7d718825ac024f7af3ae54",
+      "image_sha256": "aa6c4b6b43ec45f4c41d3d420b980e35876860537cb6f2cb96ec5063aab8432a",
+      "dtb_sha256": "3799ec6c7d3e0c67a657859a37b2fe147fa21a9dedc84d49c8eb83fd8debc805",
+      "module_count": 773,
+      "ncm_qmult": "20",
+      "usb0_carrier": "1",
+      "udc": "configured",
+      "wifi_mac": "PRIVATE_WIFI_MAC",
+      "display": "card1-DSI-1 connected/enabled/On",
+      "camera_frames_per_sensor": 2,
+      "camera_all_frames_nonzero": true,
+      "camera_all_frames_unsaturated": true,
+      "camera_frame_diff_percent": {
+        "front": 45.659,
+        "rear": 26.256,
+        "tele": 39.255,
+        "wide": 47.325
+      },
+      "camss_after_capture": "suspended",
+      "mmcx_after_capture": 64,
+      "mmcx_after_settle": 128,
+      "private_raw": "E:/edk2-samurai-out/standard-arm64-v731/camera-r21-final-20261109/raw",
+      "private_raw_local_verify": "E:/edk2-samurai-out/standard-arm64-v731/camera-r21-final-20261109/local-verify.json",
+      "private_raw_local_verify_sha256": "1b6ac4eefd9a863eff5d08502c34716e31d9e6253a0601824b6f5940778d4606",
+      "private_raw_published": false
+    }
+  },
+  "usb_ncm": {
+    "gadget_startup_fix": {
+      "repo_path": "linux-port/packages/samurai-platform/usr_sbin_samurai-usb",
+      "bytes": 5624,
+      "sha256": "ef537b51547734f4819c9466024f9ece55b6dc37148c3c98c31267120cdb3dab",
+      "sha512": "9e6ffd5291cf17caeddd40b914da8cf05328cdaa5665535577a10715f40c4ea49de57f907bb64d3977a05555a7358379420939f7f31d88cd6d0f7b0e895af92b",
+      "apkbuild_sha256": "2ff00975dd6153590c99651905c1d9cdd58c24a7a335985ebe4d0e9f375bc1c6",
+      "change": "load the standard socinfo driver on demand, wait up to 60 seconds for a numeric /sys/devices/soc0/serial_number before creating the gadget, set the standard NCM configfs qmult=20, and manage the standard USB NCM dnsmasq DHCP lifecycle",
+      "device_smoke_test": "installed from samurai-platform 5-r21; package signature verified; ordinary reboot restored qmult=20, UDC configured and usb0 carrier 1",
+      "status": "installed_ordinary_reboot_and_30min_passed_cold_boot_pending"
+    },
+    "r21_qmult_persistence": {
+      "package": "samurai-platform-5-r21",
+      "apk": "E:/edk2-samurai-out/standard-arm64-v731/platform-r21-20261109/samurai-platform-5-r21.apk",
+      "apk_sha256": "4c7b76f8f92994dbac01536d0d71d14b1d156016c28ce270117e91a1cec5900a",
+      "apk_verify_log": "E:/edk2-samurai-out/standard-arm64-v731/platform-r21-20261109/apk-verify.log",
+      "apk_verify_log_sha256": "5682da8e09b77994318ef1e4ba38944df70141f0b6100809de907506691e6f7e",
+      "package_manifest": "E:/edk2-samurai-out/standard-arm64-v731/platform-r21-20261109/package-manifest.json",
+      "package_manifest_sha256": "9c976a0688327653515dd6ecc1b4ba21450e162e45e318da605e2738760097bd",
+      "index": "E:/edk2-samurai-out/standard-arm64-v731/platform-r21-20261109/packages.adb",
+      "index_sha256": "4cc55c3a51a45c4c87db5e2413e808bf6c7701ff3214442bf2f4f630339260e6",
+      "build_root": "/home/cy122/samurai-platform-r21-build-20261109-r2",
+      "source": "mainline f_ncm/u_ether configfs; no private transport layer",
+      "ordinary_reboot_boot_id": "d5cfa04f-5f4e-430a-8bc3-472567bd45f7",
+      "ordinary_reboot_qmult": "20",
+      "ordinary_reboot_udc": "configured",
+      "ordinary_reboot_usb0_carrier": 1,
+      "ordinary_reboot_wifi_ssh": "strict host key authentication passed",
+      "ordinary_reboot_usb_ncm_ssh": "strict host key authentication passed",
+      "wifi_mac": "PRIVATE_WIFI_MAC",
+      "bt_mac": "PRIVATE_BT_MAC",
+      "ncm_matrix": {
+        "result": "E:/edk2-samurai-out/standard-arm64-v731/ncm-r21-qmult20-20261109/result.json",
+        "result_sha256": "a87da3d6a956beecb0cc59d94718bb4eb3e518716845b2a8c344f02d78bd24ab",
+        "events_sha256": "35e0ac9be800791d9724ffc53e7047d091208c0f23eae953ab407d0ac773e73d",
+        "verdict": "E:/edk2-samurai-out/standard-arm64-v731/ncm-r21-qmult20-20261109/verdict.json",
+        "verdict_sha256": "010be16253cba80f0cc879ec4f4f1fbf84d6bcd8f26e3c1a4488a4bbfe2c7f9a",
+        "transfers": 24,
+        "passed_transfers": 24,
+        "failed_transfers": 0,
+        "heartbeat_seconds": 1798.828,
+        "heartbeat_samples": 798,
+        "taint_pre_post": [0, 0],
+        "same_boot_id": true,
+        "passed": true
+      },
+      "wifi_heartbeat": {
+        "log": "E:/edk2-samurai-out/standard-arm64-v731/wifi-heartbeat-r21-20261109/wifi-heartbeat.log",
+        "log_sha256": "e5aaa904bdb1f5c3c198b3cc41c8a53f98440cbcb7d39f12a09b21366f1a1691",
+        "verdict": "E:/edk2-samurai-out/standard-arm64-v731/wifi-heartbeat-r21-20261109/verdict.json",
+        "verdict_sha256": "b3dd4e29f9fcfc929dac04397cb80a9dc5d500e2964346a694cb26b30df362ff",
+        "samples": 1810,
+        "uptime_seconds": 1820.51,
+        "max_sample_gap_seconds": 1.01,
+        "exit_code": 0,
+        "passed": true
+      },
+      "runtime": "E:/edk2-samurai-out/standard-arm64-v731/camera-r21-final-20261109/runtime-r21.json",
+      "runtime_sha256": "d0e8d6059620ae07500ff2e751326fadc8e200f84cf5f0895414e88d45b360a0",
+      "runtime_boot_id": "d5cfa04f-5f4e-430a-8bc3-472567bd45f7",
+      "runtime_passed": true,
+      "post_validation_health": {
+        "path": "E:/edk2-samurai-out/standard-arm64-v731/ncm-r21-qmult20-20261109/post-health.json",
+        "sha256": "d2edcaf9d2efecc9f6fc5f017d2cdef23eaa6137715c135aee5dad2ed4caad9e",
+        "uptime_seconds": 2915,
+        "wifi_ssh": "strict host key authentication passed",
+        "usb_ncm_ssh": "strict host key authentication passed",
+        "taint": 0,
+        "qmult": "20",
+        "udc": "configured",
+        "usb0_carrier": 1,
+        "wifi_mac": "PRIVATE_WIFI_MAC",
+        "radio_address_cache": "wlan and bt verified for this boot"
+      },
+      "scope": "Ordinary reboot and same-boot 30-minute NCM/Wi-Fi verification passed. External-power-removed cold boot, repeated cold boots, a Linux host and longer transfers remain open."
+    },
+    "dhcp": {
+      "repo_path": "linux-port/packages/samurai-platform/etc_samurai_usb-dhcp.conf",
+      "bytes": 186,
+      "sha256": "b6352283a726ba9ecc79eaf0873cadff364289fbc4af65ca39675aa06c5480c8",
+      "service": "distribution dnsmasq bound to usb0",
+      "address": "10.42.0.1/24",
+      "legacy_address": "169.254.42.1/16",
+      "device_smoke_test": "usb0 has 10.42.0.1/24 and 169.254.42.1/16; dnsmasq is running; classless option 121 preserves the legacy link-local route"
+    },
+    "historical_boot_observation_f26c6cdc": {
+      "boot_id": "f26c6cdc-275c-451b-b7fc-65c93741e63e",
+      "taint": 0,
+      "wifi_ssh": "strict host key authentication passed",
+      "usb_ncm_ssh": "strict host key authentication passed",
+      "boot_partition_sha256": "7f8d7a65a3c450fd6abd2a41c5d4e1f359ffe4f7b66a36e53e4ec7aea2782777",
+      "kernel_fat_sha256": "1f3a40f4e02ae67e2e7ada9029592a539e74be65905a1e54562f68c9e65550c4",
+      "usb0_addresses": [
+        "169.254.42.1/16",
+        "10.42.0.1/24"
+      ],
+      "wifi_power_save": "off",
+      "udc": "configured",
+      "usb0_carrier": 1,
+      "dhcp": "dnsmasq running",
+      "sleep_guard": "USB NCM elogind sleep block held",
+      "boundary_check": "passed",
+      "boundary_log": "E:/edk2-samurai-out/standard-arm64-v731/usb-fifo-production-source-20261108/boot-boundary-after-pair.log",
+      "boundary_log_sha256": "e7616a65e6d4880913222b2aac17da50d67496150c4f3e79b5d551ff2ed39b78",
+      "usb_fifo_property": "present in /sys/firmware/fdt",
+      "runtime_verifier": "E:/edk2-samurai-out/standard-arm64-v731/usb-fifo-production-source-20261108/runtime-after-pair-reboot.json",
+      "runtime_verifier_sha256": "8de57ab47aef1e28c8e3794901ad4b94d83dd68b0c1a56099e8c57bbb7bf6096",
+      "camera_runtime_verifier": "E:/edk2-samurai-out/standard-arm64-v731/usb-fifo-production-source-20261108/runtime-camera-after-pair-20261108.json",
+      "camera_runtime_verifier_sha256": "671f28b85dbf163e77762b4d3e068ed536db63bd55ff2001af17cff076b6aceb",
+      "scope": "boot and logdump were made identical as a pair, then verified on a new ordinary-reboot boot ID; the post-pair 30-minute NCM and Wi-Fi runs and the full four-camera runtime gate passed, but this is not an external-power-removed cold boot"
+    },
+    "sleep_guard_check": {
+      "repo_path": "linux-port/scripts/check-usb-sleep-guard.sh",
+      "bytes": 1760,
+      "sha256": "6f7d90a112ae30488eb7f4874dccad8ad676b4ddbc68725ad6536216a5767147",
+      "device_result": "passed",
+      "observed": "guard executable and registered; UDC configured; guard returned 254; elogind USB NCM block lock held; samurai-sleep-inhibitor running",
+      "post_pair_log": "E:/edk2-samurai-out/standard-arm64-v731/wifi-heartbeat-post-pair-reboot-20261108/usb-sleep-guard.log",
+      "post_pair_log_sha256": "380df1b27c6dc5e2b449d9cecd9cb0d4e9d7803eecb0403ae09179934901987f"
+    },
+    "wifi_heartbeat": {
+      "log": "E:/edk2-samurai-out/standard-arm64-v731/wifi-heartbeat-valid-20261108/wifi-heartbeat.log",
+      "log_sha256": "36ea045aa29363823bebc25d35c73a3407f80a03c08f310a8671096154a70ee1",
+      "verdict": "E:/edk2-samurai-out/standard-arm64-v731/wifi-heartbeat-valid-20261108/verdict.json",
+      "verdict_sha256": "95e063fbbebfaa9556b0f16f5bd6ad96e20e3b737f000a328450e881e346b972",
+      "verifier": {
+        "repo_path": "linux-port/scripts/verify-wifi-heartbeat.py",
+        "sha256": "6cd9d11f18439adfa94e3c07d52481c02853c968cd5fc1e88a3322cb1eb37509"
+      },
+      "samples": 1800,
+      "uptime_seconds": 1810,
+      "max_sample_gap_seconds": 2,
+      "exit_code": 0,
+      "passed": true,
+      "post_pair": {
+        "log": "E:/edk2-samurai-out/standard-arm64-v731/wifi-heartbeat-post-pair-reboot-20261108/wifi-heartbeat.log",
+        "log_sha256": "5b773411c906380c445eb111951f1f118a07a57cc215d3c608e5bf734bf06dd2",
+        "verdict": "E:/edk2-samurai-out/standard-arm64-v731/wifi-heartbeat-post-pair-reboot-20261108/verdict.json",
+        "verdict_sha256": "87edf0a2e5e79778fbd26a4a93ede99bc7f96f8086c58dfdaed4189b2f7521d",
+        "samples": 1800,
+        "uptime_seconds": 1811,
+        "max_sample_gap_seconds": 2,
+        "exit_code": 0,
+        "passed": true
+      },
+      "display_off_snapshot": "E:/edk2-samurai-out/standard-arm64-v731/wifi-heartbeat-post-pair-reboot-20261108/display-off-snapshot.json",
+      "display_off_snapshot_sha256": "a4a7c94d187ce77926a8e064721ea1407e160358e3958bf80cc51bb138029c45",
+      "display_off_observed": "card1-DSI-1 DPMS Off and enabled=disabled while Wi-Fi SSH continued streaming and the USB NCM sleep block remained held",
+      "scope": "continuous Wi-Fi SSH streaming loop on one boot; it does not replace multi-boot or external-power-removed cold-boot testing"
+    },
+    "stability_script": {
+      "repo_path": "linux-port/scripts/test-usb-ncm-stability.py",
+      "sha256": "51ba144f65650b989269f088734be01956ac540226247e379a81c5bca51093ad",
+      "status": "hardware_baseline_passed_sleep_guard_added_pending_device_retest",
+      "offline_validation": {
+        "dry_run_passed": true,
+        "unreachable_preflight_passed": true,
+        "windows_host_snapshot_passed": true,
+        "hardware_transfer_validated": true
+      },
+      "observes": "Strict-host-key USB SSH/SCP matrix for 64 KiB, 256 KiB, 1 MiB and 4 MiB in both directions, with three host/device SHA-256 checks, UDC/carrier/link/dmesg snapshots, and an optional long heartbeat. The revised script holds a standard elogind sleep block for the full unattended run (7200 seconds by default, released at completion) so KDE/PowerDevil cannot suspend the DWC3 NCM gadget mid-test; --no-sleep-inhibit is the explicit unsafe override. Optional Windows host snapshots record present USB PnP/Problem status, Win32 ConfigManagerErrorCode, adapter counters, IPv4/link-local state and recent USB/PnP events. It never resets, rebinds or flashes the phone."
+    },
+    "baseline": {
+      "result": "E:/edk2-samurai-out/standard-arm64-v731/ncm-baseline-20261108/result.json",
+      "result_sha256": "d557885d82b965ca49a6f401610c8777f6adbaf8a680e719e8e7dc1e9c94c32e",
+      "verdict": "E:/edk2-samurai-out/standard-arm64-v731/ncm-baseline-verdict.json",
+      "verdict_sha256": "7fd449305cdc084f8735f44d75948ac1ac40f09fdc9ff0bbbb3af6a4ac63c31a",
+      "boot_id": "6df4a965-4ca2-4a1b-97c5-35b60dac14c3",
+      "taint_pre_post": [0, 0],
+      "passed_transfers": 24,
+      "failed_transfers": 0,
+      "sizes_bytes": [65536, 262144, 1048576, 4194304],
+      "directions": "host-to-device and device-to-host",
+      "iterations_per_size": 3,
+      "heartbeat_seconds": 1800,
+      "heartbeat_passed": true,
+      "udc": "configured",
+      "usb0_carrier": 1,
+      "usb_speed": "high-speed",
+      "scope_limit": "This is a 30-minute baseline on the current boot and Windows host; it does not prove multi-boot, multi-host, longer idle or long-transfer stability."
+    },
+    "r16_standard_rootfs_baseline": {
+      "result": "E:/edk2-samurai-out/standard-arm64-v731/ncm-current-r16-dhcp-20261108/result.json",
+      "result_sha256": "1acf23e2826e11032b5c190f264af281068fd1efa54a16c2aa734b87142ffdde",
+      "boot_id": "efdffee4-f31e-4077-a568-8c9440d50524",
+      "passed": false,
+      "transfers": 24,
+      "passed_transfers": 21,
+      "failed_transfers": 3,
+      "failure": "4 MiB device-to-host SCP ended with Broken pipe after about 15 seconds; the following SSH probes timed out for about 17 seconds before recovering.",
+      "heartbeat": "failed after 17.12 seconds",
+      "status": "baseline_failed_reproduced_for_fifo_candidate"
+    },
+    "tx_fifo_standard_rootfs_candidate": {
+      "status": "promoted_pair_flashed_ordinary_reboot_verified_post_pair_30min_passed",
+      "source_boot_sha256": "e1cccd9d3d1119c2b40bda4d15834ea857ca8ec897e611f9af28b1e66050bd19",
+      "dtb_sha256": "c9f948cdac6e58b23ba5bd9bb29137d6266154ce22540fb4d585e24826649fc5",
+      "boot_sha256": "7f8d7a65a3c450fd6abd2a41c5d4e1f359ffe4f7b66a36e53e4ec7aea2782777",
+      "kernel_fat_sha256": "1f3a40f4e02ae67e2e7ada9029592a539e74be65905a1e54562f68c9e65550c4",
+      "boot_flashed": true,
+      "kernel_fat_flashed": true,
+      "boot_partition_readback_sha256": "7f8d7a65a3c450fd6abd2a41c5d4e1f359ffe4f7b66a36e53e4ec7aea2782777",
+      "kernel_fat_readback_sha256": "1f3a40f4e02ae67e2e7ada9029592a539e74be65905a1e54562f68c9e65550c4",
+      "kernel_fat_fsck": "E:/edk2-samurai-out/standard-arm64-v731/usb-fifo-production-source-20261108/fsck-logdump-after-pair.log",
+      "kernel_fat_fsck_sha256": "190c4ce27d926c68113d1f5d02d868ffdbeb1f636203c6b92e9dd97c27651a5e",
+      "deployment_boot_id": "f26c6cdc-275c-451b-b7fc-65c93741e63e",
+      "deployment_method": "boot was already written through fastboot; the non-mounted 64 MiB logdump partition was then written over Wi-Fi SSH with dd, synced, and read back before an ordinary reboot",
+      "pre_reboot_runtime": "E:/edk2-samurai-out/standard-arm64-v731/usb-fifo-production-source-20261108/runtime-before-reboot.json",
+      "pre_reboot_runtime_sha256": "d53c793fc8e076610ab83bdbd231ff8cca90e204015bafbb83c6533939829c43",
+      "post_reboot_runtime": "E:/edk2-samurai-out/standard-arm64-v731/usb-fifo-production-source-20261108/runtime-after-pair-reboot.json",
+      "post_reboot_runtime_sha256": "8de57ab47aef1e28c8e3794901ad4b94d83dd68b0c1a56099e8c57bbb7bf6096",
+      "post_reboot_camera_runtime": "E:/edk2-samurai-out/standard-arm64-v731/usb-fifo-production-source-20261108/runtime-camera-after-pair-20261108.json",
+      "post_reboot_camera_runtime_sha256": "671f28b85dbf163e77762b4d3e068ed536db63bd55ff2001af17cff076b6aceb",
+      "production_source_build": {
+        "dts_sha256": "d6e75f92cb900e779467bee2698bff25d7e89d6d57f1c9bec44ff3a48776b83d",
+        "dtb_sha256": "c9f948cdac6e58b23ba5bd9bb29137d6266154ce22540fb4d585e24826649fc5",
+        "build_log": "E:/edk2-samurai-out/standard-arm64-v731/usb-fifo-production-source-20261108/build.log",
+        "build_log_sha256": "ad0868ce8590de3fb4c82b261ef4befc45898c3cc6815f45f700a64985657249"
+      },
+      "runtime_verifier": "E:/edk2-samurai-out/standard-arm64-v731/usb-fifo-standard-r16-20261108-b/runtime.json",
+      "runtime_verifier_sha256": "69ba1c022e40d55a5deda13a7e602524154a2e9d96e6d73b1d49f5fe0c44fbbb",
+      "five_minute_result": "E:/edk2-samurai-out/standard-arm64-v731/ncm-fifo-standard-r16-20261108/result.json",
+      "five_minute_result_sha256": "7192f5c0250b3bc07cfa9eef48cfee7cdc3d9eb52d546eb4532f4debb056b6f7",
+      "five_minute_verdict": "E:/edk2-samurai-out/standard-arm64-v731/ncm-fifo-standard-r16-verdict-300s.json",
+      "five_minute_verdict_sha256": "c8524d1d43d401a9ed58949bc8395d678798ef8517124ff7ead00c39addc4ff2",
+      "thirty_minute_result": "E:/edk2-samurai-out/standard-arm64-v731/ncm-fifo-standard-r16-30min-20261108/result.json",
+      "thirty_minute_result_sha256": "e2eda19639dec2dc6767b0f0f3c713ad2524adee0152ef8460d39671d506d70a",
+      "thirty_minute_verdict": "E:/edk2-samurai-out/standard-arm64-v731/ncm-fifo-standard-r16-30min-verdict.json",
+      "thirty_minute_verdict_sha256": "0eef880c9ebb8fbdc72dbf83df1157154fc2cf2899aca4d4c6a09342deddcb16",
+      "thirty_minute_passed": true,
+      "thirty_minute_heartbeat_seconds": 1800.598,
+      "thirty_minute_boot_id": "263416f8-7f64-4965-ab95-653aeda2e194",
+      "post_pair_thirty_minute_result": "E:/edk2-samurai-out/standard-arm64-v731/ncm-fifo-post-pair-reboot-30min-20261108/result.json",
+      "post_pair_thirty_minute_result_sha256": "0365acda3af83f744bda5393fd48cc7bc2c13e84bfdf3275c1eb82fe84c74afc",
+      "post_pair_thirty_minute_verdict": "E:/edk2-samurai-out/standard-arm64-v731/ncm-fifo-post-pair-reboot-30min-verdict.json",
+      "post_pair_thirty_minute_verdict_sha256": "4df827354eff27e83f06731302ff77638f9cafe3ae01a840b1d757c82dc72729",
+      "post_pair_thirty_minute_passed": true,
+      "post_pair_thirty_minute_heartbeat_seconds": 1800.169,
+      "post_pair_thirty_minute_boot_id": "f26c6cdc-275c-451b-b7fc-65c93741e63e",
+      "metadata_review_sha256": "78edace7dec352d0f66d82dd27dc126b84c8206ccc023b4a67712b70862c7f3b",
+      "build_result_sha256": "95c0b72d18b11d23cdd870f64ad154456e85ceefb8467ffbe64e00972bf1e076",
+      "flash_tool": {
+        "repo_path": "linux-port/scripts/flash-v731-usb-fifo.ps1",
+        "sha256": "e50a26d2e25db9a1558cfa608d24b0f054ba56cd5d3bf2616685d1d58570b1f0",
+        "guards": "Serial, product, exact candidate size and SHA-256, and explicit -Flash; scope is boot only."
+      },
+      "pair_helper": {
+        "repo_path": "linux-port/scripts/flash-v731-usb-fifo-pair.ps1",
+        "sha256": "f166e6e8caeda6d85d3bf784302b7975793a8a86e5374b2cc180f6421e6a33c6",
+        "guards": "Serial, product, exact boot/FAT size and SHA-256, and paired boot/logdump writes; partial flashing is rejected."
+      },
+      "scope": "The pair is deployed, passed a new ordinary-reboot runtime gate, and passed a second full 30-minute NCM matrix on that boot. External-power-removed cold boot, repeated cold boots and multi-host coverage remain open."
+    },
+    "acceptance_verifier": {
+      "repo_path": "linux-port/scripts/verify-usb-ncm-result.py",
+      "sha256": "523f7d36b497b17002e55d896a6f64c47c90d76400a3d7e7611e870455a5fa35",
+      "status": "device_verdict_passed",
+      "observes": "Rejects dry runs, partial matrices, missing directions/iterations, timeout or return-code failures, byte/hash mismatches, taint or release drift, missing UDC/carrier state, boot-ID changes and short/failed heartbeats."
+    },
+    "tx_fifo_resize_candidate": {
+      "repo_path": "linux-port/patches/experiments/0001-arm64-dts-samurai-usb-tx-fifo-resize.patch",
+      "status": "promoted_to_production_dts",
+      "promoted_by": "tx_fifo_standard_rootfs_candidate",
+      "superseded_by": "tx_fifo_standard_rootfs_candidate",
+      "dtb_sha256": "c9f948cdac6e58b23ba5bd9bb29137d6266154ce22540fb4d585e24826649fc5",
+      "boot_sha256": "db8f19093acb16f2948c7f7bc51b196bc754363b7cd3ee41c27fb4cbda85d515",
+      "metadata_review_sha256": "5826c6768780d1e5b242a6a40ce3aacc6b7a21034295a7932d4c49d9f68f1921",
+      "metadata_review_rerun_sha256": "b5aba1820422d408232c308eaf6ef22bef539ba58e7f1ad17c28b103febc989c",
+      "semantic_dtb_diff": "only the tx-fifo-resize boolean is added under &usb_1_dwc3",
+      "flash_tool": {
+        "repo_path": "linux-port/scripts/flash-v731-usb-fifo.ps1",
+        "sha256": "a939c1b70524d78b0f8c9c5881b4d90456b6a003907c44a89c8025933da578e9",
+        "guards": "Serial, product, exact candidate size and SHA-256, and explicit -Flash; scope is boot partition only."
+      }
+    }
   },
   "standardization_boundary": {
     "standard_linux_models_and_apis": [
@@ -226,19 +3017,25 @@
       "Linux UDC class and configfs gadget",
       "DRM/KMS panel and backlight class",
       "remoteproc prepare/unprepare subdevice lifecycle",
+      "V4L2 media controller, subdev and videobuf2 CAMSS path",
+      "PM8150L qcom,spmi-flash-led with LED flash class and V4L2 flash subdevice",
       "ASoC, ALSA PCM and UCM",
       "input evdev and force feedback",
       "IIO and SensorProxy userspace"
     ],
     "thin_board_glue_retained": [
       "SM8150 DTS wiring and board pin/regulator data",
+      "SM8150 CAMSS resource table and MMCX performance vote",
+      "PM8008 dual-address board sequencer",
+      "IMX471/IMX319/S5K3M5/S5KGW1 and LC898219XI board profiles",
       "samurai sensor-power regulator sequencer",
       "sofef03f panel description",
       "AW8697 haptics board driver",
-      "MAX98937 and samurai ASoC board glue"
+      "MAX98937 and samurai ASoC board glue",
+      "USB NCM remote-access sleep-inhibitor policy using elogind"
     ],
     "excluded_from_standard_image": [
-      "camera ICP/CAMSS experiment stack",
+      "camera ICP userspace experiment stack",
       "APSD and private USB-input charging experiments",
       "samurai private managed charging kernel modules",
       "EUD serial ownership on the production USB port",
@@ -246,12 +3043,212 @@
       "private samurai_diag trace dependencies"
     ]
   },
+  "official_reference_audit": {
+    "status": "main_and_v26_06_audited_realme_19688_high_confidence_board_reference",
+    "document": {
+      "repo_path": "linux-port/docs/OFFICIAL-BASELINE.md",
+      "bytes": 13210,
+      "sha256": "ae1e2f34da0a706897a87288dd0e123e372dcf9c7709469d9f0bebdd88913fd3"
+    },
+    "pmaports": {
+      "main": {
+        "repo_url": "https://gitlab.postmarketos.org/postmarketOS/pmaports.git",
+        "commit": "b5810eb2f3b24ce380a00c54569236f5559f78b1",
+        "commit_date": "2026-11-08T09:49:52+01:00",
+        "license": "GPL-3.0",
+        "license_sha256": "53927bd0b739d38c87a0a82236fd9b070c2dfff11c0c119be50372005d5047ad",
+        "postmarketos_base_openrc_post_install_sha256": "2c042a89366d78d2e35dd926131099083c243498fd75a8824d562821c50d5f1e",
+        "postmarketos_base_ui_apkbuild_sha256": "93361c9449310e178cc0a86b4dce9d999f34e36118f3963610b234727bf85b2e",
+        "sleep_inhibitor_sha256": "9892ecd2b1d83669a44ed57a625a90ac56529fe956862930b94612654f0e340e",
+        "tinydm_conf_sha256": "57958471777a96613c65a9e26260a2b00a8c4574eb2465b4da3e460cc715227e",
+        "unudhcpd_registration": "unudhcpd.usb0 is symlinked and added to the boot runlevel by postmarketos-base-openrc.post-install",
+        "sshd_runlevel": "default",
+        "sleep_plugins": [
+          "ssh-session-open",
+          "apk-running"
+        ]
+      },
+      "release_v26_06": {
+        "branch": "v26.06",
+        "commit": "2a8621d64d91647f7362eac59e7cdc091ff2bba8",
+        "commit_date": "2026-10-23",
+        "license": "GPL-3.0",
+        "postmarketos_base_openrc_post_install_sha256": "bce6954be044d63955d3e47fcdc334e4f5e24d053bf3898c1d37b92d7c4a969a",
+        "postmarketos_base_ui_apkbuild_sha256": "2acb0df293ca023410f880db0d5b2371ef86a1bf72863d79b739ef098afe14a0",
+        "sleep_inhibitor_sha256": "9c6ca8ecb04ca042abab57d0f1b44ac2dbcfbc5d9f1962185a1bcfe3b51cab99",
+        "tinydm_conf_sha256": "d6f30a17345ffef2c1dee5484891d0a3d8c16ac8c5f8c9f0d104d5056651973e",
+        "unudhcpd_registration": false,
+        "difference": "v26.06 still follows the older initramfs-managed USB network path; main adds the OpenRC-managed unudhcpd.usb0 unit"
+      },
+      "previous_release_v25_12": {
+        "branch": "v25.12",
+        "commit": "70624fdb1b26e77ef1e2c1ced074c91e9e0c1dff",
+        "commit_date": "2026-08-05",
+        "content_audited": false,
+        "scope": "branch tip recorded only; not used as the current baseline"
+      }
+    },
+    "realme_official": {
+      "repo_url": "https://github.com/realme-kernel-opensource/realmeX2Pro-kernel-source",
+      "commit": "9668fcdc6ec15be7a10d66f7b93c347829e0fdb6",
+      "commit_date": "2020-02-20",
+      "kernel_version": "4.14.83",
+      "license": "GPL-2.0 root COPYING and file-level SPDX; GitHub metadata Other/NOASSERTION",
+      "copying_sha256": "af8067302947c01fd9eee72befa54c7e3ef8a48fecde7fd71277f2290b2bf0f7",
+      "makefile_sha256": "2f1c5b7cae27977a2567a0a3f9cb586ebf152d2223fb961b6a5091ed36c8c43c",
+      "project_selector_sha256": "b47e02d37e109167ebccc2427fff65099c9f42c82a6f2eaacb56a54de8d24f10",
+      "candidate_project_dir": "arch/arm64/boot/dts/19688",
+      "matching_evidence": [
+        "19688/sm8150-sdx50m-mtp-overlay.dts declares oppo,prjversion = <1 19688>",
+        "19688/sm8150-mtp-overlay.dts declares oppo,prjversion = <1 19688>",
+        "19688 contains dsi-panel-samsung-sofef03f-m-amoled-dsc-fhd-plus-90fps-cmd.dtsi",
+        "19371 does not contain that panel selection",
+        "SM8150 plus the SOFEF03F 1080x2400@90Hz panel matches the RMX1931 hardware profile"
+      ],
+      "model_string_confirmed": false,
+      "model_confidence": "high by project selector, SoC and panel; no direct RMX1931 string in kernel DTS",
+      "source_hashes": {
+        "dts_makefile_sha256": "f8f96e3184e769a5ab9dce0a2d4b3534dcfed77d92e7828f2e1c3c4643a939e2",
+        "sdx50m_overlay_sha256": "897df693386d400005e837deb7d5c7d1a19543d7595b6f8ce5b6032b24ee4b53",
+        "mtp_overlay_sha256": "af3d9ce2afb1031e89f1586b309b6aa9d4be85bee631e2499abefbf9ca4b4418",
+        "usb_dtsi_sha256": "7a0cfb877e91bce2118b0a650acc2bde3377bc7e410e9ad0c2147735691d8dab",
+        "pmic_overlay_sha256": "9e2a55af50741c585098b8feaaa6f0d2e6518be5160ef2c3f66a1d63705d628a",
+        "panel_dtsi_sha256": "b3c5992ff79ab430a7117153e86121bded5d64401b94a54faa323ee22b1bfe90"
+      }
+    },
+    "extracted_design": {
+      "L2_board": "realme 19688 supplies PM8150B/PM8008/CCI/CSI/panel/pinctrl/regulator and peripheral wiring facts only",
+      "L3_kernel": "mainline DWC3, CAMSS/CCI, V4L2, DRM, power_supply, input and netdev replace vendor Android driver interfaces",
+      "L4_uapi": "UDC/configfs, V4L2 media/video, netdev, DRM/KMS, power_supply, evdev and sysfs; no private ioctl exported",
+      "L5_services": "pmaports base/base-ui service ownership; local board services remain thin",
+      "L6_packages": "signed samurai-platform/samurai-desktop packages select Plasma Mobile and expose only board defaults",
+      "L7_desktop": "official tinydm/Plasma/KScreen/PowerDevil/portal boundaries; board 90Hz panel and power-key bridge remain thin local adapters"
+    },
+    "official_vs_local": {
+      "unudhcpd_vs_dnsmasq": "official main rootfs unudhcpd defaults to 172.16.41.1/172.16.42.2; local keeps dnsmasq 10.42.0.1/24 and 169.254.42.1/16 for known_hosts, routes and existing scripts; migration is a separate online candidate",
+      "sshd": "official main adds sshd to default; local starts sshd in boot but keeps it independent of samurai-usb",
+      "networkmanager": "official base-ui installs and enables the distribution NetworkManager; local keeps NetworkManager independent of samurai-radio and observes wlan0 through standard interfaces",
+      "wpa_supplicant": "official config only supplies the driver arguments; local adds soft rc_use/rc_after ordering behind samurai-radio",
+      "modemmanager": "official config only supplies the quick-suspend option; local keeps optional rc_use/rc_after ordering behind samurai-radio",
+      "tinydm": "official config has no optional-hardware rc_need/rc_after; local r10 has rc_need=dbus elogind and rc_use=iio-sensor-proxy samurai-sleep-inhibitor",
+      "sleep_inhibitor": "official and local defaults both use ssh-session-open and apk-running; the local USB carrier guard is explicit opt-in",
+      "realme_vendor": "vendor 4.14 DWC3/camera/charger interfaces are board evidence only; mainline 7.3.1 uses standard models and APIs"
+    },
+    "packages_r20_r10": {
+      "platform": {
+        "version": "5-r20",
+        "apk": "E:/edk2-samurai-out/standard-arm64-v731/official-policy-20261108-r10-final/samurai-platform-5-r20.apk",
+        "bytes": 17410,
+        "sha256": "c7481c502cfb0b59dbb9fbeb64a37914b6edace0aad32a4d86a01d24d7a4dcdc"
+      },
+      "desktop": {
+        "version": "4-r10",
+        "apk": "E:/edk2-samurai-out/standard-arm64-v731/official-policy-20261108-r10-final/samurai-desktop-4-r10.apk",
+        "bytes": 8403,
+        "sha256": "931ccbdde64d5e25ce735fbb7750de57f88f66ad85e70728560b23092c129043",
+        "fix": "remove both sleep-inhibitor and samurai-sleep-inhibitor from historical tinydm rc_need"
+      },
+      "package_manifest": {
+        "path": "E:/edk2-samurai-out/standard-arm64-v731/official-policy-20261108-r10-final/package-manifest.json",
+        "bytes": 9905,
+        "sha256": "ab45b2f7e4f73bfbe6a8845e5d3e12084f94069c947091a0b717a0e45b75ec8c"
+      },
+      "index": {
+        "path": "E:/edk2-samurai-out/standard-arm64-v731/official-policy-20261108-r10-final/packages.adb",
+        "bytes": 1771,
+        "sha256": "77bb3794c8457eb8c26b4da5a63837f9348c820eb5b72bc3c8a8b89f69ee5603"
+      },
+      "source_archive": {
+        "path": "E:/edk2-samurai-out/standard-arm64-v731/official-policy-20261108-r10-final/packages-r10-source-20261108.tar.gz",
+        "bytes": 484122,
+        "sha256": "715145237c3097b084bac9303208bd5f5a743e3483afdad3927006839bab9c6b"
+      },
+      "apk_verify": "OK for all four APKs and packages.adb",
+      "device_install": true,
+      "device_install_command": "apk add --no-network",
+      "boot_id": "849bdfb8-1adf-420f-ba1c-bcded615f25b",
+      "release": "7.3.1-rmx1931-samurai-v731",
+      "tainted": 0,
+      "wifi_ssh_recovery_seconds_after_reboot_request": 52.8,
+      "boot_kind": "ordinary reboot; external-power-removed cold boot remains unverified"
+    },
+    "device_verification": {
+      "network_timeline": {
+        "path": "E:/edk2-samurai-out/standard-arm64-v731/official-policy-20261108-r10-final/device-post-reboot-20261108/network-startup-timeline-post-reboot.txt",
+        "bytes": 33297,
+        "sha256": "3b2b6c3c28778b98e839ab03cdc25287eea57d244c6e433bb824a67fe0ac6331",
+        "wifi_associated_at_device_uptime_seconds": 24.089,
+        "wifi_ready_marker_uptime_seconds": 18.45
+      },
+      "service_boundaries": {
+        "path": "E:/edk2-samurai-out/standard-arm64-v731/official-policy-20261108-r10-final/device-post-reboot-20261108/service-boundaries-post-reboot.txt",
+        "bytes": 2037,
+        "sha256": "1699b49e41e73bdd5d834c932e5a8b117a96c009d20eafd3e0414f26f2d30ec5",
+        "result": "all package/config/service checks passed; only UDC state=default and usb0 carrier=0 failed"
+      },
+      "runtime": {
+        "path": "E:/edk2-samurai-out/standard-arm64-v731/official-policy-20261108-r10-final/device-post-reboot-20261108/runtime-post-reboot-usbfifo-r10.json",
+        "bytes": 3406,
+        "sha256": "30140286367ff5ec82e445e8e40bb44fad89f0e45f45b9d8d694efc34115373e",
+        "profile": "usb-fifo-standard-rootfs",
+        "result": "all checks passed except udc_configured=false"
+      },
+      "desktop_boundaries": {
+        "path": "E:/edk2-samurai-out/standard-arm64-v731/official-policy-20261108-r10-final/device-post-reboot-20261108/desktop-boundaries-post-reboot.txt",
+        "bytes": 926,
+        "sha256": "9a70d58d4de5daea079e118e43358fe4a3b7b20a827f84b4f1b5affe1dcc3ac1",
+        "result": "passed"
+      },
+      "plasma_mobile": {
+        "path": "E:/edk2-samurai-out/standard-arm64-v731/official-policy-20261108-r10-final/device-post-reboot-20261108/plasma-mobile-post-reboot.txt",
+        "bytes": 1695,
+        "sha256": "390a2595ce1f4e1fef36a66c14de49fc35307439fdcaf4823aa2d09bec5bc021",
+        "result": "passed"
+      },
+      "usb_failure_before_direct_port": {
+        "phase": "historical: before host enumeration; not a NCM/DHCP/SSH failure",
+        "power_supply": "mp2650-input online=1, about 4.475 V / 200 mA",
+        "udc_state": "default",
+        "dwc3_link_state": "Suspend",
+        "usb0_carrier": 0,
+        "dwc3_qcom_rebind": "bind/unbind returned success but did not change UDC state or link state",
+        "windows_host": "no new 0525:a4a1 or VID_0000 phone attach in the 48-hour System/USBHub history",
+        "current_hub_observation": "1A40 hub ports 3/4 were occupied by an audio device and IR camera, not the phone",
+        "superseded_by": "A direct rear motherboard port restored enumeration; the NCM qmult=20 persistence and 30-minute matrix then passed on boot d5cfa04f."
+      }
+    },
+    "remaining_differences": [
+      "The local USB network remains 10.42.0.1/24 plus 169.254.42.1/16; official main uses rootfs unudhcpd 172.16.41.1/.42.2 and initramfs uses 172.16.42.1/.42.2",
+      "The local sshd boot runlevel is earlier than the official default runlevel but preserves the same standard OpenSSH service",
+      "The local 90Hz panel and Plasma power-key bridge remain board-specific thin adapters",
+      "The realme vendor USB/camera/charger code is 4.14 Android and is not used as a mainline ABI"
+    ],
+    "limitations": [
+      "No external-power-removed cold boot or multi-host USB test is available yet",
+      "The direct motherboard port enumerates and passes, but the old Genesys hub port remains a separate failed path",
+      "The camera-final boot is running and the r21 package is installed; the older usb-fifo-standard-rootfs profile remains rollback evidence",
+      "The realme project directory is high-confidence rather than string-confirmed RMX1931"
+    ]
+  },
   "open_items": [
-    "The embedded test initramfs contains local test credentials and must not be published as a generic image.",
-    "Cold power-loss boot, suspend/resume and 90 Hz switching were not re-verified in this source-controlled image.",
-    "The same DTB was not booted across RAM/UFS SKU variants.",
-    "RPMh ret=-95 read diagnostics remain noisy even though boot and runtime are healthy.",
-    "The probe-independent standard ESP/BDS fallback path and persistent UEFI variables are not implemented.",
-    "Camera and managed high-voltage charging remain separate future profiles."
+    "The PM8150L rear flash/V4L2 pair is deployed from Linux and passed the runtime gate before and after an ordinary reboot: boot 5b4dd487…, FAT c99c690e…, DTB b244b3f1…, 774 baseline modules (777 after Bluetooth), white:flash and V4L2 controls present, torch at 200000 uA, S5KGW1 RAW mean +130%, faults 0, CAMSS suspended and taint 0. External-power-removed cold boot, repeated cold boots and long thermal endurance remain unverified.",
+    "The final private-status removal Image f8d89621… and FAT 1f4bbb30… were written from Linux with the unchanged boot 5b4dd487… and flash/V4L2 DTB b244b3f1…, then passed two ordinary reboots and two full 777-module runtime gates. All three MAX98937/AW8697 status nodes are absent; standard ALSA playback/capture and AW8697 input/FF remain present; four-camera RAW, flash/V4L2, Bluetooth, NFC, thermal and network gates pass with taint 0. Cold boot remains unverified.",
+    "A suspend attempt on boot 2b17a67a… armed the PMIC RTC directly through sysfs and issued loginctl suspend. NCM/Wi-Fi did not return within 140 seconds and the phone remained absent from Windows USB and fastboot. This is not a suspend pass. The earlier accepted s2idle run used rtcwake; after physical wake, capture /tmp/samurai-suspend-test.log and suspend_stats before retrying with rtcwake under a recoverable setup.",
+    "The signed samurai-platform 5-r22 is installed with Alpine neard-openrc and neard 0.20 while retaining the mainline nxp-nci-i2c node. After an ordinary reboot, nfc0 is present, neard starts from the default runlevel, the org.freedesktop.DBus.Properties and org.neard.Adapter methods work, power and polling start/stop cleanly, and the 777-module runtime gate passes. No physical tag was available, so TagFound/read/write, eSE, cold boot and long NFC power remain unverified.",
+    "The signed samurai-bluetooth-host 0.1.0-r0 package is installed and passed an ordinary reboot: bnep, uhid and uinput auto-loaded through the standard boot path, /dev/uhid and /dev/uinput open, the BNEP socket family is registered, BlueZ exposes hci0, and the full 777-module runtime gate passed with taint 0. External PAN/HID peers, cold boot and suspend/resume with active peers remain unverified.",
+    "The camera-final boot and the r21 network checkpoint passed an ordinary reboot, a 24/24 bidirectional NCM matrix with 1798.828 seconds of heartbeat, 1810 Wi-Fi SSH samples over 1820.51 seconds, and the full runtime/CAMSS/RAW gate on boot d5cfa04f. The later flash-LED/V4L2 deployment repeated the ordinary-reboot network and RAW/runtime gate on boot 364abb2c. External-power-removed cold boot and repeated cold boots remain unverified.",
+    "The current success is on a direct motherboard USB port and the Windows UsbNcm host. A Linux host, longer idle, larger continuous transfers, OTG/role switching and the old Genesys hub port remain separate acceptance cases.",
+    "NCM qmult=20 is now applied by samurai-platform 5-r21 on a fresh configfs gadget. A diagnostic initramfs that has already created the old gadget requires a reboot before the kernel-side request queue can change; the script will not hot-unbind a working NCM link.",
+    "WCN3990 firmware still reports no valid permanent MAC and ath10k logs \"invalid MAC address; choosing random\" at probe. The board helper reads the same-handset DMS identity and applies a stable Wi-Fi address (Bluetooth address is a separate same-handset value) before association; the same address is present in earlier boot logs. This does not write a permanent MAC into hardware, and the DMS query remains a thin vendor-data dependency.",
+    "The UEFI standard boot candidate is offline built but not flashed; GRUB execution, file-based volume discovery, root mount and rollback are unverified. Persistent UEFI variables are still not implemented.",
+    "The clock RBCPR candidate is offline built and object-proof verified but not flashed; it must boot without clk_ignore_unused and expose CLK_IS_CRITICAL before the constraint can be removed. The no-clk_ignore_unused live-FDT kexec preflight left the handset unreachable and is not a safe unattended path.",
+    "A no-kexec /dev/mem GCC gate sweep fallback is prepared but not yet run on hardware.",
+    "The fastboot warm-reboot USB enumeration workaround (clean NCM unbind before RESTART2) is prepared; the direct-port path removed the current enumeration failure, so the workaround still needs repeated warm-reboot evidence before it can be called a formal fix.",
+    "NFC tag I/O and fingerprint authentication still need end-to-end hardware validation. The NFC controller is bound, but no tag was available; the fingerprint sensor still has no mainline functional node/authentication chain.",
+    "The libcamera simple pipeline enumerated all four cameras and captured one 640x480 RGB888 frame from each. The unattended scene was mostly dark, so this proves the standard userspace path but not image quality, AF/AWB/LSC, recording, concurrent streams or thermal behavior.",
+    "Audio capture through the active user's PulseAudio/ALSA mic path passed 61.979979 seconds (2,975,039 samples, RMS 15.053, 0% clipping, empty stderr); headset/buttons, audio quality, SSR and long PM remain open.",
+    "NFC tag I/O, high-voltage charging, deep sleep, manual power-key cold boot and long-duration power measurement remain open. Managed high-voltage charging stays a separate profile.",
+    "The camera test initramfs and private scene RAW files must not be published.",
+    "The same DTB was not booted across RAM/UFS SKU variants, and the camera userspace stack has not been qualified on a second host/display configuration."
   ]
 }

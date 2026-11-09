@@ -93,6 +93,11 @@ chassis-type = "handset";
 这些节点可以增加可选属性，但不能在没有新 `compatible` 或明确迁移方案
 的情况下重命名或删除。
 
+USB DWC3 节点使用主线的 `tx-fifo-resize` 布尔属性。它由
+`snps,dwc3-common.yaml` 定义、由 DWC3 core 的标准 device-property
+路径读取，用于动态分配 TX FIFO；它不改变 `reg`、PHY、角色或 UAPI，
+已列入 `allowed_additive_properties`，并通过 4 MiB 双向 NCM 长测。
+
 `sensor-power` 当前使用 `qcom,rproc = <&remoteproc_slpi>`，由板级
 sequencer 注册通用 `rproc_subdev`：`prepare` 按 VDD → 10 ms → VDDIO
 上电，`unprepare` 反向关断。它不再把 sensor rail 表达成 PAS proxy
@@ -248,9 +253,9 @@ DTB payload；但后续复核发现 `BdsDxe` 长度从 110690 B 变为 114786 B�
 如果需要保留这些运行时行为，必须另做 experiment profile，不能把
 canonical 激活和实验激活混为一次改动。
 
-这不是把充电、相机或调试项批准为稳定 ABI，而是给下一步的 overlay/
-固件输入划定边界。任何一项要进入公共 OS DTB，必须另有驱动消费者、
-双内核和实机验收证据。
+相机 ICP userspace、受管高压充电和调试项仍保持独立 profile。标准
+V4L2/CAMSS 的四个 RAW sensor 与 CCI/PM8008 接线已进入当前 manifest；
+任何新增公共 ABI 仍必须另有驱动消费者、双内核和实机验收证据。
 
 ## 5. 兼容性规则
 
@@ -275,9 +280,11 @@ canonical 激活和实验激活混为一次改动。
 ### 5.1 机器可读 ABI 闸门
 
 上面的规则已经落成机器可读 manifest：
-[`samurai-dt-v1-abi.json`](samurai-dt-v1-abi.json)。它绑定 11 个资源组
-（UFS、显示、触摸、音量键、燃料计、振动、音频、sensor-power、USB、
-Type-C），列出稳定属性、驱动消费者和 UAPI，并固定
+[`samurai-dt-v1-abi.json`](samurai-dt-v1-abi.json)。它绑定 24 个资源组
+（UFS、显示、触摸、音量键、燃料计、充电、振动、音频、sensor-power、
+USB、Type-C，以及两个 CCI、CAMSS、PM8150L 闪光灯、四个 sensor、
+镜头和两个 PM8008），
+列出稳定属性、驱动消费者和 UAPI，并固定
 `reserved-memory` 的直接子节点与关键字段。
 
 离线检查器：
@@ -319,8 +326,25 @@ ABI 冻结。
   27/27，0 个未分类，0 个新增公共 ABI。
 - [x] 独立实验 DTSI 离线重建 DTB `c582dd7c...a64f`，与部署的
   `9736b861...` 语义属性差异为 0，仅有一个未消费 phandle 差异。
-- [x] `samurai-dt-v1-abi.json` 的 11 个资源组、24 个保留内存子节点
+- [x] `samurai-dt-v1-abi.json` 的 24 个资源组、24 个保留内存子节点
   和允许加法清单通过离线检查器；已知实验/vendor/改值样本按预期被拒绝。
+- [x] PM8150L flash/V4L2 候选 `b244b3f1...` 的语义差异为 controller
+  `status=okay`、新增 `led-0` 和 S5KGW1 标准 `flash-leds` 链接；
+  `qcom,rproc` 的 phandle 重编号归一化后目标不变；24 资源 contract
+  和自测通过；
+- [x] boot `5b4dd487...` 与 thin-private FAT `1f4bbb30...` 已由运行中的 Linux
+  通过 `/dev/sde11`、`/dev/sde32` 成对写入并回读；没有使用 fastboot；
+- [x] 最终 Image `f8d89621...` 删除两个 MAX98937 和一个 AW8697 的
+  自定义 `status`；boot `5b4dd487...` 和 DTB `b244b3f1...` 不变；
+- [x] 同一 boot 周期内 LED class、`white:flash` 媒体实体、V4L2 flash
+  控制、200 mA torch、S5KGW1 开灯 RAW 亮度提升和清理后 faults 0 均通过；
+- [x] 两次普通重启后 boot/FAT/DTB/777 模块哈希不变，完整 runtime gate、
+  三处 status 删除、标准 ALSA/input/ff、四路 RAW、Wi‑Fi/NCM/SSH 和
+  taint 0 通过。
+- [ ] 一次 `loginctl` + 直接 sysfs RTC alarm 的 suspend 尝试未恢复设备；
+  该结果不计为 suspend/resume 通过，需物理唤醒后用 `rtcwake` 复测。
+- [ ] 拔除外部供电后的物理按键冷启动、重复冷启动和闪光灯长时间热升
+  仍未验收；普通重启不能替代冷启动。
 
 ### 6.2 启动后
 
@@ -328,7 +352,9 @@ ABI 冻结。
   `qcom,sm8150`；
 - [x] 本次输入 DTB 与 `/sys/firmware/fdt` 的稳定节点一致，差异只在
   `/memory`、`/chosen` 和已记录的白名单；
-- [ ] UFS、显示、触摸、USB、音频、传感器等已支持项仍能绑定；
+- [x] UFS、显示、触摸、USB、音频、传感器、PM8008、CCI、CAMSS 和
+  四个 camera sensor 在同一启动周期内绑定；
+- [x] 四路 camera 分别产生两张完整、非全零且帧间有变化的私有 RAW；
 - [ ] EUD/console 和 pstore 仍可用；
 - [x] USB NCM/SSH 仍可用；
 - [x] 失败时可回到上一份 boot image/DTB，不依赖重装 rootfs；
@@ -344,16 +370,15 @@ ABI 冻结。
 
 ## 7. 当前状态
 
-本文件目前是 **v1 草案**，尚未完成：
+本文件目前绑定 Linux v7.3.1 单机运行态，但尚未冻结，尚未完成：
 
-- 规范 k363 源和源码级拆分已锁定并离线构建；源码构建的 OS DTB
-  的 in-place 最小 boot 候选 `3e83798e...` 已通过离线零非 DTB body
-  变化检查，但尚未刷入设备；
-- 机器可读 ABI manifest、检查器和自测已落地；`samurai-dt-v1` 仍为
-  `draft_offline_checked_not_runtime_verified`，不能把离线闸门通过
-  写成 ABI 冻结；
-- 当前 boot 的充电/相机/EUD 实验 DTB 与规范 k363 DTB 的差异已经
-  分类，并已由独立实验 DTSI 重建为语义相同的 DTB；但它们尚未激活；
+- 规范 v7.3.1 源、配置、两段源码补丁和最小 boot 收据已锁定；
+  camera 标准路径已进入 DTB 契约，并在最终 camera boot 的三个启动周期
+  完成四路 RAW 验收；
+- 机器可读 ABI manifest、检查器和自测已落地；`samurai-dt-v1` 当前为
+  `flash_led_v4l2_runtime_verified_ordinary_reboot_cold_boot_pending`，
+  flash/V4L2 已在真机和普通重启后验收，但仍不能写成多 SKU 或冷启动
+  已冻结；
 - k270 实际 boot DTB `429db1fa...` 到候选 `f7959f8a...` 的离线语义
   矩阵为 0 个值变化、12 个新增相机节点、3 个新增 CCI 属性、3 个
   vendor 根属性删除；这是加法兼容证据，不是运行态启动证据，详见
@@ -361,13 +386,15 @@ ABI 冻结。
 - 候选 `/memory@80000000` 的 `reg` 是零大小占位，静态审计没有发现
   `userdata` 或容量属性；这只能证明 DTB 没有写死 RAM/存储容量，不能
   替代 6/8/12 GiB、64/128/256 GB 的实际启动；
-- L3-02 的 OS-only 可选属性 DTB `89604b9c...d570` 已离线构建，并由
-  boot 载体 `15f9e4d5...443f` 验证只有 DTB FFS body 变化；尚未刷入；
-- 调试 `bootargs` 仍在共享 OS 源码；
-- `samurai-dt-v1` 尚未绑定最终 boot 产物；
+- L3-02 的旧候选取代链已退出当前部署；最终 sensor-power 生命周期为
+  通用 remoteproc prepare/unprepare subdevice；
+- 生产 DTS wrapper 删除调试 `bootargs`；当前 UEFI LoadOptions 只保留
+  经逐项删除实验后的 `console=tty0 loglevel=4 panic=15 clk_ignore_unused`；
+- `samurai-dt-v1` 已绑定最终 v7.3.1 Image、DTB、modules、BDS 和候选
+  boot 产物 SHA-256；
 - 离线 k270/k363 DTB 语义矩阵已完成，但两个内核都尚未用候选 DTB
   实际启动；同型号多 SKU 的启动矩阵也尚未完成。
 
-在独立实验 profile 的运行时策略、k270/k363 运行态启动、SKU 矩阵以及
-G3 实装完成之前，不应把本契约标记为“已冻结”。`3e83798e...` 只证明
-载体是单变量，不证明它在运行态能恢复全部功能，也不替代这些矩阵。
+在断电冷启动、k270/k363 运行态启动、SKU 矩阵以及 G3 实装完成之前，
+不应把本契约标记为“已冻结”。最终 boot 的三次启动和四路 camera RAW
+通过不替代这些矩阵。

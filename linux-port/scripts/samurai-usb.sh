@@ -3,21 +3,48 @@
 # No storage export, routing, EUD register writes, or charging controls.
 set -eu
 g=/sys/kernel/config/usb_gadget/samurai
-udc=a600000.usb
+udc_dir=${SAMURAI_UDC_DIR:-/sys/class/udc}
+udc=
 address=169.254.42.1
 pidfile=/run/samurai-dropbear.pid
 
+discover_udc() {
+    if [ -n "${SAMURAI_UDC:-}" ]; then
+        udc=$SAMURAI_UDC
+        [ -e "$udc_dir/$udc" ] ||
+            { echo "[usb] selected UDC unavailable: $udc" >&2; exit 1; }
+        return
+    fi
+    if [ -e "$udc_dir/a600000.usb" ]; then
+        udc=a600000.usb
+        return
+    fi
+    selected=
+    for candidate in "$udc_dir"/*; do
+        [ -e "$candidate" ] || continue
+        [ -z "$selected" ] ||
+            { echo "[usb] multiple UDCs; set SAMURAI_UDC" >&2; exit 1; }
+        selected=${candidate##*/}
+    done
+    [ -n "$selected" ] ||
+        { echo "[usb] no UDC found in $udc_dir" >&2; exit 1; }
+    udc=$selected
+}
+
+discover_udc
+
 status() {
-    cat /sys/class/udc/$udc/state /sys/class/udc/$udc/current_speed
+    cat "$udc_dir/$udc/state" "$udc_dir/$udc/current_speed"
     [ ! -d "$g" ] || cat "$g/UDC"
     ip addr show usb0
     [ ! -f "$pidfile" ] || cat "$pidfile"
 }
 
 case ${1:-start} in
+discover) printf '%s\n' "$udc"; exit ;;
 status) status; exit ;;
 start) ;;
-*) echo 'Usage: samurai-usb start|status' >&2; exit 2 ;;
+*) echo 'Usage: samurai-usb start|status|discover' >&2; exit 2 ;;
 esac
 
 mkdir -p /run /dev/pts /etc/dropbear
@@ -29,7 +56,7 @@ if [ -f "$pidfile" ] && kill -0 "$(cat "$pidfile")" 2>/dev/null; then
     exit
 fi
 count=0
-while [ ! -e "/sys/class/udc/$udc" ]; do
+while [ ! -e "$udc_dir/$udc" ]; do
     count=$((count + 1))
     [ "$count" -le 30 ] || { echo '[usb] UDC unavailable'; exit 1; }
     sleep 1

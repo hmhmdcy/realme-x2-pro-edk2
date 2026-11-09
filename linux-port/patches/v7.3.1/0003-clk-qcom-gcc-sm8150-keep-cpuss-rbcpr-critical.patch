@@ -1,0 +1,23 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Codex <codex@localhost>
+Date: Sun, 8 Nov 2026 00:00:00 +0800
+Subject: [PATCH] clk: qcom: gcc-sm8150: keep CPUSS RBCPR clock critical
+
+The production clk_summary shows gcc_cpuss_rbcpr_clk enabled in hardware
+with no Linux consumer.  It is the only unmarked CPUSS-related gate in that
+set; gcc_cpuss_dvm_bus_clk and gcc_cpuss_gnoc_clk are already critical.
+
+This is an unverified candidate for the observed failure when
+clk_ignore_unused is removed.  It must not be treated as a fix until the
+candidate boots on the handset without the command-line safety flag.
+
+--- a/drivers/clk/qcom/gcc-sm8150.c
++++ b/drivers/clk/qcom/gcc-sm8150.c
+@@ -1379,6 +1379,7 @@ static struct clk_branch gcc_cpuss_rbcpr_clk = {
+ 		.enable_mask = BIT(0),
+ 		.hw.init = &(struct clk_init_data){
+ 			.name = "gcc_cpuss_rbcpr_clk",
++			.flags = CLK_IS_CRITICAL,
+ 			.ops = &clk_branch2_ops,
+ 		},
+ 	},

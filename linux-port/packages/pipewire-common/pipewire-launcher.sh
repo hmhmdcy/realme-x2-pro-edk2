@@ -17,8 +17,17 @@ pkill -u "${USER}" -fx /usr/bin/pipewire 1>/dev/null 2>&1
 
 exec /usr/bin/pipewire &
 
-# wait for pipewire to start before attempting to start related daemons
-while [ "$(pgrep -f /usr/bin/pipewire)" = "" ]; do
+# Wait for the daemon with a bounded failure window. A failed audio daemon
+# must not leave the desktop session's autostart process waiting forever.
+wait_limit=${SAMURAI_PIPEWIRE_START_WAIT:-15}
+case "$wait_limit" in ''|*[!0-9]*|0) wait_limit=15;; esac
+attempt=0
+while ! pgrep -x pipewire >/dev/null 2>&1; do
+	attempt=$((attempt + 1))
+	if [ "$attempt" -ge "$wait_limit" ]; then
+		echo "pipewire did not start within ${wait_limit}s" >&2
+		exit 1
+	fi
 	sleep 1
 done
 

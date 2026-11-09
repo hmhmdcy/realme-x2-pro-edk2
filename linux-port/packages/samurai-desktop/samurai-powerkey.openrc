@@ -1,0 +1,13 @@
+#!/sbin/openrc-run
+supervisor="supervise-daemon"
+description="Exclusive power-key and KScreen DPMS bridge"
+command="/usr/libexec/samurai-powerkey"
+output_log="/var/log/samurai-powerkey.log"
+error_log="/var/log/samurai-powerkey.log"
+respawn_delay=2
+respawn_max=0
+
+depend() {
+	use dbus elogind
+	after tinydm
+}

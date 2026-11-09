@@ -1,0 +1,7 @@
+# ModemManager is owned by OpenRC on this image.  Without this override,
+# a desktop client can activate an unmanaged copy before the OpenRC service
+# starts, after which the service cannot acquire the system-bus name.
+[D-BUS Service]
+Name=org.freedesktop.ModemManager1
+Exec=/bin/false
+User=root

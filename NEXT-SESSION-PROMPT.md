@@ -1,9 +1,24 @@
-相机／骁龙ISP按用户要求暂停，先完成充电；本次仅文档与提交，不恢复设备/SDK/构建。先读NEXT及reference/kernel491/HANDOFF.md。未明确恢复前不申请相机窗口。
+# 当前目标（2026-11-09）
 
-正式相机基线：484实装r33/r28，441三ISP KO＋468 sensor／四原厂profile；真实升级→r32/r27精确回退→再升级，3 native APK exit0。14例Gst256、RAW24、dual12，268IPE=242math+26bootstrap，实际/usr签名/UID/maps/lease过。
+Wi‑Fi/NCM/SSH 已修复，仅保留为每次平台/内核变更后的强制回归门禁；
+继续用 Linux v7.3.1 主线模型/API 适配其余硬件。
 
-489 core b345af8b…8bdd仅两对象：487原厂属性＋488格式，485 Meson去RUNPATH。IPA6/签名/proxy/base/数学/KO/profile不变，ARM SDK加载/验签/路径解析过，未start CM/exec worker。490 r34/r29签名七包及精确r33回退、缓存solver过；491 package-only八例/强制恢复工具已离线验收及独审，未绑定/上传/实装，仅r1可用。
+约束不变：无人值守优先；私有代码只留无法标准化的极薄板级层；禁止
+私有 ioctl、Android/Binder 和 OOT 冒充验收；保留来源/哈希锁、可复现
+签名包、推荐路线、成对 `boot`+`logdump` 和回退；不擦写
+NV/persist/校准/userdata。
 
-441/442主摄720/1080、469长焦720、474长焦1080同帧PD10/LTM因果复用。bootstrap单遍；新工具无硬件DC/pass计数。441积压失败未关闭，479控制SOF+2不外推全局delay。
+顺序：
 
-手机归充电，当前boot/501进展以其最终记录为准。恢复须新boot/endpoint/guard/原钥及owner；核476旧363 pin，使用private481/formal-expected（1c458491…4705），不可套440或重放终态。WSL原guard/32GiB留2GiB；原厂/样本私存，selected脱敏。光学/AF/录像/热/多摄/第五未完。
+1. PM8150L 闪光灯：DTB/boot/FAT 和 verifier 已过，待 fastboot 恢复后
+   按 logdump→boot 成对刷入。
+2. 私有 `status` sysfs 删除：Image `f8d89621…`/FAT `ca205192…`
+   离线通过，未装机。
+3. NFC：Alpine `neard 0.20`/OpenRC + 主线 `nxp-nci-i2c`；
+   `samurai-platform 5-r22` 与探针已备，真实标签未验。
+4. 蓝牙 PAN/HID：`samurai-bluetooth-host 0.1.0-r0` 仅含主线
+   `bnep`/`uhid`/`uinput`；两构和隔离安装已过，autoload/外部对端/冷启动未验。
+5. 其后：音频/PM/SSR、传感器、SIM、高压充电、显示与相机 userspace。
+
+恢复设备后先读 `NEXT-SESSION.md`，确认 boot ID、`taint=0`、网络回归门禁
+和分区回读，再单变量刷入。普通 `reboot` 不等于拔电冷启动。

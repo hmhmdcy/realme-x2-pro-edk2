@@ -40,8 +40,8 @@ Boot verified on real hardware (2026-10): **PEI → DXE → BDS → Boot Manager
 | Codename | **samurai** |
 | SoC | Qualcomm **Snapdragon 855+** (SM8150-AC), msmnile |
 | PMICs | PM8150 / PM8150L / PM8150B (SPMI) |
-| RAM | 8 GiB (also sold with 12 GiB) |
-| Storage | UFS 3.0, 6 LUNs, GPT |
+| RAM | 6 / 8 / 12 GiB SKUs; project hardware evidence is on an 8 GiB unit |
+| Storage | 64 GB UFS 2.1; 128/256 GB UFS 3.0; 6 LUNs, GPT observed on the project unit |
 | Display | 6.5" 1080x2400 Super AMOLED, 90 Hz (Samsung `sofef03f_m`) |
 | Bootloader | realme/OPPO ABL (XBL). Unlocked bootloader required. **No `fastboot boot` support** - the image has to be flashed. |
 

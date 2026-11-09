@@ -1,0 +1,24 @@
+Subject: [PATCH] remoteproc: qcom_q6v5: drop unconditional Samurai ready logging
+
+The SLPI SMP2P channel carries regular traffic from other users.  The
+upstream SMEM state notifier re-raises every currently asserted bit on each
+incoming message, so a debug print in the ready interrupt turns ordinary
+QMI traffic into an uninterruptible kernel-log storm.
+
+The ready completion itself is unaffected.  Keep diagnostics out of the
+generic remoteproc path and use tracepoints or dynamic debug instead.
+
+diff --git a/drivers/remoteproc/qcom_q6v5.c b/drivers/remoteproc/qcom_q6v5.c
+--- a/drivers/remoteproc/qcom_q6v5.c
++++ b/drivers/remoteproc/qcom_q6v5.c
+@@ -197,10 +197,6 @@ static irqreturn_t q6v5_ready_interrupt(int irq, void *data)
+ {
+ 	struct qcom_q6v5 *q6v5 = data;
+ 
+-	if (of_machine_is_compatible("realme,samurai"))
+-		dev_info(q6v5->dev, "samurai Q6 ready item=%d running=%u\n",
+-			 q6v5->crash_reason, q6v5->running);
+-
+ 	complete(&q6v5->start_done);
+ 
+ 	return IRQ_HANDLED;

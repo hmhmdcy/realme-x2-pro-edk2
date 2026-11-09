@@ -153,10 +153,6 @@ platform = args.build_root / "samurai-platform"
 platform_source = PACKAGES / "samurai-platform"
 platform_files = [
     ("usr_libexec_samurai-audio-route", "usr/libexec/samurai-audio-route", 0o755),
-    ("usr_libexec_samurai-usb-sleep-guard", "usr/libexec/samurai-usb-sleep-guard", 0o755),
-    ("etc_conf.d_samurai-sleep-inhibitor", "etc/conf.d/samurai-sleep-inhibitor", 0o644),
-    ("etc_init.d_samurai-sleep-inhibitor", "etc/init.d/samurai-sleep-inhibitor", 0o755),
-    ("etc_samurai_sleep-inhibitor.conf", "etc/samurai/sleep-inhibitor.conf", 0o644),
     ("usr_sbin_samurai-bluetooth", "usr/sbin/samurai-bluetooth", 0o755),
     ("usr_sbin_samurai-modem-configs", "usr/sbin/samurai-modem-configs", 0o755),
     ("usr_sbin_samurai-modem-remoteproc", "usr/sbin/samurai-modem-remoteproc", 0o755),
@@ -167,6 +163,7 @@ platform_files = [
     ("etc_init.d_samurai-loopback", "etc/init.d/samurai-loopback", 0o755),
     ("etc_init.d_samurai-radio", "etc/init.d/samurai-radio", 0o755),
     ("etc_init.d_samurai-usb", "etc/init.d/samurai-usb", 0o755),
+    ("etc_samurai_usb-dhcp.conf", "etc/samurai/usb-dhcp.conf", 0o644),
     ("etc_NetworkManager_conf.d_20-samurai-wlan.conf", "etc/NetworkManager/conf.d/20-samurai-wlan.conf", 0o644),
     ("etc_NetworkManager_conf.d_90-samurai-usb.conf", "etc/NetworkManager/conf.d/90-samurai-usb.conf", 0o644),
     ("usr_local_share_dbus-1_system-services_org.freedesktop.ModemManager1.service", "usr/local/share/dbus-1/system-services/org.freedesktop.ModemManager1.service", 0o644),
@@ -178,7 +175,7 @@ platform_files = [
 for source, target, mode in platform_files:
     copy_file(platform_source / source, platform / target, mode)
 make_package(
-    "samurai-platform", "5-r14", "noarch", platform,
+    "samurai-platform", "5-r23", "noarch", platform,
     {
         "description": "Realme X2 Pro board-level platform and services",
         "license": "LicenseRef-Local-Project",
@@ -187,7 +184,8 @@ make_package(
         "depends": (
             "python3 openrc eudev iproute2 util-linux libqmi qmi-utils "
             "networkmanager bluez wpa_supplicant openssh-server-pam "
-            "alsa-ucm-conf alsa-utils sleep-inhibitor"),
+            "alsa-ucm-conf alsa-utils sleep-inhibitor dnsmasq "
+            "neard-openrc"),
     },
     {
         "post-install": platform_source / "samurai-platform.post-install",
@@ -198,7 +196,7 @@ pulse = args.build_root / "samurai-platform-pulse"
 copy_file(platform_source / "etc_pulse_daemon.conf.d_90-samurai.conf",
           pulse / "etc/pulse/daemon.conf.d/90-samurai.conf", 0o644)
 make_package(
-    "samurai-platform-pulse", "5-r14", "noarch", pulse,
+    "samurai-platform-pulse", "5-r15", "noarch", pulse,
     {
         "description": "PulseAudio defaults for Realme X2 Pro",
         "license": "LicenseRef-Local-Project",
@@ -216,7 +214,7 @@ copy_file(desktop_source / "samurai-powerkey.openrc",
 copy_file(desktop_source / "samurai-tinydm-stop",
           desktop / "usr/libexec/samurai-tinydm-stop", 0o755)
 make_package(
-    "samurai-desktop", "4-r7", "noarch", desktop,
+    "samurai-desktop", "4-r11", "noarch", desktop,
     {
         "description": "Realme X2 Pro Plasma Mobile defaults",
         "license": "LicenseRef-Local-Project",

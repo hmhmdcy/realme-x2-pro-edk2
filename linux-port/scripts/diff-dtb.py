@@ -44,6 +44,7 @@ def load(path):
 # Properties whose value is a list of phandles with no trailing cells.
 PHANDLE_LIST_PROPERTIES = {
     "assigned-clock-parents",
+    "flash-leds",
     "memory-region",
     "power-supplies",
 }
@@ -77,6 +78,7 @@ SINGLE_REFERENCES = {
     "qcom,camss",
     "qcom,gmu",
     "qcom,qmp",
+    "qcom,rproc",
     "realme,eud-hardware",
     "realme,usb-controller",
     "remote-endpoint",

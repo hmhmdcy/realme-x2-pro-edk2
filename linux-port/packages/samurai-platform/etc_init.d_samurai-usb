@@ -1,12 +1,17 @@
 #!/sbin/openrc-run
-description="Samurai CDC NCM at 169.254.42.1; retain the EUD channel"
+description="Samurai CDC NCM with standard DHCP; retain the EUD channel"
 depend() {
     need localmount
     after udev
-    before sshd
 }
 start() {
     ebegin "Starting Samurai USB networking"
     /usr/sbin/samurai-usb start
+    eend $?
+}
+
+stop() {
+    ebegin "Stopping Samurai USB networking"
+    /usr/sbin/samurai-usb stop
     eend $?
 }

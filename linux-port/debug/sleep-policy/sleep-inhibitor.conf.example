@@ -1,0 +1,18 @@
+# Debug-only example. Do not install as /etc/sleep-inhibitor.conf.
+plugins:
+  - path: ssh-session-open
+    name: SSH session open
+    period: .1
+    what: sleep
+
+  - path: apk-running
+    name: apk running
+    period: .1
+    what: sleep
+
+  # Optional carrier-only debug guard. Keep commented unless a bounded
+  # unattended USB maintenance session explicitly needs it.
+  # - path: /path/to/linux-port/debug/sleep-policy/usb-sleep-guard
+  #   name: USB NCM attached (debug only)
+  #   period: .1
+  #   what: sleep

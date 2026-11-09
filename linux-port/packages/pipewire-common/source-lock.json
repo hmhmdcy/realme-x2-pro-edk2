@@ -1,12 +1,12 @@
 {
   "stage": 265,
-  "version": "1.6.9-r3",
+  "version": "1.6.9-r4",
   "alpine_commit": "0afac626498565714f7a06c04589112584cc95f4",
   "upstream_recipe_files": {
     "APKBUILD": {
       "url": "https://raw.githubusercontent.com/alpinelinux/aports/0afac626498565714f7a06c04589112584cc95f4/community/pipewire/APKBUILD",
       "upstream_blob_sha256": "09f9941b7f06c4c22fa8258b9beed39be39181250dddec882d3d75ac2cfcbac9",
-      "materialized_sha256": "09f9941b7f06c4c22fa8258b9beed39be39181250dddec882d3d75ac2cfcbac9"
+      "materialized_sha256": "e29da62469e499f11134e9b3900f2d3fa0164ed0681b9a3db266c598f7ed3b01"
     },
     "pipewire.desktop": {
       "url": "https://raw.githubusercontent.com/alpinelinux/aports/0afac626498565714f7a06c04589112584cc95f4/community/pipewire/pipewire.desktop",
@@ -16,7 +16,8 @@
     "pipewire-launcher.sh": {
       "url": "https://raw.githubusercontent.com/alpinelinux/aports/0afac626498565714f7a06c04589112584cc95f4/community/pipewire/pipewire-launcher.sh",
       "upstream_blob_sha256": "6fdafc9eb9715d0b5b58354c6f34f26f14071c886500bdb1fd192ff1203dd05d",
-      "materialized_sha256": "6fdafc9eb9715d0b5b58354c6f34f26f14071c886500bdb1fd192ff1203dd05d"
+      "materialized_sha256": "2a3bc962c99786c6df0a2cfee1849f6ad6f02d5d6b1051aa7d9f08c0d8e43938cffab1751110589f5148ae83a857110f54b055bb7e9e876e8adae260afebcf31",
+      "local_override": "replace the unbounded daemon readiness loop with a bounded 15-second wait; SAMURAI_PIPEWIRE_START_WAIT may override the window"
     },
     "pipewire.initd": {
       "url": "https://raw.githubusercontent.com/alpinelinux/aports/0afac626498565714f7a06c04589112584cc95f4/community/pipewire/pipewire.initd",
@@ -57,7 +58,7 @@
     "0005-memory-region-lookup.patch": "ad8d9d05951cb64d7fb61b05b82cb096b0f942aad60e5723d4996a02ec898806",
     "0006-gst-retained-buffer-ownership.patch": "d6815436983a4fda22ccf8778476a7eb40f0dfdac9aed14e07201a1263ddbccc"
   },
-  "paired_dependency": "pipewire-spa-libcamera and gst-plugin-pipewire depend on pipewire-libs=1.6.9-r3",
+  "paired_dependency": "the source candidate moves the recipe to 1.6.9-r4; installed phone APKs remain the earlier device-proven payload until rebuilt",
   "phone_packages_built_by_incremental_source_compile_and_signed_upstream_payload_repack": true,
   "complete_abuild_recipe_prepared_not_full_build_yet": true
 }

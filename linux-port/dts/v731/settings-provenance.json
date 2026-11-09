@@ -1,0 +1,89 @@
+{
+  "schema": "samurai-settings-provenance-v1",
+  "generated": "2026-11-09",
+  "principle": "Production keeps postmarketOS/KDE defaults and only the irreducible board layer. Debug-only policy is never installed or persisted.",
+  "official_baseline": {
+    "pmaports": {
+      "commit": "b5810eb2f3b24ce380a00c54569236f5559f78b1",
+      "date": "2026-11-08",
+      "sleep_inhibitor_conf": {
+        "path": "main/postmarketos-base-ui/rootfs-etc-sleep-inhibitor.conf",
+        "plugins": [
+          "ssh-session-open",
+          "apk-running"
+        ]
+      },
+      "tinydm_conf": {
+        "path": "main/postmarketos-base-ui/rootfs-etc-conf.d-tinydm",
+        "settings": {
+          "rc_cgroup_cleanup": "yes",
+          "AUTOLOGIN_UID": 10000
+        },
+        "optional_hardware_rc_need": false
+      },
+      "elogind_post_install": "rc-update -q add sleep-inhibitor default"
+    },
+    "kde_powerdevil": {
+      "commit": "fe54e41cd789f4e7d47f5be9cde54507cd7af53e",
+      "source": "daemon/powerdevilsettingsdefaults.cpp",
+      "mobile_defaults": {
+        "auto_suspend": "Sleep",
+        "auto_suspend_idle_seconds": {
+          "AC": 900,
+          "Battery": 300,
+          "LowBattery": 300
+        },
+        "turn_off_display_idle_seconds": {
+          "AC": 600,
+          "Battery": 120,
+          "LowBattery": 60
+        }
+      },
+      "pmos_overrides_powerdevilrc": false
+    }
+  },
+  "classes": {
+    "official_default": [
+      "/etc/sleep-inhibitor.conf",
+      "sleep-inhibitor OpenRC service",
+      "/etc/conf.d/tinydm",
+      "PowerDevil upstream defaults",
+      "NetworkManager/sshd/ModemManager package boundaries"
+    ],
+    "board_required_thin": [
+      "DTS hardware description",
+      "mainline kernel board glue",
+      "firmware and NV loading paths",
+      "samurai-radio and samurai-usb hardware startup",
+      "NetworkManager board wlan0/usb0 profiles and DHCP addresses",
+      "USB gadget identity, UDC selection and qmult",
+      "samurai-powerkey bridge",
+      "samurai-tinydm-stop old KWin cgroup cleanup hook",
+      "ModemManager D-Bus single-owner override (candidate for removal if upstream fixes activation race)",
+      "ALSA UCM and udev rules",
+      "clk_ignore_unused until the missing clock consumer is fixed"
+    ],
+    "debug_only": [
+      "test-usb-ncm-stability.py elogind sleep block",
+      "USB carrier-only keep-awake helper",
+      "rtcwake suspend test",
+      "direct RTC sysfs wakealarm and loginctl suspend",
+      "verbose tracing and packet capture"
+    ]
+  },
+  "production_forbidden": [
+    "samurai-sleep-inhibitor service",
+    "/etc/samurai/sleep-inhibitor.conf",
+    "/usr/libexec/samurai-usb-sleep-guard",
+    "tinydm rc_need/rc_use overrides",
+    "powerdevilrc AutoSuspendAction=0",
+    "debug sleep guard installed as an OpenRC service"
+  ],
+  "current_overrides_to_remove": {
+    "samurai-sleep-inhibitor": "replace with upstream sleep-inhibitor in samurai-platform",
+    "usb_sleep_guard": "move to linux-port/debug/sleep-policy",
+    "tinydm_dependencies": "remove from samurai-desktop post-install",
+    "powerdevil_auto_suspend_zero": "restore KDE default on the device",
+    "sshd_boot_runlevel": "debug convenience; restore official default in a separate candidate"
+  }
+}

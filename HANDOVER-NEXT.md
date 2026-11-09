@@ -1,6 +1,6 @@
 # Realme X2 Pro 交接导航
 
-相机按用户要求暂停，进展与恢复步骤见[491交接](reference/kernel491/HANDOFF.md)。续作读[当前检查点](NEXT-SESSION.md)与[适配工作流](linux-port/docs/PORTING-WORKFLOW.md)；后文提交统计和旧阶段入口用于定位历史，不作为当前部署。
+四路相机已通过主线 CAMSS/V4L2 标准路径；PM8150L 闪光灯/V4L2 也已真机验收。2026-11-09 起 Wi‑Fi/NCM/SSH 只保留为回归门禁。最终 boot `5b4dd487…` 和 kernel FAT `c99c690e…` 由运行中的 Linux 成对写入并回读，DTB `b244b3f1…`。蓝牙 `samurai-bluetooth-host 0.1.0-r0` 已安装；NFC 使用 Alpine 官方 `neard 0.20` 和 `samurai-platform 5-r22`，`nfc0`、`neard`、D-Bus 属性、电源和轮询启停已通过。777 模块的 boot ID `3331ca80…` 上 `bnep/uhid/uinput` 自动加载，BNEP socket、`/dev/uhid`、`/dev/uinput`、BlueZ `hci0` 和完整 runtime gate 均通过，`taint=0`；最近 NCM SSH 34.688 秒、Wi‑Fi SSH 55.178 秒。私有层删除候选仍是离线候选，见[当前检查点](NEXT-SESSION.md)。没有实体 NFC 标签和外部 PAN/HID 对端，不能声称对应业务通过；真正拔电冷启动、重复冷启动、长期 suspend/sleep 和闪光灯长时间热升仍待现场条件。续作读[检查点](NEXT-SESSION.md)与[适配工作流](linux-port/docs/PORTING-WORKFLOW.md)；后文提交统计和旧阶段入口不作为当前部署。
 
 用途：兼容旧交接入口、记录仓库工具与旧节号映射。文档整理：2026-10-25；部署身份、目标状态、当前待办与回退依据统一见[当前检查点](NEXT-SESSION.md)。
 
@@ -10,7 +10,7 @@
 
 ## 1. 下一步
 
-按用户任务和[检查点的续作项](NEXT-SESSION.md#未完成)推进；相机按用户要求暂停，当前进展及恢复步骤见[491交接](reference/kernel491/HANDOFF.md)。标准单次AF与早期四摄回归见[278](reference/kernel278/README.md)，此前RAW统计见[277](reference/kernel277/README.md)，标准镜头/CCI见[276](reference/kernel276/README.md)。历史阶段的active和健康值不代表当前部署。音频任务读[音频提示词](AUDIO-NEXT-SESSION-PROMPT.txt)，完整导航见[DOCS-INDEX](DOCS-INDEX.md)。
+按用户任务和[检查点的续作项](NEXT-SESSION.md#其余未完成)推进；标准 rootfs、UEFI/GRUB 和时钟 RBCPR 候选都必须保持成对刷写和独立回退。标准单次AF与早期四摄回归见[278](reference/kernel278/README.md)，此前RAW统计见[277](reference/kernel277/README.md)，标准镜头/CCI见[276](reference/kernel276/README.md)。历史阶段的active和健康值不代表当前部署。音频任务读[音频提示词](AUDIO-NEXT-SESSION-PROMPT.txt)，完整导航见[DOCS-INDEX](DOCS-INDEX.md)。
 
 ## 2. 硬件与协议资料
 
@@ -44,7 +44,7 @@
 | 仓库文档镜像 | `Platform/Realme/sm8150` |
 | 镜像与备份输出 | `E:\edk2-samurai-out`；具体包按检查点证据选择 |
 | EUD主机工具 | `E:\eud-host` |
-| Linux源码/产物身份 | [检查点当前镜像身份](NEXT-SESSION.md#当前镜像身份)、[相机交接](reference/kernel491/HANDOFF.md) |
+| Linux源码/产物身份 | [检查点设备状态](NEXT-SESSION.md#设备状态)、[剩余候选与未验项](NEXT-SESSION.md#剩余候选与未验项)、[相机交接](reference/kernel491/HANDOFF.md) |
 
 ## 5. 工具使用依据
 

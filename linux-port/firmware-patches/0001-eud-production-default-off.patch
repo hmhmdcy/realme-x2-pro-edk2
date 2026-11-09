@@ -1,0 +1,49 @@
+Subject: [PATCH] samurai: do not enable EUD in the production default
+
+EUD takes ownership of the USB PHY and hides the DWC3 gadget.  The production
+firmware profile currently enables it unconditionally and injects the same
+choice into the Linux command line, so NCM and USB SSH never enumerate.
+
+Keep EUD as an explicit debug-only build option.  A build with
+SAMURAI_ENABLE_EUD still gets the COM FIFO and Linux early console; the normal
+build leaves the port with DWC3.
+
+--- a/Platform/Realme/sm8150/samurai.dsc
++++ b/Platform/Realme/sm8150/samurai.dsc
+@@ -17,7 +17,7 @@
+ !include Platform/Qualcomm/sm8150/sm8150.dsc
+ 
+ [BuildOptions.common]
+-  GCC:*_*_AARCH64_CC_FLAGS = -DHAS_MLVM -DENABLE_SIMPLE_INIT -DENABLE_LINUX_SIMPLE_MASS_STORAGE -DSAMURAI_ENABLE_EUD -DSAMURAI_LINUX_KERNEL
++  GCC:*_*_AARCH64_CC_FLAGS = -DHAS_MLVM -DENABLE_SIMPLE_INIT -DENABLE_LINUX_SIMPLE_MASS_STORAGE -DSAMURAI_LINUX_KERNEL
+ 
+ [PcdsFixedAtBuild.common]
+   gQcomTokenSpaceGuid.PcdMipiFrameBufferWidth|1080
+--- a/Platform/RenegadePkg/Library/PlatformBootManagerLib/PlatformBm.c
++++ b/Platform/RenegadePkg/Library/PlatformBootManagerLib/PlatformBm.c
+@@ -153,15 +153,19 @@
+ #define SAMURAI_KERNEL_FILE  L"\\Image"
+ 
+ //
+-// SAMURAI: same string as /chosen/bootargs of the device tree in
+-// FdtBlob/samurai/.  It is passed as the LoadOptions of the boot option so
+-// the log channel survives even if the device tree reaches the kernel
+-// without bootargs.  CHAR16 on purpose: the EFI stub reads LoadOptions as
+-// UTF-16 and an ASCII buffer would be decoded into garbage that *replaces*
+-// the device tree's bootargs.
++// SAMURAI: this is also the production Linux command line.  EUD owns the only
++// USB port, so it must not be enabled by the default firmware or passed to
++// Linux.  A debug build may still opt in with SAMURAI_ENABLE_EUD.  CHAR16 on
++// purpose: the EFI stub reads LoadOptions as UTF-16 and an ASCII buffer would
++// be decoded into garbage that *replaces* the device tree's bootargs.
+ //
++#ifdef SAMURAI_ENABLE_EUD
+ STATIC CHAR16  mSamuraiLinuxCmdLine[] =
+   L"earlycon=eud,mmio,0x88e0000 console=tty0 console=eud loglevel=7 ignore_loglevel panic=15 clk_ignore_unused pd_ignore_unused regulator_ignore_unused";
++#else
++STATIC CHAR16  mSamuraiLinuxCmdLine[] =
++  L"console=tty0 loglevel=7 ignore_loglevel panic=15 clk_ignore_unused pd_ignore_unused regulator_ignore_unused";
++#endif
+ 
+ /**
+   SAMURAI: register the mainline Linux kernel that lives on a file system.

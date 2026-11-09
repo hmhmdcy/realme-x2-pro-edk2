@@ -31,6 +31,22 @@ def text(path):
     return Path(path).read_text().strip()
 
 
+def legacy_power_control():
+    """Only the legacy manual driver exposed a writable state node."""
+    try:
+        return bool(POWER.stat().st_mode & 0o200)
+    except OSError:
+        return False
+
+
+def wait_power(on, timeout=5.0):
+    expected = 'vdd=1 vddio=1' if on else 'vdd=0 vddio=0'
+    deadline = time.monotonic() + timeout
+    while text(POWER) != expected and time.monotonic() < deadline:
+        time.sleep(.1)
+    return text(POWER) == expected
+
+
 def save(record):
     tmp = CONTROL / 'state.json.tmp'
     tmp.write_text(json.dumps(record, indent=2) + '\n')
@@ -75,6 +91,57 @@ def write_node(path, value):
         'transitions-private.log', timeout=16)
 
 
+def wait_text(path, expected, timeout):
+    deadline = time.monotonic() + timeout
+    while text(path) != expected and time.monotonic() < deadline:
+        time.sleep(.1)
+    return text(path) == expected
+
+
+def wait_qrtr_service(service, timeout):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            result = subprocess.run(
+                ['/usr/sbin/qrtr-lookup'],
+                capture_output=True,
+                text=True,
+                timeout=2,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            time.sleep(.1)
+            continue
+        for line in result.stdout.splitlines():
+            fields = line.split()
+            if len(fields) >= 4 and fields[0] == str(service) and fields[3] == '9':
+                return True
+        time.sleep(.1)
+    return False
+
+
+def wait_sensor(sensor, label, env, timeout):
+    name = sensor + '-readiness-private.log'
+    deadline = time.monotonic() + timeout
+    while True:
+        with (CONTROL / name).open('ab') as stream:
+            result = subprocess.run(
+                ['ssccli', '--debug', '--sensor', sensor, '--timeout', '2'],
+                stdout=stream,
+                stderr=subprocess.STDOUT,
+                timeout=20,
+                env=env,
+            )
+        data = (CONTROL / name).read_text(errors='replace')
+        if result.returncode == 0 and (
+            label + ' sensor measurement:' in data
+            and (label + ' sensor disabled').lower() in data.lower()
+        ):
+            return
+        if time.monotonic() >= deadline:
+            raise RuntimeError('No SSC readiness measurement: ' + sensor)
+        time.sleep(.25)
+
+
 def stop(record, node):
     if not record:
         require(text(node / 'state') == 'offline' and text(POWER) == 'vdd=0 vddio=0',
@@ -92,8 +159,11 @@ def stop(record, node):
             time.sleep(.1)
         require(not owned_process(record), 'File service did not exit; preserving state')
     # A missing or recycled PID is never signalled.
-    if text(POWER) != 'vdd=0 vddio=0':
-        write_node(POWER, '0')
+    if legacy_power_control():
+        if text(POWER) != 'vdd=0 vddio=0':
+            write_node(POWER, '0')
+    else:
+        require(wait_power(False), 'Sensor power domain did not turn off')
     write_node(node / 'firmware', record['original_firmware'])
     write_node(node / 'recovery', record['original_recovery'])
     record.update(started=False, stopped=True)
@@ -162,12 +232,15 @@ def start(config, record, node):
     try:
         write_node(node / 'firmware', FW)
         write_node(node / 'recovery', 'disabled')
-        write_node(POWER, '1')
-        require(text(POWER) == 'vdd=1 vddio=1', 'Sensor supply did not enable')
+        if legacy_power_control():
+            write_node(POWER, '1')
+            require(text(POWER) == 'vdd=1 vddio=1', 'Sensor supply did not enable')
         write_node(node / 'state', 'start')
-        require(text(node / 'state') == 'running', 'SLPI did not start')
+        require(wait_text(node / 'state', 'running', 30), 'SLPI did not start')
+        # Standard board drivers raise the rails from rproc_subdev.prepare().
+        require(wait_power(True), 'Sensor power domain did not enable')
         run(['modprobe', 'fastrpc'], 'modules-private.log')
-        deadline = time.monotonic() + 12
+        deadline = time.monotonic() + 90
         while not Path('/dev/fastrpc-sdsp').exists() and time.monotonic() < deadline:
             time.sleep(.1)
         require(Path('/dev/fastrpc-sdsp').is_char_device(), 'No SDSP FastRPC device')
@@ -185,7 +258,7 @@ def start(config, record, node):
         require(identity is not None and identity['exe'] == str(DAEMON), 'File server failed to exec')
         record.update(pid=daemon.pid, start_ticks=identity['start_ticks'])
         save(record)
-        time.sleep(20)
+        require(wait_qrtr_service(400, 20), 'SSC QRTR service did not appear')
         returncode = daemon.poll()
         alive_and_owned = owned_process(record)
         if returncode is not None or not alive_and_owned:
@@ -200,11 +273,7 @@ def start(config, record, node):
         env = dict(os.environ, LD_LIBRARY_PATH=str(LIBRARY.parent), LIBSSC_LIGHT_DATA_TYPE='wise_light')
         # A registered driver alone is insufficient: require a real measurement and clean disable.
         for sensor, label in [('accelerometer', 'Accelerometer'), ('light', 'Light')]:
-            name = sensor + '-readiness-private.log'
-            run(['ssccli', '--debug', '--sensor', sensor, '--timeout', '2'], name, 20, env)
-            data = (CONTROL / name).read_text(errors='replace')
-            require(label + ' sensor measurement:' in data and
-                    (label + ' sensor disabled').lower() in data.lower(), 'No SSC readiness measurement')
+            wait_sensor(sensor, label, env, 20)
         record.update(started=True)
         save(record)
     except Exception:

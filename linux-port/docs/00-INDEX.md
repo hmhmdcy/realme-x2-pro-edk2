@@ -1,12 +1,14 @@
 # Linux技术文档索引
 
-用途：技术说明和早期会话导航。整理日期：2026-11-05；当前功能与部署见[硬件清单](HARDWARE-STATUS.md)及[检查点](../../NEXT-SESSION.md)，操作规则见[WORKING-BOUNDARIES](../../WORKING-BOUNDARIES.md)。
+用途：技术说明和早期会话导航。整理日期：2026-11-09；当前功能与部署见[硬件清单](HARDWARE-STATUS.md)及[检查点](../../NEXT-SESSION.md)，操作规则见[WORKING-BOUNDARIES](../../WORKING-BOUNDARIES.md)。
 
 ## 技术说明
 
 | 文档 | 内容 |
 | --- | --- |
 | [STANDARD-ARM64-V731.md](STANDARD-ARM64-V731.md) | Linux v7.3.1 标准 ARM64 交付：源码锁、镜像哈希、两次实机启动、BDS 可复现构建与剩余缺口 |
+| [OFFICIAL-BASELINE.md](OFFICIAL-BASELINE.md) | postmarketOS pmaports main/v26.06 与 realme 官方内核的 L2–L7 分层审计、许可证、差异和取舍 |
+| [SETTINGS-PROVENANCE.md](SETTINGS-PROVENANCE.md) | 区分 postmarketOS/KDE 官方默认、板级必需薄层和仅调试设置；正式包禁用的调试策略 |
 | [PORTING-WORKFLOW.md](PORTING-WORKFLOW.md) | 原厂固件/公开仓库提取优先、增量构建、按改动验证 |
 | [LINUX-ADAPTATION-LAYERS.md](LINUX-ADAPTATION-LAYERS.md) | 七层适配模型、标准 ESP、DTB ABI、同型号安装和包边界 |
 | [LAYER-CONVERGENCE-PLAN.md](LAYER-CONVERGENCE-PLAN.md) | L2/L3/L4 工作包、G0-G4 闸门、DTB 差异账本和飞轮基线 |
@@ -22,6 +24,9 @@
 | [PLASMA-MOBILE.md](PLASMA-MOBILE.md) | Plasma Mobile 会话、D-Bus 门户、显示亮度、ModemManager、传感器与振动接口 |
 | [DESKTOP-PORTABILITY.md](DESKTOP-PORTABILITY.md) | 板级公共接口与桌面适配层边界、换桌面检查清单 |
 | [USB-NCM-SSH.md](USB-NCM-SSH.md) | USB网络、SSH/SCP与EUD共存路径 |
+| [NFC-NEARD.md](NFC-NEARD.md) | 主线 nxp-nci-i2c、Alpine neard/OpenRC 边界和真实标签验收条件 |
+| [BLUETOOTH-HOST-MODULES.md](BLUETOOTH-HOST-MODULES.md) | 主线 BNEP/UHID/uinput 模块包、官方 BlueZ 加载边界、离线签名/隔离安装和设备验收条件 |
+| [STARTUP-LATENCY-AUDIT.md](STARTUP-LATENCY-AUDIT.md) | 普通重启到 Wi‑Fi/NCM 首次 SSH 的时延、固定等待审计和剩余慢路径 |
 | [ROOTFS-F2FS-IMAGE.md](ROOTFS-F2FS-IMAGE.md) | F2FS镜像、构建与验证过程，部署范围按后续会话核对 |
 | [ROOTFS-PRESERVE-ANDROID.md](ROOTFS-PRESERVE-ANDROID.md) | 保留Android与数据的早期研究 |
 | [ANDROID-DT-REFERENCE.md](ANDROID-DT-REFERENCE.md) | 本机Android下游DTS参考来源 |

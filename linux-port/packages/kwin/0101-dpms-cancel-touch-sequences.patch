@@ -1,0 +1,52 @@
+From 325d02d2b1527319302a0820b8ad5c96a543b538 Mon Sep 17 00:00:00 2001
+From: Xaver Hugl <xaver.hugl@kde.org>
+Date: Tue, 27 Oct 2026 14:50:19 +0100
+Subject: [PATCH] dpmsinputeventfilter: cancel touch sequences when turning
+ screens off
+
+DpmsInputEventFilter returns true from touchUp() unconditionally, so
+a touch that started while the screens were on and ends after they were
+turned off never reaches ForwardInputFilter. SeatInterface keeps the
+touch point, and isTouchSequence() stays true until KWin restarts.
+While it is true, PointerInputRedirection::focusUpdatesBlocked() returns
+true: The cursor still moves, but nothing gets hover events and every
+click goes to the surface that had pointer focus when the touch began.
+
+To fix that, cancel any active touch sequence when the screens turn off,
+before the dpms filter is installed.
+
+(cherry picked from commit 3bdf5cd0640673a0dac755fcb76a76b9b80751c2)
+
+c4aac178 workspace: Cancel touch sequences when turning screens off
+
+Co-authored-by: John Doe <kde.org.unthread495@passmail.net>
+---
+ src/dpmsinputeventfilter.cpp | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/src/dpmsinputeventfilter.cpp b/src/dpmsinputeventfilter.cpp
+index d69647315a1..2a6c54a0178 100644
+--- a/src/dpmsinputeventfilter.cpp
++++ b/src/dpmsinputeventfilter.cpp
+@@ -11,6 +11,7 @@
+ #include "core/outputbackend.h"
+ #include "input_event.h"
+ #include "main.h"
++#include "touch_input.h"
+ #include "utils/keys.h"
+ #include "utils/proximitysensor.h"
+ #include "wayland_server.h"
+@@ -25,6 +26,11 @@ namespace KWin
+ DpmsInputEventFilter::DpmsInputEventFilter()
+     : InputEventFilter(InputFilterOrder::Dpms)
+ {
++    // Touch up events are swallowed while this filter is installed, so a touch sequence
++    // that started before the screens turned off would never end and block pointer focus
++    // updates. The filter is not installed yet, so the cancel reaches the seat.
++    input()->touch()->cancel();
++
+     KSharedConfig::Ptr kwinSettings = kwinApp()->config();
+     m_enableDoubleTap = kwinSettings->group(QStringLiteral("Wayland")).readEntry<bool>("DoubleTapWakeup", true);
+ 
+-- 
+GitLab

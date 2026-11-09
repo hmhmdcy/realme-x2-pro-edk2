@@ -1,0 +1,192 @@
+Subject: [PATCH] arm64: dts: qcom: sm8150: use integrated qcom,snps-dwc3
+
+Linux v7.3 already provides the integrated Qualcomm DWC3 glue binding and
+driver.  The legacy qcom,dwc3 binding is marked deprecated and models the
+wrapper and core as separate platform devices.
+
+Move both SM8150 USB instances to the integrated node so one device owns the
+core, QSCRATCH registers, PHYs and interrupts.  Keep the old labels as
+aliases so existing board DTS files continue to compile.
+
+The Realme X2 Pro has a USB 2.0 receptacle.  Select the UTMI pipe clock and
+high-speed maximum in the board layer instead of probing the unused combo
+PHY.
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8150.dtsi b/arch/arm64/boot/dts/qcom/sm8150.dtsi
+--- a/arch/arm64/boot/dts/qcom/sm8150.dtsi
++++ b/arch/arm64/boot/dts/qcom/sm8150.dtsi
+@@ -3728,14 +3728,10 @@
+ 			qcom,bcm-voters = <&apps_bcm_voter>;
+ 		};
+ 
+-		usb_1: usb@a6f8800 {
+-			compatible = "qcom,sm8150-dwc3", "qcom,dwc3";
+-			reg = <0 0x0a6f8800 0 0x400>;
++		usb_1: usb_1_dwc3: usb@a600000 {
++			compatible = "qcom,sm8150-dwc3", "qcom,snps-dwc3";
++			reg = <0 0x0a600000 0 0xfc100>;
+ 			status = "disabled";
+-			#address-cells = <2>;
+-			#size-cells = <2>;
+-			ranges;
+-			dma-ranges;
+ 
+ 			clocks = <&gcc GCC_CFG_NOC_USB3_PRIM_AXI_CLK>,
+ 				 <&gcc GCC_USB30_PRIM_MASTER_CLK>,
+@@ -3754,12 +3750,14 @@
+ 					  <&gcc GCC_USB30_PRIM_MASTER_CLK>;
+ 			assigned-clock-rates = <19200000>, <200000000>;
+ 
+-			interrupts-extended = <&intc GIC_SPI 130 IRQ_TYPE_LEVEL_HIGH>,
++			interrupts-extended = <&intc GIC_SPI 133 IRQ_TYPE_LEVEL_HIGH>,
++					      <&intc GIC_SPI 130 IRQ_TYPE_LEVEL_HIGH>,
+ 					      <&intc GIC_SPI 131 IRQ_TYPE_LEVEL_HIGH>,
+ 					      <&pdc 9 IRQ_TYPE_EDGE_BOTH>,
+ 					      <&pdc 8 IRQ_TYPE_EDGE_BOTH>,
+ 					      <&pdc 6 IRQ_TYPE_LEVEL_HIGH>;
+-			interrupt-names = "pwr_event",
++			interrupt-names = "dwc_usb3",
++					  "pwr_event",
+ 					  "hs_phy_irq",
+ 					  "dp_hs_phy_irq",
+ 					  "dm_hs_phy_irq",
+@@ -3773,49 +3771,40 @@
+ 					<&gem_noc MASTER_AMPSS_M0 0 &config_noc SLAVE_USB3 0>;
+ 			interconnect-names = "usb-ddr", "apps-usb";
+ 
+-			usb_1_dwc3: usb@a600000 {
+-				compatible = "snps,dwc3";
+-				reg = <0 0x0a600000 0 0xcd00>;
+-				interrupts = <GIC_SPI 133 IRQ_TYPE_LEVEL_HIGH>;
+-				iommus = <&apps_smmu 0x140 0>;
+-				snps,dis_u2_susphy_quirk;
+-				snps,dis_u3_susphy_quirk;
+-				snps,dis_enblslpm_quirk;
+-				snps,dis-u1-entry-quirk;
+-				snps,dis-u2-entry-quirk;
+-				phys = <&usb_1_hsphy>, <&usb_1_qmpphy QMP_USB43DP_USB3_PHY>;
+-				phy-names = "usb2-phy", "usb3-phy";
+-
+-				ports {
+-					#address-cells = <1>;
+-					#size-cells = <0>;
++			iommus = <&apps_smmu 0x140 0>;
++			snps,dis_u2_susphy_quirk;
++			snps,dis_u3_susphy_quirk;
++			snps,dis_enblslpm_quirk;
++			snps,dis-u1-entry-quirk;
++			snps,dis-u2-entry-quirk;
++			phys = <&usb_1_hsphy>, <&usb_1_qmpphy QMP_USB43DP_USB3_PHY>;
++			phy-names = "usb2-phy", "usb3-phy";
++
++			ports {
++				#address-cells = <1>;
++				#size-cells = <0>;
+ 
+-					port@0 {
+-						reg = <0>;
++				port@0 {
++					reg = <0>;
+ 
+-						usb_1_dwc3_hs: endpoint {
+-						};
++					usb_1_dwc3_hs: endpoint {
+ 					};
++				};
+ 
+-					port@1 {
+-						reg = <1>;
++				port@1 {
++					reg = <1>;
+ 
+-						usb_1_dwc3_ss: endpoint {
+-							remote-endpoint = <&usb_1_qmpphy_usb_ss_in>;
+-						};
++					usb_1_dwc3_ss: endpoint {
++						remote-endpoint = <&usb_1_qmpphy_usb_ss_in>;
+ 					};
+ 				};
+ 			};
+ 		};
+ 
+-		usb_2: usb@a8f8800 {
+-			compatible = "qcom,sm8150-dwc3", "qcom,dwc3";
+-			reg = <0 0x0a8f8800 0 0x400>;
++		usb_2: usb_2_dwc3: usb@a800000 {
++			compatible = "qcom,sm8150-dwc3", "qcom,snps-dwc3";
++			reg = <0 0x0a800000 0 0xfc100>;
+ 			status = "disabled";
+-			#address-cells = <2>;
+-			#size-cells = <2>;
+-			ranges;
+-			dma-ranges;
+ 
+ 			clocks = <&gcc GCC_CFG_NOC_USB3_SEC_AXI_CLK>,
+ 				 <&gcc GCC_USB30_SEC_MASTER_CLK>,
+@@ -3834,12 +3823,14 @@
+ 					  <&gcc GCC_USB30_SEC_MASTER_CLK>;
+ 			assigned-clock-rates = <19200000>, <200000000>;
+ 
+-			interrupts-extended = <&intc GIC_SPI 135 IRQ_TYPE_LEVEL_HIGH>,
++			interrupts-extended = <&intc GIC_SPI 138 IRQ_TYPE_LEVEL_HIGH>,
++					      <&intc GIC_SPI 135 IRQ_TYPE_LEVEL_HIGH>,
+ 					      <&intc GIC_SPI 136 IRQ_TYPE_LEVEL_HIGH>,
+ 					      <&pdc 11 IRQ_TYPE_EDGE_BOTH>,
+ 					      <&pdc 10 IRQ_TYPE_EDGE_BOTH>,
+ 					      <&pdc 7 IRQ_TYPE_LEVEL_HIGH>;
+-			interrupt-names = "pwr_event",
++			interrupt-names = "dwc_usb3",
++					  "pwr_event",
+ 					  "hs_phy_irq",
+ 					  "dp_hs_phy_irq",
+ 					  "dm_hs_phy_irq",
+@@ -3853,19 +3844,14 @@
+ 					<&gem_noc MASTER_AMPSS_M0 0 &config_noc SLAVE_USB3_1 0>;
+ 			interconnect-names = "usb-ddr", "apps-usb";
+ 
+-			usb_2_dwc3: usb@a800000 {
+-				compatible = "snps,dwc3";
+-				reg = <0 0x0a800000 0 0xcd00>;
+-				interrupts = <GIC_SPI 138 IRQ_TYPE_LEVEL_HIGH>;
+-				iommus = <&apps_smmu 0x160 0>;
+-				snps,dis_u2_susphy_quirk;
+-				snps,dis_u3_susphy_quirk;
+-				snps,dis_enblslpm_quirk;
+-				snps,dis-u1-entry-quirk;
+-				snps,dis-u2-entry-quirk;
+-				phys = <&usb_2_hsphy>, <&usb_2_qmpphy>;
+-				phy-names = "usb2-phy", "usb3-phy";
+-			};
++			iommus = <&apps_smmu 0x160 0>;
++			snps,dis_u2_susphy_quirk;
++			snps,dis_u3_susphy_quirk;
++			snps,dis_enblslpm_quirk;
++			snps,dis-u1-entry-quirk;
++			snps,dis-u2-entry-quirk;
++			phys = <&usb_2_hsphy>, <&usb_2_qmpphy>;
++			phy-names = "usb2-phy", "usb3-phy";
+ 		};
+ 
+ 		videocc: clock-controller@ab00000 {
+diff --git a/arch/arm64/boot/dts/qcom/sm8150-samurai.dts b/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
+--- a/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
++++ b/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
+@@ -375,9 +375,18 @@
+ 
+ /* Let DWC3 publish its negotiated gadget current budget to the USB provider. */
+ &usb_1_dwc3 {
++	dr_mode = "peripheral";
++	maximum-speed = "high-speed";
++	qcom,select-utmi-as-pipe-clk;
++	phys = <&usb_1_hsphy>;
++	phy-names = "usb2-phy";
+ 	usb-psy-name = "samurai-usb-input";
+ };
+ 
++&usb_1_qmpphy {
++	status = "disabled";
++};
++
+ /*
+  * EUD COM console.  The full EUD block has no usable binding here: the in-tree
+  * qcom,eud driver wants a USB role switch and SCM access to enable secure EUD,

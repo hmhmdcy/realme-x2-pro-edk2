@@ -1,0 +1,31 @@
+#!/bin/sh
+# Debug-only sleep-inhibitor plugin: hold a lock while a USB NCM gadget is
+# configured and its network carrier is up. Not installed by any package.
+set -u
+
+udc_dir=${SAMURAI_UDC_DIR:-/sys/class/udc}
+udc=
+if [ -n "${SAMURAI_UDC:-}" ] && [ -e "$udc_dir/$SAMURAI_UDC" ]; then
+	udc=$SAMURAI_UDC
+elif [ -e "$udc_dir/a600000.usb" ]; then
+	udc=a600000.usb
+else
+	for candidate in "$udc_dir"/*; do
+		[ -e "$candidate" ] || continue
+		[ -z "$udc" ] || exit 0
+		udc=${candidate##*/}
+	done
+fi
+[ -n "$udc" ] || exit 0
+
+gadget=/sys/kernel/config/usb_gadget/samurai
+netdev=/sys/class/net/usb0
+
+[ -r "$udc_dir/$udc/state" ] || exit 0
+[ "$(cat "$udc_dir/$udc/state")" = configured ] || exit 0
+[ -r "$gadget/UDC" ] || exit 0
+[ "$(cat "$gadget/UDC")" = "$udc" ] || exit 0
+[ -r "$netdev/carrier" ] || exit 0
+[ "$(cat "$netdev/carrier")" = 1 ] || exit 0
+
+exit 254

@@ -563,6 +563,21 @@ def validate_allowed_property(
                 actual=actual_value,
             )
 
+    expected_phandle_count = item.get("expected_phandle_count")
+    if expected_phandle_count is not None:
+        if (
+            len(value) != expected_phandle_count * 4
+            or len(value) % 4
+        ):
+            add_failure(
+                report,
+                "allowed_property_type",
+                f"{prop}: expected {expected_phandle_count} phandle(s), "
+                f"got {len(value)} bytes",
+                path=path,
+                property=prop,
+            )
+
 
 def load_semantic_diff(
     baseline_path: Path,

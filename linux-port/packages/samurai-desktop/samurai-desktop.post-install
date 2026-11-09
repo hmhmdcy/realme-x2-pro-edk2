@@ -1,0 +1,68 @@
+#!/bin/sh
+
+conf=/etc/conf.d/tinydm
+session=/usr/share/wayland-sessions/plasma-mobile.desktop
+
+# Remove only the exact board-era overrides injected by samurai-desktop
+# 4-r7..4-r10. The postmarketOS base-ui tinydm configuration owns the
+# remaining content and must not be extended with debug dependencies.
+if [ -f "$conf" ]; then
+	if grep -qx 'rc_need="dbus elogind"' "$conf"; then
+		sed -i '/^rc_need="dbus elogind"$/d' "$conf"
+	fi
+	if grep -q '^rc_use=' "$conf"; then
+		current=$(sed -n 's/^rc_use="\(.*\)"$/\1/p' "$conf" | tail -n 1)
+		kept=
+		for dep in $current; do
+			case "$dep" in
+			samurai-sleep-inhibitor|iio-sensor-proxy) ;;
+			*) kept="${kept:+$kept }$dep" ;;
+			esac
+		done
+		if [ -n "$kept" ]; then
+			sed -i "s/^rc_use=.*$/rc_use=\"$kept\"/" "$conf"
+		else
+			sed -i '/^rc_use=/d' "$conf"
+		fi
+	fi
+	sed -i 's/^rc_cgroup_cleanup="YES"$/rc_cgroup_cleanup="yes"/' "$conf"
+
+	if ! grep -q '^# samurai tinydm stop hook$' "$conf"; then
+		cat >>"$conf" <<'EOF'
+
+# samurai tinydm stop hook
+stop_pre() {
+	[ -x /usr/libexec/samurai-tinydm-stop ] &&
+		/usr/libexec/samurai-tinydm-stop
+}
+EOF
+	fi
+fi
+
+if command -v tinydm-set-session >/dev/null 2>&1 && [ -f "$session" ]; then
+	tinydm-set-session -s "$session" || exit 1
+fi
+
+if command -v rc-update >/dev/null 2>&1; then
+	rc-update add tinydm default >/dev/null 2>&1 || true
+	rc-update del greetd default >/dev/null 2>&1 || true
+	rc-update add samurai-powerkey default >/dev/null 2>&1 || true
+fi
+
+# A running greetd from the Phosh era can race tinydm for the DRM device.
+if command -v rc-service >/dev/null 2>&1 &&
+	rc-service greetd status >/dev/null 2>&1; then
+	rc-service greetd stop >/dev/null 2>&1 || true
+fi
+
+rm -f /etc/xdg/autostart/samurai-powerkey.desktop
+if command -v pkill >/dev/null 2>&1; then
+	pkill -f '^python3 /usr/libexec/samurai-powerkey$' >/dev/null 2>&1 || true
+fi
+if command -v rc-service >/dev/null 2>&1 &&
+	pgrep -x kwin_wayland >/dev/null 2>&1; then
+	rc-service samurai-powerkey restart >/dev/null 2>&1 ||
+		rc-service samurai-powerkey start >/dev/null 2>&1 || true
+fi
+
+exit 0

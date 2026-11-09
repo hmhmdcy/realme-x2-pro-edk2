@@ -4,6 +4,9 @@ set -eu
 umask 077
 base=/run/samurai-wifi
 firmware=qcom/sm8150/realme/samurai
+source_wait_max=${SAMURAI_WIFI_SOURCE_WAIT:-120}
+wlan_wait_max=${SAMURAI_WIFI_WLAN_WAIT:-120}
+state_wait_max=${SAMURAI_WIFI_STATE_WAIT:-45}
 resolve()
 {
     matches=0
@@ -73,7 +76,7 @@ start()
 {
     test ! -e "$base/ready"
     sources_ready=0
-    for attempt in $(seq 1 60); do
+    for attempt in $(seq 1 "$source_wait_max"); do
         if mpss=$(/usr/sbin/samurai-modem-remoteproc) && all_sources_ready; then
             sources_ready=1
             break
@@ -98,7 +101,7 @@ start()
     grep -qE '^ *4096 ' "$base/qrtr-before.txt"
     echo disabled > $mpss/recovery
     echo start > $mpss/state
-    for attempt in $(seq 1 60); do
+    for attempt in $(seq 1 "$wlan_wait_max"); do
         test -e /sys/class/net/wlan0 && break
         sleep 1
     done
@@ -112,8 +115,17 @@ start()
     sleep 1
     /usr/sbin/wpa_cli -p"$base/wpa-control" -iwlan0 ping | grep -qx PONG
     fi
-    sleep 45
-    [ "$(cat $mpss/state)" = running ]
+    # Do not hold NetworkManager behind a fixed 45-second soak.  Poll the
+    # standard remoteproc state instead: it normally reaches running while
+    # the WLAN device is being brought up, and the bounded wait still catches
+    # a firmware start failure before the service reports ready.
+    state_wait=0
+    while [ "$(cat "$mpss/state")" != running ]; do
+        state_wait=$((state_wait + 1))
+        [ "$state_wait" -le "$state_wait_max" ] ||
+            { echo WIFI_STATE_WAIT_TIMEOUT >&2; return 1; }
+        sleep 1
+    done
     kill -0 "$(cat "$base/tftp.pid")" "$(cat "$base/rmtfs.pid")"
     if [ "${SAMURAI_WIFI_MANAGED:-0}" != 1 ]; then
         kill -0 "$(cat "$base/wpa.pid")"

@@ -1,0 +1,66 @@
+--- a/drivers/remoteproc/qcom_q6v5_pas.c
++++ b/drivers/remoteproc/qcom_q6v5_pas.c
+@@ -654,17 +654,32 @@
+ 	return 0;
+ }
+ 
+-static int qcom_pas_pds_attach(struct device *dev, struct device **devs, char **pd_names)
++static int qcom_pas_pds_attach(struct device *dev, struct device **devs,
++			       size_t max_pds, char **pd_names)
+ {
++	struct device_node *np = dev->of_node;
++	const char *name;
+ 	size_t num_pds = 0;
++	bool use_dt;
+ 	int ret;
+ 	int i;
+ 
+-	if (!pd_names)
++	use_dt = np && of_find_property(np, "power-domain-names", NULL);
++	if (!use_dt && !pd_names)
+ 		return 0;
+ 
+-	while (pd_names[num_pds])
+-		num_pds++;
++	if (use_dt) {
++		while (!of_property_read_string_index(np, "power-domain-names",
++						      num_pds, &name)) {
++			if (++num_pds > max_pds)
++				return -E2BIG;
++		}
++	} else {
++		while (pd_names[num_pds]) {
++			if (++num_pds > max_pds)
++				return -E2BIG;
++		}
++	}
+ 
+ 	/* Handle single power domain */
+ 	if (num_pds == 1 && dev->pm_domain) {
+@@ -674,7 +689,15 @@
+ 	}
+ 
+ 	for (i = 0; i < num_pds; i++) {
+-		devs[i] = dev_pm_domain_attach_by_name(dev, pd_names[i]);
++		if (use_dt) {
++			ret = of_property_read_string_index(np, "power-domain-names",
++							    i, &name);
++			if (ret)
++				goto unroll_attach;
++		} else {
++			name = pd_names[i];
++		}
++		devs[i] = dev_pm_domain_attach_by_name(dev, name);
+ 		if (IS_ERR_OR_NULL(devs[i])) {
+ 			ret = PTR_ERR(devs[i]) ? : -ENODATA;
+ 			goto unroll_attach;
+@@ -903,7 +926,8 @@
+ 	if (ret)
+ 		goto unassign_mem;
+ 
+-	ret = qcom_pas_pds_attach(&pdev->dev, pas->proxy_pds, desc->proxy_pd_names);
++	ret = qcom_pas_pds_attach(&pdev->dev, pas->proxy_pds,
++				  ARRAY_SIZE(pas->proxy_pds), desc->proxy_pd_names);
+ 	if (ret < 0)
+ 		goto unassign_mem;
+ 	pas->proxy_pd_count = ret;

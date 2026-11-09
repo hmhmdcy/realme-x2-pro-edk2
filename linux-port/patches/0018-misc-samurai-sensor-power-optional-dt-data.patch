@@ -1,0 +1,135 @@
+--- a/drivers/misc/samurai-sensor-power.c
++++ b/drivers/misc/samurai-sensor-power.c
+@@ -1,6 +1,7 @@
+ // SPDX-License-Identifier: GPL-2.0-only
+ /* Manual bring-up consumer for this board's stock SSC supply sequence. */
+ #include <linux/delay.h>
++#include <linux/limits.h>
+ #include <linux/module.h>
+ #include <linux/of.h>
+ #include <linux/platform_device.h>
+@@ -8,22 +9,32 @@
+ #include <linux/remoteproc.h>
+ #include "samurai-sensor-power-seq.h"
+ 
++#define SAMURAI_VDD_MIN_UV 2856000
++#define SAMURAI_VDD_MAX_UV 3104000
++#define SAMURAI_VDDIO_MIN_UV 1800000
++#define SAMURAI_VDDIO_MAX_UV 1800000
++#define SAMURAI_VDDIO_DELAY_US 10000
++#define SAMURAI_RAIL_LOAD_UA 200000
++
+ struct samurai_sensor_power {
+     struct device *dev;
+     struct regulator *rails[2];
+     struct rproc *slpi;
+     struct samurai_power_state state;
++    u32 voltage_min_uv[2];
++    u32 voltage_max_uv[2];
++    u32 vddio_delay_us;
++    u32 rail_load_ua;
+ };
+ 
+ static int rail_enable(void *ctx, enum samurai_sensor_rail rail)
+ {
+     struct samurai_sensor_power *p = ctx;
+     int ret;
+-    /* Official board19781 SSC: L7C 2.856..3.104 V, then L8C 1.8 V. */
+-    ret = regulator_set_voltage(p->rails[rail], rail == SAMURAI_VDD ? 2856000 : 1800000,
+-                                rail == SAMURAI_VDD ? 3104000 : 1800000);
++    ret = regulator_set_voltage(p->rails[rail], p->voltage_min_uv[rail],
++                                p->voltage_max_uv[rail]);
+     if (ret) return ret;
+-    ret = regulator_set_load(p->rails[rail], 200000);
++    ret = regulator_set_load(p->rails[rail], p->rail_load_ua);
+     if (ret) return ret;
+     ret = regulator_enable(p->rails[rail]);
+     if (ret) {
+@@ -46,7 +57,13 @@
+     return ret;
+ }
+ 
+-static void rail_delay(void *ctx) { msleep(10); }
++static void rail_delay(void *ctx)
++{
++    struct samurai_sensor_power *p = ctx;
++
++    if (p->vddio_delay_us)
++        msleep(DIV_ROUND_UP(p->vddio_delay_us, 1000));
++}
+ static const struct samurai_power_ops power_ops = {
+     .enable = rail_enable, .disable = rail_disable, .delay = rail_delay,
+ };
+@@ -87,6 +104,13 @@
+ static const struct attribute_group samurai_power_group = { .attrs = samurai_power_attrs };
+ static void put_slpi(void *ctx) { rproc_put(ctx); }
+ 
++static int read_optional_u32(struct device_node *np, const char *name, u32 *value)
++{
++    if (!of_find_property(np, name, NULL))
++        return 0;
++    return of_property_read_u32(np, name, value);
++}
++
+ static int samurai_sensor_power_probe(struct platform_device *pdev)
+ {
+     struct samurai_sensor_power *p;
+@@ -98,6 +122,37 @@
+     p = devm_kzalloc(&pdev->dev, sizeof(*p), GFP_KERNEL);
+     if (!p) return -ENOMEM;
+     p->dev = &pdev->dev;
++    p->voltage_min_uv[SAMURAI_VDD] = SAMURAI_VDD_MIN_UV;
++    p->voltage_max_uv[SAMURAI_VDD] = SAMURAI_VDD_MAX_UV;
++    p->voltage_min_uv[SAMURAI_VDDIO] = SAMURAI_VDDIO_MIN_UV;
++    p->voltage_max_uv[SAMURAI_VDDIO] = SAMURAI_VDDIO_MAX_UV;
++    p->vddio_delay_us = SAMURAI_VDDIO_DELAY_US;
++    p->rail_load_ua = SAMURAI_RAIL_LOAD_UA;
++    ret = read_optional_u32(pdev->dev.of_node, "realme,vdd-min-microvolt",
++                            &p->voltage_min_uv[SAMURAI_VDD]);
++    if (ret) return ret;
++    ret = read_optional_u32(pdev->dev.of_node, "realme,vdd-max-microvolt",
++                            &p->voltage_max_uv[SAMURAI_VDD]);
++    if (ret) return ret;
++    ret = read_optional_u32(pdev->dev.of_node, "realme,vddio-min-microvolt",
++                            &p->voltage_min_uv[SAMURAI_VDDIO]);
++    if (ret) return ret;
++    ret = read_optional_u32(pdev->dev.of_node, "realme,vddio-max-microvolt",
++                            &p->voltage_max_uv[SAMURAI_VDDIO]);
++    if (ret) return ret;
++    ret = read_optional_u32(pdev->dev.of_node, "realme,vddio-delay-us",
++                            &p->vddio_delay_us);
++    if (ret) return ret;
++    ret = read_optional_u32(pdev->dev.of_node, "realme,rail-load-microamp",
++                            &p->rail_load_ua);
++    if (ret) return ret;
++    if (p->voltage_min_uv[SAMURAI_VDD] > p->voltage_max_uv[SAMURAI_VDD] ||
++        p->voltage_min_uv[SAMURAI_VDDIO] > p->voltage_max_uv[SAMURAI_VDDIO])
++        return dev_err_probe(&pdev->dev, -EINVAL,
++                             "invalid sensor supply voltage range\n");
++    if (p->rail_load_ua > INT_MAX)
++        return dev_err_probe(&pdev->dev, -EINVAL,
++                             "sensor rail load exceeds INT_MAX\n");
+     p->slpi = rproc_get_by_phandle(phandle);
+     if (!p->slpi) return -EPROBE_DEFER;
+     ret = devm_add_action_or_reset(&pdev->dev, put_slpi, p->slpi);
+@@ -136,4 +191,5 @@
+     },
+ };
+ module_platform_driver(samurai_sensor_power_driver);
++MODULE_DESCRIPTION("Realme X2 Pro sensor rail sequencing");
+ MODULE_LICENSE("GPL");
+--- a/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
++++ b/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
+@@ -908,6 +908,12 @@
+         vdd-supply = <&vreg_l7c_3p0>;
+         vddio-supply = <&vreg_l8c_1p8>;
+         remoteproc = <&remoteproc_slpi>;
++        realme,vdd-min-microvolt = <2856000>;
++        realme,vdd-max-microvolt = <3104000>;
++        realme,vddio-min-microvolt = <1800000>;
++        realme,vddio-max-microvolt = <1800000>;
++        realme,vddio-delay-us = <10000>;
++        realme,rail-load-microamp = <200000>;
+     };
+ };
+ 

@@ -1,0 +1,12 @@
+--- a/drivers/misc/samurai-sensor-power.c
++++ b/drivers/misc/samurai-sensor-power.c
+@@ -146,6 +146,9 @@ static int samurai_sensor_power_probe(struct platform_device *pdev)
+     if (!of_machine_is_compatible("realme,samurai"))
+         return -ENODEV;
+     ret = of_property_read_u32(pdev->dev.of_node, "qcom,rproc", &phandle);
+     if (ret)
++        ret = of_property_read_u32(pdev->dev.of_node, "remoteproc",
++                                   &phandle);
++    if (ret)
+         return ret;
+     p = devm_kzalloc(&pdev->dev, sizeof(*p), GFP_KERNEL);

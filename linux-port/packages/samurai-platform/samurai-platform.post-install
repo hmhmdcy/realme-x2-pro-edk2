@@ -1,0 +1,118 @@
+#!/bin/sh
+
+conf=/etc/conf.d/modemmanager
+sshd_conf=/etc/conf.d/sshd
+nm_conf=/etc/conf.d/networkmanager
+
+drop_dep()
+{
+	file=$1 key=$2
+	shift 2
+	[ -f "$file" ] || return 0
+	value=$(sed -n "s/^$key=\"\\(.*\\)\"\$/\\1/p" "$file" | tail -n 1)
+	kept=
+	for dep in $value; do
+		drop=0
+		for unwanted in "$@"; do
+			[ "$dep" = "$unwanted" ] && drop=1
+		done
+		[ "$drop" -eq 1 ] || kept="${kept:+$kept }$dep"
+	done
+	if [ -n "$kept" ]; then
+		sed -i "s/^$key=.*\$/$key=\"$kept\"/" "$file"
+	else
+		sed -i "/^$key=/d" "$file"
+	fi
+}
+
+# NetworkManager follows the official postmarketOS/UI package boundary:
+# it starts as an independent default service and observes wlan0 through
+# udev when the board radio becomes ready. A transient radio failure must
+# not hold the generic network stack.
+if [ -f "$nm_conf" ]; then
+	drop_dep "$nm_conf" rc_need samurai-radio
+	drop_dep "$nm_conf" rc_use samurai-radio
+	drop_dep "$nm_conf" rc_after samurai-radio
+fi
+
+# sshd is independent of the NCM gadget. It listens on all interfaces and
+# can accept Wi-Fi sessions while usb0 is still being created.
+if [ -f "$sshd_conf" ]; then
+	drop_dep "$sshd_conf" rc_need samurai-usb
+	drop_dep "$sshd_conf" rc_use samurai-usb
+	drop_dep "$sshd_conf" rc_after samurai-usb
+fi
+
+# Restore the official base-ui configuration. The optional radio service is
+# discovered through udev/QRTR; it must not add local rc_use/rc_after lines.
+if [ -f "$conf" ]; then
+	drop_dep "$conf" rc_need samurai-radio
+	drop_dep "$conf" rc_use samurai-radio
+	drop_dep "$conf" rc_after samurai-radio
+fi
+
+if command -v rc-update >/dev/null 2>&1; then
+	for service in samurai-radio modemmanager; do
+		if [ -x "/etc/init.d/$service" ]; then
+			rc-update add "$service" default >/dev/null 2>&1 || true
+		fi
+	done
+	# Restore the postmarketOS default service. The board-owned duplicate
+	# from the debug era is retired here, not kept as a production policy.
+	if [ -x /etc/init.d/sleep-inhibitor ]; then
+		rc-update add sleep-inhibitor default >/dev/null 2>&1 || true
+	fi
+	if [ -x /etc/init.d/samurai-sleep-inhibitor ]; then
+		rc-service samurai-sleep-inhibitor stop >/dev/null 2>&1 || true
+		rc-service samurai-sleep-inhibitor cgroup_cleanup >/dev/null 2>&1 || true
+		rc-update del samurai-sleep-inhibitor default >/dev/null 2>&1 || true
+		rm -f /etc/runlevels/default/samurai-sleep-inhibitor
+	fi
+	# APK normally removes files that left the package manifest; these
+	# explicit removals also cover preserved /etc copies from old upgrades.
+	rm -f /etc/init.d/samurai-sleep-inhibitor \
+		/etc/conf.d/samurai-sleep-inhibitor \
+		/etc/samurai/sleep-inhibitor.conf \
+		/usr/libexec/samurai-usb-sleep-guard
+fi
+
+# Adopt a ModemManager that may have been started by legacy D-Bus activation.
+# The package-owned /usr/local service file now prevents that race, so the
+# restarted daemon is the single OpenRC-managed instance.
+if command -v rc-service >/dev/null 2>&1; then
+	if [ -r /run/dbus/pid ]; then
+		kill -HUP "$(cat /run/dbus/pid)" 2>/dev/null || true
+	fi
+	rc-service modemmanager stop >/dev/null 2>&1 || true
+	pkill -TERM -x ModemManager 2>/dev/null || true
+	sleep 1
+	pkill -KILL -x ModemManager 2>/dev/null || true
+	rc-service modemmanager start >/dev/null 2>&1 || true
+fi
+
+# DWC3 removes the gadget pull-up while the system is suspended. The host
+# therefore cannot wake an idle USB NCM SSH link. Keep the upstream
+# ssh-session-open policy, and use an explicit elogind-inhibit only inside a
+# bounded debug test; do not install a carrier-only production service.
+if command -v rc-service >/dev/null 2>&1; then
+	if rc-service sleep-inhibitor status >/dev/null 2>&1; then
+		:
+	else
+		rc-service sleep-inhibitor start >/dev/null 2>&1 || true
+	fi
+fi
+
+if command -v udevadm >/dev/null 2>&1; then
+	udevadm control --reload-rules >/dev/null 2>&1 || true
+	udevadm trigger --subsystem-match=input --action=change >/dev/null 2>&1 || true
+fi
+
+# NFC uses the upstream neard daemon and the kernel's standard NCI device.
+# Do not start or reset a live daemon from the package transaction; only make
+# the service part of the normal boot set. The runtime probe starts it
+# explicitly when the handset is online.
+if [ -x /etc/init.d/neard ] && command -v rc-update >/dev/null 2>&1; then
+	rc-update add neard default >/dev/null 2>&1 || true
+fi
+
+exit 0

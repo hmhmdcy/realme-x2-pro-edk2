@@ -3,7 +3,6 @@ description="Same-handset radio firmware and RAM COW services"
 depend() {
     need localmount
     after udev
-    before networkmanager
 }
 start() {
     ebegin "Preparing Samurai radio for NetworkManager"
@@ -12,5 +11,9 @@ start() {
     SAMURAI_WIFI_MANAGED=1 /usr/sbin/samurai-wifi start > /run/samurai-wifi-boot.log 2>&1
     result=$?
     echo "$result" > /run/samurai-wifi/boot-finished
+    if [ "$result" -ne 0 ]; then
+        mkdir -p /var/log/samurai
+        cp /run/samurai-wifi-boot.log /var/log/samurai/wifi-boot-failure.log 2>/dev/null || true
+    fi
     eend "$result"
 }

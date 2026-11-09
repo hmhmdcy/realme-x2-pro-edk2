@@ -12,6 +12,25 @@
 
 全量Image/rootfs、全设备回归、跨启动和长稳测试在相关改动或发布整合时安排，不作为每个配置/驱动迭代的固定步骤。成功的有状态安装事务保持终态；需要新实验时使用适配当前状态的新事务。
 
+### 长时无人值守网络测试的 sleep 锁
+
+KDE/Plasma Mobile 引入 PowerDevil 和 elogind 后，DWC3 USB gadget 在系统
+suspend 时会 soft-disconnect，NCM 主机的包无法把手机唤醒。因此长时
+USB NCM/SSH 矩阵默认必须在手机侧持有标准
+`elogind-inhibit --what=sleep --mode=block`，而不是停止
+`samurai-sleep-inhibitor` 或 `tinydm`。`test-usb-ncm-stability.py`
+现在默认自动创建并在结束时释放该锁，报告 `sleep_inhibit` /
+`sleep_inhibit_release`；只有明确使用 `--no-sleep-inhibit` 才允许无锁运行。
+不要把 `loginctl suspend`、`rtcwake` 或手动改 RTC 混入 NCM 稳定性测试；
+suspend 验收必须单独进行并保留人工唤醒路径。
+
+这是**仅调试**行为，不是正式系统设置：正式 rootfs 使用 postmarketOS
+官方 `/etc/sleep-inhibitor.conf`（`ssh-session-open` + `apk-running`）
+和官方 `sleep-inhibitor` 服务，不安装 `samurai-sleep-inhibitor`、
+`/etc/samurai/sleep-inhibitor.conf` 或 carrier-only guard。调试锁只存在于
+测试进程生命周期内。设置分层见
+[SETTINGS-PROVENANCE](linux-port/docs/SETTINGS-PROVENANCE.md)。
+
 ## EUD与F1
 
 历史命令通道使用`id=0x90`。`[90][02]`为已验证的F1 bootloader命令，长度2不能用作普通二字节TTY分片。TOP_CFG=0x11后的完整payload读取与RX53 console/IRQ处理已有真机证据；受理与输出仍有独立稳定性边界。

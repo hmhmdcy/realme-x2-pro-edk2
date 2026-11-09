@@ -69,7 +69,11 @@ def main() -> int:
 
     checker = REPO / "linux-port/scripts/check-dtb-contract.py"
     manifest = REPO / "linux-port/dts/samurai-dt-v1-abi.json"
-    baseline = args.out / "standard-arm64-v731/sm8150-samurai-v731.dtb"
+    baseline = (
+        args.out
+        / "standard-arm64-v731/camera-final-boot/"
+        "sm8150-samurai-v731-camera.dtb"
+    )
     experiment = (
         args.out / "layer-adaptation-20261105/experiment-dtb-build/"
         "sm8150-samurai-experiment-os.dtb"
@@ -78,11 +82,17 @@ def main() -> int:
         args.out / "layer-adaptation-20261105/dtb-rebuild-ba61/"
         "arch/arm64/boot/dts/qcom/sm8150-samurai-vendor.dtb"
     )
+    flash_led = (
+        args.out
+        / "standard-arm64-v731/flash-led-v4l2-20261109/"
+        "sm8150-samurai-v731-flash-led-v4l2.dtb"
+    )
 
     expected_hashes = {
-        baseline: "3261908efb6730f43f41e9ab752b03a107ab583d451f433c7eb648760ed79ebb",
+        baseline: "3799ec6c7d3e0c67a657859a37b2fe147fa21a9dedc84d49c8eb83fd8debc805",
         experiment: "c582dd7cf36e9a3796533674edddea1fc55a30f44b605bf9e8161b015d77a64f",
         vendor: "dcdd74ec903520c7023fa28badcb293b2e4e26ee5bac639497c63d53536b2c8d",
+        flash_led: "b244b3f10a14811dca2e808efa8c840f432cac69020e66b60eba97d02794a18e",
     }
     work_dir = args.work_dir or Path(tempfile.mkdtemp(prefix="samurai-dtb-contract-"))
     work_dir.mkdir(parents=True, exist_ok=True)
@@ -122,6 +132,13 @@ def main() -> int:
             "id": "dynamic_chosen_property_accepted",
             "baseline": baseline,
             "candidate": additive,
+            "expected_passed": True,
+            "expected_codes": [],
+        },
+        {
+            "id": "flash_led_v4l2_additive_accepted",
+            "baseline": baseline,
+            "candidate": flash_led,
             "expected_passed": True,
             "expected_codes": [],
         },

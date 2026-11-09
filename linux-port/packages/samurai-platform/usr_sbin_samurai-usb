@@ -1,51 +1,143 @@
 #!/bin/sh
-# CDC NCM only; SSH is owned by the separate distro sshd service.
+# CDC NCM for the rootfs; the distro sshd service provides SSH.
 set -eu
 g=/sys/kernel/config/usb_gadget/samurai
-udc=a600000.usb
+udc_dir=${SAMURAI_UDC_DIR:-/sys/class/udc}
+udc=
 address=169.254.42.1
-tr '\0' '\n' < /proc/device-tree/compatible | grep -qx realme,samurai
-status() {
- cat /sys/class/udc/$udc/state /sys/class/udc/$udc/current_speed
- [ ! -d "$g" ] || cat "$g/UDC"
- ip addr show usb0
+dhcp_address=10.42.0.1
+dhcp_config=/etc/samurai/usb-dhcp.conf
+dhcp_pid=/run/samurai-usb-dnsmasq.pid
+dhcp_leases=/var/lib/misc/dnsmasq-usb.leases
+ncm_qmult=${SAMURAI_NCM_QMULT:-20}
+
+discover_udc() {
+    if [ -n "${SAMURAI_UDC:-}" ]; then
+        udc=$SAMURAI_UDC
+        [ -e "$udc_dir/$udc" ] ||
+            { echo "[usb] selected UDC unavailable: $udc" >&2; exit 1; }
+        return
+    fi
+    if [ -e "$udc_dir/a600000.usb" ]; then
+        udc=a600000.usb
+        return
+    fi
+    selected=
+    for candidate in "$udc_dir"/*; do
+        [ -e "$candidate" ] || continue
+        [ -z "$selected" ] ||
+            { echo "[usb] multiple UDCs; set SAMURAI_UDC" >&2; exit 1; }
+        selected=${candidate##*/}
+    done
+    [ -n "$selected" ] ||
+        { echo "[usb] no UDC found in $udc_dir" >&2; exit 1; }
+    udc=$selected
 }
-action=start
-[ "$#" -eq 0 ] || action=$1
-case "$action" in
- status) status; exit ;;
- start) ;;
- *) echo 'Use start or status' >&2; exit 2 ;;
+
+discover_udc
+
+status() {
+    cat "$udc_dir/$udc/state" "$udc_dir/$udc/current_speed"
+    [ ! -d "$g" ] || cat "$g/UDC"
+    ip addr show usb0
+}
+
+stop_dhcp() {
+    if [ -r "$dhcp_pid" ]; then
+        pid=$(cat "$dhcp_pid" 2>/dev/null || true)
+        case $pid in
+        ''|*[!0-9]*) ;;
+        *) kill "$pid" 2>/dev/null || true ;;
+        esac
+    fi
+    rm -f "$dhcp_pid"
+}
+
+start_dhcp() {
+    stop_dhcp
+    [ -r "$dhcp_config" ] ||
+        { echo "[usb] missing DHCP config: $dhcp_config" >&2; return 1; }
+    mkdir -p /var/lib/misc
+    dnsmasq --conf-file="$dhcp_config" --pid-file="$dhcp_pid" \
+        --dhcp-leasefile="$dhcp_leases"
+}
+
+case ${1:-start} in
+discover) printf '%s\n' "$udc"; exit ;;
+status) status; exit ;;
+stop) stop_dhcp; exit ;;
+start) ;;
+*) echo 'Usage: samurai-usb start|stop|status|discover' >&2; exit 2 ;;
 esac
+
+tr '\0' '\n' < /proc/device-tree/compatible | grep -qx realme,samurai
 mkdir -p /run
-mkdir /run/samurai-usb.lock || { echo 'USB initializer already active' >&2; exit 1; }
+mkdir /run/samurai-usb.lock || {
+    echo '[usb] another initializer owns the lock' >&2
+    exit 1
+}
 trap 'rmdir /run/samurai-usb.lock' EXIT
+
 count=0
-while [ ! -e "/sys/class/udc/$udc" ]; do
- count=$((count + 1)); [ "$count" -le 30 ] || exit 1; sleep 1
+while [ ! -e "$udc_dir/$udc" ]; do
+    count=$((count + 1))
+    [ "$count" -le 30 ] || { echo '[usb] UDC unavailable' >&2; exit 1; }
+    sleep 1
 done
-[ -d /sys/kernel/config/usb_gadget ] || mount -t configfs configfs /sys/kernel/config
+[ -d /sys/kernel/config/usb_gadget ] ||
+    mount -t configfs configfs /sys/kernel/config
+
 if [ ! -d "$g" ]; then
- test -s /etc/machine-id
- serial=$(sha256sum /etc/machine-id | cut -c1-16)
- octets=$(printf '%s' "$serial" | cut -c1-8 | sed 's/../&:/g')
- mkdir "$g"
- echo 0x0525 > "$g/idVendor"
- echo 0xa4a1 > "$g/idProduct"
- echo 0xef > "$g/bDeviceClass"
- echo 2 > "$g/bDeviceSubClass"
- echo 1 > "$g/bDeviceProtocol"
- mkdir "$g/strings/0x409"
- echo "$serial" > "$g/strings/0x409/serialnumber"
- echo samurai > "$g/strings/0x409/manufacturer"
- echo SamuraiNCM > "$g/strings/0x409/product"
- mkdir "$g/configs/c.1"
- echo 500 > "$g/configs/c.1/MaxPower"
- mkdir "$g/functions/ncm.usb0"
- echo "02:$octets"01 > "$g/functions/ncm.usb0/dev_addr"
- echo "02:$octets"02 > "$g/functions/ncm.usb0/host_addr"
- ln -s "$g/functions/ncm.usb0" "$g/configs/c.1/ncm.usb0"
+    # socinfo owns the standard /sys/devices/soc0/serial_number interface.
+    # It can be a module and may not be autoloaded before the boot runlevel.
+    modprobe socinfo >/dev/null 2>&1 || true
+    serial_wait=0
+    serial_wait_max=${SAMURAI_USB_SERIAL_WAIT:-60}
+    while :; do
+        soc_serial=$(cat /sys/devices/soc0/serial_number 2>/dev/null || true)
+        case $soc_serial in
+        ''|*[!0-9]*) ;;
+        *) break ;;
+        esac
+        serial_wait=$((serial_wait + 1))
+        [ "$serial_wait" -le "$serial_wait_max" ] ||
+            { echo '[usb] SoC serial unavailable or invalid' >&2; exit 1; }
+        sleep 1
+    done
+    serial=$(printf '%08x' "$soc_serial")
+    octets=$(printf '%s' "$serial" | sed 's/../&:/g; s/:$//')
+
+    mkdir "$g"
+    echo 0x0525 > "$g/idVendor"
+    echo 0xa4a1 > "$g/idProduct"
+    echo 0xef > "$g/bDeviceClass"
+    echo 2 > "$g/bDeviceSubClass"
+    echo 1 > "$g/bDeviceProtocol"
+    mkdir "$g/strings/0x409"
+    echo "$serial" > "$g/strings/0x409/serialnumber"
+    echo samurai > "$g/strings/0x409/manufacturer"
+    echo SamuraiNCM > "$g/strings/0x409/product"
+    mkdir "$g/configs/c.1"
+    echo 500 > "$g/configs/c.1/MaxPower"
+    mkdir "$g/functions/ncm.usb0"
+    # Windows UsbNcm can briefly stop polling the bulk-IN endpoint under
+    # sustained 4 MiB reads.  The upstream default qmult=5 leaves only ten
+    # in-flight requests and was observed to stall for 31 seconds.  qmult=20
+    # passed 24 consecutive 4 MiB device-to-host transfers without a long
+    # stall on the same direct port.
+    echo "$ncm_qmult" > "$g/functions/ncm.usb0/qmult"
+    echo "02:$octets:01" > "$g/functions/ncm.usb0/dev_addr"
+    echo "02:$octets:02" > "$g/functions/ncm.usb0/host_addr"
+    ln -s "$g/functions/ncm.usb0" "$g/configs/c.1/ncm.usb0"
 fi
+
+if [ -e "$g/functions/ncm.usb0/qmult" ]; then
+    configured_qmult=$(cat "$g/functions/ncm.usb0/qmult")
+    if [ "$configured_qmult" != "$ncm_qmult" ]; then
+        echo "[usb] existing NCM qmult=$configured_qmult; reboot the gadget to apply $ncm_qmult" >&2
+    fi
+fi
+
 # The initramfs may already own this exact gadget. Preserve its USB identity;
 # a changed power request needs a fresh host configuration before it is usable.
 test "$(cat "$g/idVendor")" = 0x0525
@@ -54,12 +146,12 @@ test "$(cat "$g/strings/0x409/product")" = SamuraiNCM
 test -L "$g/configs/c.1/ncm.usb0"
 power=$(cat "$g/configs/c.1/MaxPower")
 if [ "$power" != 500 ]; then
- bound=$(cat "$g/UDC")
- if [ -n "$bound" ]; then printf '\n' > "$g/UDC"; fi
- bound=$(cat "$g/UDC")
- test -z "$bound"
- echo 500 > "$g/configs/c.1/MaxPower"
- sleep 2
+    bound=$(cat "$g/UDC")
+    if [ -n "$bound" ]; then printf '\n' > "$g/UDC"; fi
+    bound=$(cat "$g/UDC")
+    test -z "$bound"
+    echo 500 > "$g/configs/c.1/MaxPower"
+    sleep 2
 fi
 bound=$(cat "$g/UDC")
 if [ -z "$bound" ]; then echo "$udc" > "$g/UDC"; fi
@@ -68,6 +160,11 @@ test "$bound" = "$udc"
 interface=$(cat "$g/functions/ncm.usb0/ifname")
 ip link set "$interface" up
 if ! ip -4 addr show dev "$interface" | grep -q "inet $address/16 "; then
- ip addr add "$address/16" dev "$interface"
+    ip addr add "$address/16" dev "$interface"
 fi
-echo "CDC NCM $interface/$address ready; distro sshd provides SSH"
+if ! ip -4 addr show dev "$interface" | grep -q "inet $dhcp_address/24 "; then
+    ip addr add "$dhcp_address/24" dev "$interface"
+fi
+start_dhcp ||
+    echo '[usb] DHCP server unavailable; link-local SSH remains available' >&2
+echo "CDC NCM $interface/$address and DHCP $dhcp_address/24 ready; distro sshd provides SSH"

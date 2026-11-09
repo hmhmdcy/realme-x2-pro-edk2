@@ -14,9 +14,10 @@
 | [`check-dtb-contract.py`](../scripts/check-dtb-contract.py) | 用基线 DTB、候选 DTB 和 manifest 生成通过/失败报告 |
 | [`test-dtb-contract.py`](../scripts/test-dtb-contract.py) | 用已知基线、加法候选、实验 profile、vendor DTB 和坏 UFS 样本自测闸门 |
 
-manifest 当前声明 12 个资源组。2026-11-06 起基线改为 Linux v7.3.1
+manifest 当前声明 24 个资源组。2026-11-06 起基线改为 Linux v7.3.1
 实机 DTB，增加标准 `mps,mp2650` 充电器，USB 控制器改用
-`qcom,sm8150-dwc3`/`qcom,snps-dwc3` 的 `/soc@0/usb@a600000` 节点：
+`qcom,sm8150-dwc3`/`qcom,snps-dwc3` 的 `/soc@0/usb@a600000` 节点，
+并加入 PM8150L 闪光灯：
 
 - UFS host 和 UFS PHY；
 - DSI 面板；
@@ -28,6 +29,8 @@ manifest 当前声明 12 个资源组。2026-11-06 起基线改为 Linux v7.3.1
 - ASoC 音频卡；
 - SLPI sensor-power 电源；
 - 主 DWC3 USB；
+- 两个 CCI、CAMSS、四个 camera sensor、镜头和两个 PM8008；
+- PM8150L 闪光灯控制器与 `led-0`。
 - PM8150B Type-C。
 
 它还固定了 `/reserved-memory` 的直接子节点集合、24 个装载/固件 carveout

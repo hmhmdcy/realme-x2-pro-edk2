@@ -1,0 +1,125 @@
+# Forked from Alpine aports community/kwin 6.8.2.
+maintainer="hmhmdcy <hmhmdcy@users.noreply.github.com>"
+pkgname=kwin
+pkgver=6.8.2
+pkgrel=2
+pkgdesc="An easy to use, but flexible, composited Window Manager"
+arch="all !armhf"
+url="https://kde.org/plasma-desktop/"
+license="GPL-2.0-or-later AND (GPL-2.0-only OR GPL-3.0-only) AND LGPL-2.1-only"
+depends="
+	aurorae
+	hwdata
+	kirigami
+	qt6-qtmultimedia
+	qt6-qtwayland
+	xwayland
+	"
+depends_dev="
+	breeze-dev
+	eudev-dev
+	fontconfig-dev
+	kcmutils-dev
+	kcompletion-dev
+	kconfig-dev
+	kconfigwidgets-dev
+	kcoreaddons-dev
+	kcrash-dev
+	kdeclarative-dev
+	kdecoration-dev
+	kglobalaccel-dev
+	ki18n-dev
+	kiconthemes-dev
+	kidletime-dev
+	kio-dev
+	knewstuff-dev
+	knighttime-dev
+	knotifications-dev
+	kpackage-dev
+	krunner-dev
+	kscreenlocker-dev
+	kservice-dev
+	ksvg-dev
+	ktextwidgets-dev
+	kwayland-dev
+	kwidgetsaddons-dev
+	kwindowsystem-dev
+	kxmlgui-dev
+	lcms2-dev
+	libdrm-dev
+	libei-dev
+	libepoxy-dev
+	libinput-dev
+	libplasma-dev
+	libqaccessibilityclient-dev
+	libxcvt-dev
+	libxi-dev
+	libxkbcommon-dev
+	mesa-dev
+	mesa-gbm
+	pipewire-dev
+	plasma-activities-dev
+	qt6-qtbase-dev
+	qt6-qtdeclarative-dev
+	qt6-qtsensors-dev
+	wayland-dev
+	xcb-util-cursor-dev
+	xcb-util-image-dev
+	xcb-util-wm-dev
+	"
+case "$CARCH" in
+	armv7|x86) ;;
+	*) depends_dev="$depends_dev libevdev-dev" ;;
+esac
+makedepends="$depends_dev
+	extra-cmake-modules
+	kdoctools-dev
+	kglobalacceld-dev
+	kpipewire-dev
+	libcap-utils
+	libdisplay-info-dev
+	libevdev-dev
+	plasma-wayland-protocols
+	qt6-qtdeclarative-private-dev
+	qt6-qttools-dev
+	samurai
+	"
+
+subpackages="$pkgname-systemd $pkgname-dbg $pkgname-dev $pkgname-lang $pkgname-doc"
+source="https://invent.kde.org/plasma/kwin/-/archive/v$pkgver/kwin-v$pkgver.tar.gz
+	0101-dpms-cancel-touch-sequences.patch
+	0102-ignore-dpms-wakeups-before-sleep.patch
+	"
+builddir="$srcdir/kwin-v$pkgver"
+options="setcap !check"
+
+build() {
+	cc1dir=$(dirname "$(find /usr/libexec/gcc/aarch64-alpine-linux-musl \
+		-name cc1 -print -quit)")
+	export COMPILER_PATH="$cc1dir${COMPILER_PATH:+:$COMPILER_PATH}"
+
+	if [ -d /native/usr/lib/gcc/aarch64-alpine-linux-musl ]; then
+		gccdir=$(dirname "$(find /native/usr/lib/gcc/aarch64-alpine-linux-musl \
+			-name crtbeginS.o -print -quit)")
+		export LIBRARY_PATH="$gccdir${LIBRARY_PATH:+:$LIBRARY_PATH}"
+	fi
+
+	CFLAGS="$CFLAGS -O2 -g1 -fno-use-linker-plugin" \
+	CXXFLAGS="$CXXFLAGS -O2 -g1 -fno-use-linker-plugin" \
+	cmake -B build -G Ninja \
+		-DCMAKE_BUILD_TYPE=RelWithDebInfo \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib \
+		-DBUILD_TESTING=OFF
+	cmake --build build
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+sha512sums="
+816d50772d6a947cf89667bcd5420d9f84d4fd511d4b7cdddab98a6134ab5b034dafe2472c57792d04bb659032ea884b9fda59623cc74048db0d15010ff69e99  kwin-v6.8.2.tar.gz
+e6ba8d5ec067c50e93a3eb10e0a0a92bfbde9d356b893c1f4022ca9f5982029b698c2b72172ee28e6aa8508bde3cc373bf96ed4c4e81fedac31f8ee62e3f417f  0101-dpms-cancel-touch-sequences.patch
+dd773a4675a952f8d6ac62b54fcf452d6b3bf00b9f6c281c6f390050d629f6a29e2e65f980ebca5dcabe34e65f0efaf51061999a5b076c81088c6bfb0cb618f7  0102-ignore-dpms-wakeups-before-sleep.patch
+"

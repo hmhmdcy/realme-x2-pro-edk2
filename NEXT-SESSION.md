@@ -1,105 +1,123 @@
-# 当前：Linux v7.3.1 标准 ARM64 镜像已刷入并通过重启
+# 当前：thin-private 已部署；普通重启全绿，suspend 待物理唤醒复测
 
-核对日期：2026-11-06。设备当前运行
-`7.3.1-rmx1931-samurai-v731`，Wi-Fi SSH 可用。详细源锁、构建命令、
-实验矩阵和剩余边界见
-[STANDARD-ARM64-V731](linux-port/docs/STANDARD-ARM64-V731.md)。
+目标（2026-11-09）：Wi‑Fi、CDC NCM、SSH 仅作强制回归门禁；相机
+Selection API、PM8150L 闪光灯/V4L2、蓝牙主机模块、NFC 控制器和
+MAX98937/AW8697 私有 `status` 删除已关闭。
+继续用 Linux 主线模型/API 适配其余硬件，私有层只保留不可标准化的
+板级接线。`boot`/`logdump` 在 Linux 侧成对写入；不擦写
+NV/persist/校准/userdata。
 
-## 本轮完成
+## 设备状态
 
-- Linux 正式稳定版 `v7.3.1` 已成为唯一部署基线，不再部署
-  `7.3.0-rc6` bring-up 镜像；
-- 源码为官方 tarball
-  `fa595aad93734f829c963c2a90ef7c3673224fd7fdae7b49406e397cde2de231`
-  解包后的两提交树：
-  `09455be5a`（v7.3.1 baseline）和
-  `824dc0a56`（samurai standard glue）；
-- 内核补丁、精确配置和生产 DTS wrapper 已落入
-  [`linux-port/patches/v7.3.1`](linux-port/patches/v7.3.1/)、
-  [`linux-port/configs/v7.3.1`](linux-port/configs/v7.3.1/) 和
-  [`linux-port/dts/v731`](linux-port/dts/v731/)；
-- 最终 boot 已刷入 `boot` 分区，设备内回读哈希与候选一致；
-- 三次启动均成功：首次 `a38fc278-644b-4387-97cf-f5c0c06aa541`，
-  两次普通重启后分别为 `3df82213-3f55-4ab6-b6af-a8a54e73645d`、
-  `9183a664-475e-46f6-b850-ad35aa99a93b`；
-- `taint=0`，三路 remoteproc `running`，`sensor-power` 为
-  `vdd=1 vddio=1`，UDC `configured`，DSI `On`，Wi-Fi SSH、KWin、
-  plasmashell、USB 和 OpenRC 服务正常；
-- 标准 `power_supply` 绑定为 `bq28z610-0` 与 `mp2650-input`，不再加载
-  私有 managed-charging 模块；
-- 旧 `samurai-charging` 已从所有 runlevel 移除，并在第三次启动确认不再
-  尝试加载；源码安装钩子改为旧内核上的显式 opt-in，
-  `samurai-platform` 5-r14 不再依赖它；
-- `samurai-dt-v1-abi.json` 已改到 v7.3.1 基线，声明 MP2650 与标准
-  DWC3 绑定；12 个资源全部通过契约检查。
+**设备当前在 suspend 尝试后离线。** 最后一次 SSH 可达的 boot 为
+`2b17a67a-841a-4fe5-9db4-ec8daf19d078`；执行 detached
+`loginctl suspend` 后 NCM/Wi‑Fi 在 140 秒内未恢复，Windows USB 和
+fastboot 也均未枚举。需要先物理按电源键唤醒；醒来后先保存
+`/tmp/samurai-suspend-test.log`、`/sys/kernel/debug/suspend_stats` 和
+`dmesg`，不要直接再次 suspend。
 
-## 当前镜像身份
+- 最后一次完整门禁 boot ID：`2b17a67a-841a-4fe5-9db4-ec8daf19d078`；
+- boot：`5b4dd4871f6856710ff58e722ffd8b2c30d04baf0104b262adcb02e46a7651bf`；
+- kernel FAT：`1f4bbb302a62d1f8a950994ac93b00ca194a41c768d4d11b1b97c69f5702574b`；
+- Image：`f8d8962197827dafbe50e551f5df03391c43ec0269449fa87b833e57799656a5`；
+- DTB：`b244b3f10a14811dca2e808efa8c840f432cac69020e66b60eba97d02794a18e`；
+- stripped 模块 777 个。
 
-| 项 | SHA-256 |
-| --- | --- |
-| boot | `c8a6c616f60c8ee8f314bfc9e1329c61af3eb070b0cee3724b99080ad3444eaf` |
-| BdsDxe | `f3b946b1660cd444048aba7e5fe434e08a6f41d8dd11cc83f944455fea6855ac` |
-| Image | `dc4c5623551824d170397cd93a01256dfc0eadb0d13b949c54e64f6e0ea61eda` |
-| DTB | `3261908efb6730f43f41e9ab752b03a107ab583d451f433c7eb648760ed79ebb` |
-| modules | `fc1607efc672b047318936fdada05f33a286815fac46ee6efac05291c6376bbb` |
-| logdump | `31049b6c328c0ad4716189ed20854cf3839b656edb17f6fd6c60e47205fe38a4` |
+## 已完成：Linux 侧成对刷写
 
-产物目录：`E:\edk2-samurai-out\standard-arm64-v731\`。
-当前源码 boot：
-`source-final-boot\boot-eud-production-off.img`。
+`linux-port/scripts/flash-pair-linux.sh` 按 GPT label 找到 `boot`
+(`/dev/sde11`) 和 `logdump` (`/dev/sde32`)，校验镜像大小、SHA-256、
+挂载状态和只读性，先写 logdump、整块回读，再写 boot、整块回读。
+实际写入日志见
+`E:/edk2-samurai-out/standard-arm64-v731/thin-private-final-20261109/flash.log`。
 
-## 命令行边界
+thin-private 两次普通重启用时：NCM SSH 31.905/38.284 秒，Wi‑Fi SSH
+47.984/59.074 秒。两次都在同一 boot 内通过 777 模块完整门禁。这个
+结果证明常温普通重启，不证明拔电冷启动或 suspend/resume。
 
-最终运行时命令行：
+## 已完成：闪光灯/V4L2
 
-```text
-console=tty0 loglevel=4 panic=15 clk_ignore_unused
-```
+- 标准 `leds-qcom-flash`、LED flash class、V4L2 flash subdevice；
+  S5KGW1 通过 `flash-leds` 加入 CAMSS 媒体图；
+- `white:flash` 存在，亮度 26/255、torch 200 mA、`faults=0`；
+- 开灯 RAW 均值 `177.04 -> 407.147`（+130%），0% 饱和；
+- 774/777 模块普通重启前后，四路 RAW、thermal、网络和 `taint=0`
+  门禁均通过。
 
-`ignore_loglevel`、`pd_ignore_unused`、`regulator_ignore_unused` 已移除。
-单独移除 `clk_ignore_unused` 实测停在 fastboot 并已回滚，因此这一项是
-当前板级必要约束，不是通用默认值。后续应定位缺失的 clock consumer，
-再删除该约束。
+## 已完成：蓝牙主线模块
 
-EDK2 `PlatformBm.c` 已同步为最终字符串。EDK2 GCC LTO 对命令行数组尺寸
-敏感，所以源码保留历史 108-`CHAR16` 分配并用 57 个尾随空格填充；内核
-忽略空格。用固定 staging 树重编旧/新源码后，BDS 审查为
-`passed=true`、`printable_metadata_only`，Smbios/UiApp 逐字节相同。
+签名 `samurai-bluetooth-host-0.1.0-r0` 已安装；`bnep`、`uhid`、
+`uinput` 自动加载，`/dev/uhid`、`/dev/uinput`、BNEP socket、BlueZ
+`hci0` 和 777 模块 gate 通过；外部 PAN/HID 对端未验。详见
+[BLUETOOTH-HOST-MODULES](linux-port/docs/BLUETOOTH-HOST-MODULES.md)。
 
-## 回退
+## 已完成：NFC/nfc0/neard
 
-- 上一已验证 boot：
-  `E:\edk2-samurai-out\standard-arm64-v731\cmdline-final\boot\boot-eud-production-off.img`
-  `236360a31ce397ddceec2eca91b0a4c606d93f754ced0c19325b4c288568ec5e`；
-- 更早生产回滚 boot：
-  `E:\edk2-samurai-out\runtime-20261106-eud-default-off\boot\boot-eud-production-off.img`
-  `8d1d6de2a3c63599080a16ded6ced1e410c9434e4e411a969e19b25ff03e690b`；
-- 刷写入口为 fastboot `62bc28a1` / `msmnile`；进入 bootloader 必须使用
-  设备上的 `RESTART2("bootloader")` 脚本，不能依赖 BusyBox
-  `reboot bootloader`。
+Alpine `neard-openrc`/`neard 0.20` 和签名 `samurai-platform 5-r22`
+已安装；普通重启后 `nfc0`、`neard`、D-Bus 属性及电源/轮询启停通过。
+无实体标签，不声称读卡；一次 NCM 探针 `Connection reset` 仍保留为
+未闭环的 USB 瞬态。详见 [NFC-NEARD](linux-port/docs/NFC-NEARD.md)。
 
-## 标准边界
+## 已完成：private status sysfs 删除
 
-已切到主线已有模型的接口包括 `mps,mp2650`、`bq28z610`、
-`qcom,sm8150-dwc3`/`qcom,snps-dwc3`、UDC class/configfs、DRM/KMS、
-backlight、remoteproc subdevice、ASoC/ALSA/UCM、evdev/input-ff 和 IIO。
+- 最终 FAT 以当前 flash/V4L2 FAT `c99c690e…` 为底，只替换 `/Image`；
+  boot `5b4dd487…` 和 DTB `b244b3f1…` 逐字节不变；
+- 刷后三处节点均消失：两个 `samurai-max98937` 的 `status` 和一个
+  `samurai-aw8697` 的 `status`；
+- 标准 ALSA playback/capture、AW8697 input/FF、四路相机 RAW、
+  flash/V4L2、蓝牙三模块、NFC `nfc0`、thermal 和 Wi‑Fi/NCM/SSH
+  全部通过；两次普通重启 `taint=0`，CAMSS `suspended`，MMCX 128。
 
-保留的板级极薄部分只有 DTS 接线、sensor-power regulator 时序、
-sofef03f 面板描述、AW8697 触觉板级驱动、MAX98937 与 samurai ASoC glue。
-相机 ICP/CAMSS 实验、APSD/私有 USB-input、私有 managed-charging KO、
-生产 EUD serial、vendor 根属性和 `samurai_diag` trace 依赖均未进入该镜像。
+## 恢复后先做：设置来源清理
 
-## 未完成
+唤醒后先只读保存日志，不再次 suspend。设置分层、候选 `5-r23`/`4-r11`
+和清理步骤见[SETTINGS-PROVENANCE](linux-port/docs/SETTINGS-PROVENANCE.md)；
+有回滚条件时安装候选并运行来源检查，PowerDevil 覆盖先 dry-run 再
+`--apply`，`sshd` 的 `boot` runlevel 另案恢复官方 `default`。
 
-1. 当前 boot 内嵌本地测试 initramfs（含测试凭据），只能用于本机测试，
-   不能作为通用发布镜像；
-2. 只验证了普通重启，尚未做断电冷启动、实际 suspend/resume、90Hz 模式
-   切换和长期稳定性；
-3. 尚未覆盖 RAM/UFS SKU，也未做 k270 旧内核回归；
-4. RPMh 日志仍有 `ret=-95` 读噪声，启动与运行健康，但根因未清；
-5. 标准 ESP/BDS 回退路径、持久 UEFI 变量尚未实现；
-6. 相机与受管高压充电仍是独立未来 profile，不混入当前 v1 契约。
+## 剩余候选与未验项
 
-下一轮优先顺序：先解决 `clk_ignore_unused` 对应的真实 clock consumer，
-再做断电冷启动与 suspend/resume；随后把测试 initramfs 与设备私钥从
-发布镜像中剥离，并实现标准 ESP/BDS 回退。
+- suspend：本次 `loginctl` + 直接 sysfs RTC alarm 测试未恢复，不能
+  声称通过。上次干净 s2idle 用的是 `rtcwake`；物理唤醒后必须用
+  `rtcwake -m mem -s 30` 复测，并保留串口/人工恢复路径。
+- NFC：真实标签读写、eSE 和长时间轮询功耗未验。
+- 蓝牙 PAN/HID：外部对端、配对/路由、冷启动和带业务 suspend 未验。
+
+私有层审计覆盖 14 个 C/H、11 个 DTS/表文件，无私有 ioctl、用户态
+拷贝或 Android/Binder 入口；唯一保留的旧只读面是
+`sensor-power/state`。
+
+## 已确认的网络/相机基线
+
+- `samurai-platform` 5-r22 / `samurai-desktop` 4-r10 已安装；普通重启
+  后 UDC `configured`、`usb0` carrier 1，configfs `qmult=20` 自动恢复。
+- NCM 24/24、1798.828 秒心跳；Wi‑Fi 1810 样本/1820.51 秒。旧 Genesys
+  Hub 的 Code 43 仍归主机/物理路径；主板直连口已通过。
+- 相机四路自动 probe，flash/V4L2 boot 的 RAW 各两张 100% 非零、
+  0% 饱和、帧间变化 26.012–48.634%；IMX471/S5K3M5 Selection API
+  已无 EINVAL，libcamera 0.7.2 四路 640×480 RGB888 单帧成功。
+- 内置麦克风 PulseAudio 连续采集 61.98 秒，RMS 15.053、0% 削顶、
+  stderr 空；原始音频未保留。
+- 时钟只读审计：358 个时钟中 55 个“硬件使能但无逻辑 consumer”，
+  含 `gcc_cpuss_rbcpr_clk`；这不是逐项 critical 证明。
+
+## 其余未完成
+
+- 闪光灯拔电冷启动、重复冷启动和长时间热升；当前控制/光学/普通重启
+  已通过。
+- thin-private 的联合 suspend/resume、拔电冷启动和回滚演练；
+- 蓝牙外部对端、音频耳机/watchdog、传感器 SSR、相机画质/录像/热功耗。
+- NFC 标签、指纹认证、真实 SIM、高压充电、实体电源键、deep sleep、
+  真正断电冷启动和长期功耗。
+- `clk_ignore_unused` 仍是实测必要约束；无 flag 的 kexec 预检曾使
+  设备离线超过 255 秒，禁止无人值守重试。UEFI/GRUB 和 RBCPR 候选
+  仍未刷入。
+- 真正拔除外部供电的物理按键冷启动、多次冷启动、长期 suspend/sleep
+  与功耗测量仍需现场条件。
+
+## 约束
+
+- 不重刷/擦除 NV、persist、校准、userdata；不做 boot-only 半套部署。
+- 不热反复 unbind PM8008/CAMSS；不以 OOT 模块冒充最终验收。
+- 不把私密 RAW、音频或场景哈希写入公开文档。
+- 根仓库有大量既有脏改动；不要 `git add -A`，不要提交无关文件。

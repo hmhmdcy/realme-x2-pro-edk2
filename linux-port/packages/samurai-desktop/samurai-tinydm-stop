@@ -1,0 +1,43 @@
+#!/bin/sh
+# Terminate tinydm's autologin seat before the supervisor exits.
+#
+# Some elogind/OpenRC combinations unregister the seat session but leave the
+# compositor and its children in the old session cgroup.  That keeps DRM and
+# the per-user power-key lock alive, so a restarted tinydm can create a second
+# unusable session.  Prefer a normal logind termination, then bound cleanup to
+# the compositor cgroups captured before the stop.
+
+set -u
+
+uid=${AUTOLOGIN_UID:-10000}
+cgroups=
+
+for pid in $(pgrep -u "$uid" -x kwin_wayland 2>/dev/null || true); do
+	cgroup=$(awk -F: '$1 == "0" { print $3; exit }' "/proc/$pid/cgroup" 2>/dev/null || true)
+	[ -n "$cgroup" ] || continue
+	case " $cgroups " in
+	*" $cgroup "*) ;;
+	*) cgroups="${cgroups:+$cgroups }$cgroup" ;;
+	esac
+done
+
+for session in $(loginctl list-sessions --no-legend 2>/dev/null |
+	awk -v uid="$uid" '$2 == uid && $4 == "seat0" { print $1 }'); do
+	loginctl terminate-session "$session" >/dev/null 2>&1 || true
+done
+
+tries=0
+while [ "$tries" -lt 15 ]; do
+	alive=0
+	for cgroup in $cgroups; do
+		[ -s "/sys/fs/cgroup/${cgroup#/}/cgroup.procs" ] && alive=1
+	done
+	[ "$alive" -eq 0 ] && break
+	tries=$((tries + 1))
+	sleep 0.2
+done
+
+for cgroup in $cgroups; do
+	killfile=/sys/fs/cgroup/${cgroup#/}/cgroup.kill
+	[ -w "$killfile" ] && printf '1\n' >"$killfile" 2>/dev/null || true
+done

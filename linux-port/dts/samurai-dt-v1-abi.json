@@ -1,8 +1,8 @@
 {
   "schema": "samurai-platform-contract-v1",
   "contract": "samurai-dt-v1",
-  "status": "runtime_verified_v731_single_sku_not_frozen",
-  "updated": "2026-11-06",
+  "status": "thin_private_deployed_two_ordinary_reboots_passed_suspend_pending_cold_boot_pending",
+  "updated": "2026-11-09",
   "source_lock": "linux-port/dts/v731/source-lock.json",
   "source_commit": "824dc0a56143d8bf1cc1d20adb877abced48b336",
   "scope": {
@@ -11,13 +11,13 @@
     "os_facing_dtb_only": true,
     "vendor_compat_dtb_checked": false,
     "runtime_verified": true,
-    "runtime_scope": "The v7.3.1 OS-facing DTB booted three times on the deployed RMX1931 device, including two ordinary reboots. Multi-SKU, cold power-loss and suspend/resume coverage remain open.",
+    "runtime_scope": "The v7.3.1 OS-facing DTB with the PM8150L flash/V4L2 link booted on the deployed RMX1931 through two ordinary reboots after the thin-private Image replacement. All four camera sensors each produced two complete private RAW frames, the LED-flash class and V4L2 flash subdevice were present, and Wi-Fi/NCM/SSH recovered on the same boot. All three MAX98937/AW8697 custom status nodes are absent while standard ALSA and input/FF remain. The installed Bluetooth host modules auto-loaded and the NFC nfc0/neard controller path passed without a physical tag. Multi-SKU, an externally removed-power cold boot, tag I/O and an accepted suspend/resume run remain open.",
     "statement": "This file is the machine-readable contract for the OS-facing platform. Runtime verification is limited to the deployed hardware and functions listed in the v7.3.1 source lock."
   },
   "delivery": {
     "current": "OS-facing DTB embedded in the UEFI boot image and passed to Linux by UEFI",
     "future": "The same OS-facing DTB contract may be delivered by an ESP loader or another standard boot path",
-    "logdump_fat_dtb_is_runtime_source": false,
+    "logdump_fat_dtb_is_runtime_source": true,
     "rule": "Do not change the delivery mechanism and the DTB contents in the same runtime window."
   },
   "compatibility": {
@@ -126,6 +126,21 @@
       },
       "property": "qcom,rproc",
       "reason": "standard phandle link to the SLPI remoteproc; replaces the legacy remoteproc property"
+    },
+    {
+      "selector": {
+        "path": "/soc@0/usb@a600000"
+      },
+      "property": "tx-fifo-resize",
+      "reason": "standard DWC3 boolean from snps,dwc3-common.yaml; enables dynamic TX FIFO allocation for high-speed bulk IN"
+    },
+    {
+      "selector": {
+        "compatible": "samsung,s5kgw1"
+      },
+      "property": "flash-leds",
+      "expected_phandle_count": 1,
+      "reason": "standard camera-sensor phandle to the registered LED-flash class device; lets V4L2 link the flash subdevice into the CAMSS media graph"
     }
   ],
   "allowed_removed_properties": [
@@ -133,6 +148,21 @@
       "path": "/sensor-power",
       "property": "remoteproc",
       "reason": "legacy phandle name migrated to qcom,rproc"
+    }
+  ],
+  "allowed_added_nodes": [
+    {
+      "path": "/soc@0/spmi@c440000/pmic@5/led-controller@d300/led-0",
+      "reason": "Additive PM8150L dual-channel rear flash description for the standard LED flash and V4L2 flash classes."
+    }
+  ],
+  "allowed_changed_properties": [
+    {
+      "path": "/soc@0/spmi@c440000/pmic@5/led-controller@d300",
+      "property": "status",
+      "before": "disabled",
+      "after": "okay",
+      "reason": "The stock source exposes the PM8150L flash module and its read-only type/subtype registers match the mainline driver."
     }
   ],
   "reserved_memory": {
@@ -405,6 +435,63 @@
       "notes": "The board uses the standard mps,mp2650 binding and power_supply class. Vendor charging policy, private sysfs and forced module rebinding are not part of this contract."
     },
     {
+      "id": "thermal-zones",
+      "subsystem": "thermal",
+      "selector": {
+        "path": "/thermal-zones"
+      },
+      "required_properties": [],
+      "stable_properties": [],
+      "required_children": [
+        "aoss0-thermal",
+        "aoss1-thermal",
+        "camera-thermal",
+        "cluster0-thermal",
+        "cluster1-thermal",
+        "compute-thermal",
+        "cpu0-thermal",
+        "cpu1-thermal",
+        "cpu2-thermal",
+        "cpu3-thermal",
+        "cpu4-bottom-thermal",
+        "cpu4-top-thermal",
+        "cpu5-bottom-thermal",
+        "cpu5-top-thermal",
+        "cpu6-bottom-thermal",
+        "cpu6-top-thermal",
+        "cpu7-bottom-thermal",
+        "cpu7-top-thermal",
+        "gpu-bottom-thermal",
+        "gpu-top-thermal",
+        "mem-thermal",
+        "modem-scl-thermal",
+        "modem-thermal",
+        "modem-vec-thermal",
+        "npu-thermal",
+        "pm8150-thermal",
+        "pm8150b-thermal",
+        "pm8150l-thermal",
+        "q6-hvx-thermal",
+        "video-thermal",
+        "wlan-thermal"
+      ],
+      "consumer_sources": [
+        "drivers/thermal/qcom/tsens.c",
+        "drivers/thermal/thermal_core.c",
+        "drivers/thermal/cpufreq_cooling.c",
+        "drivers/thermal/devfreq_cooling.c"
+      ],
+      "uapi_contracts": [
+        "thermal-hwmon"
+      ],
+      "verification_gates": [
+        "G2",
+        "G3",
+        "G4"
+      ],
+      "notes": "The standard SM8150 TSENS thermal zones and CPU/GPU cooling maps are already in the OS-facing DTB. Userspace discovers them through thermal class sysfs; it must not hard-code zone numbers or write trips during the read-only platform gate."
+    },
+    {
       "id": "haptics",
       "subsystem": "input/ff",
       "selector": {
@@ -572,6 +659,389 @@
         "G4"
       ],
       "notes": "v1 freezes the current disabled state. Enabling the Type-C policy or adding the charging connector requires a separate charging profile and a contract revision."
+    },
+    {
+      "id": "camera-cci-a",
+      "subsystem": "camera/CCI",
+      "selector": {
+        "path": "/soc@0/cci@ac4a000"
+      },
+      "required_properties": [
+        "reg",
+        "interrupts",
+        "power-domains",
+        "clocks",
+        "clock-names",
+        "assigned-clocks",
+        "assigned-clock-rates",
+        "pinctrl-names",
+        "pinctrl-0",
+        "pinctrl-1",
+        "status",
+        "vddio-supply"
+      ],
+      "stable_properties": [
+        "reg",
+        "interrupts",
+        "clock-names",
+        "status"
+      ],
+      "consumer_sources": [
+        "drivers/i2c/busses/i2c-qcom-cci.c"
+      ],
+      "uapi_contracts": [
+        "camera-media-controller"
+      ],
+      "verification_gates": [
+        "G2",
+        "G3",
+        "G4"
+      ],
+      "notes": "Primary CCI instance. I2C bus numbers are dynamic; consumers must discover sensors by media entity or device model, not by a hard-coded i2c-N address."
+    },
+    {
+      "id": "camera-cci-b",
+      "subsystem": "camera/CCI",
+      "selector": {
+        "path": "/soc@0/cci@ac4b000"
+      },
+      "required_properties": [
+        "reg",
+        "interrupts",
+        "power-domains",
+        "clocks",
+        "clock-names",
+        "assigned-clocks",
+        "assigned-clock-rates",
+        "pinctrl-names",
+        "pinctrl-0",
+        "pinctrl-1",
+        "status",
+        "vddio-supply"
+      ],
+      "stable_properties": [
+        "reg",
+        "interrupts",
+        "clock-names",
+        "status"
+      ],
+      "consumer_sources": [
+        "drivers/i2c/busses/i2c-qcom-cci.c"
+      ],
+      "uapi_contracts": [
+        "camera-media-controller"
+      ],
+      "verification_gates": [
+        "G2",
+        "G3",
+        "G4"
+      ],
+      "notes": "Secondary CCI instance. The two CCI controllers can enumerate as different i2c-N numbers across boots."
+    },
+    {
+      "id": "camera-camss",
+      "subsystem": "camera/CAMSS",
+      "selector": {
+        "compatible": "qcom,sm8150-camss"
+      },
+      "required_properties": [
+        "reg",
+        "reg-names",
+        "interrupts",
+        "interrupt-names",
+        "power-domains",
+        "power-domain-names",
+        "clocks",
+        "clock-names",
+        "interconnects",
+        "interconnect-names",
+        "iommus",
+        "status",
+        "vdda-phy-supply",
+        "memory-region",
+        "memory-region-names"
+      ],
+      "stable_properties": [
+        "reg",
+        "reg-names",
+        "interrupt-names",
+        "power-domain-names",
+        "clock-names",
+        "interconnect-names",
+        "status",
+        "memory-region-names"
+      ],
+      "consumer_sources": [
+        "drivers/media/platform/qcom/camss/camss.c"
+      ],
+      "uapi_contracts": [
+        "camera-media-controller",
+        "camera-v4l2-capture"
+      ],
+      "verification_gates": [
+        "G2",
+        "G3",
+        "G4"
+      ],
+      "notes": "Uses the standard V4L2/media-controller graph. The SM8150 resource table keeps the board-specific MMCX performance vote in the generic CAMSS runtime-PM path."
+    },
+    {
+      "id": "camera-flash",
+      "subsystem": "camera/flash",
+      "selector": {
+        "path": "/soc@0/spmi@c440000/pmic@5/led-controller@d300"
+      },
+      "required_properties": [
+        "compatible",
+        "reg",
+        "status"
+      ],
+      "stable_properties": [
+        "reg"
+      ],
+      "consumer_sources": [
+        "drivers/leds/flash/leds-qcom-flash.c",
+        "drivers/media/v4l2-core/v4l2-flash-led-class.c"
+      ],
+      "uapi_contracts": [
+        "led-flash-class",
+        "v4l2-flash"
+      ],
+      "verification_gates": [
+        "G2",
+        "G3",
+        "G4"
+      ],
+      "notes": "The stock camera description connects the rear dual-LED flash to PM8150L channels 0 and 1. The mainline driver exposes one combined white emitter through the standard LED flash class and a V4L2 flash subdevice. The deployed pair passed control, optical torch, runtime and ordinary-reboot tests."
+    },
+    {
+      "id": "camera-lens-wide",
+      "subsystem": "camera/lens",
+      "selector": {
+        "compatible": "onnn,lc898219xi"
+      },
+      "required_properties": [
+        "reg",
+        "vdd-supply"
+      ],
+      "stable_properties": [
+        "reg"
+      ],
+      "consumer_sources": [
+        "drivers/media/i2c/lc898219xi.c"
+      ],
+      "uapi_contracts": [
+        "camera-v4l2-capture"
+      ],
+      "verification_gates": [
+        "G2",
+        "G3",
+        "G4"
+      ],
+      "notes": "V4L2 lens subdevice; focus control is exposed through the standard subdev API."
+    },
+    {
+      "id": "camera-wide",
+      "subsystem": "camera/sensor",
+      "selector": {
+        "compatible": "samsung,s5kgw1"
+      },
+      "required_properties": [
+        "reg",
+        "power-domains",
+        "vdda-supply",
+        "vddd-supply",
+        "vddio-supply",
+        "lens-focus",
+        "clocks",
+        "assigned-clocks",
+        "assigned-clock-rates",
+        "reset-gpios",
+        "pinctrl-names",
+        "pinctrl-0",
+        "pinctrl-1"
+      ],
+      "stable_properties": [
+        "reg",
+        "pinctrl-names"
+      ],
+      "consumer_sources": [
+        "drivers/media/i2c/s5kgw1.c"
+      ],
+      "uapi_contracts": [
+        "camera-v4l2-capture"
+      ],
+      "verification_gates": [
+        "G2",
+        "G3",
+        "G4"
+      ],
+      "notes": "S5KGW1 RAW sensor through CAMSS and V4L2; calibration data remains device-private."
+    },
+    {
+      "id": "camera-rear",
+      "subsystem": "camera/sensor",
+      "selector": {
+        "compatible": "sony,imx319"
+      },
+      "required_properties": [
+        "reg",
+        "power-domains",
+        "vana-supply",
+        "vdig-supply",
+        "vif-supply",
+        "clocks",
+        "assigned-clocks",
+        "assigned-clock-rates",
+        "reset-gpios",
+        "pinctrl-names",
+        "pinctrl-0",
+        "pinctrl-1"
+      ],
+      "stable_properties": [
+        "reg",
+        "pinctrl-names"
+      ],
+      "consumer_sources": [
+        "drivers/media/i2c/imx319.c"
+      ],
+      "uapi_contracts": [
+        "camera-v4l2-capture"
+      ],
+      "verification_gates": [
+        "G2",
+        "G3",
+        "G4"
+      ],
+      "notes": "IMX319 RAW sensor through CAMSS and V4L2."
+    },
+    {
+      "id": "camera-tele",
+      "subsystem": "camera/sensor",
+      "selector": {
+        "compatible": "samsung,s5k3m5"
+      },
+      "required_properties": [
+        "reg",
+        "power-domains",
+        "vdda-supply",
+        "vddd-supply",
+        "vddio-supply",
+        "clocks",
+        "assigned-clocks",
+        "assigned-clock-rates",
+        "reset-gpios",
+        "pinctrl-names",
+        "pinctrl-0",
+        "pinctrl-1"
+      ],
+      "stable_properties": [
+        "reg",
+        "pinctrl-names"
+      ],
+      "consumer_sources": [
+        "drivers/media/i2c/s5k3m5.c"
+      ],
+      "uapi_contracts": [
+        "camera-v4l2-capture"
+      ],
+      "verification_gates": [
+        "G2",
+        "G3",
+        "G4"
+      ],
+      "notes": "S5K3M5 RAW sensor through CAMSS and V4L2."
+    },
+    {
+      "id": "camera-front",
+      "subsystem": "camera/sensor",
+      "selector": {
+        "compatible": "sony,imx471"
+      },
+      "required_properties": [
+        "reg",
+        "power-domains",
+        "vana-supply",
+        "vdig-supply",
+        "vif-supply",
+        "clocks",
+        "assigned-clocks",
+        "assigned-clock-rates",
+        "reset-gpios",
+        "pinctrl-names",
+        "pinctrl-0",
+        "pinctrl-1"
+      ],
+      "stable_properties": [
+        "reg",
+        "pinctrl-names"
+      ],
+      "consumer_sources": [
+        "drivers/media/i2c/imx471.c"
+      ],
+      "uapi_contracts": [
+        "camera-v4l2-capture"
+      ],
+      "verification_gates": [
+        "G2",
+        "G3",
+        "G4"
+      ],
+      "notes": "IMX471 RAW sensor through CAMSS and V4L2."
+    },
+    {
+      "id": "camera-pm8008-main",
+      "subsystem": "camera/PMIC",
+      "selector": {
+        "path": "/soc@0/geniqup@8c0000/i2c@890000/pmic@8"
+      },
+      "required_properties": [
+        "reg",
+        "reset-gpios",
+        "vdd-l1-l2-supply",
+        "qcom,address-setup-supplier",
+        "status"
+      ],
+      "stable_properties": [
+        "reg",
+        "status"
+      ],
+      "consumer_sources": [
+        "drivers/mfd/qcom-pm8008.c",
+        "drivers/regulator/qcom-pm8008-regulator.c"
+      ],
+      "verification_gates": [
+        "G2",
+        "G3",
+        "G4"
+      ],
+      "notes": "Factory-address PM8008 instance. Regulator children are consumed through the standard regulator API."
+    },
+    {
+      "id": "camera-pm8008-secondary",
+      "subsystem": "camera/PMIC",
+      "selector": {
+        "path": "/soc@0/geniqup@8c0000/i2c@890000/pmic@4"
+      },
+      "required_properties": [
+        "reg",
+        "qcom,initial-address",
+        "reset-gpios",
+        "vdd-l1-l2-supply"
+      ],
+      "stable_properties": [
+        "reg"
+      ],
+      "consumer_sources": [
+        "drivers/mfd/qcom-pm8008.c",
+        "drivers/regulator/qcom-pm8008-regulator.c"
+      ],
+      "verification_gates": [
+        "G2",
+        "G3",
+        "G4"
+      ],
+      "notes": "The second PM8008 is moved from its factory address by the board address sequencer before normal regulator probing."
     }
   ],
   "uapi_contracts": [
@@ -633,6 +1103,15 @@
       "legacy_hint": null
     },
     {
+      "id": "thermal-hwmon",
+      "interface": "thermal class / hwmon",
+      "resource_ids": [
+        "thermal-zones"
+      ],
+      "discovery": "enumerate /sys/class/thermal/thermal_zone* and /sys/class/thermal/cooling_device*; read type, temp, mode, policy and trip_point_N_* without writing",
+      "legacy_hint": null
+    },
+    {
       "id": "block-device",
       "interface": "block device",
       "resource_ids": [
@@ -679,6 +1158,49 @@
       "legacy_hint": null
     },
     {
+      "id": "led-flash-class",
+      "interface": "LED flash class",
+      "resource_ids": [
+        "camera-flash"
+      ],
+      "discovery": "enumerate /sys/class/leds, select the white flash emitter by its function/color naming and use the standard brightness, flash_strobe and flash_timeout attributes",
+      "legacy_hint": null
+    },
+    {
+      "id": "v4l2-flash",
+      "interface": "V4L2 flash subdevice",
+      "resource_ids": [
+        "camera-flash"
+      ],
+      "discovery": "enumerate /dev/v4l-subdev* and use V4L2_CID_FLASH_CLASS controls through the media-controller graph",
+      "legacy_hint": null
+    },
+    {
+      "id": "camera-media-controller",
+      "interface": "V4L2 media controller",
+      "resource_ids": [
+        "camera-cci-a",
+        "camera-cci-b",
+        "camera-camss"
+      ],
+      "discovery": "enumerate /dev/media* and traverse enabled links between sensor, CCI/CSI PHY, CSID, VFE and video nodes",
+      "legacy_hint": null
+    },
+    {
+      "id": "camera-v4l2-capture",
+      "interface": "V4L2 streaming",
+      "resource_ids": [
+        "camera-camss",
+        "camera-lens-wide",
+        "camera-wide",
+        "camera-rear",
+        "camera-tele",
+        "camera-front"
+      ],
+      "discovery": "discover sensors by media entity or device model, configure the V4L2 subdev pad formats, then use VIDIOC_STREAMON/STREAMOFF",
+      "legacy_hint": null
+    },
+    {
       "id": "sensor-power-legacy",
       "interface": "private platform sysfs (legacy)",
       "resource_ids": [
@@ -690,24 +1212,31 @@
     }
   ],
   "known_artifact_hashes": {
-    "os_dtb_baseline": "3261908efb6730f43f41e9ab752b03a107ab583d451f433c7eb648760ed79ebb",
+    "os_dtb_baseline": "3799ec6c7d3e0c67a657859a37b2fe147fa21a9dedc84d49c8eb83fd8debc805",
     "os_dtb_pre_v731": "f7959f8a0f8bd3b89dcd67db2f1362b746cc3c4b43f403edbf6fa5347143a3f0",
     "vendor_dtb_control": "dcdd74ec903520c7023fa28badcb293b2e4e26ee5bac639497c63d53536b2c8d",
     "l3_sensor_power_candidate": "89604b9ce7ea1502dc3a73f1523fc48d46044166792dbbd2d5c2aa4f9d66d570",
     "l3_sensor_power_rproc_subdev_dtb": "754a13b0716b97948ef855f1aedb22b5c90e2fffadcdc7113dcebab37096ab65",
     "l3_sensor_power_rproc_subdev_boot": "ad48e3434192343b7738818fd2166787774138c87c3f7a0c04c6f611b16eb226",
     "experiment_profile": "c582dd7cf36e9a3796533674edddea1fc55a30f44b605bf9e8161b015d77a64f",
-    "linux_v731_image": "dc4c5623551824d170397cd93a01256dfc0eadb0d13b949c54e64f6e0ea61eda",
-    "linux_v731_modules": "fc1607efc672b047318936fdada05f33a286815fac46ee6efac05291c6376bbb",
-    "linux_v731_boot": "c8a6c616f60c8ee8f314bfc9e1329c61af3eb070b0cee3724b99080ad3444eaf",
+    "linux_v731_image": "aa6c4b6b43ec45f4c41d3d420b980e35876860537cb6f2cb96ec5063aab8432a",
+    "linux_v731_modules": "c12a0513caf664200e1df47da5061b227090ffe8cf8d3586030cdbb9241a8b30",
+    "linux_v731_boot": "5b4dd4871f6856710ff58e722ffd8b2c30d04baf0104b262adcb02e46a7651bf",
+    "flash_led_candidate_dtb": "b244b3f10a14811dca2e808efa8c840f432cac69020e66b60eba97d02794a18e",
+    "flash_led_candidate_boot": "5b4dd4871f6856710ff58e722ffd8b2c30d04baf0104b262adcb02e46a7651bf",
+    "flash_led_candidate_kernel_fat": "c99c690ee923238b0954975682c0e40ce99ae63afd048d40b5059fea70e5862e",
+    "thin_private_kernel_fat": "1f4bbb302a62d1f8a950994ac93b00ca194a41c768d4d11b1b97c69f5702574b",
+    "thin_private_image": "f8d8962197827dafbe50e551f5df03391c43ec0269449fa87b833e57799656a5",
     "linux_v731_bds": "f3b946b1660cd444048aba7e5fe434e08a6f41d8dd11cc83f944455fea6855ac",
-    "linux_v731_config": "5c7ea3eec1bb0efca473f3032390fff0368fc8dbc4f826c4b614863300004ffc",
-    "linux_v731_patch": "11e97a17342ac13989686683bd8bc1e4269b41b050a7914c57c055b186390063"
+    "linux_v731_config": "9c99cfc3a14c075586c39692ae92fd6975f49a5afa1ee8a510cead4206cb39d1",
+    "linux_v731_patch": "dcdb7c70f74bfa75888733aa20a836530635ff788e137d9a073364d847d2dbcf",
+    "linux_v731_camera_patch": "964cd13b3bb52d0b4977b94cbcd1aeea454fbb368dd4b34818ab821be913b38f"
   },
   "freeze_blockers": [
     "The same OS DTB has not been booted across the supported RAM and UFS SKU variants.",
-    "Only ordinary reboot has been verified; cold power-loss startup and suspend/resume remain open.",
-    "The camera ICP path and managed high-voltage charging policy remain separate profiles, not part of this v1 contract.",
-    "The private sensor-power state sysfs path still exists as a read-only compatibility view; the lifecycle itself uses the generic remoteproc subdevice API."
+    "Only ordinary reboot has been verified; cold power-loss startup remains open, and a loginctl/direct-wakealarm suspend attempt did not recover.",
+    "The camera ICP userspace experiment and managed high-voltage charging policy remain separate profiles; the standard V4L2 CAMSS/CCI/sensor path is now part of this contract.",
+    "The private sensor-power state sysfs path still exists as a read-only compatibility view; the lifecycle itself uses the generic remoteproc subdevice API.",
+    "The PM8150L flash/V4L2 pair is deployed and passed an ordinary reboot, but external-power-removed cold boot, repeated cold boots and long thermal endurance remain open."
   ]
 }

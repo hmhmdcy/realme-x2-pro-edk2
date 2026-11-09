@@ -51,9 +51,13 @@ boot()
     result=$(cat "$wifi/boot-finished")
     case "$result" in ''|*[!0-9]*) return 1;; esac
     stamp "WIFI_BOOTSTRAP_FINISHED result=$result"
-    # Preserve the observed early-display/MPSS isolation window even if the
-    # Wi-Fi worker fails early. Display failure cannot block Bluetooth forever.
-    while [ "$(cut -d '.' -f1 /proc/uptime)" -lt 60 ]; do sleep 1; done
+    min_uptime=${SAMURAI_BT_BOOT_MIN_UPTIME:-0}
+    settle=${SAMURAI_BT_BOOT_SETTLE:-0}
+    case "$min_uptime" in ''|*[!0-9]*) min_uptime=0;; esac
+    case "$settle" in ''|*[!0-9]*) settle=0;; esac
+    # Readiness is event-driven: Wi-Fi completion and display registration
+    # are the actual gates. Keep an opt-in isolation window for diagnostics.
+    while [ "$(cut -d ' ' -f1 /proc/uptime)" -lt "$min_uptime" ]; do sleep 1; done
     for attempt in $(seq 1 30); do
         test -e /sys/class/graphics/fb0 && break
         sleep 1
@@ -63,7 +67,7 @@ boot()
     else
         stamp DISPLAY_WAIT_EXPIRED
     fi
-    sleep 10
+    [ "$settle" -eq 0 ] || sleep "$settle"
     start
 }
 case "${1:-}" in

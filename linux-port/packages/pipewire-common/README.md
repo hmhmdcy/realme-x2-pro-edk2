@@ -1,5 +1,10 @@
 # PipeWire公共相机缓冲修复配方
 
+本板 `pipewire-launcher.sh` 的 daemon readiness 已从无限循环改为默认
+15 秒有界等待（可用 `SAMURAI_PIPEWIRE_START_WAIT` 调整）。PipeWire 启动
+失败时 autostart 会返回错误，而不是永远占住会话初始化；这不是网络
+路径修复，也不改变上游 PipeWire 的相机补丁。
+
 PipeWire1.6.9-r3，基于Alpine aports固定提交0afac626498565714f7a06c04589112584cc95f4的完整官方APKBUILD与辅助文件。归档固定GitHub1.6.9 tar的名称与摘要，详见[source-lock](source-lock.json)。
 
 保留上游systemd补丁，并顺序追加六个项目补丁：

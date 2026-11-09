@@ -1,0 +1,3 @@
+# RMX1931: the AW8697 haptics input device has a device-specific name.
+# feedbackd's generic rule only matches aw86927-haptics/aw8695-haptics.
+SUBSYSTEM=="input", KERNEL=="event*", ENV{ID_INPUT}=="1", SUBSYSTEMS=="input", ATTRS{name}=="Realme X2 Pro AW8697 haptics", MODE="0660", GROUP="feedbackd", TAG+="uaccess", ENV{FEEDBACKD_TYPE}="vibra"

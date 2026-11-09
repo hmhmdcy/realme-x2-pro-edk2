@@ -1,0 +1,591 @@
+#!/usr/bin/env python3
+"""Power-key bridge for Plasma Mobile on the Realme X2 Pro."""
+
+from __future__ import annotations
+
+import argparse
+import fcntl
+import glob
+import json
+import os
+import re
+import select
+import shutil
+import signal
+import struct
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+
+KEY_POWER = 116
+EV_KEY = 1
+EVIOCGRAB = 0x40044590
+INPUT_EVENT = struct.Struct("@llHHi")
+
+DEBOUNCE_SECONDS = 0.35
+WAKE_RECOVERY_SECONDS = 6.0
+WAKE_RECOVERY_POLL_SECONDS = 0.20
+WAKE_RECOVERY_MAX_RETRIES = 2
+WAKE_PANEL_DIRECT_SECONDS = 1.0
+WAKE_PANEL_MODESET_SECONDS = 3.0
+DPMS_LINE = re.compile(
+    r"^dpms mode for screen (?P<screen>.+): (?P<mode>on|off)$"
+)
+
+
+def log(message: str) -> None:
+    stamp = time.strftime("%Y-%m-%d %H:%M:%S")
+    print(f"{stamp} samurai-powerkey: {message}", flush=True)
+
+
+class Session:
+    def __init__(self) -> None:
+        self.pid = 0
+        self.uid = 0
+        self.runtime_dir = ""
+        self.wayland_display = ""
+        self.display = ""
+        self.dbus_address = ""
+
+    @staticmethod
+    def _environ(pid: int) -> dict[str, str]:
+        try:
+            raw = Path(f"/proc/{pid}/environ").read_bytes()
+        except OSError:
+            return {}
+        result = {}
+        for item in raw.split(b"\0"):
+            if b"=" not in item:
+                continue
+            key, value = item.split(b"=", 1)
+            result[key.decode(errors="ignore")] = value.decode(errors="ignore")
+        return result
+
+    def refresh(self) -> bool:
+        candidates = []
+        for entry in Path("/proc").iterdir():
+            if not entry.name.isdigit():
+                continue
+            pid = int(entry.name)
+            if pid <= 1:
+                continue
+            try:
+                comm = (entry / "comm").read_text().strip()
+                status = (entry / "status").read_text()
+            except OSError:
+                continue
+            if comm not in ("kwin_wayland", "kwin_wayland_wrapper"):
+                continue
+            match = re.search(r"^Uid:\s+(\d+)", status, re.MULTILINE)
+            if not match:
+                continue
+            uid = int(match.group(1))
+            if uid == 0:
+                continue
+            env = self._environ(pid)
+            runtime_dir = env.get("XDG_RUNTIME_DIR", "")
+            wayland_display = env.get("WAYLAND_DISPLAY", "")
+            try:
+                argv = [
+                    item.decode(errors="ignore")
+                    for item in (entry / "cmdline").read_bytes().split(b"\0")
+                    if item
+                ]
+            except OSError:
+                argv = []
+            if not wayland_display and "--socket" in argv:
+                index = argv.index("--socket")
+                if index + 1 < len(argv):
+                    wayland_display = argv[index + 1]
+            if not runtime_dir or not wayland_display:
+                continue
+            if not Path(runtime_dir, wayland_display).exists():
+                continue
+            preference = 0 if comm == "kwin_wayland" else 1
+            candidates.append((preference, pid, uid, env, wayland_display))
+
+        if not candidates:
+            return False
+        candidates.sort(key=lambda item: (item[0], item[1]))
+        _preference, pid, uid, env, wayland_display = candidates[0]
+        self.pid = pid
+        self.uid = uid
+        self.runtime_dir = env["XDG_RUNTIME_DIR"]
+        self.wayland_display = wayland_display
+        self.display = env.get("DISPLAY", "")
+        self.dbus_address = env.get("DBUS_SESSION_BUS_ADDRESS", "")
+        return True
+
+    def command_env(self) -> dict[str, str]:
+        env = {
+            "PATH": os.environ.get("PATH", "/usr/sbin:/usr/bin:/sbin:/bin"),
+            "HOME": "/root",
+            "XDG_RUNTIME_DIR": self.runtime_dir,
+            "WAYLAND_DISPLAY": self.wayland_display,
+            "QT_QPA_PLATFORM": "wayland",
+        }
+        if self.display:
+            env["DISPLAY"] = self.display
+        return env
+
+
+class Display:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+        self.kscreen = shutil.which("kscreen-doctor") or "/usr/bin/kscreen-doctor"
+        self.loginctl = shutil.which("loginctl") or "/usr/bin/loginctl"
+        self.backlight = self._find_backlight()
+
+    @staticmethod
+    def _find_backlight() -> Path | None:
+        preferred = Path("/sys/class/backlight/ae94000.dsi.0/bl_power")
+        if preferred.exists():
+            return preferred
+        candidates = sorted(glob.glob("/sys/class/backlight/*/bl_power"))
+        return Path(candidates[0]) if candidates else None
+
+    def bl_power(self) -> int | None:
+        if self.backlight is None:
+            return None
+        try:
+            return int(self.backlight.read_text().strip())
+        except (OSError, ValueError):
+            return None
+
+    def _run(self, arguments: list[str], timeout: float = 5.0):
+        try:
+            return subprocess.run(
+                [self.kscreen, *arguments],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=timeout,
+                env=self.session.command_env(),
+            )
+        except (OSError, subprocess.TimeoutExpired) as error:
+            log(f"kscreen-doctor {' '.join(arguments)} failed: {error}")
+            return None
+
+    def dpms_states(self) -> dict[str, str] | None:
+        result = self._run(["--dpms", "show"])
+        if result is None or result.returncode != 0:
+            if result is not None:
+                log(f"kscreen-doctor --dpms show exited {result.returncode}")
+            return None
+        states = {}
+        for line in result.stdout.splitlines():
+            match = DPMS_LINE.match(line.strip())
+            if match:
+                states[match.group("screen")] = match.group("mode")
+        if not states:
+            log("kscreen-doctor --dpms show returned no states")
+            return None
+        return states
+
+    def dpms_state(self) -> str | None:
+        states = self.dpms_states()
+        if states is None:
+            return None
+        if "DSI-1" in states:
+            return states["DSI-1"]
+        return next(iter(states.values()))
+
+    def set_dpms(self, target: str) -> bool:
+        result = self._run(["--dpms", target])
+        if result is None:
+            return False
+        if result.returncode != 0:
+            log(f"kscreen-doctor --dpms {target} exited {result.returncode}")
+            return False
+        return True
+
+    def modeset_plan(self) -> tuple[str, str, str] | None:
+        result = self._run(["-j"])
+        if result is None or result.returncode != 0:
+            if result is not None:
+                log(f"kscreen-doctor -j exited {result.returncode}")
+            return None
+        try:
+            data = json.loads(result.stdout)
+        except json.JSONDecodeError as error:
+            log(f"cannot parse KScreen JSON: {error}")
+            return None
+
+        outputs = data.get("outputs", [])
+        output = next(
+            (
+                item
+                for item in outputs
+                if item.get("name") == "DSI-1" and item.get("enabled")
+            ),
+            None,
+        )
+        if output is None:
+            output = next(
+                (
+                    item
+                    for item in outputs
+                    if item.get("enabled") and item.get("connected")
+                ),
+                None,
+            )
+        if not output:
+            return None
+
+        modes = {
+            str(mode["id"]): str(mode["name"])
+            for mode in output.get("modes", [])
+            if "id" in mode and "name" in mode
+        }
+        current_id = str(output.get("currentModeId", ""))
+        current = modes.get(current_id)
+        alternate = next(
+            (name for mode_id, name in modes.items() if mode_id != current_id),
+            None,
+        )
+        if not current or not alternate:
+            return None
+        return str(output["name"]), current, alternate
+
+    def lock(self) -> None:
+        try:
+            subprocess.run(
+                [self.loginctl, "lock-sessions"],
+                check=False,
+                timeout=5,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+            )
+        except (OSError, subprocess.TimeoutExpired) as error:
+            log(f"session lock failed: {error}")
+
+
+class PowerKeyBridge:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+        self.display = Display(session)
+        self.last_key = 0.0
+        self.last_bl_power = self.display.bl_power()
+        self.external_wake_due = 0.0
+        self.modeset_guard_until = 0.0
+        self.wake_recovery_until = 0.0
+        self.next_wake_check = 0.0
+        self.wake_recovery_retries = 0
+        self.startup_done = False
+
+    def _refresh_session(self) -> bool:
+        if self.session.refresh():
+            return True
+        return bool(self.session.runtime_dir)
+
+    def _wait_for_panel(self, timeout: float) -> bool:
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            self.last_bl_power = self.display.bl_power()
+            if self.last_bl_power == 0:
+                return True
+            time.sleep(0.05)
+        return False
+
+    def _force_modeset(self, reason: str) -> bool:
+        self.modeset_guard_until = time.monotonic() + 3.0
+        if not self.display.set_dpms("on"):
+            return False
+
+        recovery = "direct"
+        if not self._wait_for_panel(WAKE_PANEL_DIRECT_SECONDS):
+            plan = self.display.modeset_plan()
+            if plan is None:
+                log(f"modeset recovery skipped ({reason}): no alternate mode")
+                return False
+            output, current, alternate = plan
+            recovery = "modeset"
+            for mode in (alternate, current):
+                result = self.display._run([f"output.{output}.mode.{mode}"])
+                if result is None or result.returncode != 0:
+                    if result is not None:
+                        log(
+                            "modeset recovery command exited "
+                            f"{result.returncode}: output.{output}.mode.{mode}"
+                        )
+                    return False
+                time.sleep(0.25)
+            if not self._wait_for_panel(WAKE_PANEL_MODESET_SECONDS):
+                log(
+                    f"display on ({reason}); panel did not assert by "
+                    f"{WAKE_PANEL_DIRECT_SECONDS + WAKE_PANEL_MODESET_SECONDS:.1f}s; "
+                    f"bl_power={self.last_bl_power}"
+                )
+                self.modeset_guard_until = time.monotonic() + 2.0
+                return False
+
+        self.modeset_guard_until = time.monotonic() + 2.0
+        log(
+            f"display on ({reason}); recovery={recovery}; "
+            f"bl_power={self.last_bl_power}"
+        )
+        return True
+
+    def _note_wake_requested(self) -> None:
+        now = time.monotonic()
+        self.wake_recovery_until = now + WAKE_RECOVERY_SECONDS
+        self.next_wake_check = now + WAKE_RECOVERY_POLL_SECONDS
+        self.wake_recovery_retries = 0
+
+    def wake(self, reason: str) -> bool:
+        self._note_wake_requested()
+        self.modeset_guard_until = time.monotonic() + 3.0
+        return self._force_modeset(reason)
+
+    def sleep(self) -> bool:
+        self.display.lock()
+        self.modeset_guard_until = time.monotonic() + 2.0
+        if not self.display.set_dpms("off"):
+            return False
+        self.external_wake_due = 0.0
+        self.wake_recovery_until = 0.0
+        self.next_wake_check = 0.0
+        self.wake_recovery_retries = 0
+        deadline = time.monotonic() + 0.75
+        while time.monotonic() < deadline:
+            self.last_bl_power = self.display.bl_power()
+            if self.last_bl_power not in (None, 0):
+                break
+            time.sleep(0.05)
+        log(f"display off; bl_power={self.last_bl_power}")
+        return True
+
+    def toggle(self) -> None:
+        if not self._refresh_session():
+            log("toggle skipped: no active KWin session")
+            return
+        state = self.display.dpms_state()
+        bl_power = self.display.bl_power()
+        if state == "off":
+            self.wake("power key")
+            return
+        if state == "on":
+            if bl_power is None or bl_power == 0:
+                self.sleep()
+            else:
+                self.wake("panel gate mismatch")
+            return
+        log("toggle skipped: KWin DPMS state unavailable")
+
+    def _on_power_key(self) -> None:
+        now = time.monotonic()
+        if now - self.last_key < DEBOUNCE_SECONDS:
+            return
+        self.last_key = now
+        log("physical power key press")
+        self.toggle()
+
+    def monitor(self) -> None:
+        state = self.display.bl_power()
+        now = time.monotonic()
+        if state is None:
+            return
+        if now < self.modeset_guard_until:
+            self.last_bl_power = state
+        else:
+            if self.last_bl_power is not None:
+                if self.last_bl_power != 0 and state == 0:
+                    self.external_wake_due = now + 0.35
+                    self._note_wake_requested()
+                    log("external display wake detected")
+                elif self.last_bl_power == 0 and state != 0:
+                    self.external_wake_due = 0.0
+                    log("external display blank detected")
+            self.last_bl_power = state
+
+        if self.external_wake_due and now >= self.external_wake_due:
+            self.external_wake_due = 0.0
+            if self._refresh_session():
+                dpms = self.display.dpms_state()
+                if dpms is not None:
+                    reason = "external wake" if dpms == "on" else "external wake race"
+                    if self._force_modeset(reason):
+                        self._note_wake_requested()
+
+        now = time.monotonic()
+        if (
+            self.wake_recovery_until
+            and now < self.wake_recovery_until
+            and now >= self.next_wake_check
+        ):
+            self.next_wake_check = now + WAKE_RECOVERY_POLL_SECONDS
+            if not self._refresh_session():
+                return
+            if self.display.dpms_state() == "on":
+                return
+            if self.wake_recovery_retries < WAKE_RECOVERY_MAX_RETRIES:
+                self.wake_recovery_retries += 1
+                log(
+                    "KWin re-entered DPMS off after wake; restoring "
+                    f"{self.wake_recovery_retries}/{WAKE_RECOVERY_MAX_RETRIES}"
+                )
+                if self._force_modeset("wake race"):
+                    self.wake_recovery_until = (
+                        time.monotonic() + WAKE_RECOVERY_SECONDS
+                    )
+                    self.next_wake_check = (
+                        time.monotonic() + WAKE_RECOVERY_POLL_SECONDS
+                    )
+                else:
+                    self.wake_recovery_until = 0.0
+            else:
+                log("wake recovery exhausted; leaving KWin state untouched")
+                self.wake_recovery_until = 0.0
+
+    def startup_check(self) -> None:
+        if self.startup_done:
+            return
+        if not self._refresh_session():
+            return
+        self.startup_done = True
+        state = self.display.dpms_state()
+        bl_power = self.display.bl_power()
+        if state == "off":
+            log("startup display is off; asserting on")
+            self.wake("startup")
+        elif state == "on" and bl_power not in (None, 0):
+            log("startup DPMS/panel state mismatch; repairing")
+            self.wake("startup mismatch")
+        else:
+            log(f"startup state dpms={state} bl_power={bl_power}")
+
+
+def find_power_event() -> Path:
+    matches = []
+    for event in sorted(glob.glob("/sys/class/input/event*")):
+        name_path = Path(event, "device/name")
+        try:
+            name = name_path.read_text(errors="ignore").strip().lower()
+        except OSError:
+            continue
+        if "aw8697" in name or "headset" in name:
+            continue
+        if "pwrkey" in name or "power key" in name or name == "power":
+            priority = 0 if "pm8941" in name else 1
+            matches.append((priority, Path("/dev/input", Path(event).name)))
+    if not matches:
+        raise RuntimeError("power-key event device not found")
+    matches.sort()
+    return matches[0][1]
+
+
+def grab_power_key(path: Path) -> int:
+    descriptor = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+    try:
+        fcntl.ioctl(descriptor, EVIOCGRAB, 1)
+    except OSError:
+        os.close(descriptor)
+        raise
+    return descriptor
+
+
+def serve(session: Session) -> int:
+    runtime_dir = Path("/run") if os.access("/run", os.W_OK) else Path("/tmp")
+    lock_path = runtime_dir / "samurai-powerkey.lock"
+    lock_file = lock_path.open("w", encoding="ascii")
+    try:
+        fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        log("another instance is already running")
+        return 0
+
+    bridge = PowerKeyBridge(session)
+    for _ in range(120):
+        if session.refresh():
+            break
+        time.sleep(0.5)
+    else:
+        log("no KWin session appeared")
+        return 1
+
+    event_path = find_power_event()
+    descriptor = grab_power_key(event_path)
+    log(f"grabbed {event_path} for exclusive power-key handling")
+
+    running = True
+
+    def stop(_signum: int, _frame: object) -> None:
+        nonlocal running
+        running = False
+
+    def trigger(_signum: int, _frame: object) -> None:
+        bridge._on_power_key()
+
+    signal.signal(signal.SIGINT, stop)
+    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGUSR1, trigger)
+
+    try:
+        bridge.startup_check()
+        while running:
+            try:
+                ready, _, _ = select.select([descriptor], [], [], 0.05)
+            except InterruptedError:
+                continue
+            if ready:
+                try:
+                    data = os.read(descriptor, INPUT_EVENT.size * 64)
+                except BlockingIOError:
+                    data = b""
+                for offset in range(
+                    0, len(data) - INPUT_EVENT.size + 1, INPUT_EVENT.size
+                ):
+                    _sec, _usec, event_type, code, value = INPUT_EVENT.unpack_from(
+                        data, offset
+                    )
+                    if event_type == EV_KEY and code == KEY_POWER and value == 1:
+                        bridge._on_power_key()
+            bridge.monitor()
+    finally:
+        try:
+            fcntl.ioctl(descriptor, EVIOCGRAB, 0)
+        except OSError:
+            pass
+        os.close(descriptor)
+        log("released power key")
+    return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--toggle",
+        action="store_true",
+        help="perform one display toggle and exit",
+    )
+    parser.add_argument(
+        "--status",
+        action="store_true",
+        help="print the detected session and display state",
+    )
+    args = parser.parse_args()
+
+    session = Session()
+    if not session.refresh():
+        print("no active KWin session", file=sys.stderr)
+        return 1
+
+    bridge = PowerKeyBridge(session)
+    if args.status:
+        print(f"kwin_pid={session.pid}")
+        print(f"uid={session.uid}")
+        print(f"xdg_runtime_dir={session.runtime_dir}")
+        print(f"wayland_display={session.wayland_display}")
+        print(f"dpms={bridge.display.dpms_state()}")
+        print(f"bl_power={bridge.display.bl_power()}")
+        return 0
+    if args.toggle:
+        bridge.toggle()
+        return 0
+    return serve(session)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

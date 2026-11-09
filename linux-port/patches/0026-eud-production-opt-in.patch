@@ -1,0 +1,75 @@
+Subject: [PATCH] tty: serial: eud: require a device-tree opt-in
+
+The EDK2 boot chain used to enable EUD before starting Linux and the private
+driver enabled it again unconditionally at probe.  EUD then owns the USB PHY,
+so DWC3 fails to start endpoint zero and NCM cannot enumerate.
+
+Make the driver bind only when the board explicitly asks for the debug path.
+The production DTB keeps the node disabled; a debug overlay can enable it and
+add qcom,eud-enable-at-probe.  Also keep EUD out of the default Linux command
+line so earlycon cannot re-enable it before the normal console is selected.
+
+--- a/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
++++ b/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
+@@ -47,13 +47,12 @@
+ 
+ 	chosen {
+ 		/*
+-		 * The MTP serial console is not wired on this board.  Logs come
+-		 * from the Qualcomm EUD COM peripheral instead: the EDK2 port of
+-		 * this device enables EUD before booting the OS, so a host PC can
+-		 * have the COM port open before the kernel starts.
++		 * The MTP serial console is not wired on this board.  Use the
++		 * framebuffer console by default: EUD would take the only USB
++		 * port away from the DWC3 gadget.
+ 		 */
+ 		/delete-property/ stdout-path;
+-		bootargs = "earlycon=eud,mmio,0x88e0000 console=tty0 console=eud loglevel=7 ignore_loglevel panic=15 clk_ignore_unused pd_ignore_unused regulator_ignore_unused";
++		bootargs = "console=tty0 loglevel=7 ignore_loglevel panic=15 clk_ignore_unused pd_ignore_unused regulator_ignore_unused";
+ 	};
+ 
+	/* 19781 vendor DTS/common power code: PM8150L GPIO5 high enables VIO. */
+@@ -388,16 +387,16 @@
+ };
+ 
+ /*
+- * EUD COM console.  The full EUD block has no usable binding here: the in-tree
+- * qcom,eud driver wants a USB role switch and SCM access to enable secure EUD,
+- * and this handset has neither.  All the console needs is the register window
+- * of the COM FIFO, which the EDK2 port already leaves enabled.
++ * EUD steals the only USB port from DWC3.  Keep it disabled in the production
++ * DTB; the qcom,sm8150-eud-com driver additionally requires an explicit
++ * qcom,eud-enable-at-probe property so an accidental enabled node cannot take
++ * the port back from USB.
+  */
+ &soc {
+         eud_com: serial@88e0000 {
+                 compatible = "qcom,sm8150-eud-com";
+                 reg = <0 0x88e0000 0 0x2000>;
+-                status = "okay";
++                status = "disabled";
+         };
+ };
+ 
+--- a/drivers/tty/serial/eud.c
++++ b/drivers/tty/serial/eud.c
+@@ -1558,6 +1558,9 @@
+         struct samurai_eud_producer *producer;
+         int ret;
+ 
++        if (!device_property_read_bool(&pdev->dev, "qcom,eud-enable-at-probe"))
++                return -ENODEV;
++
+         if (eud || eud_window_orphan)
+                 return -EBUSY;
+ 
+@@ -1609,9 +1612,6 @@
+         spin_lock_init(&port->lock);
+ 	mutex_init(&up->tx_mutex);
+ 
+-        /* the EDK2 boot chain leaves EUD enabled; enable it if it did not */
+-        writel_relaxed(1, port->membase + EUD_REG_CSR_EUD_EN);
+-
+         INIT_WORK(&up->tx_work, eud_tx_work);
+         INIT_DELAYED_WORK(&up->rx_work, eud_rx_work);
+ 
