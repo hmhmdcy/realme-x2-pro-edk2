@@ -38,6 +38,9 @@
 ## 尚未随分支完成的事项
 
 - 三个分支尚未在恢复后的同一启动周期内联合安装验收；
+- 内核仍保留 `aw8697-samurai`、`max98937-samurai`、`samurai-audio`
+  和 `samurai-sensor-power` 等板级薄驱动；它们尚未证明可以完全上游
+  通用化，不能把这个分支描述成“零私有驱动”；
 - 物理按键冷启动、拔电冷启动、suspend/resume 和长期热/功耗仍未完成；
 - 当前设备在 suspend 尝试后离线，需物理唤醒后才能继续；
 - 真实 NFC 标签、外部 Bluetooth PAN/HID、指纹、SIM、高压充电仍待现场条件。
