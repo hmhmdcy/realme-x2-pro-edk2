@@ -11,6 +11,7 @@ This fork brings EDK2/UEFI and mainline Linux to the realme X2 Pro. UEFI Boot Ma
 | Continue development; identify deployed images, sources and rollback | [NEXT-SESSION](NEXT-SESSION.md) |
 | Standard Linux v7.3.1 ARM64 image, source lock and boot receipt | [STANDARD-ARM64-V731](linux-port/docs/STANDARD-ARM64-V731.md) |
 | Official/default settings vs board layer vs debug-only overrides | [SETTINGS-PROVENANCE](linux-port/docs/SETTINGS-PROVENANCE.md) |
+| Published standard branches and their boundaries | [PUBLICATION](linux-port/docs/PUBLICATION.md) |
 | Fast porting workflow; factory data and incremental validation | [PORTING-WORKFLOW](linux-port/docs/PORTING-WORKFLOW.md) |
 | Hardware adaptation layers, standard ESP and DTB ABI | [Linux adaptation layers](linux-port/docs/LINUX-ADAPTATION-LAYERS.md) |
 | L2/L3/L4 work packages and flywheel gates | [Layer convergence plan](linux-port/docs/LAYER-CONVERGENCE-PLAN.md) |

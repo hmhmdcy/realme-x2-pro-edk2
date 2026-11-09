@@ -16,6 +16,7 @@
 | DTB 稳定字段、驱动消费者、允许加法与离线 ABI 闸门 | [L2-DTB-ABI-GATE](linux-port/docs/L2-DTB-ABI-GATE.md)、[manifest](linux-port/dts/samurai-dt-v1-abi.json) |
 | Linux v7.3.1 标准 ARM64 镜像、源码锁、刷入与重启验收 | [STANDARD-ARM64-V731](linux-port/docs/STANDARD-ARM64-V731.md) |
 | 官方默认/板级薄层/仅调试设置的来源分层与正式包边界 | [SETTINGS-PROVENANCE](linux-port/docs/SETTINGS-PROVENANCE.md) |
+| 已上传的标准 ARM64 分支、提交与历史分支边界 | [PUBLICATION](linux-port/docs/PUBLICATION.md) |
 | 传感器电源标准生命周期 | [rproc_subdev 真机验收](linux-port/docs/L3-02-RPROC-SUBDEV-CANDIDATE.md) |
 | 各功能已证明能力、缺陷及待验收范围 | [HARDWARE-STATUS](linux-port/docs/HARDWARE-STATUS.md) |
 | 项目介绍与通用构建说明 | [README](README.md) |

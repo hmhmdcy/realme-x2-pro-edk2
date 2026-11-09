@@ -9,6 +9,7 @@
 | [STANDARD-ARM64-V731.md](STANDARD-ARM64-V731.md) | Linux v7.3.1 标准 ARM64 交付：源码锁、镜像哈希、两次实机启动、BDS 可复现构建与剩余缺口 |
 | [OFFICIAL-BASELINE.md](OFFICIAL-BASELINE.md) | postmarketOS pmaports main/v26.06 与 realme 官方内核的 L2–L7 分层审计、许可证、差异和取舍 |
 | [SETTINGS-PROVENANCE.md](SETTINGS-PROVENANCE.md) | 区分 postmarketOS/KDE 官方默认、板级必需薄层和仅调试设置；正式包禁用的调试策略 |
+| [PUBLICATION.md](PUBLICATION.md) | 标准 ARM64 三个公开分支、提交、内容边界和历史 bring-up 分支 |
 | [PORTING-WORKFLOW.md](PORTING-WORKFLOW.md) | 原厂固件/公开仓库提取优先、增量构建、按改动验证 |
 | [LINUX-ADAPTATION-LAYERS.md](LINUX-ADAPTATION-LAYERS.md) | 七层适配模型、标准 ESP、DTB ABI、同型号安装和包边界 |
 | [LAYER-CONVERGENCE-PLAN.md](LAYER-CONVERGENCE-PLAN.md) | L2/L3/L4 工作包、G0-G4 闸门、DTB 差异账本和飞轮基线 |
