@@ -1,13 +1,12 @@
-# samurai-platform 5-r25
+# samurai-platform 5-r26
 
-5-r25 adds the board USB VBUS wake policy as one udev rule:
-`99-realme-rmx1931-usb-wake.rules` enables the standard
-`power/wakeup` attribute for the `linux,extcon-usb-gpio` platform device.
-It does not add a service, does not change `sleep-inhibitor`, and does not
-keep NCM connected across system suspend. The matching DTB candidate and
-the separate same-cable DWC3 resume limitation are documented in
-`linux-port/docs/USB-WAKE-20261110.md`. This package is an offline
-candidate until the DTB and a real suspend/resume cable-wake test pass.
+5-r26 removes the 5-r25 USB VBUS wake udev rule. The PM8150 GPIO10
+`extcon-usb-gpio` assumption was disproved on hardware: the vendor DTS
+comments out `vbus-gpio` and its `&usb1` consumer, GPIO10 does not follow
+VBUS, and IRQ 120 never fires. The package no longer installs any extcon
+wake policy. The board now uses the standard DWC3 gadget suspend/resume
+path; USB wake is not claimed. See
+`linux-port/docs/USB-REMOTE-WAKE-20261111.md`.
 
 5-r23 removes the board-owned `samurai-sleep-inhibitor` service,
 `/etc/samurai/sleep-inhibitor.conf` and installed

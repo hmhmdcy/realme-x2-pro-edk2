@@ -1,0 +1,90 @@
+From 8b9a05b3c2b5866ce4631797b6593c13892d7dd7 Mon Sep 17 00:00:00 2001
+From: Codex <codex@localhost>
+Date: Wed, 11 Nov 2026 16:09:48 +0800
+Subject: [PATCH] usb: dwc3: reinitialize on cable-event wake
+
+A keep-connect resume assumes the host resumed the same U3 link. If the wakeup was a cable event instead, the gadget is no longer configured and the controller must be reinitialized. Detect that case and fall back to the normal resume path.
+---
+ drivers/usb/dwc3/core.c   | 21 +++++++++++++++++----
+ drivers/usb/dwc3/core.h   |  2 ++
+ drivers/usb/dwc3/gadget.c |  8 ++++++++
+ 3 files changed, 27 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/usb/dwc3/core.c b/drivers/usb/dwc3/core.c
+index 034b44e1f..8126bf78f 100644
+--- a/drivers/usb/dwc3/core.c
++++ b/drivers/usb/dwc3/core.c
+@@ -2629,14 +2629,27 @@ static int dwc3_resume_common(struct dwc3 *dwc, pm_message_t msg)
+ 
+ 	switch (dwc->current_dr_role) {
+ 	case DWC3_GCTL_PRTCAP_DEVICE:
+-		if (!dwc3_gadget_keep_connect(dwc)) {
+-			ret = dwc3_core_init_for_resume(dwc);
+-			if (ret)
++		if (dwc3_gadget_keep_connect(dwc)) {
++			ret = dwc3_gadget_resume(dwc);
++			if (!ret)
++				break;
++			if (ret != -EAGAIN)
+ 				return ret;
+ 
+-			dwc3_set_prtcap(dwc, DWC3_GCTL_PRTCAP_DEVICE, true);
++			dev_info(dwc->dev,
++				 "keep-connect wake was a cable event; reinitialising\n");
++			dwc->keep_connect_fallback = true;
+ 		}
++
++		ret = dwc3_core_init_for_resume(dwc);
++		if (ret) {
++			dwc->keep_connect_fallback = false;
++			return ret;
++		}
++
++		dwc3_set_prtcap(dwc, DWC3_GCTL_PRTCAP_DEVICE, true);
+ 		dwc3_gadget_resume(dwc);
++		dwc->keep_connect_fallback = false;
+ 		break;
+ 	case DWC3_GCTL_PRTCAP_HOST:
+ 		if (!PMSG_IS_AUTO(msg) &&
+diff --git a/drivers/usb/dwc3/core.h b/drivers/usb/dwc3/core.h
+index 7cabf7ac6..82076860c 100644
+--- a/drivers/usb/dwc3/core.h
++++ b/drivers/usb/dwc3/core.h
+@@ -1404,6 +1404,7 @@ struct dwc3 {
+ 	unsigned		usb2_gadget_lpm_disable:1;
+ 	unsigned		needs_full_reinit:1;
+ 	unsigned		gadget_keep_connect_sys_sleep:1;
++	unsigned		keep_connect_fallback:1;
+ 
+ 	unsigned		disable_scramble_quirk:1;
+ 	unsigned		u2exit_lfps_quirk:1;
+@@ -1688,6 +1689,7 @@ static inline void dwc3_host_exit(struct dwc3 *dwc)
+ static inline bool dwc3_gadget_keep_connect(struct dwc3 *dwc)
+ {
+ 	return dwc->gadget_keep_connect_sys_sleep &&
++	       !dwc->keep_connect_fallback &&
+ 	       dwc->current_dr_role == DWC3_GCTL_PRTCAP_DEVICE &&
+ 	       dwc->connected;
+ }
+diff --git a/drivers/usb/dwc3/gadget.c b/drivers/usb/dwc3/gadget.c
+index 4e7ee8336..2b691c90f 100644
+--- a/drivers/usb/dwc3/gadget.c
++++ b/drivers/usb/dwc3/gadget.c
+@@ -5044,6 +5044,14 @@ int dwc3_gadget_resume(struct dwc3 *dwc)
+ 		if (irq == IRQ_WAKE_THREAD)
+ 			dwc3_process_event_buf(dwc->ev_buf);
+ 
++		/*
++		 * A cable event is not a U3->U0 host resume: the gadget
++		 * session is gone.  Let the core reinitialise the
++		 * controller instead of resuming a stale link.
++		 */
++		if (dwc->gadget->state != USB_STATE_CONFIGURED)
++			return -EAGAIN;
++
+ 		return 0;
+ 	}
+ 
+-- 
+2.53.0
+

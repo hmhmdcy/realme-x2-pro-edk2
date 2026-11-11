@@ -1,7 +1,7 @@
 maintainer="hmhmdcy <hmhmdcy@users.noreply.github.com>"
 pkgname=samurai-platform
 pkgver=5
-pkgrel=25
+pkgrel=26
 pkgdesc="Realme X2 Pro platform"
 url="https://github.com/hmhmdcy/pmaports"
 arch="noarch"
@@ -10,7 +10,7 @@ options="!check"
 depends="python3 openrc eudev iproute2 util-linux libqmi qmi-utils networkmanager bluez wpa_supplicant openssh-server-pam alsa-ucm-conf alsa-utils sleep-inhibitor dnsmasq neard-openrc"
 subpackages="$pkgname-pulse"
 install="$pkgname.post-install"
-source="usr_libexec_samurai-audio-route etc_pulse_daemon.conf.d_90-samurai.conf usr_sbin_samurai-bluetooth usr_sbin_samurai-modem-configs usr_sbin_samurai-modem-remoteproc usr_sbin_samurai-radio-address usr_sbin_samurai-udhcpc-wlan usr_sbin_samurai-wifi usr_sbin_samurai-usb etc_init.d_samurai-loopback etc_init.d_samurai-radio etc_init.d_samurai-usb etc_NetworkManager_conf.d_20-samurai-wlan.conf etc_NetworkManager_conf.d_90-samurai-usb.conf usr_local_share_dbus-1_system-services_org.freedesktop.ModemManager1.service 99-realme-rmx1931-sensors.rules 99-realme-rmx1931-haptics.rules 99-realme-rmx1931-usb-wake.rules usr_share_alsa_ucm2_conf.d_Realme_X2_Pro_HiFi.conf usr_share_alsa_ucm2_conf.d_Realme_X2_Pro_Realme_X2_Pro.conf etc_samurai_usb-dhcp.conf"
+source="usr_libexec_samurai-audio-route etc_pulse_daemon.conf.d_90-samurai.conf usr_sbin_samurai-bluetooth usr_sbin_samurai-modem-configs usr_sbin_samurai-modem-remoteproc usr_sbin_samurai-radio-address usr_sbin_samurai-udhcpc-wlan usr_sbin_samurai-wifi usr_sbin_samurai-usb etc_init.d_samurai-loopback etc_init.d_samurai-radio etc_init.d_samurai-usb etc_NetworkManager_conf.d_20-samurai-wlan.conf etc_NetworkManager_conf.d_90-samurai-usb.conf usr_local_share_dbus-1_system-services_org.freedesktop.ModemManager1.service 99-realme-rmx1931-sensors.rules 99-realme-rmx1931-haptics.rules usr_share_alsa_ucm2_conf.d_Realme_X2_Pro_HiFi.conf usr_share_alsa_ucm2_conf.d_Realme_X2_Pro_Realme_X2_Pro.conf etc_samurai_usb-dhcp.conf"
 package() {
  install -Dm755 "$srcdir"/usr_libexec_samurai-audio-route "$pkgdir"/usr/libexec/samurai-audio-route
  install -Dm755 "$srcdir"/usr_sbin_samurai-bluetooth "$pkgdir"/usr/sbin/samurai-bluetooth
@@ -30,7 +30,6 @@ package() {
   "$pkgdir"/usr/local/share/dbus-1/system-services/org.freedesktop.ModemManager1.service
  install -Dm644 "$srcdir"/99-realme-rmx1931-sensors.rules "$pkgdir"/usr/lib/udev/rules.d/99-realme-rmx1931-sensors.rules
  install -Dm644 "$srcdir"/99-realme-rmx1931-haptics.rules "$pkgdir"/usr/lib/udev/rules.d/99-realme-rmx1931-haptics.rules
- install -Dm644 "$srcdir"/99-realme-rmx1931-usb-wake.rules "$pkgdir"/usr/lib/udev/rules.d/99-realme-rmx1931-usb-wake.rules
  install -Dm644 "$srcdir"/usr_share_alsa_ucm2_conf.d_Realme_X2_Pro_HiFi.conf "$pkgdir"/usr/share/alsa/ucm2/conf.d/Realme_X2_Pro/HiFi.conf
  install -Dm644 "$srcdir"/usr_share_alsa_ucm2_conf.d_Realme_X2_Pro_Realme_X2_Pro.conf "$pkgdir"/usr/share/alsa/ucm2/conf.d/Realme_X2_Pro/Realme_X2_Pro.conf
 }
@@ -60,7 +59,7 @@ c095e06d252732afa60d0d303f502b80e40fc337513a2974fa9e8c50257238f26c9512569cd2877b
 5aa260d1938d2aa099d01532d8bd1fda8b6b64b8240b8114f78adde2eb25b9f5844aa9bf43a4e165379860ba7e7fceae72545d1e4e5a0e15246a16f23b86c641  usr_local_share_dbus-1_system-services_org.freedesktop.ModemManager1.service
 7621e2d3eb93b331b7e9f8f764cf682ba876ce105b2afbda3313ccbb8e0e029a6dc9c0915a50275f307513224f745b00247935103706eef952c321d04aeb6ba9  99-realme-rmx1931-sensors.rules
 88f335440bf953f8f46e6d1d4ad69ec87f74baa8ac671d19cfc26038e844b982b52437cf917e408ed9cb79141af976e4d00e437bde53772ae517272f8124a1a3  99-realme-rmx1931-haptics.rules
-3ec38ad0100f4faf7ebe85ca06ccc6def5d13bf2fb56a09f94db686b0808491830baa9a99c1358690b26970f3a6e579a800edc793c9da4aa295d4ec3190bca36  99-realme-rmx1931-usb-wake.rules
+3ec38ad0100f4faf7ebe85ca06ccc6def5d13bf2fb56a09f94db686b0808491830baa9a99c1358690b26970f3a6e579a800edc793c9da4aa295d4ec3190bca36 
 410defad388c39ba1b716d2152c3713f4db4437e5f778472e665536f6025861801fb9df626fab1b45f1b0ea546c12cc5c873ff63487736ba20a71bab59c85916  usr_share_alsa_ucm2_conf.d_Realme_X2_Pro_HiFi.conf
 efdfbc28b7df599202613648a782cd8b485c3f91f50f73dd092e500bce298c2a08dcf7dd5b72d823cf9a1761a40fc2af43165618dd4c6418abadf05296cfefa8  usr_share_alsa_ucm2_conf.d_Realme_X2_Pro_Realme_X2_Pro.conf
 871a014767d72702c7e48f34ed2deaf54c7a47193ff612e95ad47263f9ae27a1a3ad7b16ae4c622598e8ece18865ed45f31f6b8e3dc141091544845f4fd08421  etc_samurai_usb-dhcp.conf

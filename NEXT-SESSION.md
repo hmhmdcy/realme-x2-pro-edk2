@@ -1,4 +1,33 @@
-# 当前：usbwake 最终 U3-only 版本已刷入；NCM/Wi‑Fi/SSH 在线
+# 当前：标准 USB suspend/resume 已验收；USB wake 撤回
+
+## 2026-11-11 USB 唤醒结论
+
+- PM8150 GPIO10 `extcon-usb-gpio` 被真机证据否定：厂商
+  `refs/19781/sm8150-mtp.dtsi` 里 `vbus-gpio` 和 `&usb1` 消费者都被
+  注释掉；实测 GPIO10 不跟随 VBUS，IRQ 120 始终为 0。overlay、udev
+  规则和包条目已删除。
+- keep-connect RFC 在拔线但链路仍显示 U3 时布防 `dp_hs_phy_irq`，
+  每次 suspend 0.6 秒内被伪唤醒；插线 resume 还出现过 Windows
+  Code 43。板级 opt-in 已关闭，保留内核 cable-event fallback 供将来
+  标准 Type-C 源使用。
+- 标准路径已验证：插着线 `rtcwake -m mem -s 20` 返回 0；拔线
+  `rtcwake -m mem -s 30` 实测睡 32 秒，`suspend.success` +1，
+  boot ID 不变，`dp_hs_phy_irq` 不变。
+- USB wake 目前**未支持**。下一步应启用主线 PM8150B Type-C/TCPM +
+  `usb-role-switch`，用 `vbus-change`/`attach-detach` 事件进入 PDC
+  唤醒路径；不要恢复 GPIO10 extcon。
+- 证据、产物和回滚见
+  [USB-REMOTE-WAKE-20261111](linux-port/docs/USB-REMOTE-WAKE-20261111.md)。
+
+最新产物：
+
+```text
+E:\edk2-samurai-out\standard-arm64-v731\usb-resume-fallback-20261111\
+Image 1e9b4ca98548a1a5dc3576799845df03b125b0e5843e343c718d729d42e3fbd3
+DTB   5c957d06cae9a5ad6541f8e5707057337f8c100b33e9447837e8daa0274d8472
+boot  4f62605fc11a3b9b3594e745c5667572c3224ef85eb048c894d5c9c521ee9835
+FAT   898e76086b4beaf654927b2084e8ecb09fab9541df06541c20e07e252a133979
+```
 
 目标（2026-11-09）：Wi‑Fi、CDC NCM、SSH 仅作强制回归门禁；相机
 Selection API、PM8150L 闪光灯/V4L2、蓝牙主机模块、NFC 控制器和

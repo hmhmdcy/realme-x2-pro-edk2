@@ -1,5 +1,11 @@
 # RMX1931 boot error triage (2026-11-10)
 
+> **2026-11-11 后续**：本文引用的 PM8150 GPIO10 `extcon-usb1` 唤醒源
+> 已被真机否定——厂商 DTS 注释掉 `vbus-gpio` 和 `&usb1` 消费者，实测
+> GPIO10 不跟随 VBUS、IRQ 120 始终为 0。overlay/udev 已删除，
+> keep-connect 也已关闭。当前结论见
+> [USB-REMOTE-WAKE-20261111](USB-REMOTE-WAKE-20261111.md)。
+
 Status: evidence collected; fixes are deferred to the next session.
 
 This report separates the USB-wake DTB integration from unrelated userspace

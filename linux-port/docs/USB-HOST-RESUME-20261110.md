@@ -1,5 +1,10 @@
 # USB 同线 host-resume：标准分层实现（2026-11-10）
 
+> **2026-11-11 禁用**：板级 keep-connect opt-in 已关闭。没有可信的
+> VBUS/attach 源时，它会通过 `dp_hs_phy_irq` 伪唤醒 suspend，并曾在
+> 插线 resume 后触发 Windows Code 43。本文仅保留为历史记录；当前结论见
+> [USB-REMOTE-WAKE-20261111](USB-REMOTE-WAKE-20261111.md)。
+
 ## 状态
 
 内核、Qcom glue、板级 DTB 和部署载体已完成，并在 RMX1931 上启动到最终

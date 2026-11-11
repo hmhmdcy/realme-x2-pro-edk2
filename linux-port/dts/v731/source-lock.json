@@ -1,6 +1,6 @@
 {
   "schema": "samurai-linux-standard-arm64-source-lock-v1",
-  "status": "panel_hbm_fix_deployed_and_verified_usb2_typec_and_wake_candidates_offline_device_offline",
+  "status": "panel_hbm_fix_deployed_usb_standard_suspend_verified_wake_withdrawn",
   "updated": "2026-11-11",
   "target": {
     "device": "Realme X2 Pro",
@@ -8,7 +8,7 @@
     "codename": "samurai",
     "soc": "Qualcomm SM8150",
     "arch": "arm64",
-    "current_objective": "The SOFEF03F HBM black-screen root cause is fixed and verified on 2026-11-11: brightness >1023 requires DCS 0x53=0xe0 before the brightness write and 0x53=0x20 when leaving HBM. The deployed 0009 equivalent passed ten 1024-brightness DPMS cycles, real touch, the physical power key, and an external-power-removed cold boot. The 0003/0005 first-frame reapply and the MDSS-reset cold-boot candidates are superseded, not the fix. The active hardware block remains standardized USB2 platform adaptation. Wi-Fi, CDC NCM and SSH remain mandatory regression gates. Keep Type-C role/host, USB3/DP and suspend wake in separate layers. The DTB-only usb2-typec-sink, usb2-typec-dual and rebuilt usb2-vbus-wake candidates are offline; the wake r5 DTB is not flashed. usb2-vbus-wake uses the Android-proven PM8150 GPIO10 extcon_usb1 hardware and standard linux,extcon-usb-gpio, deliberately without the invalid wakeup-source property; wakeup is enabled by the udev power/wakeup policy. The SPMI PMIC arbiter periph IRQ is routed through PDC pin 1 (GIC SPI 481) in sm8150.dtsi. It covers cable insertion/removal only; it does not preserve NCM across system suspend, and host-initiated resume still needs the separate U3 keep-connect layer. The device is unreachable for SSH as of 2026-11-11. Do not write NV, persist, calibration or userdata.",
+"current_objective": "The SOFEF03F HBM fix remains verified. USB wake work on 2026-11-11 disproved the PM8150 GPIO10 extcon: the vendor DTS comments out both vbus-gpio and the &usb1 consumer, GPIO10 does not follow VBUS on hardware, and IRQ 120 never fires. The keep-connect RFC was therefore disabled in the board DT: it caused immediate dp_hs_phy_irq wakes when unplugged and a Windows Code 43 after a cable-event resume. The deployed tree now uses the standard DWC3 gadget suspend/resume model. Attached suspend (20 s) and unplugged suspend (30 s, 32 s elapsed) both passed with unchanged boot IDs. USB wake is explicitly unsupported until a mainline PM8150B Type-C/PMIC attach source is wired. Wi-Fi, CDC NCM and SSH remain mandatory regression gates. Do not write NV, persist, calibration or userdata.",
     "goal_update_2026_11_09": "Wi-Fi, CDC NCM and SSH are no longer active backlog items. They remain mandatory regression gates, but hardware adaptation continues with the remaining standardizable blocks without waiting for another dedicated network pass.",
     "goal_update_2026_11_10": "The active hardware block is USB. Use the mainline PM8150B Type-C/TCPM, DWC3 role-switch and standard connector graph in separate layers. A DTB-only sink candidate is compatible with the deployed gadget-only kernel; a dual-role candidate additionally requires a new ARM64 Image with DWC3_DUAL_ROLE and xHCI. Do not treat NCM connectivity as host, VBUS-source, USB3/DP or wakeup acceptance.",
     "goal_update_2026_11_11": "Commit only the adaptations with a defensible scope: the verified HBM panel fix, the desktop power-key bridge removal, the USB layering cleanup, and the measured camera preview/high-resolution paths. Keep invalid or unverified attempts explicitly marked: the extcon wakeup-source property, the APSD private Kconfig hooks, the U0 active-link wake experiment, the first-frame-only panel reapply, the MDSS-reset cold-boot candidate, and the power-key bridge are not production fixes.",
@@ -74,7 +74,7 @@
       "stock_usb0": "dr_mode=otg, maximum-speed=high-speed; PM8150B PD PHY extcon present",
       "fsa4480": "not present in RMX1931 stock DTBO; do not copy from OnePlus",
       "usb3_dp": "QMP/DP hardware described but deliberately disabled for this layer",
-      "wakeup": "handled by the independent usb_wake_candidate; DWC3 gadget soft-disconnect and same-cable host resume remain a separate kernel layer"
+      "wakeup": "withdrawn; standard DWC3 gadget soft-disconnect is used, and USB wake is not claimed"
     },
     "private_code_cleanup": {
       "patch": "linux-port/patches/v7.3.1/0005-usb-dwc3-qcom-remove-unused-samurai-apsd-kconfig.patch",
@@ -101,86 +101,20 @@
       }
     }
   },
-  "usb_wake_candidate": {
-    "doc": "linux-port/docs/USB-WAKE-20261110.md",
-    "status": "offline_built_not_deployed",
-    "base_dts_sha256": "50bf2048398f7f925a33107f5a7ba2e3aea0124f10f83edce181b1cc81c9af61",
-    "base_clean_dtb_sha256": "59a0ff6b37d30a7897a39b9830e512d76ab86cf3144ab4dfb38233d9cb58fc9d",
-    "candidate_dir": "E:/edk2-samurai-out/standard-arm64-v731/usb-wake-20261111-r5",
-    "manifest": {
-      "path": "E:/edk2-samurai-out/standard-arm64-v731/usb-wake-20261111-r5/manifest.json",
-      "sha256": "8792de00ea8bf5e50cee6ff30ca90e204617f8da50bab338f889dcd2e264669d"
-    },
-    "profile": {
-      "overlay": "linux-port/dts/experiments/usb2-vbus-wake.dtso",
-      "overlay_sha256": "25eb7749ea80799fea68a819ea34b231e40788247eb6bc282a2ec98ded2dcbbd",
-      "dtb": "E:/edk2-samurai-out/standard-arm64-v731/usb-wake-20261111-r5/wake/sm8150-samurai-usb2-vbus-wake.dtb",
-      "dtb_sha256": "53217926a2d8725895401d12ff8a11689b1ae0b984ee42d2ce3ecc31ab366702",
-      "dtb_bytes": 126373,
-      "kernel_config_satisfied": true,
-      "data_path": "dr_mode=peripheral; no usb-role-switch; VBUS wake only",
-      "semantic_diff": "E:/edk2-samurai-out/standard-arm64-v731/usb-wake-20261111-r5/wake/base-vs-wake.json",
-      "semantic_diff_sha256": "6895662b320d5ace780679b6c9fe5f7c0623d144268875dd4c4e9b055eefce10",
-      "semantic_diff_summary": {
-        "only_after_nodes": [
-          "/extcon-usb1",
-          "/soc@0/spmi@c440000/pmic@0/gpio@c000/usb2-vbus-det-default-state"
-        ],
-        "only_before_properties": [],
-        "only_after_properties": [],
-        "changed_property_count": 0
-      },
-      "invalid_property_removed": "wakeup-source is not in the linux,extcon-usb-gpio binding and the driver does not read it; the node must not carry it"
-    },
-    "hardware": {
-      "android_live_dt": "extcon_usb1: linux,extcon-usb-gpio, vbus-gpio=<&pm8150_gpios 10 GPIO_ACTIVE_HIGH>",
-      "android_runtime_irq": "pmic_arb ... vendor:extcon_usb1",
-      "android_wakeup_node": "wakeup11",
-      "fsa4480": "not present in RMX1931 stock DTBO",
-      "source_note": "The Android kernel source has this line behind conditional comments; the bootloader-produced live DT is authoritative."
-    },
-    "irq_path": {
-      "spmi_bus": "/soc@0/spmi@c440000",
-      "pdc_pin": 1,
-      "pdc_parent_gic_spi": 481,
-      "why": "qpnpint_irq_set_wake forwards the child wake request to the SPMI bus IRQ; a raw GIC parent does not arm the Qualcomm PDC."
-    },
-    "rootfs_policy": {
-      "rule": "linux-port/packages/samurai-platform/99-realme-rmx1931-usb-wake.rules",
-      "rule_sha256": "28456d4d3d391e637a1aec91f8ee65793c918ab5dc29cb9744020dcac4ec9dc4",
-      "installed_path": "/usr/lib/udev/rules.d/99-realme-rmx1931-usb-wake.rules",
-      "policy": "Set power/wakeup=enabled for the platform extcon-usb-gpio device; no custom service or sleep-inhibitor override.",
-      "package_candidate": "samurai-platform 5-r25",
-      "apk": "E:/edk2-samurai-out/standard-arm64-v731/usb-wake-package-20261110/samurai-platform-5-r25.apk",
-      "apk_sha256": "f2f9a285d7a4677173f2c8bfba8ac1fa21b0cb211f0937a18a30143c94d3c931",
-      "package_manifest": "E:/edk2-samurai-out/standard-arm64-v731/usb-wake-package-20261110/package-manifest.json",
-      "package_manifest_sha256": "ea9a6c9ba3b9d65fe9629dfaa2be144d488af39d8b13392d96292cd0f68da036",
-      "index": "E:/edk2-samurai-out/standard-arm64-v731/usb-wake-package-20261110/packages.adb",
-      "index_sha256": "a027fc12c43d2524986bdc13fd3c9cdd0825fb029166328b8db6e7a3974e9984",
-      "apk_verify": "OK for all four APKs and packages.adb",
-      "package_installed": false
-    },
-    "tools": {
-      "device_gate": {
-        "path": "linux-port/scripts/check-usb-wake-baseline.sh",
-        "sha256": "98766aadf964bc7b911e9c4e6cbd60ec02f4960b4b9db63d742bc0728b6613db"
-      },
-      "build_dtb_candidates": {
-        "path": "linux-port/scripts/build-usb-typec-candidates.py",
-        "sha256": "9124d85b8fd5779afc85e5083429d2d02d0e8ab778484fbf1096b2e024f998a3"
-      }
-    },
-    "not_verified": [
-      "device boot with the wake DTB",
-      "runtime power/wakeup=enabled",
-      "VBUS insertion and removal suspend wake",
-      "PDC wake IRQ accounting",
-      "same-cable host-initiated USB resume",
-      "NCM continuity across suspend",
-      "external-power-removed cold boot"
-    ]
-  },
-  "settings_provenance": {
+  "usb_wake_withdrawn": {
+    "doc": "linux-port/docs/USB-REMOTE-WAKE-20261111.md",
+    "status": "withdrawn_no_hardware_evidence",
+    "reason": "The vendor refs/19781 DTS comments out vbus-gpio on PM8150 GPIO10 and its &usb1 consumer. Live sampling showed GPIO10 stays low and IRQ 120 stays at zero across a VBUS transition, while mp2650 online follows VBUS. keep-connect also aborted every suspend through dp_hs_phy_irq when the cable was unplugged, and a cable-event resume produced a Windows Code 43.",
+    "removed": [
+      "linux-port/dts/experiments/usb2-vbus-wake.dtso",
+      "linux-port/packages/samurai-platform/99-realme-rmx1931-usb-wake.rules"
+    ],
+    "runtime_verified": {
+      "standard_suspend_attached": "rtcwake -m mem -s 20: RC=0, success +1, boot_id unchanged",
+      "standard_suspend_unplugged": "rtcwake -m mem -s 30: slept 32 s, success +1, dp_hs_phy_irq unchanged",
+      "usb_wake": "not supported until a standard Type-C/PMIC attach/VBUS source is enabled"
+    }
+  },  "settings_provenance": {
     "schema": "samurai-settings-provenance-v1",
     "doc": "linux-port/docs/SETTINGS-PROVENANCE.md",
     "manifest": "linux-port/dts/v731/settings-provenance.json",

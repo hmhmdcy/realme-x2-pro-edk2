@@ -37,12 +37,21 @@ each other; do not try to replay `0001` then `0002` as the USB base.
 - `0005` removes the unbuilt samurai APSD DWC3 Kconfig/Makefile hooks.
 - `0006` adds the generic DWC3 gadget keep-connect system-sleep policy.
 - `0007` arms the existing Qcom DP/DM/SS PDC wake IRQs in peripheral mode.
-- `0008` is the board policy that opts into the keep-connect debug path.
+- `0013` adds the cable-event fallback to the keep-connect resume path. It
+  is inert while the board does not opt into keep-connect.
+- `0014` removes the board keep-connect opt-in. Without a proven
+  VBUS/attach source the stale U3 state arms `dp_hs_phy_irq` and aborts
+  every suspend, and a cable-event resume previously produced a Windows
+  Code 43. The board now uses the standard DWC3 gadget suspend/resume path.
 - `0011` removes the now-unused `phy-qcom-snps-femto-v2-window.h` interface
   and restores the generic Qcom SNPS Femto PHY driver to the v7.3.1
   baseline. It has no consumer after `0005`; it is a deletion-only cleanup
   and must not be applied before the APSD owner removal.
 - `0012` moves the SM8150 SPMI `periph_irq` from a raw GIC SPI to PDC pin 1
   in `sm8150.dtsi`, matching the SM8250 mainline model. The board
-  `usb2-vbus-wake.dtso` overlay now contains only the board-level extcon
-  node and its GPIO10 pinctrl.
+  `usb2-vbus-wake.dtso` overlay and its udev rule were withdrawn on
+  2026-11-11 after the GPIO10 assumption was disproved on hardware.
+
+Do not re-enable `0006`/`0007`/`0013` on this board until a standard
+PM8150B Type-C/TCPM attach/VBUS source is wired. See
+[`USB-REMOTE-WAKE-20261111.md`](../../docs/USB-REMOTE-WAKE-20261111.md).

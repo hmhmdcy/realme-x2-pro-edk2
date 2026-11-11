@@ -70,6 +70,26 @@ hunk 缺行或上下文不匹配，不能 `git apply`。`0024`/`0025` 旧提取�
   日期字符串和 BdsDxe 构建路径，DTB 与 r5 逐字节一致。若要求严格
   “仅 DTB 字节变化”，需要在设备恢复后另做 carrier 重建。
 
+## 2026-11-11 真机追加：extcon/keep-connect 撤回
+
+后续真机测试推翻了本轮的 GPIO10 VBUS 假设：
+
+- 厂商 `refs/19781/sm8150-mtp.dtsi` 中 `vbus-gpio` 和
+  `&usb1 { extcon = <&extcon_usb1>; }` 都被注释掉，注释说明 GPIO10
+  改作马达用途；
+- 实测充电时 `mp2650-input/online=1` 但 GPIO10 仍为低、
+  `extcon-usb1` IRQ 120 始终为 0；VBUS 拔插时只有 `mp2650` 的
+  online 变化；
+- keep-connect 在拔线、链路残留 U3 时布防 `dp_hs_phy_irq`，每次
+  suspend 0.6 秒内被伪唤醒；插线 resume 后还出现过 Windows Code 43。
+
+因此已删除 `usb2-vbus-wake.dtso`、`99-realme-rmx1931-usb-wake.rules`
+和包条目，并在板级 DTS 关闭 keep-connect。内核保留 cable-event
+fallback（`8b9a05b3c`），将来接入标准 Type-C/PMIC attach 源后可重新
+评估。标准 suspend/resume 已验证：插线 20 秒、拔线 30 秒（实测 32 秒）
+均成功，boot ID 不变。详见
+[USB-REMOTE-WAKE-20261111](USB-REMOTE-WAKE-20261111.md)。
+
 ## 未完成
 
 - 真机 suspend 后插拔线唤醒、U3 host-resume 仍未验收；需要一次

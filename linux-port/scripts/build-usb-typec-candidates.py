@@ -48,19 +48,6 @@ PROFILES = {
             "CONFIG_USB_XHCI_PLATFORM": ("y",),
         },
     },
-    "wake": {
-        "overlay": "usb2-vbus-wake.dtso",
-        "kind": "vbus-wake",
-        "output": "sm8150-samurai-usb2-vbus-wake.dtb",
-        "role_switch": False,
-        "kernel_requirements": {
-            "CONFIG_PM_SLEEP": ("y",),
-            "CONFIG_EXTCON_USB_GPIO": ("y",),
-            "CONFIG_QCOM_PDC": ("y",),
-            "CONFIG_PINCTRL_QCOM_SPMI_PMIC": ("y",),
-            "CONFIG_USB_DWC3_GADGET": ("y",),
-        },
-    },
 }
 
 DTC_WARNINGS = (
@@ -234,102 +221,6 @@ def verify_merged_dtb(
         stdout_path=output_dir / "decode.stdout",
         stderr_path=output_dir / "decode.stderr",
     )
-
-    if PROFILES[profile]["kind"] == "vbus-wake":
-        extcon = "/extcon-usb1"
-        spmi = "/soc@0/spmi@c440000"
-        pdc = "/soc@0/interrupt-controller@b220000"
-        usb = "/soc@0/usb@a600000"
-
-        checks = {
-            "compatible": fdtget_value(
-                fdtget, merged_dtb, extcon, "compatible", "s", output_dir,
-            ),
-            "vbus_gpios": fdtget_value(
-                fdtget, merged_dtb, extcon, "vbus-gpios", "x", output_dir,
-            ),
-            "pinctrl_0": fdtget_value(
-                fdtget, merged_dtb, extcon, "pinctrl-0", "x", output_dir,
-            ),
-        }
-        if checks["compatible"] != "linux,extcon-usb-gpio":
-            raise SystemExit("merged DTB verification failed: wrong extcon compatible")
-        gpio_cells = [int(value, 16) for value in checks["vbus_gpios"].split()]
-        if len(gpio_cells) != 3 or gpio_cells[1:] != [10, 0]:
-            raise SystemExit("merged DTB verification failed: wrong VBUS GPIO")
-
-        props = subprocess.run(
-            [str(fdtget), "-p", str(merged_dtb), extcon],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            check=False,
-        )
-        (output_dir / "fdtget-extcon-properties.stdout").write_text(
-            props.stdout,
-            encoding="utf-8",
-        )
-        (output_dir / "fdtget-extcon-properties.stderr").write_text(
-            props.stderr,
-            encoding="utf-8",
-        )
-        if props.returncode or "wakeup-source" in props.stdout.split():
-            raise SystemExit(
-                "merged DTB verification failed: unexpected wakeup-source"
-            )
-        checks["wakeup_source"] = "absent"
-
-        pdc_phandle = fdtget_value(
-            fdtget, merged_dtb, pdc, "phandle", "x", output_dir,
-        )
-        pdc_ranges = fdtget_value(
-            fdtget, merged_dtb, pdc, "qcom,pdc-ranges", "x", output_dir,
-        )
-        ranges = [int(value, 16) for value in pdc_ranges.split()]
-        if len(ranges) % 3:
-            raise SystemExit("merged DTB verification failed: malformed PDC ranges")
-        pdc_parent = None
-        for pin_base, parent_base, count in zip(
-            ranges[0::3], ranges[1::3], ranges[2::3]
-        ):
-            if pin_base <= 1 < pin_base + count:
-                pdc_parent = parent_base + (1 - pin_base)
-                break
-        if pdc_parent != 481:
-            raise SystemExit(
-                "merged DTB verification failed: PDC pin 1 does not map GIC 481"
-            )
-        spmi_irq = fdtget_value(
-            fdtget, merged_dtb, spmi, "interrupts-extended", "x", output_dir,
-        )
-        irq_cells = [int(value, 16) for value in spmi_irq.split()]
-        if len(irq_cells) != 3 or irq_cells != [int(pdc_phandle, 16), 1, 4]:
-            raise SystemExit("merged DTB verification failed: SPMI is not on PDC 1")
-        if fdtget_value(
-            fdtget, merged_dtb, spmi, "interrupts", "x", output_dir,
-            required=False,
-        ) is not None:
-            raise SystemExit("merged DTB verification failed: stale raw-GIC interrupts")
-
-        checks["dr_mode"] = fdtget_value(
-            fdtget, merged_dtb, usb, "dr_mode", "s", output_dir,
-        )
-        if checks["dr_mode"] != "peripheral":
-            raise SystemExit("merged DTB verification failed: wake changed dr_mode")
-
-        return {
-            "passed": True,
-            "decoded_dts": str(merged_dts),
-            "decoded_dts_sha256": sha256(merged_dts),
-            "checks": checks,
-            "spmi_irq": {
-                "parent_pdc_phandle": pdc_phandle,
-                "pdc_pin": 1,
-                "pdc_parent_gic_spi": pdc_parent,
-                "pdc_ranges": pdc_ranges,
-                "interrupts_extended": spmi_irq,
-            },
-        }
 
     typec = "/soc@0/spmi@c440000/pmic@2/typec@1500"
     vbus = "/soc@0/spmi@c440000/pmic@2/usb-vbus-regulator@1100"

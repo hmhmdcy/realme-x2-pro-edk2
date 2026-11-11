@@ -108,13 +108,11 @@ The USB work is now split at the driver/config boundary:
   graph and limits initial source capability to 5 V / 500 mA. The
   production Image cannot use it: current Kconfig has
   `USB_DWC3_GADGET=y`, `USB_DWC3_DUAL_ROLE=n` and `USB_XHCI_HCD=n`.
-- `usb2-vbus-wake.dtso` uses the Android-proven PM8150 GPIO10 VBUS input
-  with the mainline `extcon-usb-gpio` model, routes the SPMI periph IRQ
-  through PDC pin 1, and leaves DWC3 in peripheral mode. The rootfs policy
-  is one udev rule that enables the standard `power/wakeup` attribute.
-  This covers cable insertion/removal wake only; DWC3 still soft-disconnects
-  at system suspend, so same-cable USB resume and NCM continuity are not
-  claimed. See [USB-WAKE-20261110](USB-WAKE-20261110.md).
+- `usb2-vbus-wake.dtso` was withdrawn on 2026-11-11. The vendor DTS
+  comments out the PM8150 GPIO10 `vbus-gpio` and its `&usb1` consumer, and
+  live sampling showed GPIO10 does not follow VBUS. The board now uses the
+  standard DWC3 gadget suspend/resume path and makes no USB wake claim. See
+  [USB-REMOTE-WAKE-20261111](USB-REMOTE-WAKE-20261111.md).
 - the dual-role Kconfig fragment resolves to an ARM64 config candidate
   without building an Image. Its only USB changes are gadget to
   dual-role, xHCI, and the PMIC VBUS regulator becoming built-in.

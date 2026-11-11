@@ -1,0 +1,44 @@
+From 2b9ef80ba835861de72df39a230dd86fcb62563c Mon Sep 17 00:00:00 2001
+From: Codex <codex@localhost>
+Date: Wed, 11 Nov 2026 16:09:49 +0800
+Subject: [PATCH] arm64: dts: qcom: samurai: disable gadget keep-connect
+
+The board has no proven VBUS/attach source for the DWC3 controller. With keep-connect enabled, an unplugged cable can leave a stale U3 state that arms the DP PDC wake IRQ, so every suspend aborts immediately. Return to the standard gadget suspend/resume model until a standard Type-C/PMIC attach source is available.
+---
+ arch/arm64/boot/dts/qcom/sm8150-samurai.dts | 13 ++++---------
+ 1 file changed, 4 insertions(+), 9 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8150-samurai.dts b/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
+index 231722a17..5a760a796 100644
+--- a/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
++++ b/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
+@@ -24,22 +24,17 @@ &eud_com {
+ };
+ 
+ /*
+- * Debug policy: keep the NCM gadget attached across system sleep so a host
+- * resume can wake the SoC and the network link can recover without a cable
+- * replug.  The generic DWC3 core rejects system sleep while the USB link is
+- * active; the qcom glue arms the existing DP/DM PDC wake IRQs.
++ * Use the standard gadget suspend/resume model.  The keep-connect RFC is
++ * intentionally not enabled: this board has no proven VBUS/attach source for
++ * the controller, so an unplugged cable can leave the stale U3 state looking
++ * like a host-suspended link and the armed DP wake IRQ then aborts suspend.
+  */
+-&usb_1 {
+-	wakeup-source;
+-};
+-
+ &usb_1_dwc3 {
+ 	status = "okay";
+ 	dr_mode = "peripheral";
+ 	maximum-speed = "high-speed";
+ 	qcom,select-utmi-as-pipe-clk;
+ 	tx-fifo-resize;
+-	snps,gadget-keep-connect-sys-sleep;
+ 	phys = <&usb_1_hsphy>;
+ 	phy-names = "usb2-phy";
+ };
+-- 
+2.53.0
+

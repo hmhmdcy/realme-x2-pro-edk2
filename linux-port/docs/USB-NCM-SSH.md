@@ -196,11 +196,10 @@ PM8150B Type-C/充电器 IRQ 的 `enable_irq_wake()` 支持；不应在板级
 私有驱动里伪造一条 USB 数据唤醒路径。任何 suspend 试验都必须保留
 电源键或串口恢复路径；RTC 只能作为有恢复手段时的定时唤醒测试。
 
-2026-11-10 已把这条路径落成独立候选：Android 真机运行 DT 证实
-`extcon_usb1` 绑定 PM8150 GPIO10，主线 `extcon-usb-gpio` DTB 和一条
-udev `power/wakeup` 策略已离线构建；SPMI periph IRQ 经 PDC pin 1
-布防。它只验证插拔线唤醒，不改变 DWC3 suspend soft-disconnect，故不
-等于同线 USB resume。详见 [USB-WAKE-20261110](USB-WAKE-20261110.md)。
+> **2026-11-11 撤回**：GPIO10 extcon 的假设已被真机否定（厂商 DTS
+> 注释掉 `vbus-gpio` 和消费者，实测 GPIO10 不跟随 VBUS、IRQ 120 始终
+> 为 0）。overlay、udev 规则和包条目已删除，keep-connect 也已关闭。
+> 详见 [USB-REMOTE-WAKE-20261111](USB-REMOTE-WAKE-20261111.md)。
 
 官方参考：
 [`sleep-inhibitor` 配置](https://gitlab.postmarketos.org/postmarketOS/pmaports/-/blob/main/main/postmarketos-base-ui/rootfs-etc-sleep-inhibitor.conf)、
@@ -221,8 +220,8 @@ udev `power/wakeup` 策略已离线构建；SPMI periph IRQ 经 PDC pin 1
 | DWC3 runtime PM | 已验证 | 空闲时 runtime suspend，活跃时恢复 |
 | NCM 大传输 | 已验证 | 双向 64K/256K/1M/4M 矩阵通过 |
 | 热重启进 ABL fastboot | 部分/有 workaround | 曾出现 `VID_0000&PID_0001` Code 43；干净解绑 UDC 可降低概率，但根因在 ABL 暖启动 |
-| 系统 suspend 后的 USB 插拔唤醒 | 离线候选 | PM8150 GPIO10 `extcon-usb-gpio` + PDC pin 1 + udev `power/wakeup`；待真机 suspend 验收 |
-| 同线主机发给手机的 USB resume | U3-only 标准候选已上机，待 Linux host autosuspend 验收 | `snps,gadget-keep-connect-sys-sleep` + qcom peripheral PDC wake IRQ；Windows UsbNcm 保持 U0，不构成本路径；见 [USB-HOST-RESUME-20261110](USB-HOST-RESUME-20261110.md) |
+| 系统 suspend 后的 USB 插拔唤醒 | **未支持** | GPIO10 extcon 被否定并删除；没有可信 VBUS/attach 源。下一步走 PM8150B Type-C/TCPM |
+| 同线主机发给手机的 USB resume | **未支持** | keep-connect 已禁用（拔线时 `dp_hs_phy_irq` 伪唤醒，插线 resume 曾致 Code 43）；标准路径不保留 U3 链路 |
 | VBUS/充电器检测 | 部分 | MP2650 只做 I2C `power_supply` 轮询，没有 IRQ/wakeup 布防 |
 | Type-C CC/PD 与 role switch | 部分/离线候选 | sink DTB 已构建，保持 `dr_mode = "peripheral"`、无 role-switch；dual-role 需新内核 |
 | OTG/host mode | 未实现，候选已准备 | 当前 Image 是 `DWC3_GADGET` 且无 xHCI；dual DTB + Kconfig fragment 已落盘，尚未构建/刷入 |
