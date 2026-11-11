@@ -1,0 +1,101 @@
+#!/bin/sh
+# Debug-only sleep-inhibitor plugin for USBwake.
+#
+# Modes:
+#   either (default): external power is online OR a configured NCM link is up
+#   power:            external power is online only (PinePhone-style AC guard)
+#   ncm:              a configured NCM link is up only
+#
+# Exit 254 tells sleep-inhibitor to hold a sleep inhibitor.
+set -u
+
+mode=${USBWAKE_GUARD_MODE:-either}
+power_dir=${USBWAKE_POWER_SUPPLY_DIR:-/sys/class/power_supply}
+udc_dir=${USBWAKE_UDC_DIR:-/sys/class/udc}
+gadget_root=${USBWAKE_GADGET_ROOT:-/sys/kernel/config/usb_gadget}
+net_class=${USBWAKE_NET_CLASS:-/sys/class/net}
+
+external_power_online() {
+	for supply in "$power_dir"/*; do
+		[ -e "$supply" ] || continue
+		type=$(cat "$supply/type" 2>/dev/null || true)
+		case "$type" in
+		Mains|USB|USB_CDP|USB_DCP|USB_PD|USB_PD_DRP|Wireless)
+			;;
+		*)
+			continue
+			;;
+		esac
+
+		online=$(cat "$supply/online" 2>/dev/null || true)
+		if [ -z "$online" ]; then
+			status=$(cat "$supply/status" 2>/dev/null || true)
+			case "$status" in
+			Charging|Full)
+				online=1
+				;;
+			*)
+				online=0
+				;;
+			esac
+		fi
+		[ "$online" = 1 ] && return 0
+	done
+	return 1
+}
+
+ncm_active() {
+	configured_udcs=
+	for state in "$udc_dir"/*/state; do
+		[ -r "$state" ] || continue
+		[ "$(cat "$state" 2>/dev/null)" = configured ] || continue
+		udc_path=${state%/state}
+		configured_udcs="$configured_udcs ${udc_path##*/}"
+	done
+	[ -n "$configured_udcs" ] || return 1
+
+	for gadget in "$gadget_root"/*; do
+		[ -d "$gadget" ] || continue
+		gadget_udc=$(cat "$gadget/UDC" 2>/dev/null || true)
+		[ -n "$gadget_udc" ] || continue
+		case " $configured_udcs " in
+		*" $gadget_udc "*)
+			;;
+		*)
+			continue
+			;;
+		esac
+
+		for function in "$gadget"/functions/ncm.* \
+				"$gadget"/functions/ecm.* \
+				"$gadget"/functions/rndis.* \
+				"$gadget"/functions/eem.*; do
+			[ -r "$function/ifname" ] || continue
+			ifname=$(cat "$function/ifname" 2>/dev/null || true)
+			[ -n "$ifname" ] || continue
+			[ -r "$net_class/$ifname/carrier" ] || continue
+			[ "$(cat "$net_class/$ifname/carrier" 2>/dev/null)" = 1 ] &&
+				return 0
+		done
+	done
+	return 1
+}
+
+case "$mode" in
+power)
+	external_power_online && exit 254
+	;;
+ncm)
+	ncm_active && exit 254
+	;;
+either)
+	if external_power_online || ncm_active; then
+		exit 254
+	fi
+	;;
+*)
+	exit 0
+	;;
+esac
+
+exit 0

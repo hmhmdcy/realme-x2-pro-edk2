@@ -113,7 +113,7 @@ rootfs 不再启动 Dropbear，SSH 由发行版 `sshd.pam` 提供；当前
 必须在设备在线时作为单独候选迁移并重新做主机侧验收，不能和设备离线
 时的启动策略修改混在同一个包内。
 
-`samurai-platform` 5-r23 起正式包不再安装 carrier-only guard，也不再
+`samurai-platform` 5-r24 起正式包不再安装 carrier-only guard，也不再
 安装 `samurai-sleep-inhibitor`。正式系统直接使用 postmarketOS 官方的
 `/etc/sleep-inhibitor.conf` 和官方 `sleep-inhibitor` 服务：有活跃 SSH
 会话时 `ssh-session-open` 持有 `sleep` 锁；仅插着 USB 充电线不会永久
@@ -153,6 +153,114 @@ carrier-only guard 只存在于 debug 目录，不进入正式配置。
 `SAMURAI_ALLOW_SUSPEND=1 linux-port/scripts/test-suspend-rtcwake.sh 30`
 （或串口确认的等效路径），并在有人工唤醒条件时单独测试；不能把
 `test-usb-ncm-stability.py` 的 sleep 锁和 suspend 测试混在同一轮。
+
+### postmarketOS 休眠模型与 USB 唤醒边界（2026-11-10）
+
+本内核启用了 `CONFIG_PM_SLEEP`/`CONFIG_SUSPEND`，但没有启用
+`CONFIG_PM_AUTOSLEEP` 和 `CONFIG_PM_WAKELOCKS`。因此这里不使用
+Android 式的 `/sys/power/autosleep` 或 `wake_lock`；系统睡眠由 KDE
+PowerDevil 通过 logind/elogind 发起，`sleep-inhibitor` 使用
+`elogind-inhibit --what=sleep` 持锁。
+
+postmarketOS 官方默认把 `sleep-inhibitor` 加入 OpenRC `default`
+runlevel，配置只包含 `ssh-session-open` 和 `apk-running` 两个插件；
+`ssh-session-open` 的匹配式是
+`sshd(-session)?(\.[^:]+)?:.*pts`，因此它依赖一个带 PTY 的交互式
+SSH 会话。自动化的 `BatchMode` 命令如果没有 `-t`，不应当被当成
+可靠的休眠保护；无人值守测试仍应显式持有
+`elogind-inhibit --what=sleep --mode=block`。该插件的检查周期是
+6 秒，刚连上时也存在短窗口，不能代替测试脚本的锁。
+
+USB 唤醒要分两种方向：
+
+- USB gadget 的 remote wakeup 是“手机唤醒主机”，由 `u_ether` 在
+  NCM 发包时调用 `usb_gadget_wakeup()`；它不能让主机在手机已经
+  suspend 后把手机唤醒。
+- 主机侧数据包、magic packet 或一次 SSH SYN 都不是手机唤醒源。
+  当前 DWC3 gadget 路径在 suspend 时执行 soft-disconnect，撤掉
+  pull-up，主机看到的是 USB 拔出，随后没有任何 NCM 设备可以接收
+  数据包。
+
+真正可能的标准唤醒源是电源键、RTC、已布防的 USB/充电器 IRQ 或
+Qualcomm PDC wakeirq。当前 RMX1931 设备树没有给
+`usb_1_dwc3` 加 `wakeup-source`，且 `dwc3-qcom.c` 只在 host role
+下布防 USB PHY wake IRQ；本板的 `dr_mode` 是 `peripheral`，所以
+单纯加一个 `wakeup-source` 属性并不会自动得到 USB 数据唤醒。
+PM8150B Type-C 节点当前未启用，MP2650 驱动也只有 I2C 状态轮询，
+没有 charger/VBUS 唤醒中断。因此当前正式配置没有可靠的“插拔 USB
+线唤醒手机”路径。
+
+如果以后要把它做成标准能力，优先考虑上游已有的通用模型：
+`usb-conn-gpio` + 真实的 VBUS/ID GPIO + `wakeup-source`，或补齐
+PM8150B Type-C/充电器 IRQ 的 `enable_irq_wake()` 支持；不应在板级
+私有驱动里伪造一条 USB 数据唤醒路径。任何 suspend 试验都必须保留
+电源键或串口恢复路径；RTC 只能作为有恢复手段时的定时唤醒测试。
+
+2026-11-10 已把这条路径落成独立候选：Android 真机运行 DT 证实
+`extcon_usb1` 绑定 PM8150 GPIO10，主线 `extcon-usb-gpio` DTB 和一条
+udev `power/wakeup` 策略已离线构建；SPMI periph IRQ 经 PDC pin 1
+布防。它只验证插拔线唤醒，不改变 DWC3 suspend soft-disconnect，故不
+等于同线 USB resume。详见 [USB-WAKE-20261110](USB-WAKE-20261110.md)。
+
+官方参考：
+[`sleep-inhibitor` 配置](https://gitlab.postmarketos.org/postmarketOS/pmaports/-/blob/main/main/postmarketos-base-ui/rootfs-etc-sleep-inhibitor.conf)、
+[`elogind` 配置](https://gitlab.postmarketos.org/postmarketOS/pmaports/-/blob/main/main/postmarketos-base-ui/rootfs-usr-lib-elogind-logind.conf)、
+[pmOS 电源管理](https://wiki.postmarketos.org/wiki/Power_management)、
+[pmOS opportunistic sleep](https://wiki.postmarketos.org/wiki/Opportunistic_Sleep)、
+[SDM845/SDM850 wakeups](https://wiki.postmarketos.org/wiki/Qualcomm_Snapdragon_845/850_(SDM845/SDM850)#Wakeups)。
+
+### USB 平台适配覆盖矩阵（2026-11-10）
+
+`NCM 能连`只覆盖了表中的第一行和 gadget/configfs 子集，不能据此认为
+整个 USB-C 平台已经完成适配。
+
+| 能力 | 当前状态 | 证据/边界 |
+| --- | --- | --- |
+| USB2 high-speed device mode | 已验证 | DWC3 UDC、NCM、SSH/SCP 可用；传输问题由 `tx-fifo-resize` 和 `qmult=20` 修复 |
+| configfs gadget/UDC | 已验证 | NCM 生命周期和普通重启可工作 |
+| DWC3 runtime PM | 已验证 | 空闲时 runtime suspend，活跃时恢复 |
+| NCM 大传输 | 已验证 | 双向 64K/256K/1M/4M 矩阵通过 |
+| 热重启进 ABL fastboot | 部分/有 workaround | 曾出现 `VID_0000&PID_0001` Code 43；干净解绑 UDC 可降低概率，但根因在 ABL 暖启动 |
+| 系统 suspend 后的 USB 插拔唤醒 | 离线候选 | PM8150 GPIO10 `extcon-usb-gpio` + PDC pin 1 + udev `power/wakeup`；待真机 suspend 验收 |
+| 同线主机发给手机的 USB resume | U3-only 标准候选已上机，待 Linux host autosuspend 验收 | `snps,gadget-keep-connect-sys-sleep` + qcom peripheral PDC wake IRQ；Windows UsbNcm 保持 U0，不构成本路径；见 [USB-HOST-RESUME-20261110](USB-HOST-RESUME-20261110.md) |
+| VBUS/充电器检测 | 部分 | MP2650 只做 I2C `power_supply` 轮询，没有 IRQ/wakeup 布防 |
+| Type-C CC/PD 与 role switch | 部分/离线候选 | sink DTB 已构建，保持 `dr_mode = "peripheral"`、无 role-switch；dual-role 需新内核 |
+| OTG/host mode | 未实现，候选已准备 | 当前 Image 是 `DWC3_GADGET` 且无 xHCI；dual DTB + Kconfig fragment 已落盘，尚未构建/刷入 |
+| USB3 SuperSpeed | 未启用 | `usb_1_qmpphy` disabled，`maximum-speed = "high-speed"` |
+| DisplayPort alt mode | 未实现 | 同一 QMP PHY/DP 路径未接入 |
+| 充电控制/输入限流/watchdog | 未实现 | MP2650 驱动明确只读，避免未验证的保护链被改写 |
+
+因此这里更准确的说法不是“USB 驱动坏了”，而是“USB2 NCM 的最小数据
+路径已经打通，USB-C 的角色、供电、充电器事件、唤醒和高速/DP 能力
+仍是分层的未完成项”。这些能力应作为独立的候选逐项接入；不能用一个
+NCM 连通测试代替 USB 平台验收。
+
+### USB2 Type-C 分层候选（2026-11-10）
+
+本轮把 USB 适配拆成两个 DTB 候选，避免把“启用 TCPM”和“启用 host”
+混成一次改动：
+
+- `usb2-typec-sink`：只启用 PM8150B Type-C/TCPM，connector 固定
+  `power-role=sink`/`data-role=device`，DWC3 保持当前
+  `dr_mode="peripheral"`，不添加 role-switch 或 HS graph。它与当前
+  gadget-only 内核配置兼容，是首个可安全上机的 DTB-only 候选。
+- `usb2-typec-dual`：标准 OTG + `usb-role-switch` + connector graph，
+  source 先限制为 5 V / 500 mA。当前生产内核缺
+  `CONFIG_USB_DWC3_DUAL_ROLE`、`CONFIG_USB_XHCI_HCD` 和
+  `CONFIG_USB_XHCI_PLATFORM`，所以它必须配新的 Image，不能只替换 DTB。
+
+离线产物和哈希：
+
+```text
+E:/edk2-samurai-out/standard-arm64-v731/usb-typec-20261110/manifest.json
+sink DTB      b18da56255f82ecf9fa2095f7eddd4d0041fbb1a8162162007f1b55c657bd792
+dual DTB      ef8e40ba6dca4f344918b7be9a6d1c6145c0b4d2670d58336cd3ee4086c4d164
+dual config   524cc7e476b2c7ad1e35dd1fb339d95f60f0cb29f4e1f3b44d105180d30ec3e6
+```
+
+构建、配置解析、候选边界和上游参考见
+[`USB-TYPEC-20261110.md`](USB-TYPEC-20261110.md)。这两个 DTB 尚未刷入；
+设备本轮在 SSH 握手前即关闭连接，不能把离线构建当作运行时通过。
 
 rootfs 源码脚本为
 [`samurai-platform/usr_sbin_samurai-usb`](../packages/samurai-platform/usr_sbin_samurai-usb)；

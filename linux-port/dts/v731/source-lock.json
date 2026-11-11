@@ -1,15 +1,17 @@
 {
   "schema": "samurai-linux-standard-arm64-source-lock-v1",
-  "status": "thin_private_image_deployed_two_ordinary_reboots_passed_suspend_test_unrecovered_settings_provenance_candidates_pending",
-  "updated": "2026-11-09",
+  "status": "panel_hbm_fix_deployed_and_verified_usb2_typec_and_wake_candidates_offline_device_offline",
+  "updated": "2026-11-11",
   "target": {
     "device": "Realme X2 Pro",
     "model": "RMX1931",
     "codename": "samurai",
     "soc": "Qualcomm SM8150",
     "arch": "arm64",
-    "current_objective": "Wi-Fi, CDC NCM and SSH remain mandatory regression gates. Production settings must be separated into postmarketOS/KDE official defaults, the irreducible board layer, and debug-only transient overrides. The installed 5-r22/4-r10 packages still carry the historical board sleep-inhibitor and tinydm overrides; 5-r23/4-r11 are offline candidates that remove them and restore the official sleep-inhibitor/PowerDevil baseline. The thin-private Image removes all three custom MAX98937/AW8697 status attributes on the handset, and two ordinary reboots passed the full 777-module camera, flash/V4L2, Bluetooth, NFC, thermal and network gate with taint 0. A short loginctl-suspend test using a direct sysfs RTC alarm left the handset unreachable and USB-unenumerated; this is not a suspend pass. Continue only mainline Linux v7.3.1 models and APIs, keep the irreducible board layer, and recover the handset before repeating suspend with the previously proven rtcwake path. Physical NFC tag I/O, external PAN/HID peers and external-power-removed cold boot remain unverified.",
+    "current_objective": "The SOFEF03F HBM black-screen root cause is fixed and verified on 2026-11-11: brightness >1023 requires DCS 0x53=0xe0 before the brightness write and 0x53=0x20 when leaving HBM. The deployed 0009 equivalent passed ten 1024-brightness DPMS cycles, real touch, the physical power key, and an external-power-removed cold boot. The 0003/0005 first-frame reapply and the MDSS-reset cold-boot candidates are superseded, not the fix. The active hardware block remains standardized USB2 platform adaptation. Wi-Fi, CDC NCM and SSH remain mandatory regression gates. Keep Type-C role/host, USB3/DP and suspend wake in separate layers. The DTB-only usb2-typec-sink, usb2-typec-dual and rebuilt usb2-vbus-wake candidates are offline; the wake r5 DTB is not flashed. usb2-vbus-wake uses the Android-proven PM8150 GPIO10 extcon_usb1 hardware and standard linux,extcon-usb-gpio, deliberately without the invalid wakeup-source property; wakeup is enabled by the udev power/wakeup policy. The SPMI PMIC arbiter periph IRQ is routed through PDC pin 1 (GIC SPI 481) in sm8150.dtsi. It covers cable insertion/removal only; it does not preserve NCM across system suspend, and host-initiated resume still needs the separate U3 keep-connect layer. The device is unreachable for SSH as of 2026-11-11. Do not write NV, persist, calibration or userdata.",
     "goal_update_2026_11_09": "Wi-Fi, CDC NCM and SSH are no longer active backlog items. They remain mandatory regression gates, but hardware adaptation continues with the remaining standardizable blocks without waiting for another dedicated network pass.",
+    "goal_update_2026_11_10": "The active hardware block is USB. Use the mainline PM8150B Type-C/TCPM, DWC3 role-switch and standard connector graph in separate layers. A DTB-only sink candidate is compatible with the deployed gadget-only kernel; a dual-role candidate additionally requires a new ARM64 Image with DWC3_DUAL_ROLE and xHCI. Do not treat NCM connectivity as host, VBUS-source, USB3/DP or wakeup acceptance.",
+    "goal_update_2026_11_11": "Commit only the adaptations with a defensible scope: the verified HBM panel fix, the desktop power-key bridge removal, the USB layering cleanup, and the measured camera preview/high-resolution paths. Keep invalid or unverified attempts explicitly marked: the extcon wakeup-source property, the APSD private Kconfig hooks, the U0 active-link wake experiment, the first-frame-only panel reapply, the MDSS-reset cold-boot candidate, and the power-key bridge are not production fixes.",
     "execution_order": [
       "Wi-Fi, CDC NCM and SSH (closed; retained only as regression gates)",
       "camera Selection API and ordinary-reboot RAW/userspace regression (closed)",
@@ -20,6 +22,162 @@
       "Bluetooth PAN/HID kernel path: signed mainline BNEP/UHID/uinput package installed; modules auto-loaded, devices opened, BNEP socket and full runtime gate passed after ordinary reboot; external peers pending",
       "remaining display, audio, sensor, camera-userspace, charging and fingerprint work",
       "external-power-removed and repeated cold-boot acceptance when the handset is physically available"
+    ]
+  },
+  "usb_typec_candidate": {
+    "doc": "linux-port/docs/USB-TYPEC-20261110.md",
+    "status": "offline_built_not_deployed",
+    "base_dts_sha256": "e877bb39c53e0878d60f33160de3c7f14e81c8005caeaf684eda03fb9992cb59",
+    "candidate_dir": "E:/edk2-samurai-out/standard-arm64-v731/usb-typec-20261110",
+    "manifest": {
+      "path": "E:/edk2-samurai-out/standard-arm64-v731/usb-typec-20261110/manifest.json",
+      "sha256": "237f3e4a30082c826cfa799c538904f4e790a1bec1f76be9ee1560b38e8309be"
+    },
+    "profiles": {
+      "sink": {
+        "overlay": "linux-port/dts/experiments/usb2-typec-sink.dtso",
+        "overlay_sha256": "09113987fc7a39ab2c33b988d045ecd3d8f984a762a7ccf8ffef72b0ef31b773",
+        "dtb": "E:/edk2-samurai-out/standard-arm64-v731/usb-typec-20261110/sink/sm8150-samurai-usb2-typec-sink.dtb",
+        "dtb_sha256": "b18da56255f82ecf9fa2095f7eddd4d0041fbb1a8162162007f1b55c657bd792",
+        "dtb_bytes": 126389,
+        "kernel_config_satisfied": true,
+        "data_path": "dr_mode=peripheral; no usb-role-switch; PM8150B TCPM only",
+        "base_diff": "E:/edk2-samurai-out/standard-arm64-v731/usb-typec-20261110/sink/base-vs-sink.json",
+        "base_diff_sha256": "5e936956055a65c04107c4adefcc0539424648156ffb42c427e4fb5107f3daf4"
+      },
+      "dual": {
+        "overlay": "linux-port/dts/experiments/usb2-typec-dual.dtso",
+        "overlay_sha256": "d5e29f3fb83cf6a309e0e6c5e7b2f4af28137c23b07c2b04dc37369ef3940164",
+        "dtb": "E:/edk2-samurai-out/standard-arm64-v731/usb-typec-20261110/dual/sm8150-samurai-usb2-typec-dual.dtb",
+        "dtb_sha256": "ef8e40ba6dca4f344918b7be9a6d1c6145c0b4d2670d58336cd3ee4086c4d164",
+        "dtb_bytes": 126644,
+        "kernel_config_satisfied": false,
+        "missing_configs": [
+          "CONFIG_USB_DWC3_DUAL_ROLE",
+          "CONFIG_USB_XHCI_HCD",
+          "CONFIG_USB_XHCI_PLATFORM"
+        ],
+        "data_path": "standard OTG + usb-role-switch; source limited to 5 V / 500 mA",
+        "sink_diff": "E:/edk2-samurai-out/standard-arm64-v731/usb-typec-20261110/dual/sink-vs-dual.json",
+        "sink_diff_sha256": "47eced0c4ea51e9349b0ea7c8e7ba813e2513fc6b8d855b62e26941ff70a7775"
+      }
+    },
+    "kernel_config_candidate": {
+      "fragment": "linux-port/configs/v7.3.1/usb2-typec-dual.fragment",
+      "fragment_sha256": "f8b7a34ac1cfd22c660781db86c22c2f9aa67038943255a856e710d23563430a",
+      "resolved_config": "E:/edk2-samurai-out/standard-arm64-v731/usb-typec-20261110/config-candidate/resolved.config",
+      "resolved_config_sha256": "524cc7e476b2c7ad1e35dd1fb339d95f60f0cb29f4e1f3b44d105180d30ec3e6",
+      "diffconfig": "E:/edk2-samurai-out/standard-arm64-v731/usb-typec-20261110/config-candidate/diffconfig.txt",
+      "diffconfig_sha256": "1e73fcddea94f2a810b6a449cf580b8af3b0ad32a8fb6a3a3de8e96e2ba9b52c"
+    },
+    "hardware_boundary": {
+      "stock_usb0": "dr_mode=otg, maximum-speed=high-speed; PM8150B PD PHY extcon present",
+      "fsa4480": "not present in RMX1931 stock DTBO; do not copy from OnePlus",
+      "usb3_dp": "QMP/DP hardware described but deliberately disabled for this layer",
+      "wakeup": "handled by the independent usb_wake_candidate; DWC3 gadget soft-disconnect and same-cable host resume remain a separate kernel layer"
+    },
+    "private_code_cleanup": {
+      "patch": "linux-port/patches/v7.3.1/0005-usb-dwc3-qcom-remove-unused-samurai-apsd-kconfig.patch",
+      "patch_sha256": "390aefb492c6e81c26406fecd21ced9b2bb9342659058243f1a3e030ddc2945b",
+      "removes": [
+        "USB_DWC3_SAMURAI_APSD_OWNER",
+        "USB_DWC3_SAMURAI_APSD_PD5V_CLIENT",
+        "USB_DWC3_SAMURAI_APSD_EUD_OFF_CLIENT"
+      ],
+      "reason": "unset, unbuildable, and referenced no existing source file"
+    },
+    "tools": {
+      "build_dtb_candidates": {
+        "path": "linux-port/scripts/build-usb-typec-candidates.py",
+        "sha256": "9124d85b8fd5779afc85e5083429d2d02d0e8ab778484fbf1096b2e024f998a3"
+      },
+      "prepare_dual_config": {
+        "path": "linux-port/scripts/prepare-usb-typec-dual-config.sh",
+        "sha256": "bcc08984e1fdecd30cfb995d8301f6f9ee6baa42e5ed90ea212c3dd77bf3182b"
+      },
+      "device_gate": {
+        "path": "linux-port/scripts/check-usb-typec-baseline.sh",
+        "sha256": "a5f29d70a24de91a369cacf136f3fbf42b732cfaab35dc32ae5dc209a830f455"
+      }
+    }
+  },
+  "usb_wake_candidate": {
+    "doc": "linux-port/docs/USB-WAKE-20261110.md",
+    "status": "offline_built_not_deployed",
+    "base_dts_sha256": "50bf2048398f7f925a33107f5a7ba2e3aea0124f10f83edce181b1cc81c9af61",
+    "base_clean_dtb_sha256": "59a0ff6b37d30a7897a39b9830e512d76ab86cf3144ab4dfb38233d9cb58fc9d",
+    "candidate_dir": "E:/edk2-samurai-out/standard-arm64-v731/usb-wake-20261111-r5",
+    "manifest": {
+      "path": "E:/edk2-samurai-out/standard-arm64-v731/usb-wake-20261111-r5/manifest.json",
+      "sha256": "8792de00ea8bf5e50cee6ff30ca90e204617f8da50bab338f889dcd2e264669d"
+    },
+    "profile": {
+      "overlay": "linux-port/dts/experiments/usb2-vbus-wake.dtso",
+      "overlay_sha256": "25eb7749ea80799fea68a819ea34b231e40788247eb6bc282a2ec98ded2dcbbd",
+      "dtb": "E:/edk2-samurai-out/standard-arm64-v731/usb-wake-20261111-r5/wake/sm8150-samurai-usb2-vbus-wake.dtb",
+      "dtb_sha256": "53217926a2d8725895401d12ff8a11689b1ae0b984ee42d2ce3ecc31ab366702",
+      "dtb_bytes": 126373,
+      "kernel_config_satisfied": true,
+      "data_path": "dr_mode=peripheral; no usb-role-switch; VBUS wake only",
+      "semantic_diff": "E:/edk2-samurai-out/standard-arm64-v731/usb-wake-20261111-r5/wake/base-vs-wake.json",
+      "semantic_diff_sha256": "6895662b320d5ace780679b6c9fe5f7c0623d144268875dd4c4e9b055eefce10",
+      "semantic_diff_summary": {
+        "only_after_nodes": [
+          "/extcon-usb1",
+          "/soc@0/spmi@c440000/pmic@0/gpio@c000/usb2-vbus-det-default-state"
+        ],
+        "only_before_properties": [],
+        "only_after_properties": [],
+        "changed_property_count": 0
+      },
+      "invalid_property_removed": "wakeup-source is not in the linux,extcon-usb-gpio binding and the driver does not read it; the node must not carry it"
+    },
+    "hardware": {
+      "android_live_dt": "extcon_usb1: linux,extcon-usb-gpio, vbus-gpio=<&pm8150_gpios 10 GPIO_ACTIVE_HIGH>",
+      "android_runtime_irq": "pmic_arb ... vendor:extcon_usb1",
+      "android_wakeup_node": "wakeup11",
+      "fsa4480": "not present in RMX1931 stock DTBO",
+      "source_note": "The Android kernel source has this line behind conditional comments; the bootloader-produced live DT is authoritative."
+    },
+    "irq_path": {
+      "spmi_bus": "/soc@0/spmi@c440000",
+      "pdc_pin": 1,
+      "pdc_parent_gic_spi": 481,
+      "why": "qpnpint_irq_set_wake forwards the child wake request to the SPMI bus IRQ; a raw GIC parent does not arm the Qualcomm PDC."
+    },
+    "rootfs_policy": {
+      "rule": "linux-port/packages/samurai-platform/99-realme-rmx1931-usb-wake.rules",
+      "rule_sha256": "28456d4d3d391e637a1aec91f8ee65793c918ab5dc29cb9744020dcac4ec9dc4",
+      "installed_path": "/usr/lib/udev/rules.d/99-realme-rmx1931-usb-wake.rules",
+      "policy": "Set power/wakeup=enabled for the platform extcon-usb-gpio device; no custom service or sleep-inhibitor override.",
+      "package_candidate": "samurai-platform 5-r25",
+      "apk": "E:/edk2-samurai-out/standard-arm64-v731/usb-wake-package-20261110/samurai-platform-5-r25.apk",
+      "apk_sha256": "f2f9a285d7a4677173f2c8bfba8ac1fa21b0cb211f0937a18a30143c94d3c931",
+      "package_manifest": "E:/edk2-samurai-out/standard-arm64-v731/usb-wake-package-20261110/package-manifest.json",
+      "package_manifest_sha256": "ea9a6c9ba3b9d65fe9629dfaa2be144d488af39d8b13392d96292cd0f68da036",
+      "index": "E:/edk2-samurai-out/standard-arm64-v731/usb-wake-package-20261110/packages.adb",
+      "index_sha256": "a027fc12c43d2524986bdc13fd3c9cdd0825fb029166328b8db6e7a3974e9984",
+      "apk_verify": "OK for all four APKs and packages.adb",
+      "package_installed": false
+    },
+    "tools": {
+      "device_gate": {
+        "path": "linux-port/scripts/check-usb-wake-baseline.sh",
+        "sha256": "98766aadf964bc7b911e9c4e6cbd60ec02f4960b4b9db63d742bc0728b6613db"
+      },
+      "build_dtb_candidates": {
+        "path": "linux-port/scripts/build-usb-typec-candidates.py",
+        "sha256": "9124d85b8fd5779afc85e5083429d2d02d0e8ab778484fbf1096b2e024f998a3"
+      }
+    },
+    "not_verified": [
+      "device boot with the wake DTB",
+      "runtime power/wakeup=enabled",
+      "VBUS insertion and removal suspend wake",
+      "PDC wake IRQ accounting",
+      "same-cable host-initiated USB resume",
+      "NCM continuity across suspend",
+      "external-power-removed cold boot"
     ]
   },
   "settings_provenance": {
@@ -43,9 +201,10 @@
       }
     },
     "production_candidates": {
-      "samurai-platform": "5-r23",
+      "samurai-platform": "5-r25",
       "samurai-desktop": "4-r11",
       "changes": [
+        "add the standard extcon-usb-gpio power/wakeup udev policy for USB VBUS wake",
         "remove samurai-sleep-inhibitor service and /etc/samurai/sleep-inhibitor.conf",
         "remove installed samurai-usb-sleep-guard from the production package",
         "restore the upstream sleep-inhibitor service",
@@ -3122,7 +3281,7 @@
       "L4_uapi": "UDC/configfs, V4L2 media/video, netdev, DRM/KMS, power_supply, evdev and sysfs; no private ioctl exported",
       "L5_services": "pmaports base/base-ui service ownership; local board services remain thin",
       "L6_packages": "signed samurai-platform/samurai-desktop packages select Plasma Mobile and expose only board defaults",
-      "L7_desktop": "official tinydm/Plasma/KScreen/PowerDevil/portal boundaries; board 90Hz panel and power-key bridge remain thin local adapters"
+      "L7_desktop": "official tinydm/Plasma/KScreen/PowerDevil/portal boundaries; KWin/PowerDevil own the power key and DPMS policy; only the SOFEF03F panel quirk remains board-specific"
     },
     "official_vs_local": {
       "unudhcpd_vs_dnsmasq": "official main rootfs unudhcpd defaults to 172.16.41.1/172.16.42.2; local keeps dnsmasq 10.42.0.1/24 and 169.254.42.1/16 for known_hosts, routes and existing scripts; migration is a separate online candidate",
@@ -3130,7 +3289,7 @@
       "networkmanager": "official base-ui installs and enables the distribution NetworkManager; local keeps NetworkManager independent of samurai-radio and observes wlan0 through standard interfaces",
       "wpa_supplicant": "official config only supplies the driver arguments; local adds soft rc_use/rc_after ordering behind samurai-radio",
       "modemmanager": "official config only supplies the quick-suspend option; local keeps optional rc_use/rc_after ordering behind samurai-radio",
-      "tinydm": "official config has no optional-hardware rc_need/rc_after; local r10 has rc_need=dbus elogind and rc_use=iio-sensor-proxy samurai-sleep-inhibitor",
+      "tinydm": "official config has no optional-hardware rc_need/rc_after; local r24 restores that baseline and only migrates the exact historical r7-r10 overrides",
       "sleep_inhibitor": "official and local defaults both use ssh-session-open and apk-running; the local USB carrier guard is explicit opt-in",
       "realme_vendor": "vendor 4.14 DWC3/camera/charger interfaces are board evidence only; mainline 7.3.1 uses standard models and APIs"
     },
@@ -3220,7 +3379,7 @@
     "remaining_differences": [
       "The local USB network remains 10.42.0.1/24 plus 169.254.42.1/16; official main uses rootfs unudhcpd 172.16.41.1/.42.2 and initramfs uses 172.16.42.1/.42.2",
       "The local sshd boot runlevel is earlier than the official default runlevel but preserves the same standard OpenSSH service",
-      "The local 90Hz panel and Plasma power-key bridge remain board-specific thin adapters",
+      "The local 90Hz panel remains a board-specific thin adapter; the retired power-key bridge is removed in samurai-desktop 4-r16 in favor of KWin/PowerDevil",
       "The realme vendor USB/camera/charger code is 4.14 Android and is not used as a mainline ABI"
     ],
     "limitations": [
@@ -3228,6 +3387,189 @@
       "The direct motherboard port enumerates and passes, but the old Genesys hub port remains a separate failed path",
       "The camera-final boot is running and the r21 package is installed; the older usb-fifo-standard-rootfs profile remains rollback evidence",
       "The realme project directory is high-confidence rather than string-confirmed RMX1931"
+    ]
+  },
+  "panel_wake_candidate": {
+    "status": "deployed-verified",
+    "candidate_dir": "E:/edk2-samurai-out/standard-arm64-v731/panel-hbm-20261110",
+    "runtime_validation": {
+      "path": "E:/edk2-samurai-out/standard-arm64-v731/panel-hbm-20261110/runtime-validation.txt",
+      "bytes": 781,
+      "sha256": "25d5a19d2e623bc96373a02578c44c3641d11ba4415227e0c6516821b4616bb8"
+    },
+    "reason": "SOFEF03F brightness >1023 requires DCS 0x53=0xe0 before the brightness write and 0x53=0x20 when leaving HBM; the old driver wrote 1024 without entering HBM, leaving the physical panel black while DPMS, DSI and backlight reported on",
+    "official_path": {
+      "elogind": "HandlePowerKey=ignore from postmarketos-base-ui",
+      "compositor": "KWin DpmsInputEventFilter",
+      "policy": "PowerDevil mobile default ToggleScreenOnOff (128)",
+      "local_bridge": "retired; samurai-desktop 4-r16 removes samurai-powerkey"
+    },
+    "patch": {
+      "path": "linux-port/patches/v7.3.1/0010-arm64-panel-sofef03f-hbm-first-frame-consolidated.patch",
+      "bytes": 10337,
+      "sha256": "56a893996acb65ec933c13b6fef38de67e2fb646d9e07f2f085ca4fa1bcf365e"
+    },
+    "supersedes": [
+      "0003-arm64-panel-sofef03f-reapply-backlight.patch",
+      "0005-arm64-panel-sofef03f-post-on-after-first-frame.patch",
+      "0009-arm64-panel-sofef03f-serialize-brightness.patch"
+    ],
+    "image": {
+      "path": "E:/edk2-samurai-out/standard-arm64-v731/panel-hbm-20261110/Image",
+      "bytes": 59374080,
+      "sha256": "2a2da4cfaf217be8533801e17578087146df86ae012a69fd6669361da9a2d018"
+    },
+    "modules_tar": {
+      "path": "E:/edk2-samurai-out/standard-arm64-v731/usbwake-final-20261110/modules-7.3.1-rmx1931-samurai-v731-usbwake.tar.gz",
+      "bytes": 7065543,
+      "sha256": "32ac83ef4b082eb99c7efc9167a0dd01b695053a53707cf00a7133ce90a16aaf",
+      "module_count": 773,
+      "note": "unchanged; the panel driver is built in"
+    },
+    "kernel_fat": {
+      "path": "E:/edk2-samurai-out/standard-arm64-v731/panel-hbm-20261110/logdump-panel-hbm.img",
+      "bytes": 67108864,
+      "sha256": "2fe43ec3997ccc4372d2fd12e8878216598e0624c125070c39b57642069e18aa"
+    },
+    "flash_script": {
+      "path": "linux-port/scripts/flash-kernel-linux.sh",
+      "bytes": 3535,
+      "sha256": "ccb6ade35213b46543005681ba3ae9bd861a7f8485035fd48b512680bd77fcf7"
+    },
+    "unchanged": {
+      "dtb_sha256": "9648ca7f8dbba077c7474b2687ccdbf54b6f9c26fd196e50acf007f7d7e9cb52",
+      "boot_carrier_sha256": "b9e9e53129d7d82401385a6f096af8a260a3b3d9e63d5940f7516424f4e6a438"
+    },
+    "rollback": {
+      "baseline_image_sha256": "fe9e623a1276a25fe03fa73c55f7cbe345c03b4150f28da730ded29304772ecf",
+      "baseline_kernel_fat_sha256": "2d91d2eae5a65e0f38509d02e2fcdb89954063fcdbe372e10424f0a54041db94",
+      "baseline_boot_sha256": "b9e9e53129d7d82401385a6f096af8a260a3b3d9e63d5940f7516424f4e6a438",
+      "desktop_r15_apk": "E:/edk2-samurai-out/standard-arm64-v731/powerkey-r15-20261109/samurai-desktop-4-r15.apk"
+    },
+    "verification": {
+      "boot_id": "12a652a5-ac2f-434f-8dc1-4dec0bfd4b53",
+      "dpms_cycles": 10,
+      "dpms_cycles_rerun_after_consolidation": 10,
+      "cycle_state": "On,enabled,1024,0",
+      "hbm_or_brightness_errors": 0,
+      "kwin_atomic_commit_failed": 0,
+      "brightness_transition": "1024->308->1024 pass; final state On,enabled,1024,0; errors 0",
+      "transition_log": {
+        "path": "E:/edk2-samurai-out/standard-arm64-v731/panel-hbm-20261110/hbm-transition.log",
+        "bytes": 24,
+        "sha256": "f1364ef7cc3612377df1cc0c04ab079905421d8b96408b50e139a4b5e664e5cf"
+      },
+      "runtime_check_log": {
+        "path": "E:/edk2-samurai-out/standard-arm64-v731/panel-hbm-20261110/post-hbm-runtime-check.log",
+        "bytes": 1147,
+        "sha256": "33e8e6ea3aabd4326f97e189dc1ce2e6c86bd862848750a7f7da5145d9621d4f"
+      },
+      "real_touch": "multiple user swipes after wake; panel stayed on",
+      "ordinary_reboot": true,
+      "artifact_log": {
+        "path": "E:/edk2-samurai-out/standard-arm64-v731/panel-hbm-20261110/hbm-10cycle.log",
+        "bytes": 439,
+        "sha256": "f165e064b452f65ee3e2c385a88019bc42dd79ea04a42a80251624613b492921"
+      },
+      "powerkey_gate": {
+        "status": "pass",
+        "path": "E:/edk2-samurai-out/standard-arm64-v731/panel-hbm-20261110/powerkey-wake-20261110.log",
+        "bytes": 7675,
+        "sha256": "e4cfee6db902c9c04c5e0d4efda1bf2e9b1758f61f568fce295d6edf778ac3d1",
+        "boot_id": "12a652a5-ac2f-434f-8dc1-4dec0bfd4b53",
+        "state": "On,enabled,324,0",
+        "trace": "drm_panel_backlight phase=0 -> dpu_first_frame_backlight ret=0 -> phase=1",
+        "kwin_atomic_commit_failed": 0,
+        "note": "KEY_POWER down/up captured; user visually confirmed the physical screen can be toggled on/off with the power key",
+        "longpress": "official KWin 6.8.2 path exists: a 1000 ms Key_PowerOff hold synthesizes Qt::Key_PowerDown, and PowerDevil 6.8.2 binds PowerDown to PromptLogoutDialog. On this image kglobalshortcutsrc had PowerDown=none, so the action was registered without an active shortcut. Restored via KGlobalAccel setForeignShortcutKeys to Power Down. D-Bus invocation and a 1.2 s KEY_POWER injection on /dev/input/event0 both showed the Restart/Shut Down/Log Out menu. Final physical-button confirmation is a user check. Screenshot: E:/edk2-samurai-out/standard-arm64-v731/panel-hbm-20261110/powerdown-menu-20261111.png (sha256 3eee694439ea04d70bb4474f2cdff098dfd3f67f3622ae583760cc1dddb4ca2f)."
+      },
+      "coldboot_gate": {
+        "status": "pass",
+        "boot_id_before": "12a652a5-ac2f-434f-8dc1-4dec0bfd4b53",
+        "boot_id_after": "f70fcefd-310b-4130-bcf3-c28f47ef5624",
+        "path": "E:/edk2-samurai-out/standard-arm64-v731/panel-hbm-20261110/coldboot-check-20261111.log",
+        "bytes": 1100,
+        "sha256": "8ad6df8bbc4680cc84eceb616cda9dde093901aad50847d8df0e26809ec1b6d6",
+        "hbm_errors": 0,
+        "network": "usb0 UP 10.42.0.1/24; wlan0 UP 192.168.0.114/24; UDC configured",
+        "post_coldboot_wake": {
+          "path": "E:/edk2-samurai-out/standard-arm64-v731/panel-hbm-20261110/powerkey-wake-post-coldboot-20261111.log",
+          "bytes": 2907,
+          "sha256": "9404c5ce78bdd70937fb00a24c2c2c22c03d67379ca225e61fd4ca6e773822ee",
+          "state": "On,enabled,324,0",
+          "trace": "drm_panel_backlight phase=0 -> dpu_first_frame_backlight ret=0 -> phase=1",
+          "kwin_atomic_commit_failed": 0
+        },
+        "note": "external power removed and power key boot reached a new boot ID; post-coldboot power key wake passed; user visually confirmed the physical screen lit"
+      }
+    },
+    "standard_api": "DRM panel + backlight class + MIPI DCS 0x51/0x53; no private ioctl, sysfs node or DT property",
+    "vendor_evidence": {
+      "brightness_helper": "/home/cy122/work/realme-stock/drivers/gpu/drm/drm_mipi_dsi.c:1078",
+      "panel_caller": "/home/cy122/work/realme-stock/drivers/gpu/drm/msm/dsi-staging/dsi_panel.c:913",
+      "dt_max_levels": [
+        "qcom,mdss-dsi-bl-max-level = <2047>",
+        "qcom,mdss-brightness-max-level = <2047>"
+      ]
+    },
+    "pmaports_carry": "device-realme-samurai uses device-realme-samurai-kernel-none (external EDK2/kernel chain), so no pmaports kernel APKBUILD exists to carry the patch today. Keep 0010 in the external kernel patch set with source-lock provenance, or add a kernel APKBUILD before claiming official pmaports carry, or upstream the panel quirk. Do not stack 0003/0005/0009.",
+    "kwin_touch_cancel": {
+      "package": "kwin-6.8.2-r3",
+      "evidence": "aarch64 objdump of libkwin.so.6.8.2 DpmsInputEventFilter constructor calls KWin::TouchInputRedirection::cancel() at 0x377488",
+      "note": "0103-retry-transient-ebusy-commits.patch is a separate downstream EBUSY workaround, not the HBM root cause"
+    },
+    "not_tested": [
+      "NCM/Wi-Fi SSH first-connect latency and suspend policy"
+    ]
+  },
+  "desktop_r16_candidate": {
+    "status": "signed-built-pending-device-install",
+    "candidate_dir": "E:/edk2-samurai-out/standard-arm64-v731/desktop-r16-20261109",
+    "source": {
+      "apkbuild": {
+        "path": "linux-port/packages/samurai-desktop/APKBUILD",
+        "sha256": "18cdf1b7eaad45e31819587a27a6f7867f178e87f3fcb710745d84af4eb2264d"
+      },
+      "post_install": {
+        "path": "linux-port/packages/samurai-desktop/samurai-desktop.post-install",
+        "sha256": "221a8f5f73e24fcf1b36f6c12cc8d10a547bf1cf2ef699c5aadaf30e45fd80dc"
+      },
+      "readme": {
+        "path": "linux-port/packages/samurai-desktop/README.md",
+        "sha256": "b4750fa7258ea90ef1d79671501be27ca6f8eca3833e04dd9d5bb6c9f046c48b"
+      }
+    },
+    "package": {
+      "path": "E:/edk2-samurai-out/standard-arm64-v731/desktop-r16-20261109/samurai-desktop-4-r16.apk",
+      "bytes": 2841,
+      "sha256": "9d1b34b74148894943ca472cd5e609cc0b218d332a309bc34983b5a00f7c6185"
+    },
+    "index": {
+      "path": "E:/edk2-samurai-out/standard-arm64-v731/desktop-r16-20261109/packages.adb",
+      "bytes": 1081,
+      "sha256": "4faf821e84be8104f9170f24da4acbaed666b81a17714a609d04e93aa5ffa0d3"
+    },
+    "signing_key": {
+      "public_key": "E:/edk2-samurai-out/standard-arm64-v731/desktop-r16-20261109/samurai-r16-local.rsa.pub",
+      "public_key_sha256": "c416aa40cd7a84e609a907e7e4f0f27af0820f587c3eec2d10269e15dd0f5a4c",
+      "private_key_location": "/home/cy122/samurai-r16-local.rsa (mode 600, not published)",
+      "device_trust": "not preinstalled; use --allow-untrusted or explicitly import the public key"
+    },
+    "payload": [
+      "usr/share/samurai/plasma-mobile",
+      "usr/libexec/samurai-tinydm-stop"
+    ],
+    "removed": [
+      "usr/libexec/samurai-powerkey",
+      "etc/init.d/samurai-powerkey"
+    ],
+    "migration": "post-install stops and disables the old OpenRC service, kills the old Python process, and removes its binary/init script; it keeps /var/log/samurai-powerkey.log for evidence",
+    "rollback": "E:/edk2-samurai-out/standard-arm64-v731/powerkey-r15-20261109/samurai-desktop-4-r15.apk",
+    "not_tested": [
+      "device install and upgrade from 4-r15",
+      "power key after the bridge is removed",
+      "touch after command wake",
+      "ordinary reboot and external-power-removed cold boot"
     ]
   },
   "open_items": [

@@ -16,3 +16,11 @@ plugins:
   #   name: USB NCM attached (debug only)
   #   period: .1
   #   what: sleep
+
+  # Optional PinePhone-style plugged-in guard. `either` is the recommended
+  # debug mode: external power OR an active NCM carrier holds the lock.
+  # Do not load this while validating U3/L2 host resume.
+  # - path: /path/to/linux-port/debug/sleep-policy/usbwake-guard
+  #   name: USBwake power/NCM guard (debug only)
+  #   period: .1
+  #   what: sleep

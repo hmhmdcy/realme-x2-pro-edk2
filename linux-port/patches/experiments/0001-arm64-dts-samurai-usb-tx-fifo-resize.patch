@@ -1,0 +1,17 @@
+Subject: [EXPERIMENT] arm64: dts: qcom: samurai: resize DWC3 TX FIFOs
+
+Not for production until the NCM large-transfer matrix passes.  At
+high-speed the DWC3 gadget driver allocates two TX FIFOs for bulk IN
+endpoints when tx-fifo-resize is present, instead of the default one.
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8150-samurai.dts b/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
+--- a/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
++++ b/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
+@@ -25,6 +25,7 @@
+ 	dr_mode = "peripheral";
+ 	maximum-speed = "high-speed";
+ 	qcom,select-utmi-as-pipe-clk;
++	tx-fifo-resize;
+ 	phys = <&usb_1_hsphy>;
+ 	phy-names = "usb2-phy";
+ };

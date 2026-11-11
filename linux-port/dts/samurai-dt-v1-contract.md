@@ -98,6 +98,11 @@ USB DWC3 节点使用主线的 `tx-fifo-resize` 布尔属性。它由
 路径读取，用于动态分配 TX FIFO；它不改变 `reg`、PHY、角色或 UAPI，
 已列入 `allowed_additive_properties`，并通过 4 MiB 双向 NCM 长测。
 
+2026-11-10 的 `usb2-typec-sink` / `usb2-typec-dual` 只是
+`dts/experiments` 下的离线 overlay，不属于 v1 生产 contract。
+`typec-port` 资源仍保持 v1 的 disabled 状态；只有 sink/dual 真机通过并
+决定采用后，才通过新 contract 版本把对应节点、角色和 UAPI 纳入。
+
 `sensor-power` 当前使用 `qcom,rproc = <&remoteproc_slpi>`，由板级
 sequencer 注册通用 `rproc_subdev`：`prepare` 按 VDD → 10 ms → VDDIO
 上电，`unprepare` 反向关断。它不再把 sensor rail 表达成 PAS proxy

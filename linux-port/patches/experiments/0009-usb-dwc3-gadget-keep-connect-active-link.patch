@@ -1,0 +1,221 @@
+Subject: [PATCH] usb: dwc3: keep an active gadget connected across system sleep
+
+Experiment status: NOT DEPLOYED.  This mode was tested on RMX1931 and allowed
+the handset to enter s2idle with the USB link in U0, but a USB/NCM packet did
+not wake the SoC: the DWC3 GIC IRQ is not a PDC wake source, and the RTC
+safety alarm was the only wake event.  Keep the upstream U3-only policy for
+deployment.  This patch is retained only as evidence for a future active-link
+wake design.
+
+Add an opt-in extension for debug hosts that keep the USB bus in U0 and
+never enter USB selective suspend.  The generic U3-only keep-connect path
+cannot cover that setup: it rejects system sleep while the link is active,
+so the handset cannot sleep and the NCM/SSH path cannot be tested.
+
+When the new property is present and the gadget is connected in U0, keep
+the controller and clocks alive and leave the DWC3 gadget event IRQ armed
+as a system wake source.  The next USB/NCM event wakes the SoC.  The qcom
+glue must not arm the DP/DM PDC wake IRQs in this mode because those IRQs
+are for U3/L2 exit and are not useful while the HS link is active.
+
+This deliberately remains separate from snps,gadget-keep-connect-sys-sleep:
+the latter keeps the upstream RFC U3-only semantics, while this property
+is a downstream debug policy and requires a wake-capable gadget IRQ.
+
+Upstream-Status: Pending (downstream debug extension)
+
+diff --git a/Documentation/devicetree/bindings/usb/snps,dwc3-common.yaml b/Documentation/devicetree/bindings/usb/snps,dwc3-common.yaml
+--- a/Documentation/devicetree/bindings/usb/snps,dwc3-common.yaml
++++ b/Documentation/devicetree/bindings/usb/snps,dwc3-common.yaml
+@@ -241,6 +241,16 @@
+       is rejected while the gadget link is active.
+     type: boolean
+ 
++  snps,gadget-keep-connect-active-link:
++    description:
++      Allow system sleep while a connected gadget link remains active (U0).
++      The DWC3 gadget event IRQ stays armed as the wakeup path, so USB
++      traffic can wake the system and resume the gadget.  This is intended
++      for debug hosts that keep the bus active and do not implement USB
++      selective suspend.  The platform must provide a wake-capable gadget
++      IRQ.
++    type: boolean
++
+   snps,hird-threshold:
+     description: HIRD threshold
+     $ref: /schemas/types.yaml#/definitions/uint8
+diff --git a/arch/arm64/boot/dts/qcom/sm8150-samurai.dts b/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
+--- a/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
++++ b/arch/arm64/boot/dts/qcom/sm8150-samurai.dts
+@@ -26,8 +26,8 @@
+ /*
+  * Debug policy: keep the NCM gadget attached across system sleep so a host
+  * resume can wake the SoC and the network link can recover without a cable
+- * replug.  The generic DWC3 core rejects system sleep while the USB link is
+- * active; the qcom glue arms the existing DP/DM PDC wake IRQs.
++ * replug.  The active-link variant covers debug hosts that keep the bus in
++ * U0 and therefore cannot use selective suspend.
+  */
+ &usb_1 {
+ 	wakeup-source;
+@@ -40,6 +40,7 @@
+ 	qcom,select-utmi-as-pipe-clk;
+ 	tx-fifo-resize;
+ 	snps,gadget-keep-connect-sys-sleep;
++	snps,gadget-keep-connect-active-link;
+ 	phys = <&usb_1_hsphy>;
+ 	phy-names = "usb2-phy";
+ };
+diff --git a/drivers/usb/dwc3/core.c b/drivers/usb/dwc3/core.c
+--- a/drivers/usb/dwc3/core.c
++++ b/drivers/usb/dwc3/core.c
+@@ -1876,6 +1876,8 @@
+ 
+ 	dwc->gadget_keep_connect_sys_sleep = device_property_read_bool(dev,
+ 				"snps,gadget-keep-connect-sys-sleep");
++	dwc->gadget_keep_connect_active_link = device_property_read_bool(dev,
++				"snps,gadget-keep-connect-active-link");
+ 
+ 	dwc->lpm_nyet_threshold = lpm_nyet_threshold;
+ 	dwc->tx_de_emphasis = tx_de_emphasis;
+diff --git a/drivers/usb/dwc3/core.h b/drivers/usb/dwc3/core.h
+--- a/drivers/usb/dwc3/core.h
++++ b/drivers/usb/dwc3/core.h
+@@ -1404,6 +1404,8 @@
+ 	unsigned		usb2_gadget_lpm_disable:1;
+ 	unsigned		needs_full_reinit:1;
+ 	unsigned		gadget_keep_connect_sys_sleep:1;
++	unsigned		gadget_keep_connect_active_link:1;
++	unsigned		gadget_keep_connect_irq_wake:1;
+ 
+ 	unsigned		disable_scramble_quirk:1;
+ 	unsigned		u2exit_lfps_quirk:1;
+diff --git a/drivers/usb/dwc3/dwc3-qcom.c b/drivers/usb/dwc3/dwc3-qcom.c
+--- a/drivers/usb/dwc3/dwc3-qcom.c
++++ b/drivers/usb/dwc3/dwc3-qcom.c
+@@ -82,6 +82,7 @@
+ 	bool			is_suspended;
+ 	bool			pm_suspended;
+ 	bool			keep_connect;
++	bool			keep_connect_active;
+ 	bool			utmi_as_pipe_clk;
+ 	struct icc_path		*icc_path_ddr;
+ 	struct icc_path		*icc_path_apps;
+@@ -372,12 +373,15 @@
+ 	u32 val;
+ 	int i, ret;
+ 	bool keep_connect;
++	bool keep_connect_active;
+ 
+ 	if (qcom->is_suspended)
+ 		return 0;
+ 
+ 	keep_connect = wakeup && !dwc3_qcom_is_host(qcom) &&
+ 		       dwc3_gadget_keep_connect(&qcom->dwc);
++	keep_connect_active = keep_connect &&
++			      qcom->dwc.gadget_keep_connect_irq_wake;
+ 
+ 	if (!keep_connect) {
+ 		for (i = 0; i < qcom->num_ports; i++) {
+@@ -396,7 +400,8 @@
+ 	 * The role is stable during suspend as role switching is done from a
+ 	 * freezable workqueue.
+ 	 */
+-	if (keep_connect || (dwc3_qcom_is_host(qcom) && wakeup)) {
++	if (!keep_connect_active &&
++	    (keep_connect || (dwc3_qcom_is_host(qcom) && wakeup))) {
+ 		for (i = 0; i < qcom->num_ports; i++)
+ 			qcom->ports[i].usb2_speed =
+ 				dwc3_qcom_get_usb2_speed(qcom, i);
+@@ -404,6 +409,10 @@
+ 	}
+ 
+ 	qcom->keep_connect = keep_connect;
++	qcom->keep_connect_active = keep_connect_active;
++	if (keep_connect_active)
++		dev_info(qcom->dev,
++			 "keep-connect: active link, using gadget IRQ wake\n");
+ 	qcom->is_suspended = true;
+ 
+ 	return 0;
+@@ -414,13 +423,16 @@
+ 	int ret;
+ 	int i;
+ 	bool keep_connect;
++	bool keep_connect_active;
+ 
+ 	if (!qcom->is_suspended)
+ 		return 0;
+ 
+ 	keep_connect = qcom->keep_connect;
++	keep_connect_active = qcom->keep_connect_active;
+ 
+-	if (keep_connect || (dwc3_qcom_is_host(qcom) && wakeup))
++	if (!keep_connect_active &&
++	    (keep_connect || (dwc3_qcom_is_host(qcom) && wakeup)))
+ 		dwc3_qcom_disable_interrupts(qcom);
+ 
+ 	if (!keep_connect) {
+@@ -444,6 +456,7 @@
+ 	}
+ 
+ 	qcom->keep_connect = false;
++	qcom->keep_connect_active = false;
+ 	qcom->is_suspended = false;
+ 
+ 	return 0;
+diff --git a/drivers/usb/dwc3/gadget.c b/drivers/usb/dwc3/gadget.c
+--- a/drivers/usb/dwc3/gadget.c
++++ b/drivers/usb/dwc3/gadget.c
+@@ -4997,16 +4997,31 @@
+ 	if (dwc3_gadget_keep_connect(dwc)) {
+ 		int link_state = dwc3_gadget_get_link_state(dwc);
+ 
++		if (link_state == DWC3_LINK_STATE_U3) {
++			/*
++			 * The host has suspended the bus, so the platform's
++			 * U3/L2 wake IRQ is the only event that can arrive.
++			 */
++			dwc3_gadget_disable_irq(dwc);
++			return 0;
++		}
++
++		if (!dwc->gadget_keep_connect_active_link)
++			return -EBUSY;
++
+ 		/*
+-		 * We cannot service USB transactions while the system is
+-		 * asleep.  Only keep the gadget connected if the host has
+-		 * already suspended the bus, so resume is the only event
+-		 * that can arrive.
++		 * The host keeps the bus active (U0), so U3/L2 wake IRQs
++		 * cannot be used.  Keep the gadget event IRQ armed as the
++		 * wakeup path; the next USB/NCM event will wake the system.
+ 		 */
+-		if (link_state != DWC3_LINK_STATE_U3)
+-			return -EBUSY;
+ 
+-		dwc3_gadget_disable_irq(dwc);
++		ret = enable_irq_wake(dwc->irq_gadget);
++		if (ret) {
++			dev_err(dwc->dev, "failed to enable gadget wake IRQ: %d\n",
++				ret);
++			return ret;
++		}
++
++		dwc->gadget_keep_connect_irq_wake = true;
+ 		return 0;
+ 	}
+ 
+@@ -5033,6 +5048,11 @@
+ 	if (!dwc->gadget_driver)
+ 		return 0;
+ 
++	if (dwc->gadget_keep_connect_irq_wake) {
++		disable_irq_wake(dwc->irq_gadget);
++		dwc->gadget_keep_connect_irq_wake = false;
++	}
++
+ 	if (dwc3_gadget_keep_connect(dwc)) {
+ 		dwc3_gadget_enable_irq(dwc);
+ 

@@ -169,13 +169,14 @@ platform_files = [
     ("usr_local_share_dbus-1_system-services_org.freedesktop.ModemManager1.service", "usr/local/share/dbus-1/system-services/org.freedesktop.ModemManager1.service", 0o644),
     ("99-realme-rmx1931-sensors.rules", "usr/lib/udev/rules.d/99-realme-rmx1931-sensors.rules", 0o644),
     ("99-realme-rmx1931-haptics.rules", "usr/lib/udev/rules.d/99-realme-rmx1931-haptics.rules", 0o644),
+    ("99-realme-rmx1931-usb-wake.rules", "usr/lib/udev/rules.d/99-realme-rmx1931-usb-wake.rules", 0o644),
     ("usr_share_alsa_ucm2_conf.d_Realme_X2_Pro_HiFi.conf", "usr/share/alsa/ucm2/conf.d/Realme_X2_Pro/HiFi.conf", 0o644),
     ("usr_share_alsa_ucm2_conf.d_Realme_X2_Pro_Realme_X2_Pro.conf", "usr/share/alsa/ucm2/conf.d/Realme_X2_Pro/Realme_X2_Pro.conf", 0o644),
 ]
 for source, target, mode in platform_files:
     copy_file(platform_source / source, platform / target, mode)
 make_package(
-    "samurai-platform", "5-r23", "noarch", platform,
+    "samurai-platform", "5-r25", "noarch", platform,
     {
         "description": "Realme X2 Pro board-level platform and services",
         "license": "LicenseRef-Local-Project",
@@ -207,14 +208,10 @@ make_package(
 
 desktop = args.build_root / "samurai-desktop"
 desktop_source = PACKAGES / "samurai-desktop"
-copy_file(desktop_source / "samurai-powerkey",
-          desktop / "usr/libexec/samurai-powerkey", 0o755)
-copy_file(desktop_source / "samurai-powerkey.openrc",
-          desktop / "etc/init.d/samurai-powerkey", 0o755)
 copy_file(desktop_source / "samurai-tinydm-stop",
           desktop / "usr/libexec/samurai-tinydm-stop", 0o755)
 make_package(
-    "samurai-desktop", "4-r11", "noarch", desktop,
+    "samurai-desktop", "4-r16", "noarch", desktop,
     {
         "description": "Realme X2 Pro Plasma Mobile defaults",
         "license": "LicenseRef-Local-Project",
@@ -223,8 +220,7 @@ make_package(
         "depends": (
             "postmarketos-ui-plasma-mobile tinydm samurai-platform "
             "modemmanager bluez samurai-platform-pulse calls chatty "
-            "mmsd-tng callaudiod xdg-desktop-portal-kde kscreen python3 "
-            "elogind"),
+            "mmsd-tng callaudiod xdg-desktop-portal-kde elogind"),
     },
     {
         "post-install": desktop_source / "samurai-desktop.post-install",

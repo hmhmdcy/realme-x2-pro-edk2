@@ -1,0 +1,10 @@
+#!/sbin/openrc-run
+supervisor="supervise-daemon"
+description="USBwake debug sleep guard"
+command="/usr/libexec/usbwake-run"
+export USBWAKE_CONFIG="/etc/usbwake-sleep-inhibitor.conf"
+export USBWAKE_GUARD_MODE="${USBWAKE_GUARD_MODE:-either}"
+
+depend() {
+	after bootmisc
+}
