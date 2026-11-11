@@ -1,0 +1,61 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Codex <codex@openai.com>
+Date: Tue, 10 Nov 2026 21:00:00 +0800
+Subject: [PATCH] backends/drm: retry transient EBUSY atomic commits
+
+The DRM core can report the previous nonblocking commit as busy for a
+plane that is not attached to a CRTC. The pageflip event that wakes the
+commit thread is sent before drm_atomic_helper_commit_hw_done() completes
+that plane's fake crtc commit, so the first commit after a wake can
+otherwise return EBUSY and be dropped. The dropped frame leaves the
+output blank even though DPMS, DSI and backlight are still on.
+
+Retry the same commit a few times with a one-millisecond delay. Copy the
+commit first so the failed attempt's registered pageflip ID is not reused.
+Keep the original drop-on-failure behavior after the bounded retries so a
+persistent driver error remains visible.
+---
+--- a/src/backends/drm/drm_commit_thread.cpp
++++ b/src/backends/drm/drm_commit_thread.cpp
+@@ -154,6 +154,7 @@
+     const auto vrr = commit->isVrr();
+     const auto success = commit->commit();
+     if (success) {
++        m_ebusyRetries = 0;
+         m_vrr = vrr.value_or(m_vrr);
+         m_tearing = commit->isTearing();
+         m_committed = std::move(m_commits.front());
+@@ -179,7 +180,23 @@
+         const auto maximumReasonableMargin = std::min<std::chrono::nanoseconds>(3ms, m_minVblankInterval / 2);
+         m_additionalSafetyMargin = std::clamp(m_additionalSafetyMargin, 0ns, maximumReasonableMargin);
+         m_safetyMargin = m_baseSafetyMargin + m_additionalSafetyMargin;
++    } else if (success.error().message == QStringLiteral("EBUSY")
++               && m_ebusyRetries++ < 8) {
++        // A pageflip event can arrive before the fake commit for a plane
++        // without a CRTC reaches hw_done. Retry the same frame after a
++        // short delay instead of dropping it and leaving a blank output.
++        auto retry = std::make_unique<DrmAtomicCommit>(*m_commits.front());
++        m_commitsToDelete.push_back(std::move(m_commits.front()));
++        m_commits.front() = std::move(retry);
++        m_targetPageflipTime = std::max(m_targetPageflipTime,
++                                        std::chrono::steady_clock::now()
++                                            + m_safetyMargin
++                                            + std::chrono::milliseconds(1));
++        QMetaObject::invokeMethod(this, &DrmCommitThread::clearDroppedCommits,
++                                  Qt::ConnectionType::QueuedConnection);
++        return;
+     } else {
++        m_ebusyRetries = 0;
+         if (m_commits.size() > 1) {
+             // the failure may have been because of the reordering of commits
+             // -> collapse all commits into one and try again with an already tested state
+--- a/src/backends/drm/drm_commit_thread.h
++++ b/src/backends/drm/drm_commit_thread.h
+@@ -71,6 +71,7 @@
+     std::chrono::nanoseconds m_additionalSafetyMargin = std::chrono::milliseconds(1);
+     bool m_ping = false;
+     bool m_pageflipTimeoutDetected = false;
++    uint32_t m_ebusyRetries = 0;
+ };
+ 
+ }

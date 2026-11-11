@@ -14,36 +14,37 @@ xdg-desktop-portal-kde 6.8.2
 calls 50.0 / chatty 0.8.9 / mmsd-tng 2.6.4
 ```
 
-当前 KWin 是临时的 `6.8.2-r2`：只回移了 KDE `Plasma/6.8` 分支中的两个上游
-修复，没有 Realme 专用逻辑。它是桌面层例外，不属于板级包。Plasma 6.8.3
-计划于 2026-11-10 发布并包含这两项修复；届时应升级 Alpine 的签名二进制包，
-完成实体触摸/电源键验收后删除本地 KWin 构建目录和补丁。
+当前 KWin 是临时的 `6.8.2-r3`：回移 KDE `Plasma/6.8` 分支中的两个
+上游修复，并带本地瞬时 EBUSY 重试补丁，没有 Realme 专用逻辑。它是
+桌面层例外，不属于板级包。Plasma 6.8.3 计划于 2026-11-10 发布并包含
+这两项上游修复；届时应升级 Alpine 的签名二进制包，完成实体触摸/电源键
+验收后删除本地 KWin 构建目录和补丁。
 
 会话由 `tinydm` 自动登录 UID 10000。当前 Wayland socket 是
 `wayland-1`，不能假设一定是 `wayland-0`：
 
 ```text
-/etc/conf.d/tinydm（官方默认；4-r11 起不再本地写覆盖）:
+/etc/conf.d/tinydm（官方默认；5-r24 起不再本地写覆盖）:
   AUTOLOGIN_UID=10000
   rc_cgroup_cleanup="yes"
 /var/lib/tinydm/default-session.desktop ->
   /usr/share/wayland-sessions/plasma-mobile.desktop
 ```
 
-当前实装仍是历史 `samurai-platform` 5-r22 / `samurai-desktop` 4-r10；
-正式候选是 5-r23 / 4-r11。r11 会删除历史 tinydm 覆盖，只保留官方
-`postmarketos-base-ui` 配置。设置来源分层见
+当前已安装 `samurai-platform` 5-r24 / `samurai-desktop` 4-r15；
+4-r16 候选删除 `samurai-powerkey` 桥，只
+保留官方 `postmarketos-base-ui`/tinydm/PowerDevil 配置。设置来源分层见
 [SETTINGS-PROVENANCE.md](SETTINGS-PROVENANCE.md)。
 
-`samurai-desktop` 4-r10 已安装 `/usr/libexec/samurai-tinydm-stop`，并在
+`samurai-desktop` 安装 `/usr/libexec/samurai-tinydm-stop`，并在
 `/etc/conf.d/tinydm` 注入 `stop_pre()`。tinydm 停止时先让 elogind 正常
 终止 seat 会话，再对捕获到的旧 KWin session cgroup 做有界
 `cgroup.kill`。这修复了 `rc-service tinydm restart` 后旧 compositor
 仍留在 `c15`/`c187` 等 cgroup、继续占用 DRM 和 power-key 锁，导致第二套
 Plasma 会话共存的问题。实机复测旧会话 cgroup 进程数从 50 降到 0，新会话
-单实例启动并自动运行 power-key bridge，USB SSH 保持在线。
+单实例启动；4-r16 起不再运行 power-key bridge，USB SSH 保持在线。
 
-`samurai-desktop` 4-r11 只调用 `tinydm-set-session` 和 OpenRC
+`samurai-desktop` 4-r16 只调用 `tinydm-set-session` 和 OpenRC
 `rc-update`，不写 `rc_need`/`rc_use`/`AUTOLOGIN_UID`，也不安装
 Phosh/greetd 会话。若 Phosh 时代遗留的 greetd 仍在运行，安装钩子会先
 停止它，避免和 tinydm 竞争 DRM。
@@ -123,70 +124,77 @@ pkcheck --action-id org.kde.powerdevil.backlighthelper.brightness \
 不要在排查亮度时先修改内核面板驱动；本次根因是用户会话/polkit，
 背光 sysfs 和 DSI 面板本身已经正常。
 
-## 电源键
+## 电源键与 DPMS
 
-受 KDE PowerDevil 6.8.2 tablet-mode 行为影响，电源键默认绑定
-`Turn Off Screen`。屏幕熄灭时，KWin 的 `DpmsInputEventFilter` 先处理
-物理按键并把 DPMS 置为 On；同一输入随后仍可能进入 KGlobalAccel，
-PowerDevil 再以缓存的旧状态执行 `KScreen::Dpms::Toggle`，立即把屏幕
-再次关掉。仅把快捷键从 `Turn Off Screen` 改到 `PowerOff` 不够，因为
-`PowerButtonAction=128` 最终仍走同一个 Toggle。
+官方 postmarketOS Plasma 路径是：
 
-`samurai-desktop` 安装 [`samurai-powerkey`](../packages/samurai-desktop/samurai-powerkey)
-会话桥接和 `/etc/init.d/samurai-powerkey`。桥接只使用
-公共接口：
+- `postmarketos-base-ui` 设置 `HandlePowerKey=ignore`，elogind 不执行
+  电源动作；
+- KWin 的 `DpmsInputEventFilter` 在 DPMS Off 时接收物理按键并唤醒；
+- PowerDevil 移动端默认 `PowerButtonAction=ToggleScreenOnOff`（128），
+  与当前用户配置一致。
 
-- 通过 evdev `EVIOCGRAB` 独占 `pm8941_pwrkey`，让 PowerDevil 不再收到
-  同一个物理按键；
-- 用标准 `kscreen-doctor --dpms show` 读取 KWin 的真实 DPMS 状态；
-- 只把 `/sys/class/backlight/*/bl_power` 当作面板首帧门控的唤醒提示。
-  modeset 和 DPMS 切换期间该值会被面板驱动自行改写，不能用来判断
-  显示是否真的开启；
-- 关屏前通过标准 `org.freedesktop.ScreenSaver` 接口锁定会话，再调用
-  `kscreen-doctor --dpms off/on`；
-- 唤醒时先显式断言 DPMS On；实测正常路径可在毫秒级恢复首帧。只有
-  背光门控 1 秒后仍未放行时，才执行一次备用模式 → 当前模式的切换；
-- 如果 KWin 的输入过滤器已经抢先把 DPMS 点亮，桥接会根据
-  `bl_power` 关闭态或待恢复标记把这次快捷键仍判定为唤醒，而不会把它
-  当成第二次关屏；若 KWin 随后又把 DPMS 改回 Off，桥接在 6 秒窗口内
-  最多执行两次 `wake race` 恢复；
-- 如果 KWin 在唤醒后又被旧状态改回 Off，桥接只在没有用户主动关屏的
-  情况下、6 秒窗口内最多纠正两次，不做持续轮询或反复强制点亮。
+因此生产路径不再安装或启动 `samurai-powerkey`。`samurai-desktop`
+4-r16 删除该 Python 桥接和 OpenRC 服务；升级脚本只负责停止、禁用并
+清理 4-r7..4-r15 留下的旧文件。旧版 r15 APK 仅保留作回滚诊断。
 
-`bl_power=0` 但屏幕全黑、截图却正常，是 KWin 已关闭输出而面板首帧
-门控仍把背光节点显示为打开。此时单击触摸不会唤醒（KWin 默认要求
-双击），短暂亮屏也只是强制 modeset 的假象。桥接现在先确认 KWin
-DPMS 为 On 再切换模式，避免出现“亮一下，触摸后立刻黑”的状态。
+KWin 6.8.2 原生支持长按电源键：`GlobalShortcutFilter` 对
+`Qt::Key_PowerOff` 启动 1000 ms 定时器，超时后合成
+`Qt::Key_PowerDown`；PowerDevil 6.8.2 注册 `PowerDown` 全局快捷键，
+默认动作是 `PromptLogoutDialog`。因此“长按无菜单”不是 Plasma Mobile
+缺少该功能。
 
-长按电源键目前有意不执行动作，避免 PowerDevil 6.8.2 重复弹出隐藏的
-注销确认框。音量键被 KWin 归类为媒体键，设计上不会唤醒 DPMS；黑屏时
-有音量提示音只能说明系统未休眠。
+本机根因是 `~/.config/kglobalshortcutsrc` 中的
+`PowerDown=none,Power Down,Power Down`：action 已注册，但 active
+shortcut 为空，KGlobalAccel 的 autoload 路径不会自动恢复默认值。
+2026-11-11 已通过 KGlobalAccel `setForeignShortcutKeys` 恢复为
+`Power Down`，配置持久化为
+`PowerDown=Power Down,Power Down,Power Down`。未锁屏时用 D-Bus 触发
+`PowerDown`，已实测出现 Restart / Shut Down / Log Out 菜单；实体长按
+用 `event0` 注入 1.2 秒 `KEY_POWER` 也走通了 KWin 长按合成路径，菜单
+同样出现；实体按键最终手感由用户确认。恢复入口也可以是桌面快捷键设置
+中的 Power Management → Power Down。Plasma Mobile 快速设置里的 **Power Menu**
+(`org.kde.plasma.quicksetting.powermenu`) 仍是独立入口；不要把长按
+逻辑塞进面板驱动或板级服务。
 
-在已经登录的 Plasma 会话里也可用下面的脚本安装并立即启动同一桥接：
+已确认安装在 r2 上的上游触摸序列取消修复由 `kwin-6.8.2-r3` 保留：
+此前反汇编 `libkwin.so.6.8.2` 的 `DpmsInputEventFilter` 构造函数，
+在 `0x377488` 处调用了 `KWin::TouchInputRedirection::cancel()`。r3
+另带本地 `0103-retry-transient-ebusy-commits.patch`。
 
-```sh
-sh linux-port/scripts/fix-plasma-powerkey.sh
+### 当前面板问题
+
+官方 KWin 路径能收到 `pm8941_pwrkey`，也能完成 DPMS wake：
+
+```text
+drm_panel_backlight phase=0 brightness=1024
+dpu_first_frame_backlight ret=0
+drm_panel_backlight phase=1 brightness=1024
 ```
 
-实体按键测试可运行只读观察脚本；它会同时记录
-`pm8941_pwrkey`、`bl_power` 和桥接日志：
+此前把物理黑屏归因于 first-frame 后第一次 DCS 亮度写入的时序；2026-11-10
+最终定位为 SOFEF03F 的 HBM 边界：`brightness > 1023` 必须先写
+`MIPI_DCS_WRITE_CONTROL_DISPLAY (0x53) = 0xe0` 进入 HBM，离开 HBM 时
+先写亮度、再写 `0x53 = 0x20`。旧驱动直接写 1024，面板因此物理黑屏；
+随后 KScreen 把亮度降到 308（30% 调光）又回到普通区间，所以看起来像
+“过一会自己恢复”。
 
-```sh
-sh linux-port/scripts/test-plasma-powerkey.sh 60
-```
+修复位于
+[`0010-arm64-panel-sofef03f-hbm-first-frame-consolidated.patch`](../patches/v7.3.1/0010-arm64-panel-sofef03f-hbm-first-frame-consolidated.patch)
+（部署时使用等价的 0009；0010 已收敛 0003/0005/0009 并与部署源码逐字节一致）：
+在面板驱动内用标准 DRM panel、backlight class 和 MIPI DCS 补上 HBM
+序列，并串行化 first-frame post-on 与亮度更新，不改 KWin/DPMS API。
+10 轮 DPMS off/on（每轮 brightness 1024）全部为
+`On/enabled/1024/bl_power=0`，HBM/亮度错误 0、KWin EBUSY 0；用户真实
+上滑多次确认不再黑屏。产物见
+`E:/edk2-samurai-out/standard-arm64-v731/panel-hbm-20261110/`。
 
-修改后的 `kscreen-doctor` 验证已覆盖：正常开关屏从
-`bl_power=0 → 4 → 0`；外部点亮后 200 ms 内注入同一快捷键会被忽略；
-超过保护窗口后再次按键仍可正常关屏。实体电源键与长按测试需在连接
-USB NCM 后完成，结果记录在本节。
-
-Plasma 会话重启曾复现 `KScreen enabled`、背光可用，但
-`kscreen-doctor --dpms show` 为 `DSI-1: off`、`bl_power=4` 的黑屏状态。
-`samurai-powerkey` 现在在启动约 1 秒后读取 DPMS，并以 1 秒间隔最多
-重试 10 次；若没有用户主动关屏记录而状态仍为 Off，则通过标准 KScreen
-接口断言 On。实机
-`tinydm restart` 后新会话自动得到 `DPMS on`、`bl_power=0`，bridge
-同时自动独占 evdev 电源键，USB SSH 保持在线。
+Phosh/Phoc 时期主要停留在内核默认 400 或 308 附近，没有 KScreen 的
+`50% -> 1024` 恢复路径，所以没有跨过 1023/1024 的 HBM 边界。这个 bug
+是潜伏的边界条件，不是 Plasma 引入的回归；Plasma 第一次稳定写 1024
+才把它暴露出来。实体电源键的“DPMS 已唤醒但物理屏黑”也正属于这条链，
+但修复后仍应单独做一次实体键验收，不能只用 `kscreen-doctor --dpms`
+代替。
 
 ## 蜂窝、网络、蓝牙与音频
 
@@ -287,7 +295,7 @@ Plasma 桌面接口验收完成。
 
 Plasma Mobile 的 KWin DPMS 关屏不等于系统 suspend。设备侧 DWC3 在
 系统 suspend 时会 soft-disconnect USB gadget，主机的 NCM 流量无法
-把它唤醒。5-r23 起正式系统直接使用 postmarketOS 的官方
+把它唤醒。5-r24 起正式系统直接使用 postmarketOS 的官方
 `/etc/sleep-inhibitor.conf` 和官方 `sleep-inhibitor` 服务：
 `ssh-session-open` 在存在活跃 SSH 会话时持有 `sleep` 锁，`apk-running`
 在包事务期间持锁。只要 SSH 会话保持，面板可以关闭而系统不休眠。
@@ -327,10 +335,11 @@ Plasma/PowerDevil 不理解“USB NCM 连接”这个板级事实，它只根据
 自动 suspend；显示关闭时间分别是 10、2、1 分钟。`AutoSuspendAction`
 的 `NoAction` 值确实是 `0`。
 
-当前设备的 `/home/cy122/.config/powerdevilrc` 已在 AC、Battery 和
-LowBattery 三个 profile 都写入 `AutoSuspendAction=0`。屏幕可以由
-KWin/DPMS 单独关闭；活跃 SSH 会话由上游 `ssh-session-open` 保持系统
-在线，不应为了保持 SSH 而常亮屏幕。`samurai-platform` 5-r22 已安装并
+调试期写入的 `AutoSuspendAction=0` 覆盖已删除，当前使用 PowerDevil
+官方移动默认：AC 空闲 15 分钟、Battery/LowBattery 空闲 5 分钟后自动
+suspend。屏幕可以由 KWin/DPMS 单独关闭；活跃 SSH 会话由上游
+`ssh-session-open` 保持系统在线，不应为了保持 SSH 而常亮屏幕。
+`samurai-platform` 5-r24 已安装并
 通过普通重启验收，默认关闭 USB carrier-only guard。主板直连口的 USB
 NCM 已恢复并通过长测；旧 Genesys Hub 的枚举失败仍属独立物理路径问题。
 

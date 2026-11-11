@@ -45,9 +45,19 @@ fi
 
 if apk info -e samurai-desktop >/dev/null 2>&1; then
 	if has_file samurai-desktop usr/libexec/samurai-powerkey; then
-		note "Plasma power-key adapter present"
+		problem "retired samurai-powerkey bridge is still packaged"
 	else
-		problem "samurai-desktop is missing samurai-powerkey"
+		note "retired samurai-powerkey bridge absent"
+	fi
+	if has_file samurai-desktop usr/libexec/samurai-tinydm-stop; then
+		note "tinydm stale-session cleanup present"
+	else
+		problem "samurai-desktop is missing samurai-tinydm-stop"
+	fi
+	if has_file samurai-desktop etc/init.d/samurai-powerkey; then
+		problem "retired samurai-powerkey service is still packaged"
+	else
+		note "retired samurai-powerkey service absent"
 	fi
 fi
 

@@ -197,13 +197,14 @@ Plasma 下不要使用 `wlr-randr`/`samurai-refresh`；KWin 不走
 ```text
 postmarketos-ui-plasma-mobile 6-r10
 plasma-mobile 6.8.2-r0
-kwin 6.8.2-r2 (temporary upstream backport)
+kwin 6.8.2-r3 (temporary upstream backport + local EBUSY retry)
 kscreen 6.8.2-r0
 ```
 
-`kwin 6.8.2-r2` 不是最终发行基线，只用于在 6.8.3 发布前回移两个 KDE
-`Plasma/6.8` 上游修复。Plasma 6.8.3 计划于 2026-11-10 发布；升级发行版
-二进制包并通过实体验收后，应删除 `linux-port/packages/kwin` 和本地构建产物。
+`kwin 6.8.2-r3` 不是最终发行基线：它回移两个 KDE `Plasma/6.8`
+上游修复，并带本地 `0103-retry-transient-ebusy-commits.patch`。
+Plasma 6.8.3 计划于 2026-11-10 发布；升级发行版二进制包并通过实体验收
+后，应删除 `linux-port/packages/kwin` 和本地构建产物。
 
 会话由 Nura 的 `tinydm` 自动登录：
 
@@ -238,13 +239,14 @@ kscreen-doctor --dpms on
 kscreen-doctor output.DSI-1.mode.1080x2400@60
 ```
 
-2026-11-05 又验证了会话启动和运行期黑屏恢复：新 tinydm 会话可能先停在
-`DPMS off`/`bl_power=4`，`samurai-powerkey` 启动约 1 秒后会读取
-KScreen 状态，最多重试 10 次，并在无主动关屏记录时断言 On；一次受控 `DPMS off → on`
-实测从 off/4 恢复到 on/0，最终模式仍为 90Hz，日志没有 DSI/DPU 错误。
-电源键路径还增加了 wake-race 判定：KWin 输入过滤器先点亮时不会把同一
-按键重放成第二次关屏；若 KWin 又在 2 秒窗口内翻回 Off，桥接会执行一次
-`wake race` 模式恢复。主动关屏会取消待恢复标记。
+2026-11-05 又验证了会话启动和运行期黑屏恢复。当前生产路径由
+KWin/PowerDevil 管理 DPMS；历史 `samurai-powerkey` 桥的
+`DPMS off → on` 恢复记录只作为旧版证据，不再作为目标实现。一次受控
+`DPMS off → on` 实测从 off/4 恢复到 on/0，最终模式仍为 90Hz，日志
+没有 DSI/DPU 错误。此前把“DPMS On 但物理屏黑”归因于 first-frame 后
+的亮度重发；2026-11-10 已确认真正根因是 SOFEF03F 的 1023/1024 HBM
+边界。`0003`/`0005` 的 first-frame 重发候选因此不是根因修复，详见
+[PANEL-HBM-20261110](PANEL-HBM-20261110.md)。
 `check-plasma-mobile.sh` 已强制检查 `DSI-1 DPMS on`，避免有背光但没有
 实际输出时被误判为通过。
 
@@ -281,43 +283,53 @@ backlight class 暴露 `/sys/class/backlight/ae94000.dsi.0`，PowerDevil
 使用 Plasma Mobile 默认向导。完整接口清单见
 [`PLASMA-MOBILE.md`](PLASMA-MOBILE.md)。
 
-## Plasma Mobile 电源键
+## Plasma Mobile 电源键与面板唤醒
 
-熄屏后按电源键会先亮一下再变黑，不是 90Hz/KWin 输出故障。PowerDevil
-6.8.2 在 tablet/mobile 模式下把物理电源键绑定到全局快捷键
-`Turn Off Screen`；把快捷键改到 `PowerOff` 后仍会进入同一个
-`ToggleScreenOnOff` 路径。因此：
+官方路径不是板级电源键桥：elogind 设置 `HandlePowerKey=ignore`，KWin
+的 `DpmsInputEventFilter` 接收唤醒，PowerDevil 移动端默认
+`PowerButtonAction=ToggleScreenOnOff`（128）。当前用户配置正是这个
+官方默认，不再由 `samurai-powerkey` 独占 `pm8941_pwrkey`。
 
-- 屏幕熄灭时按键，输入事件先让显示恢复一下；
-- 同一个按键随后触发 PowerDevil 的 DPMS Toggle，而 libkscreen 仍可能
-  缓存着 Off，于是又立即提交 DPMS off；
-- 用户看到的就是“闪一下，然后继续黑屏”。
+2026-11-09 的实测把问题分成了两层：
 
-这也解释了为什么只设置
-`powerdevilrc` 的 `PowerButtonAction=128`（ToggleScreenOnOff）不够：
-tablet 模式下按键根本不走 `PowerButtonAction`。KDE PowerDevil 的
-`master` 在 2026-11-04 仍是相同逻辑，尚未修复。
+1. KWin 已收到实体键并完成 DPMS wake；trace 为
+   `drm_panel_backlight phase=0`、`dpu_first_frame_backlight ret=0`、
+   `phase=1`，KWin 截图是完整锁屏；
+2. 物理面板仍黑。之后通过标准 backlight class 再写一次亮度可以恢复，
+   说明 SOFEF03F 对 first-frame 后第一次 DCS 亮度写入有时序问题。
 
-板级修复由 `samurai-desktop` 安装的 `samurai-powerkey` 会话桥接完成。
-它接管 KGlobalAccel 的物理电源键，读取标准 `bl_power` 状态后显式发送
-KScreen DPMS On/Off，不依赖 PowerDevil 的缓存 Toggle。实现、部署和
-验证细节见 [`PLASMA-MOBILE.md`](PLASMA-MOBILE.md#电源键)。
+`0003` 曾作为 first-frame 后重发 400/308 的候选，但它只覆盖普通亮度
+区间。1024 的最终根因是 HBM 边界，见下节；`0003` 的历史细节保留在
+[PANEL-FIX-20261109](PANEL-FIX-20261109.md)。`samurai-desktop` 4-r16
+候选同时删除旧电源键桥。
 
-当前源码树也可直接安装并启动：
+KWin 6.8.2-r3 保留已确认的 `TouchInputRedirection::cancel()` 触摸
+序列修复，并增加瞬时原子提交 `EBUSY` 重试；如果新 Image 后仍有
+“触摸后关屏”，应先查 KWin 的 DPMS/输入状态，而不是重新引入桥接。
 
-```sh
-sh linux-port/scripts/fix-plasma-powerkey.sh
-```
+2026-11-10 最终把“锁屏亮屏后触摸变黑”定位到 SOFEF03F HBM 边界：
+`brightness > 1023` 必须先写 `0x53=0xe0` 进入 HBM，离开时写
+`0x53=0x20`。旧驱动直接写 1024，物理面板黑屏；随后 KScreen 降到 308
+（30% 调光）回到普通区间又恢复，所以看起来像时序问题。KWin EBUSY 是
+独立问题，不是根因。
 
-Phosh/Phoc 路径没有这个问题，是因为它由 compositor 单点管理输出：
-历史记录中 Phosh 空闲时把输出设为 `Enabled: no`，输入唤醒时直接重新
-启用；没有 PowerDevil 与 KWin 两套状态同时处理同一个电源键。
+修复为
+[`0010-arm64-panel-sofef03f-hbm-first-frame-consolidated.patch`](../patches/v7.3.1/0010-arm64-panel-sofef03f-hbm-first-frame-consolidated.patch)
+（部署时使用等价的 0009；0010 已收敛 0003/0005/0009）：
+在面板驱动内用标准 DRM panel、backlight class 和 MIPI DCS 补上 HBM
+序列，并串行化 first-frame post-on 与亮度更新。10 轮 DPMS off/on
+（每轮 1024）全部为 `On/enabled/1024/bl_power=0`，HBM/亮度错误 0；
+用户真实上滑多次确认不再黑屏。boot ID
+`12a652a5-ac2f-434f-8dc1-4dec0bfd4b53`，产物见
+`E:/edk2-samurai-out/standard-arm64-v731/panel-hbm-20261110/`。
+
+KWin `0103-retry-transient-ebusy-commits.patch` 仍保留，但只作为独立的
+瞬时 EBUSY 重试；Plasma 6.8.3 后应优先替换为上游修复。
 
 若 `dmesg` 里还有 `PM: suspend entry (s2idle)`，那属于空闲自动休眠，
-与上面的 DPMS 动作是两条链路。两者可能连续发生：先被按键从 s2idle
-唤醒，再被错误的 `Turn Off Screen` 立即关屏。排查时分别核对
-`AutoSuspendIdleTimeoutSec` 和 KGlobalAccel 的按键归属，不能只看
-“黑屏”这一个现象。
+与 DPMS 动作是两条链路。两者可能连续发生：先被按键从 s2idle 唤醒，
+再被 PowerDevil 的合法关屏动作处理。排查时分别核对
+`AutoSuspendIdleTimeoutSec`、`PowerButtonAction` 和 KWin DPMS 状态。
 
 KWin 把输出配置持久化在 `~/.config/kwinoutputconfig.json`；干净重启
 tinydm 后仍自动回到 90Hz（`vtotal 2420`）。旋转由传感器决定：本机

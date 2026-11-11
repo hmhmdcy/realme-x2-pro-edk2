@@ -1,7 +1,7 @@
 maintainer="hmhmdcy <hmhmdcy@users.noreply.github.com>"
 pkgname=samurai-desktop
 pkgver=4
-pkgrel=11
+pkgrel=16
 pkgdesc="Realme X2 Pro Plasma Mobile defaults"
 url="https://github.com/hmhmdcy/pmaports"
 arch="noarch"
@@ -10,9 +10,9 @@ options="!check"
 depends="postmarketos-ui-plasma-mobile tinydm samurai-platform
 	modemmanager bluez
 	samurai-platform-pulse calls chatty
-	mmsd-tng callaudiod xdg-desktop-portal-kde kscreen python3 elogind"
+	mmsd-tng callaudiod xdg-desktop-portal-kde elogind"
 install="$pkgname.post-install"
-source="samurai-powerkey samurai-powerkey.openrc samurai-tinydm-stop"
+source="samurai-tinydm-stop"
 
 package() {
 	install -d "$pkgdir"/usr/share/samurai
@@ -21,16 +21,10 @@ package() {
 		backend=tinydm
 		policy=plasma-defaults
 	EOF
-	install -Dm755 "$srcdir"/samurai-powerkey \
-		"$pkgdir"/usr/libexec/samurai-powerkey
-	install -Dm755 "$srcdir"/samurai-powerkey.openrc \
-		"$pkgdir"/etc/init.d/samurai-powerkey
 	install -Dm755 "$srcdir"/samurai-tinydm-stop \
 		"$pkgdir"/usr/libexec/samurai-tinydm-stop
 }
 
 sha512sums="
-4bbd81a6a0a09caccfc7b7dea2bb9aed10e0f89f401b0f1907ca9a38a0ff5b4eeabced1bc3a9ac2548d0519345e9fea4220f861c4e4f3d8571bf1a145028f0b3  samurai-powerkey
-c7a76b98ce707a170b600a355b9df8ec59c367d5e1478bf746fdaea15e7f83f768da671b4221a312bf0b8a2a1dced6bdabc3dec4dd616176eca3a948cca9569c  samurai-powerkey.openrc
 f109cc175ab59782815588ce9f47f05b32a8716633ce87d4ccce76d4211a993e88ff2934e3f5314980b241ed2a54b31c7165d2d1b453c70aeca5d5854280b184  samurai-tinydm-stop
 "

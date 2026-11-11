@@ -46,7 +46,6 @@ fi
 if command -v rc-update >/dev/null 2>&1; then
 	rc-update add tinydm default >/dev/null 2>&1 || true
 	rc-update del greetd default >/dev/null 2>&1 || true
-	rc-update add samurai-powerkey default >/dev/null 2>&1 || true
 fi
 
 # A running greetd from the Phosh era can race tinydm for the DRM device.
@@ -55,14 +54,19 @@ if command -v rc-service >/dev/null 2>&1 &&
 	rc-service greetd stop >/dev/null 2>&1 || true
 fi
 
-rm -f /etc/xdg/autostart/samurai-powerkey.desktop
+# The power key is owned by KWin/PowerDevil.  Remove the retired board bridge
+# left by 4-r7..4-r15; keep the log for post-mortem evidence.
+if command -v rc-service >/dev/null 2>&1; then
+	rc-service samurai-powerkey stop >/dev/null 2>&1 || true
+fi
+if command -v rc-update >/dev/null 2>&1; then
+	rc-update del samurai-powerkey default >/dev/null 2>&1 || true
+fi
 if command -v pkill >/dev/null 2>&1; then
 	pkill -f '^python3 /usr/libexec/samurai-powerkey$' >/dev/null 2>&1 || true
 fi
-if command -v rc-service >/dev/null 2>&1 &&
-	pgrep -x kwin_wayland >/dev/null 2>&1; then
-	rc-service samurai-powerkey restart >/dev/null 2>&1 ||
-		rc-service samurai-powerkey start >/dev/null 2>&1 || true
-fi
+rm -f /etc/xdg/autostart/samurai-powerkey.desktop
+rm -f /etc/init.d/samurai-powerkey
+rm -f /usr/libexec/samurai-powerkey
 
 exit 0

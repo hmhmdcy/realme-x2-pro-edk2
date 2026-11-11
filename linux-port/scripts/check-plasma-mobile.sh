@@ -79,21 +79,15 @@ else
 fi
 powerkey_count=$(pgrep -f '^python3 /usr/libexec/samurai-powerkey$' 2>/dev/null |
 	wc -l)
-if [ "$powerkey_count" -eq 1 ]; then
-	ok "single samurai-powerkey instance"
+if [ "$powerkey_count" -eq 0 ]; then
+	ok "retired samurai-powerkey bridge absent"
 else
-	bad "expected one samurai-powerkey instance, found $powerkey_count"
+	bad "retired samurai-powerkey bridge is still running"
 fi
 if rc-service samurai-powerkey status >/dev/null 2>&1; then
-	ok "samurai-powerkey service running"
+	bad "retired samurai-powerkey service is still running"
 else
-	bad "samurai-powerkey service is not running"
-fi
-if grep -q 'grabbed .*power-key handling' /var/log/samurai-powerkey.log \
-	2>/dev/null; then
-	ok "exclusive power-key event grab"
-else
-	bad "power-key event device was not grabbed"
+	ok "retired samurai-powerkey service absent"
 fi
 
 if [ -S "$runtime/$wayland" ]; then

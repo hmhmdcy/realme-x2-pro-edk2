@@ -2,7 +2,7 @@
 maintainer="hmhmdcy <hmhmdcy@users.noreply.github.com>"
 pkgname=kwin
 pkgver=6.8.2
-pkgrel=2
+pkgrel=3
 pkgdesc="An easy to use, but flexible, composited Window Manager"
 arch="all !armhf"
 url="https://kde.org/plasma-desktop/"
@@ -89,6 +89,7 @@ subpackages="$pkgname-systemd $pkgname-dbg $pkgname-dev $pkgname-lang $pkgname-d
 source="https://invent.kde.org/plasma/kwin/-/archive/v$pkgver/kwin-v$pkgver.tar.gz
 	0101-dpms-cancel-touch-sequences.patch
 	0102-ignore-dpms-wakeups-before-sleep.patch
+	0103-retry-transient-ebusy-commits.patch
 	"
 builddir="$srcdir/kwin-v$pkgver"
 options="setcap !check"
@@ -122,4 +123,5 @@ sha512sums="
 816d50772d6a947cf89667bcd5420d9f84d4fd511d4b7cdddab98a6134ab5b034dafe2472c57792d04bb659032ea884b9fda59623cc74048db0d15010ff69e99  kwin-v6.8.2.tar.gz
 e6ba8d5ec067c50e93a3eb10e0a0a92bfbde9d356b893c1f4022ca9f5982029b698c2b72172ee28e6aa8508bde3cc373bf96ed4c4e81fedac31f8ee62e3f417f  0101-dpms-cancel-touch-sequences.patch
 dd773a4675a952f8d6ac62b54fcf452d6b3bf00b9f6c281c6f390050d629f6a29e2e65f980ebca5dcabe34e65f0efaf51061999a5b076c81088c6bfb0cb618f7  0102-ignore-dpms-wakeups-before-sleep.patch
+8b636599723640b60ecc524607661e76576cc86f79cf11c98699cbbc23e290c6b5a9a1920f56e8e36e5f741bc42dfdd06214efa11a1117dbde97dddf7dc76ec2  0103-retry-transient-ebusy-commits.patch
 "
