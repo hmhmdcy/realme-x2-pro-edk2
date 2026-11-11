@@ -45,7 +45,9 @@ echo "UDC_BEFORE=$(for u in /sys/class/udc/*; do printf '%s=%s ' "$(basename "$u
 echo "SUSPEND_BEFORE=$(cat /sys/kernel/debug/suspend_stats 2>/dev/null | tr '\n' ' ')"
 echo "WAKEUP_SOURCES_BEFORE=$(cat /sys/kernel/debug/wakeup_sources 2>/dev/null | tr '\n' ' ')"
 echo "IRQ_BEFORE=$(grep -Ei 'pdc|dwc3|phy_irq|rtc|mp2650|charger' /proc/interrupts 2>/dev/null | tr '\n' ' ')"
-echo 1 > /sys/power/pm_debug_messages 2>/dev/null || true
+if [ -w /sys/power/pm_debug_messages ]; then
+	echo 1 > /sys/power/pm_debug_messages
+fi
 sync
 
 rtcwake -m mem -s "$seconds"
@@ -60,9 +62,11 @@ echo "UDC_AFTER=$(for u in /sys/class/udc/*; do printf '%s=%s ' "$(basename "$u"
 echo "SUSPEND_AFTER=$(cat /sys/kernel/debug/suspend_stats 2>/dev/null | tr '\n' ' ')"
 echo "WAKEUP_SOURCES_AFTER=$(cat /sys/kernel/debug/wakeup_sources 2>/dev/null | tr '\n' ' ')"
 echo "IRQ_AFTER=$(grep -Ei 'pdc|dwc3|phy_irq|rtc|mp2650|charger' /proc/interrupts 2>/dev/null | tr '\n' ' ')"
-echo "$pm_debug_old" > /sys/power/pm_debug_messages 2>/dev/null || true
+if [ -w /sys/power/pm_debug_messages ]; then
+	echo "$pm_debug_old" > /sys/power/pm_debug_messages
+fi
 uptime_after=$(awk '{print $1}' /proc/uptime)
-echo "SUSPEND_SECONDS=$(awk -v a="$uptime_before" -v b="$uptime_after" 'BEGIN { printf \"%.2f\", b - a }')"
+echo "SUSPEND_SECONDS=$(awk -v a="$uptime_before" -v b="$uptime_after" 'BEGIN { printf "%.2f", b - a }')"
 echo "DONE=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 exit "$rc"

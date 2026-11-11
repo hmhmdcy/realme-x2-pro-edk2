@@ -21,7 +21,7 @@ PMIC GPIO 的 `enable_irq_wake()` 只是对裸 GIC 的无效请求。该层只
 验证“插拔线唤醒”，不保证同一根线的 NCM 跨 suspend 保持在线；
 DWC3 仍会 soft-disconnect。
 
-## 2026-11-11 USB 分层清理（未刷机）
+## 2026-11-11 USB 分层清理（已刷入，运行时门禁通过）
 
 - `0011-usb-phy-remove-dead-hsphy-window.patch`：删除通用 SNPS Femto
   PHY 驱动里的 577 行私有 window API 和私有头文件。该接口在
@@ -41,12 +41,15 @@ DWC3 仍会 soft-disconnect。
 `dwc3-qcom.o` 编译通过；wake DTB 构建通过，语义差分只剩
 `/extcon-usb1` 和 GPIO10 pinctrl 两个板级节点；SPMI 为
 `interrupts-extended = <&pdc 1 ...>`，extcon 无 `wakeup-source`。
-尚未做真机 suspend/插拔唤醒和 U3 host-resume 验收。
+已刷入并启动，boot ID
+`1c8e8db5-9f2a-4c2f-b46b-05dbeaa05737`；只读门禁通过，U0 链路下
+`rtcwake` 被 `dwc3-qcom` 以 `-EBUSY` 正确拒绝。物理插拔 VBUS 和
+U3 host-resume 仍未验收。
 
 ## 2026-11-11 提交与有效性台账（手机离线）
 
-手机暂时无法通过 NCM/Wi‑Fi 连接，本轮先把已完成的源码、补丁、包配方
-和文档入库，不把离线构建当成新的真机结果。有效性分类见
+手机已恢复连接；本轮先提交源码、补丁、包配方和文档，再刷入 USB
+清理并做运行时门禁。有效性分类见
 [修复与适配有效性台账](linux-port/docs/FIX-VALIDITY-20261111.md)。
 
 - **有效修复**：SOFEF03F 1023/1024 HBM 边界；部署 `0009`，新树用
@@ -55,7 +58,8 @@ DWC3 仍会 soft-disconnect。
 - **有效收敛**：`samurai-desktop` 4-r16 删除 `samurai-powerkey` 桥；
   包已构建/签名但未安装。KWin `0103` 只保留为独立 EBUSY 重试。
 - **有效清理**：USB PHY 死代码、SPMI PDC 路由和 extcon 无效属性；
-  编译/DTB 离线验证通过，未刷机。
+  已刷入并启动，只读门禁通过，U0 suspend 正确返回 `-EBUSY`；
+  物理插拔 VBUS 和 U3 host-resume 仍未验收。
 - **无效/作废**：`wakeup-source`、APSD 私有 Kconfig、U0 active-link
   唤醒实验、first-frame 重发候选、MDSS reset 冷启动候选，以及把
   `samurai-powerkey` 当生产修复。它们只保留为历史或实验记录。

@@ -69,10 +69,24 @@ else
 	fi
 fi
 
-extcon=/sys/class/extcon/extcon-usb1
-if [ ! -d "$extcon" ]; then
-	fail "missing /sys/class/extcon/extcon-usb1"
+extcon=
+for candidate in "$dev"/extcon/extcon*; do
+	[ -e "$candidate" ] || continue
+	extcon=$candidate
+done
+if [ -z "$extcon" ]; then
+	for candidate in /sys/class/extcon/*; do
+		[ -e "$candidate" ] || continue
+		if [ "$(value "$candidate/name")" = "extcon-usb1" ]; then
+			extcon=$candidate
+			break
+		fi
+	done
+fi
+if [ -z "$extcon" ]; then
+	fail "missing extcon class device for extcon-usb1"
 else
+	echo "extcon.class=$(basename "$extcon")"
 	for state in "$extcon"/state/*; do
 		[ -f "$state" ] || continue
 		echo "extcon.$(basename "$state")=$(value "$state")"
@@ -95,8 +109,9 @@ fi
 
 echo "power.wakeup_count=$(value /sys/power/wakeup_count)"
 echo "power.pm_wakeup_irq=$(value /sys/power/pm_wakeup_irq)"
-for stat in success fail failed early abort; do
-	echo "suspend.$stat=$(value "/sys/kernel/debug/suspend_stats/$stat")"
+stats=/sys/kernel/debug/suspend_stats
+for stat in success fail; do
+	echo "suspend.$stat=$(awk -v key="$stat:" '$1 == key { print $2 }' "$stats" 2>/dev/null)"
 done
 
 if [ -r /sys/kernel/debug/wakeup_sources ]; then

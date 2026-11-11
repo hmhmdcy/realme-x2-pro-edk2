@@ -50,9 +50,30 @@ hunk 缺行或上下文不匹配，不能 `git apply`。`0024`/`0025` 旧提取�
   DTB SHA-256
   `53217926a2d8725895401d12ff8a11689b1ae0b984ee42d2ce3ecc31ab366702`。
 
+## 真机运行结果（2026-11-11）
+
+- 已刷入新 boot/Image 并启动，release
+  `7.3.1-rmx1931-samurai-v731-usbwake`，boot ID
+  `1c8e8db5-9f2a-4c2f-b46b-05dbeaa05737`。
+- `check-usb-wake-baseline.sh --require-enabled` 通过：extcon
+  compatible/vbus-gpios 正确，`power/wakeup=enabled`，extcon IRQ 120
+  存在，SPMI 为 `interrupts-extended = <&pdc 1 ...>` 且无裸 GIC
+  `interrupts`，extcon 无 `wakeup-source`。
+- `/proc/kallsyms` 中 `qcom_snps_hsphy_window` 符号数为 0；UDC/NCM/
+  Wi‑Fi/SSH 正常，`taint=512` 与刷入前相同。
+- U0 链路下 `rtcwake -m mem -s 30` 被 `dwc3-qcom` 以 `-EBUSY` 正确
+  拒绝：`last_failed_dev=a600000.usb`、`last_failed_errno=-16`，
+  boot ID 不变。这说明 keep-connect 的 U3 门禁仍然有效。
+- 物理拔插 VBUS 未在 120 秒窗口内完成，因此
+  `VBUS insertion/removal wake` 和 `U3 host-resume` 仍未验收。
+- boot carrier 由 EDK2 重新构建；4 个同尺寸模块差异已确认是构建
+  日期字符串和 BdsDxe 构建路径，DTB 与 r5 逐字节一致。若要求严格
+  “仅 DTB 字节变化”，需要在设备恢复后另做 carrier 重建。
+
 ## 未完成
 
-- 真机 suspend 后插拔线唤醒、U3 host-resume 仍未验收。
+- 真机 suspend 后插拔线唤醒、U3 host-resume 仍未验收；需要一次
+  可协调的 USB 拔插，或主机侧可用的 U3 autosuspend。
 - `dwc3_gadget_keep_connect()` 只看属性、role 和 connected，
   `dwc3-qcom` 的 keep-connect 还看 `device_may_wakeup()`；运行时把
   `power/wakeup` 设为 disabled 会让 core 和 glue 的判定不一致。
