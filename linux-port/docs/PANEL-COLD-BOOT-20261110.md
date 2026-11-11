@@ -87,7 +87,11 @@ Private build directory:
 E:\edk2-samurai-out\standard-arm64-v731\panel-mdss-reset-20261110\
 ```
 
-## Acceptance sequence
+## Historical acceptance sequence (not executed)
+
+This sequence was never run for the MDSS-reset candidate. The 2026-11-11
+cold-boot pass used the HBM-fixed image instead; keep these steps only if a
+future failure independently reproduces a pre-HBM MDSS state.
 
 1. Establish SSH over NCM and inhibit idle suspend for the debug session.
 2. Install the same-build stripped modules.
