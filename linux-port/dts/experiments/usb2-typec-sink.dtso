@@ -1,0 +1,47 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * USB2 Type-C sink baseline for RMX1931.
+ *
+ * This overlay is intentionally conservative:
+ * - PM8150B TCPM owns CC/PD and cable orientation;
+ * - DWC3 remains USB2 high-speed gadget-only;
+ * - the connector is sink/device, so the PMIC VBUS boost is registered but
+ *   must never be enabled by TCPM;
+ * - no FSA4480 or SBU mux is described because the RMX1931 stock DTBO does
+ *   not contain one.
+ *
+ * Apply this to a symbolized sm8150-samurai.dtb, never directly to a boot
+ * partition.  It is an offline candidate until the on-device NCM regression,
+ * both cable orientations and the Type-C sysfs state have been verified.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/usb/pd.h>
+
+&pm8150b_vbus {
+	regulator-min-microamp = <500000>;
+	regulator-max-microamp = <500000>;
+	status = "okay";
+};
+
+&pm8150b_typec {
+	status = "okay";
+	vdd-pdphy-supply = <&vreg_l2a_3p1>;
+
+	connector {
+		compatible = "usb-c-connector";
+		label = "USB-C";
+
+		power-role = "sink";
+		data-role = "device";
+		self-powered;
+		typec-power-opmode = "default";
+
+		vbus-supply = <&pm8150b_vbus>;
+		sink-pdos = <PDO_FIXED(5000, 500, PDO_FIXED_USB_COMM)>;
+		op-sink-microwatt = <2500000>;
+
+	};
+};

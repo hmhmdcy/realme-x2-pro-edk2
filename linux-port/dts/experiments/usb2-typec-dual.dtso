@@ -1,0 +1,75 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * USB2 dual-role candidate for RMX1931.
+ *
+ * This is a separate test layer, not a production default.  It exposes the
+ * standard PM8150B TCPM dual-role connector model and a deliberately small
+ * 5 V / 500 mA source capability.  Do not deploy it until:
+ * - usb2-typec-sink has passed the NCM and Type-C orientation tests;
+ * - the PM8150B VBUS source limit has been checked against the board charger
+ *   topology;
+ * - a powered USB-C dock is available for the first host-mode test.
+ *
+ * USB3 SuperSpeed and DisplayPort remain disabled.  The stock RMX1931 DTB
+ * caps USB0 at high-speed despite describing the QMP/DP hardware.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/usb/pd.h>
+
+&pm8150b_vbus {
+	regulator-min-microamp = <500000>;
+	regulator-max-microamp = <500000>;
+	status = "okay";
+};
+
+&pm8150b_typec {
+	status = "okay";
+	vdd-pdphy-supply = <&vreg_l2a_3p1>;
+
+	connector {
+		compatible = "usb-c-connector";
+		label = "USB-C";
+
+		power-role = "dual";
+		try-power-role = "sink";
+		data-role = "dual";
+		self-powered;
+
+		vbus-supply = <&pm8150b_vbus>;
+		source-pdos = <PDO_FIXED(5000, 500,
+					 PDO_FIXED_DUAL_ROLE |
+					 PDO_FIXED_USB_COMM |
+					 PDO_FIXED_DATA_SWAP)>;
+		sink-pdos = <PDO_FIXED(5000, 500,
+				       PDO_FIXED_DUAL_ROLE |
+				       PDO_FIXED_USB_COMM |
+				       PDO_FIXED_DATA_SWAP)>;
+		op-sink-microwatt = <2500000>;
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+
+				pm8150b_hs_in: endpoint {
+					remote-endpoint = <&usb_1_dwc3_hs>;
+				};
+			};
+		};
+	};
+};
+
+&usb_1_dwc3 {
+	dr_mode = "otg";
+	usb-role-switch;
+	role-switch-default-mode = "peripheral";
+};
+
+&usb_1_dwc3_hs {
+	remote-endpoint = <&pm8150b_hs_in>;
+};

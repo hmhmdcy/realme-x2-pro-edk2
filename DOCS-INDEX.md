@@ -40,7 +40,7 @@
 | GNSS标准链路、原厂对照与modem文件服务 | [260桌面定位](reference/kernel260/README.md)、[258原生/原厂对照](reference/kernel258/README.md)、[253 RF/初始化](reference/kernel253/README.md)、[239近机型方案](reference/kernel239/RELATED-LINUX-SOLUTIONS.md)、其它阶段见[会话索引](sessions/INDEX.md) |
 | 相机驱动、原厂调校与完整范围 | [相机入口](linux-port/camera/README.md)、[484当前实装](reference/kernel484/README.md)、[491暂停交接](reference/kernel491/HANDOFF.md)、[363完整范围](reference/kernel363/REMAINING-CAMERA-SCOPE.md)、[原厂提取工作流](linux-port/docs/PORTING-WORKFLOW.md) |
 | 传感器板级方向与桌面启动顺序 | [269旋转修复与验证边界](reference/kernel269/README.md)、[平台配方](linux-port/packages/samurai-platform/README.md)、[桌面依赖配方](linux-port/packages/samurai-desktop/README.md) |
-| 蓝牙、Wi-Fi与USB | [130 BlueZ](sessions/130-standard-bluez-discovery-and-startup-integration.md)、[128 Wi-Fi](sessions/128-wcn3990-pairwise-key-delete-and-5ghz.md)、[USB NCM/SSH](linux-port/docs/USB-NCM-SSH.md) |
+| 蓝牙、Wi-Fi与USB | [130 BlueZ](sessions/130-standard-bluez-discovery-and-startup-integration.md)、[128 Wi-Fi](sessions/128-wcn3990-pairwise-key-delete-and-5ghz.md)、[USB NCM/SSH](linux-port/docs/USB-NCM-SSH.md)、[USB控制器分层清理](linux-port/docs/USB-LAYER-CLEANUP-20261111.md) |
 | EUD/调试与固件来源 | [EUD](EUD.md)、[RX](RX-CONSOLE.md)、[SWD/JTAG](SWD-JTAG.md)、[BINARIES](BINARIES.md)、[测试飞轮](FLYWHEEL.md) |
 | 同平台显示交接比较 | [参考说明](reference/display-handoff-comparison/README.md) |
 | 2026-10-17后续修复发布与返回文件 | [发布记录](reference/publication-2026-10-17/README.md)、[248备份状态](reference/kernel248/STATUS.md) |

@@ -70,16 +70,6 @@ CODE_FILES = [
         "upstream_path": "upstream SoC IPA register data",
     },
     {
-        "path": "drivers/phy/qualcomm/phy-qcom-snps-femto-v2-window.h",
-        "role": "USB2 PHY window coordination interface",
-        "standard_api": ["struct phy", "qcom_snps_hsphy_window_client_ops"],
-        "private_reason": (
-            "the standard PHY driver needs a small window client interface for "
-            "the board USB controller"
-        ),
-        "upstream_path": "merge with the common SNPS Femto PHY driver",
-    },
-    {
         "path": "drivers/gpu/drm/msm/msm_dsi_trace.h",
         "role": "MSM DSI diagnostic tracepoints",
         "standard_api": ["linux/tracepoint.h", "TRACE_EVENT"],

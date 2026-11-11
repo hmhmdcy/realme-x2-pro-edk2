@@ -1,0 +1,33 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Codex <codex@localhost>
+Date: Wed, 11 Nov 2026 00:00:00 +0800
+Subject: [PATCH] arm64: dts: qcom: sm8150: route SPMI periph_irq through PDC
+
+The SM8150 SPMI PMIC arbiter still describes its periph_irq as a raw GIC
+SPI, unlike SM8250 and newer Qualcomm SoCs which route the same pin
+through the PDC. A raw GIC parent has no useful set-wake path, so a PMIC
+GPIO child's enable_irq_wake() cannot arm the Qualcomm PDC. This blocks
+the standard extcon-usb-gpio VBUS wake path.
+
+Move the parent to PDC pin 1, which qcom,pdc-ranges maps to GIC SPI 481.
+This is SoC integration, not board policy; the board overlay should only
+describe the PM8150 GPIO10 VBUS input and its pinctrl.
+
+Signed-off-by: Codex <codex@localhost>
+---
+ arch/arm64/boot/dts/qcom/sm8150.dtsi | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8150.dtsi b/arch/arm64/boot/dts/qcom/sm8150.dtsi
+index 2f944a361..1828462bf 100644
+--- a/arch/arm64/boot/dts/qcom/sm8150.dtsi
++++ b/arch/arm64/boot/dts/qcom/sm8150.dtsi
+@@ -4552,7 +4553,7 @@ spmi_bus: spmi@c440000 {
+ 			      <0x0 0x0c40a000 0x0 0x0026000>;
+ 			reg-names = "core", "chnls", "obsrvr", "intr", "cnfg";
+ 			interrupt-names = "periph_irq";
+-			interrupts = <GIC_SPI 481 IRQ_TYPE_LEVEL_HIGH>;
++			interrupts-extended = <&pdc 1 IRQ_TYPE_LEVEL_HIGH>;
+ 			qcom,ee = <0>;
+ 			qcom,channel = <0>;
+ 			#address-cells = <2>;

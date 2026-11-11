@@ -1,0 +1,64 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Codex <codex@localhost>
+Date: Tue, 10 Nov 2026 12:00:00 +0800
+Subject: [PATCH] usb: dwc3: remove unused samurai APSD Kconfig hooks
+
+The SAMURAI APSD owner hooks select no existing source file, are disabled
+in the production configuration, and depend on the gadget-only DWC3 mode.
+They are leftover design scaffolding rather than a board driver.  Remove
+them so the USB layer contains only enabled, buildable standard glue plus
+the irreducible MP2650 observer.
+
+No runtime behavior changes because all three symbols are unset and
+samurai-apsd-owner.o does not exist.
+
+Signed-off-by: Codex <codex@localhost>
+---
+ drivers/usb/dwc3/Kconfig   | 23 -----------------------
+ drivers/usb/dwc3/Makefile  |  2 --
+ 2 files changed, 25 deletions(-)
+
+diff --git a/drivers/usb/dwc3/Kconfig b/drivers/usb/dwc3/Kconfig
+index 91b6d94f5..18169727a 100644
+--- a/drivers/usb/dwc3/Kconfig
++++ b/drivers/usb/dwc3/Kconfig
+@@ -235,26 +235,3 @@ config USB_DWC3_GOOGLE
+ 	  module will be called dwc3-google.ko.
+ 
+ endif
+-
+-config USB_DWC3_SAMURAI_APSD_OWNER
+-	bool "Samurai APSD DWC lifecycle coordinator"
+-	depends on USB_DWC3=y && USB_DWC3_GADGET
+-	depends on PHY_QCOM_USB_SNPS_FEMTO_V2=y && POWER_SUPPLY=y
+-	default n
+-
+-config USB_DWC3_SAMURAI_APSD_PD5V_CLIENT
+-	bool "Samurai pre-attach PD-disabled client bridge"
+-	depends on USB_DWC3_SAMURAI_APSD_OWNER && OF
+-	depends on TYPEC_TCPM=y && TYPEC_QCOM_PMIC=y
+-	default n
+-
+-config USB_DWC3_SAMURAI_APSD_EUD_OFF_CLIENT
+-	bool "Samurai explicit EFI EUD-off route client"
+-	depends on USB_DWC3_SAMURAI_APSD_PD5V_CLIENT
+-	depends on QCOM_SAMURAI_EUD_ROUTE=y
+-	default n
+-	help
+-	  Also needs the actual samurai,apsd-eud-route phandle. The route
+-	  provider excludes every paired debug producer; no COM quiet-window
+-	  fallback exists. Boot evidence currently expires at the first PM
+-	  prepare. Full PM route revalidation and device validation remain.
+diff --git a/drivers/usb/dwc3/Makefile b/drivers/usb/dwc3/Makefile
+index 2ac3103a4..f37971197 100644
+--- a/drivers/usb/dwc3/Makefile
++++ b/drivers/usb/dwc3/Makefile
+@@ -61,5 +61,3 @@ obj-$(CONFIG_USB_DWC3_OCTEON)		+= dwc3-octeon.o
+ obj-$(CONFIG_USB_DWC3_RTK)		+= dwc3-rtk.o
+ obj-$(CONFIG_USB_DWC3_GENERIC_PLAT)	+= dwc3-generic-plat.o
+ obj-$(CONFIG_USB_DWC3_GOOGLE)		+= dwc3-google.o
+-
+-dwc3-$(CONFIG_USB_DWC3_SAMURAI_APSD_OWNER) += samurai-apsd-owner.o
+-- 
+2.43.0
+
