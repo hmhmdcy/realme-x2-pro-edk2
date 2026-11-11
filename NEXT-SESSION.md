@@ -43,6 +43,31 @@ DWC3 仍会 soft-disconnect。
 `interrupts-extended = <&pdc 1 ...>`，extcon 无 `wakeup-source`。
 尚未做真机 suspend/插拔唤醒和 U3 host-resume 验收。
 
+## 2026-11-11 提交与有效性台账（手机离线）
+
+手机暂时无法通过 NCM/Wi‑Fi 连接，本轮先把已完成的源码、补丁、包配方
+和文档入库，不把离线构建当成新的真机结果。有效性分类见
+[修复与适配有效性台账](linux-port/docs/FIX-VALIDITY-20261111.md)。
+
+- **有效修复**：SOFEF03F 1023/1024 HBM 边界；部署 `0009`，新树用
+  收敛后的 `0010`。10 轮 DPMS 1024、真实触摸、实体电源键和拔电冷启动
+  已通过。
+- **有效收敛**：`samurai-desktop` 4-r16 删除 `samurai-powerkey` 桥；
+  包已构建/签名但未安装。KWin `0103` 只保留为独立 EBUSY 重试。
+- **有效清理**：USB PHY 死代码、SPMI PDC 路由和 extcon 无效属性；
+  编译/DTB 离线验证通过，未刷机。
+- **无效/作废**：`wakeup-source`、APSD 私有 Kconfig、U0 active-link
+  唤醒实验、first-frame 重发候选、MDSS reset 冷启动候选，以及把
+  `samurai-powerkey` 当生产修复。它们只保留为历史或实验记录。
+- **仍未验收**：USB sink/dual、真机插拔线唤醒、同线 host resume、
+  4-r16 安装、1080p60 相机和长期 suspend/功耗。
+
+设备恢复后先按 [PANEL-HBM-20261110](linux-port/docs/PANEL-HBM-20261110.md)
+复核 HBM/电源键，再按
+[USB-WAKE-20261110](linux-port/docs/USB-WAKE-20261110.md) 和
+[USB-HOST-RESUME-20261110](linux-port/docs/USB-HOST-RESUME-20261110.md)
+分别测试插拔线唤醒与同线 host resume；不要合并成一个“USB 唤醒通过”。
+
 ## 2026-11-10 触摸后黑屏
 
 最终根因是 SOFEF03F 面板的 HBM 边界，不是 KWin EBUSY。原厂亮度路径

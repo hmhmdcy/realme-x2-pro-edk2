@@ -4,6 +4,24 @@
 完成，现继续适配其他硬件；主线正式版模型/API、极薄私有层、安全刷写和
 不擦写 NV/persist/校准/userdata 的约束不变。
 
+目标更新（2026-11-10）：活动块切换到 USB 标准平台适配。先只把
+PM8150B Type-C/TCPM 作为 DTB-only sink 候选；DWC3 host/OTG 需要另建
+`DWC3_DUAL_ROLE+xHCI` Image，USB3/DP 和 suspend wake 继续独立分层。
+
+2026-11-10 电源键/显示最终结论：官方路径仍是 elogind
+`HandlePowerKey=ignore`、KWin `DpmsInputEventFilter` 和 PowerDevil
+移动端默认 `ToggleScreenOnOff`。实体键能到 KWin，DPMS wake trace 为
+`phase=0 -> dpu_first_frame_backlight ret=0 -> phase=1`，但 1024 亮度
+在旧驱动中没有 HBM 切换，物理面板黑屏。根因是 SOFEF03F
+`0x53=0xe0/0x20` HBM 边界，不是 first-frame 时序或 KWin EBUSY。
+`0009-arm64-panel-sofef03f-serialize-brightness.patch` 已刷入 boot
+`12a652a5…`；10 轮 1024 DPMS 和真实触摸通过，用户确认不再黑屏。
+新建树使用等价的 `0010-...-consolidated.patch`（收敛 0003/0005/0009，
+与部署源码逐字节一致）。
+`kwin-6.8.2-r3` 的 `TouchInputRedirection::cancel()` 和本地瞬时 EBUSY
+重试仍保留，但后者不是本次根因。详见
+[PANEL-HBM-20261110](PANEL-HBM-20261110.md)。
+
 2026-11-09 网络检查点（当时）：`samurai-platform` 5-r21 已安装；普通重启
 `d5cfa04f-5f4e-430a-8bc3-472567bd45f7` 后 UDC `configured`、
 `usb0` carrier 1，标准 configfs `qmult=20` 由启动脚本自动写入。
@@ -131,8 +149,9 @@ Wi‑Fi 约 101 秒。r17 的 5 分钟 NCM 24/24 和 Wi‑Fi 300 样本回归通
 承载：radio/USB/SSC 使用有界等待和有序软依赖，NetworkManager、sshd 和
 tinydm 不再被单一硬件服务失败连带拒绝；r20/r10 已跨普通重启验证。
 `usb0` 保留 `169.254.42.1/16` 并提供标准 DHCP `10.42.0.1/24`。
-`samurai-platform` 5-r20 / `samurai-desktop` 4-r10 是当前实装版本；
-5-r23 / 4-r11 是正式候选。候选按 postmarketOS/Nura 官方边界进一步
+历史记录中的 `samurai-platform` 5-r20 / `samurai-desktop` 4-r10 是
+当时实装版本；当前已升级到 5-r24 / 4-r15，4-r16 是删除电源键桥的
+正式候选。候选按 postmarketOS/Nura 官方边界进一步
 删除本地电源策略：tinydm 回到官方配置，不再写
 `rc_need`/`rc_use`；正式包只使用官方 `/etc/sleep-inhibitor.conf`
 和官方 `sleep-inhibitor`，删除 `samurai-sleep-inhibitor` 与
@@ -185,7 +204,7 @@ fastboot 暖启动未知 USB 的 workaround 见 [USB-NCM-SSH](USB-NCM-SSH.md)。
 | 传感器 | remoteproc、IIO、SensorProxy、标准 claim/release | `sensor-power` 板级 subdevice/电顺序 | readiness、旋转和短 PM 通过；SSR、freezer 竞态、精度与长期跨 boot 开放 |
 | 蜂窝 | `qcom_q6v5_pas`、QRTR/QMI、IPA、ModemManager | 板级 MCFG 目录/配置复制 | modem 可 running；真实 SIM、数据、通话、短信和 UIM 未验收 |
 | Wi-Fi/蓝牙 | cfg80211/mac80211、hci_uart、btqca、BlueZ | 板级校准/固件与上电顺序、同机 DMS MAC 查询 | Wi‑Fi 当前 boot 1810 样本/1820.51 秒 SSH 心跳通过；WCN3990 仍记录 invalid MAC，但启动脚本在关联前应用 DMS 地址 `PRIVATE_WIFI_MAC`（BT `PRIVATE_BT_MAC`），多次启动一致；BT 音频/连接、冷启动和长稳开放 |
-| USB | `qcom,sm8150-dwc3`/`qcom,snps-dwc3`、UDC、configfs NCM | 无私有 USB 传输层，只有板级 NCM 配置脚本 | 5-r21 网络基线 / `samurai-desktop` 4-r10；当前已升级 5-r22。标准 DWC3 `tx-fifo-resize` + `qmult=20`；普通重启 `d5cfa04f…` 后双向 24/24、1798.828 秒心跳和 1810 样本 Wi‑Fi 心跳通过。旧 Genesys Hub 仍为 Code 43；直连主板口正常。冷启动、Linux 主机、OTG 和更大持续传输未验收 |
+| USB | `qcom,sm8150-dwc3`/`qcom,snps-dwc3`、UDC、configfs NCM；PM8150B Type-C/TCPM 候选；PM8150 GPIO10 `extcon-usb-gpio` 唤醒候选 | 无私有 USB 传输层，只有板级 NCM 配置脚本；stock 无 FSA4480 证据 | 5-r21 网络基线通过；标准 `tx-fifo-resize` + `qmult=20`。2026-11-10 离线构建 `usb2-typec-sink` DTB（`b18da562…`）；`usb2-vbus-wake` 在 2026-11-11 重建为 r5 DTB（`53217926…`，`ea4ba7bc…` 是 r4 历史构建），均保持 `dr_mode=peripheral`，未刷入。wake 候选把 SPMI periph IRQ 经 PDC pin 1 布防，rootfs 用 udev `power/wakeup` 策略；extcon 节点不带无效的 `wakeup-source`。仅覆盖插拔线唤醒，不覆盖同线 USB resume/NCM 跨 suspend。当前内核仍是 `DWC3_GADGET`，dual-role host 需新 Image。真机 suspend wake、Linux host、USB3/DP 未验收 |
 | 充电 | `bq28z610`、`mp2650`、标准 `power_supply` | 板级阈值/保护参数 | 标准绑定和短测通过；高压、完整 PD/APSD、长期计时与温界未验收 |
 | NFC | NXP NCI I2C 标准控制器、Alpine `neard 0.20`、`org.neard` D-Bus | 板级供电/接线；`samurai-platform 5-r22` 只增加 `neard-openrc` 默认 runlevel | `neard-openrc` + `neard` 和 5-r22 已安装；普通重启后 `nfc0`、neard 默认 runlevel、D-Bus 属性、电源和轮询启停通过；无实体标签，TagFound/读写/eSE 未验收 |
 | 指纹 | 尚无功能主线驱动 | 传感器/SPI/供电/TEE/用户态认证链 | 未做功能验收，是当前最大的未标准化硬件块 |
@@ -193,9 +212,10 @@ fastboot 暖启动未知 USB 的 workaround 见 [USB-NCM-SSH](USB-NCM-SSH.md)。
 | 定位 | GNSS、GeoClue、标准电源管理 | 板级 RF/天线接线 | 室外定位通过；室内、冷启、PM、长稳和绝对精度开放 |
 | 启动/UEFI | EDK2、Linux EFI stub、标准 `\EFI\BOOT\BOOTAA64.EFI`/GRUB 候选 | 私有 BootShim/BDS 直启回退、DTB FFS、EUD 关闭策略 | 标准启动器候选未刷入，GRUB 与 root 挂载未真机验收；标准 ESP/BDS 回退和持久变量未实现；已建立 358 时钟只读审计与 55 个无 consumer 候选清单，`clk_ignore_unused` 逐项根因仍未验收 |
 
-明确不进入标准镜像的私有部分：相机 ICP userspace、APSD/私有 USB-input、
-旧 managed-charging KO、生产 EUD serial、vendor 根属性和 `samurai_diag`
-trace 依赖。它们不能以“能跑”为由重新混入标准平台。
+明确不进入标准镜像的私有部分：相机 ICP userspace、已删除的 APSD 死
+Kconfig、私有 USB-input、旧 managed-charging KO、生产 EUD serial、
+vendor 根属性和 `samurai_diag` trace 依赖。它们不能以“能跑”为由重新
+混入标准平台。
 
 **149已复现的A640 CCU故障修复保持；240新增Snapshot默认Vulkan负载的GPU fault，需独立继续定位。** 147修复旧式GLES地址对齐，149修复Vulkan自动VM_BIND地址对齐。149完成185次像素读回零差异、36次Settings面板打开及PM、稀疏重绑定、旧地址重放、Vulkan/GLES并发验收。151同启动六次被动观察中无新增fault，taint0，桌面保持。150无Mesa补丁的降级候选未部署；它的验证不能混入149系统驱动的验收。
 
@@ -208,8 +228,9 @@ trace 依赖。它们不能以“能跑”为由重新混入标准平台。
 | 功能组 | 已证明的能力 | 尚未修复或验收 |
 | --- | --- | --- |
 | GPU | 149已复现GLES/Vulkan CCU修复及原像素回归保持；240停止故障Snapshot后及CPU mmap两轮新增fault0/taint0 | 240 Snapshot默认Vulkan新增GPUfault480/VK_ERROR_DEVICE_LOST，CPU回退未修GPU根因。211 GPU ISP退出IOMMU WARN另案保留；Mesa可复现包/rootfs、完整扩展和长稳待完成 |
-| 原生显示 | 用户实屏确认EDK2之后无白屏/花屏，黑屏等待后显示命令行；此前165的DPMS/首帧门控/稳态软件验收通过。最终v7.3.1 boot已通过KWin/KMS `1080x2400@60`与`@90`双向切换，切换窗口无WARN/timeout/fault；15秒RTC s2idle唤醒后同一boot、DPMS On、桌面与四路相机均恢复。PowerDevil/KScreen标准亮度接口实测15%→sysfs 308、50%→1024 | 冷启动黑屏等待时长、实体电源键短/长按、deep sleep、更长休眠/长期稳定性仍开放。164首启音频WARN及157重启原因仍未知。亮度需等下一次KWin合成帧才写硬件，自动亮度默认关闭 |
-| Plasma Mobile | tinydm自动登录Plasma Mobile，当前用户UID10000/Wayland-1；KWin、plasmashell、PowerDevil、KScreen、portal-kde、Calls/Chatty/mmsd服务已接入。最终boot的s2idle唤醒后tinydm/KWin/Plasma保持同一PID，桌面无需重启；只读检查脚本全绿：单KWin/plasmashell/powerkey实例、Wayland/KScreen、两个portal、Modem Manager对象、NetworkManager、BlueZ、传感器、音频、USB守护和OpenRC服务均通过。`samurai-desktop` 4-r10 已安装并通过普通重启；4-r11 候选删除剩余 tinydm 覆盖，恢复官方配置。设置来源见[SETTINGS-PROVENANCE.md](SETTINGS-PROVENANCE.md) | 4-r11 尚未实机安装；人工冷启动、实体电源键短按/长按、deep sleep和长期行为待验；真实SIM业务受未插卡阻塞；无SIM时ModemManager自动枚举约需30秒，不把D-Bus存在等同于通话/短信/数据通过；旧 Genesys Hub 的 USB 枚举失败已由主板直连口规避，r21 qmult=20 网络长测通过 |
+| 原生显示 | 用户实屏确认EDK2之后无白屏/花屏，黑屏等待后显示命令行；此前165的DPMS/首帧门控/稳态软件验收通过。最终v7.3.1 boot已通过KWin/KMS `1080x2400@60`与`@90`双向切换，切换窗口无WARN/timeout/fault；15秒RTC s2idle唤醒后同一boot、DPMS On、桌面与四路相机均恢复。PowerDevil/KScreen标准亮度接口实测15%→sysfs 308、50%→1024 | 冷启动黑屏等待时长、实体电源键长按菜单复测、deep sleep、更长休眠/长期稳定性仍开放。164首启音频WARN及157重启原因仍未知。亮度需等下一次KWin合成帧才写硬件，自动亮度默认关闭 |
+| Plasma Mobile | tinydm自动登录Plasma Mobile，当前用户UID10000/Wayland-1；KWin、plasmashell、PowerDevil、KScreen、portal-kde、Calls/Chatty/mmsd服务已接入。最终boot的s2idle唤醒后tinydm/KWin/Plasma保持同一PID，桌面无需重启；只读检查脚本全绿：单KWin/plasmashell实例、Wayland/KScreen、两个portal、Modem Manager对象、NetworkManager、BlueZ、传感器、音频、USB守护和OpenRC服务均通过。`samurai-desktop` 4-r15 已安装并通过普通重启；4-r16 候选删除 `samurai-powerkey` 桥并保留官方 tinydm/PowerDevil 路径。设置来源见[SETTINGS-PROVENANCE.md](SETTINGS-PROVENANCE.md) | 4-r16 尚未实机安装；人工拔电冷启动和实体电源键短按已通过；长按电源键官方路径存在，本机 `PowerDown` 曾为 `none`，已恢复；D-Bus 与 event0 1.2 秒 `KEY_POWER` 注入均实测菜单，实体手感待用户确认；deep sleep和长期行为待验；真实SIM业务受未插卡阻塞；无SIM时ModemManager自动枚举约需30秒，不把D-Bus存在等同于通话/短信/数据通过；旧 Genesys Hub 的 USB 枚举失败已由主板直连口规避，r21 qmult=20 网络长测通过 |
+| 电源键/DPMS | 官方路径已确认：elogind `HandlePowerKey=ignore`、KWin `DpmsInputEventFilter`、PowerDevil 移动端默认 `ToggleScreenOnOff`。实体键能到 KWin；DPMS wake 的 `phase=0`、`dpu_first_frame_backlight ret=0`、`phase=1` 均出现，KWin 截图是完整锁屏。安装的 `kwin-6.8.2-r3` 含 `TouchInputRedirection::cancel()` 和 `0103-retry-transient-ebusy-commits.patch`；4-r16 候选删除 `samurai-powerkey` 桥。2026-11-10 最终定位锁屏触摸黑屏为 SOFEF03F HBM 边界：亮度 >1023 必须先写 `0x53=0xe0` 进入 HBM，离开时写 `0x53=0x20`；旧驱动直接写 1024 导致物理黑屏，KWin EBUSY 是独立问题 | `0009-arm64-panel-sofef03f-serialize-brightness.patch` 已刷入 boot `12a652a5`；10 轮 DPMS off/on（brightness 1024）全部 On/enabled/1024/`bl_power=0`，HBM/亮度错误 0、KWin EBUSY 0；真实上滑多次用户确认不再黑屏。2026-11-11 拔电冷启动（boot `f70fcefd…`）和冷启动后电源键唤醒通过；长按电源键走 KWin 1 秒合成 `PowerDown` + PowerDevil `PromptLogoutDialog`，本机曾因 `kglobalshortcutsrc` 的 `PowerDown=none` 不触发，已恢复；D-Bus 与 event0 1.2 秒 `KEY_POWER` 注入均出现菜单。截图证据 `panel-hbm-20261110/powerdown-menu-20261111.png`。 |
 | 音频 | 171人工双组滴声；183识别离线传输并清理WCD流，活跃双工合成crash原客户端恢复、2旧FD EIO、18项0，匹配左右相关0.9119/0.9312。两次s2idle实际45.33/87.04秒、success2/fail0、PM callbacks全err0；醒后原生/桌面左右通过。1473秒taint0、20项全boot0，PCM关、功放23/23与22/22静音、16控件恢复、五consumer各1/两map/一MCLK；新 boot 内置麦克风连续采集61.98秒、0%削顶、stderr空 | 耳机/耳麦/按钮、实际watchdog、跨启动/更长可靠性和音质/瞬态/保护开放，用户暂无耳机。新发现181活跃STOP −107/ASoC3及旧178/180失败、183首轮脚本mute假设错误均保留，不改成通过 |
 | 电池与充电 | 508短测默认Rp500、软件0→500及关机取消通过，已回506/5c8d/b29e，boot82d6原件/三note/PD双0重核。USB161b/chargerbef4/保护f6bef/服务83469/manifest8b402。预充1299条、phase1→连续phase2/正净流及负载收尾通过。506两RTC、旧回满/停充计时及[基础容量查询](../../reference/charging-management-20261023/gauge-basic-capacity506-result.json)保留 | 真实36000秒观察运行中，最近只读累计8643秒；手机归该长测。PM后新连接/FLOAT/APSD、物理USB唤醒、2719/TCA语义、温界、低电到Full/恒流精度、高功率/快充与长稳待验。离线候选与后续整合顺序见[充电交接](../../reference/charging-management-20261023/charging-adaptation-handoff-20261025.md)。旧逆向按组合。[当前进度](../../reference/charging-management-20261023/PROGRESS.md)、[完整要求](../../reference/charging-management-20261023/ADAPTATION-REQUIREMENTS.md) |
 | 摄像头 | Linux v7.3.1 标准 V4L2/CAMSS/CCI 路径已刷入并通过三个最终启动周期：IMX471 前摄、IMX319 后摄、S5K3M5 长焦、S5KGW1 主摄均自动 probe；每周期四路各抓到两张完整、非全零、无饱和且帧间有变化的私有 RAW，共 24 帧。r21 最终 boot `d5cfa04f…` 再次通过四路各两张 RAW。Selection API 修复后的 boot `668b8d20…` 中 IMX471/S5K3M5 的 crop/default/bounds 全部成功，`cam -l` 无 EINVAL，四路 RAW 与 libcamera 四路单帧再次通过；抓完 CAMSS `suspended`、MMCX 128、`taint=0` | `poweroff` 再上电已通过，但拔除外部供电后手动电源键冷启动未验；绝对画质、LSC/AWB/AF、录像、热功耗、多摄同时流、长期共享 lease 和 camera ICP userspace 仍待。场景 RAW 与校准不公开；历史私有 stack 证据保留在 `reference/kernel*` |
@@ -222,7 +243,7 @@ trace 依赖。它们不能以“能跑”为由重新混入标准平台。
 | 振动 | AW8697驱动与电气检查通过。`Realme X2 Pro AW8697 haptics`已由板级udev规则标记为`FEEDBACKD_TYPE=vibra`；标准feedbackd D-Bus `TriggerFeedback(button-pressed)`返回id2且`EndFeedback`成功 | 实际振幅、时长和桌面触感未由用户确认；跨启动和长稳待验 |
 | 蓝牙 | 234实际RTS模型三变体16/2、16/0、16/2及H4回放8例通过；暂时诊断取得2个完整phase5回包/UART对应/1301事件无丢失，未复现错误。扫描因预上电属性Not Powered未完成，已恢复原185模块/config/helper/keys/787文件、最终健康0；裸RTS模型不满足真实锁契约，未部署功能补丁。[234](../../reference/kernel234/README.md)。205两次普通启动/8轮上下电/4次重注册未复现phase5，206已恢复原185模块/helper/BlueZ并核对keys；这不是phase5修复。204 RX wake/sleep已部署；首轮前9/45.14秒RTC PM后13、错误增量0，第二boot启动重组0，外部BT事件唤醒未验；首轮phase5仍1。200新boot startup及8秒只扫描发现10设备、退出恢复、重组增量0；185功率脉冲前导NUL及短写/flow修复保持；当时原扫描错误1/候选0、3模式响应及开启状态s2idle/延后扫描通过；189三个传感器PM窗内重组增量0、密钥保持。2026-11-09 `samurai-bluetooth-host 0.1.0-r0` 已安装；boot `071abbb5…` 上 `bnep/uhid/uinput` 自动加载，`/dev/uhid`、`/dev/uinput`、BNEP socket、BlueZ `hci0` 和 777 模块完整 gate 通过 | 189旧boot出现phase5/3.2Mbps/chunk13/partial0/firstff重组1，区别于旧phase2前导00，需继续修复。外部 PAN/HID 对端、配对/连接/音频、冷启动和带业务 suspend 未验收；没有对端证据时不能声称 PAN/HID 业务通过 |
 | Wi-Fi | 200新boot自动connected，早期管理端点超时保留；2.4/5GHz通信已有回归；189三轮传感器PM的第1/3轮观察约5.33/0.53秒关联5180，最终5180，未手工重绑驱动；2026-11-08 当前 boot 5GHz/VHT 866.7 Mbit/s 连续关联约79分钟，beacon loss 0，power save off；2026-11-09 r21 boot 完成 1810 个 SSH 样本/1820.51 秒、最大间隔 1.01 秒，DMS 地址 `PRIVATE_WIFI_MAC` 在多次启动一致；原厂 decompiled DTB 的 WiFi 节点与蓝牙共用四个 PMIC regulator，当前 DTB 已绑定；ath10k 只把原厂未使用的 `vdd-3.3-ch1` 退回 dummy | 第2轮35秒窗内仍未关联，之后又执行第3轮PM，不能称第2轮自行恢复；185立即醒后2秒检查失败仍保留。冷启动、完整休眠通信恢复及长期稳定性仍开放；不能把 dummy ch1 直接当成断连根因 |
-| 普通USB与OTG | USB 2.0 Type-C；2026-11-09 r21 boot 在主板直连口完成双向 `64K/256K/1M/4M` 各三轮 24/24、1798.828 秒 NCM 心跳；UDC `configured`、`usb0` carrier 1、`qmult=20`；严格 host-key Wi‑Fi/NCM SSH 和最终 runtime/Plasma 门禁通过 | 旧 Genesys 扩展 Hub 端口仍会停在 `VID_0000&PID_0001`/Code 43；Windows 网卡复位权限、USB 归档尾部中断、IPv6/OTG、EUD 接收/退出、Linux 主机、更长空闲和多次冷启动待验收。DWC3 suspend 仍会 soft-disconnect；默认由标准 `ssh-session-open` 持有 sleep 锁。USB3 不是本机目标 |
+| 普通USB与OTG | USB 2.0 Type-C；2026-11-09 r21 boot 在主板直连口完成双向 `64K/256K/1M/4M` 各三轮 24/24、1798.828 秒 NCM 心跳；UDC `configured`、`usb0` carrier 1、`qmult=20`；严格 host-key Wi‑Fi/NCM SSH 和最终 runtime/Plasma 门禁通过。2026-11-10 的 sink DTB 和 dual DTB/config 已离线构建，语义差分只落在 PM8150B Type-C/DWC3 层 | 旧 Genesys 扩展 Hub 端口仍会停在 `VID_0000&PID_0001`/Code 43；当前 Image 缺 `DWC3_DUAL_ROLE`/xHCI，OTG host 尚未实现；Windows 网卡复位权限、USB 归档尾部中断、IPv6、EUD 接收/退出、Linux 主机、更长时间空闲和多次冷启动待验收。DWC3 suspend 仍会 soft-disconnect；默认由标准 `ssh-session-open` 持有 sleep 锁。设备本轮 SSH 握手前关闭，Type-C 候选尚未真机验证 |
 | 触摸 | 用户确认可解锁、操作应用，原生驱动工作 | 边缘/方向/多触点与休眠后恢复、长稳 |
 
 已有基础还包括UFS访问、CPU调频表、PMIC温度与按键/EUD。CPU高频压力、UFS持续负载、整机功耗、冷启动及系统休眠唤醒仍需跨功能验收；不能以驱动注册或短窗口健康代替日用完成。

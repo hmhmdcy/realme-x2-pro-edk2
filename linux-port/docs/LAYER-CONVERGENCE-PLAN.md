@@ -298,7 +298,7 @@ L4 只讨论**内核到用户态**的接口。下面有些条目其实是 L5/L6 
 | `/usr/local/share/dbus-1/...ModemManager1.service` | L5/L6 发行版策略 | 迁到 init/发行版适配包，不作为通用硬件包内容 |
 | `AUTOLOGIN_UID=10000` | L5/L6 用户配置 | 从本地普通账号推导，安装时只写缺失值 |
 | `realme,samurai` 检测 | 稳定的 DT compatible | 保留；这是板级识别，不是私有 ioctl |
-| `samurai-powerkey`、KWin DPMS | L7 桌面策略 | 留在 Plasma 适配包，不进入板级主包 |
+| `samurai-powerkey`（已退役） | L7 桌面策略 | 4-r16 删除；电源键/DPMS 使用 KWin/PowerDevil 官方路径；面板时序 quirk 留在内核面板驱动 |
 
 L4 的原则是**先双栈、后迁移、最后删除**。在旧消费者还存在时删除
 私有接口，会直接打断当前 rootfs/桌面调试链。

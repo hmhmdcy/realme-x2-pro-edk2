@@ -1,6 +1,6 @@
 # Realme X2 Pro 文档导航与维护
 
-用途：阅读入口、专题证据、历史位置和维护方法。最后整理：2026-11-05；实际硬件结果和未验收范围见功能清单与当前检查点。
+用途：阅读入口、专题证据、历史位置和维护方法。最后整理：2026-11-11；实际硬件结果和未验收范围见功能清单与当前检查点。
 
 ## 入口与职责
 
@@ -19,6 +19,7 @@
 | 已上传的标准 ARM64 分支、提交与历史分支边界 | [PUBLICATION](linux-port/docs/PUBLICATION.md) |
 | 传感器电源标准生命周期 | [rproc_subdev 真机验收](linux-port/docs/L3-02-RPROC-SUBDEV-CANDIDATE.md) |
 | 各功能已证明能力、缺陷及待验收范围 | [HARDWARE-STATUS](linux-port/docs/HARDWARE-STATUS.md) |
+| 已验证修复、离线候选和无效/被取代尝试的区分 | [修复有效性台账](linux-port/docs/FIX-VALIDITY-20261111.md) |
 | 项目介绍与通用构建说明 | [README](README.md) |
 | Linux源码、补丁、rootfs和工具导航 | [Linux README](linux-port/README.md)、[技术文档索引](linux-port/docs/00-INDEX.md) |
 | 仓库提交记录、工具路径与旧8—30节映射 | [HANDOVER-NEXT](HANDOVER-NEXT.md) |

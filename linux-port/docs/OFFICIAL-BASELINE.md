@@ -56,8 +56,8 @@ realme 仓库的 `COPYING` SHA-256 为
 | L3 内核驱动 | vendor 4.14 使用 `qcom,dwc-usb3-msm`、厂商 camera/充电和 Android extcon 路径 | 主线 `qcom,sm8150-dwc3`、CAMSS/CCI、V4L2、power_supply、DRM、input、netdev | vendor 只作为 board facts；底层接口必须是主线已有模型/API；板级 glue 只保留真实硬件差异 | `L3-*` 文档、补丁、真机 runtime |
 | L4 UAPI | Android HAL/ioctl 不能作为通用平台 ABI | UDC/configfs、media controller、V4L2、netdev、DRM/KMS、power_supply、evdev、sysfs | 不导出私有 ioctl；用标准 class/device property 发现设备 | DTB contract、media/video/power_supply 运行时证据 |
 | L5 服务 | pmaports `postmarketos-base` 管 `sshd`、`unudhcpd.usb0`、boot/default runlevel；base-ui 管 NetworkManager、wpa_supplicant、BlueZ、ModemManager、SensorProxy、tinydm、sleep-inhibitor | `samurai-radio`、`samurai-usb`、`samurai-ssc` 是板级薄服务；NetworkManager/sshd 独立启动；电源策略使用官方 `sleep-inhibitor` | 本地保留板级 radio/USB 启动和 DHCP，但不再安装或替换通用睡眠策略 | `postmarketos-base-openrc.post-install`、`check-settings-provenance.sh` |
-| L6 包与配置 | pmaports 的 base/base-ui 子包负责发行版边界；tinydm 默认没有可选硬件 `rc_need` | `samurai-platform 5-r23`、`samurai-desktop 4-r11` 签名候选；r23 删除板级 sleep-inhibitor，r11 删除 tinydm 覆盖 | 包名本地化，服务边界与官方对齐；调试策略移出正式包 | APK、manifest、install hook、来源检查 |
-| L7 桌面/交互 | Plasma Mobile 使用 tinydm、KWin、KScreen、PowerDevil、标准 portal | `samurai-desktop` 只增加 Plasma 电源键桥、会话配置和板级默认值 | 不把桌面栈写进 L3；90Hz panel/powerkey 是确实无法标准化的薄层 | Plasma Mobile check、KWin/KScreen 运行态 |
+| L6 包与配置 | pmaports 的 base/base-ui 子包负责发行版边界；tinydm 默认没有可选硬件 `rc_need` | `samurai-platform 5-r24`、`samurai-desktop 4-r15` 已安装；`4-r16` 候选删除 `samurai-powerkey` 桥 | 包名本地化，服务边界与官方对齐；调试策略移出正式包 | APK、manifest、install hook、来源检查 |
+| L7 桌面/交互 | Plasma Mobile 使用 tinydm、KWin、KScreen、PowerDevil、标准 portal；elogind `HandlePowerKey=ignore`，PowerDevil 移动端默认 `ToggleScreenOnOff` | `samurai-desktop` 只保留 tinydm 会话配置和旧 cgroup 清理；电源键/DPMS 交回 KWin/PowerDevil | 不把桌面栈写进 L3；只保留 SOFEF03F 面板亮度时序薄层 | Plasma Mobile check、KWin/KScreen 运行态、KWin 包反汇编 |
 
 ### 2.1 OpenRC、Wi‑Fi、NCM 与 SSH 边界
 
@@ -97,7 +97,7 @@ pmaports main 的默认 `/etc/sleep-inhibitor.conf` 只有：
 - `ssh-session-open`；
 - `apk-running`。
 
-5-r23 起，正式系统直接使用这份官方 `/etc/sleep-inhibitor.conf` 和
+5-r24 起，正式系统直接使用这份官方 `/etc/sleep-inhibitor.conf` 和
 官方 `sleep-inhibitor` 服务，不再安装 `/etc/samurai/sleep-inhibitor.conf`
 或 `samurai-sleep-inhibitor`。`samurai-usb-sleep-guard` 已移到
 `linux-port/debug/sleep-policy/`，只在显式调试时手动挂载，不作为
@@ -119,11 +119,11 @@ AUTOLOGIN_UID=10000
 ```
 
 没有 `rc_need`/`rc_after` 指向 ModemManager、Bluetooth 或
-`iio-sensor-proxy`。4-r11 起本地不再写这份文件，只清理历史
+`iio-sensor-proxy`。4-r16 起本地不再写这份文件，只清理历史
 4-r7..4-r10 注入的精确旧值；正式配置由 `postmarketos-base-ui` 拥有。
 
 历史 4-r10 曾留下 `rc_need="dbus elogind"` 和
-`rc_use="iio-sensor-proxy samurai-sleep-inhibitor"`；4-r11 会删除这些
+`rc_use="iio-sensor-proxy samurai-sleep-inhibitor"`；4-r16 会删除这些
 板级调试依赖。官方 tinydm 自己的 init 脚本已经使用
 `need localmount`、`want dbus elogind`，不需要本地再补硬依赖。
 
@@ -151,11 +151,11 @@ realme `19688` 的 USB 节点仍以 `qcom,dwc-usb3-msm`、`extcon =
 | 项目 | 官方基线 | 本地当前 | 取舍 |
 | --- | --- | --- | --- |
 | USB 网络 | main rootfs `unudhcpd`，`v26.06` initramfs 路径，地址阶段不同 | `dnsmasq` `10.42.0.1/24`，保留 `169.254.42.1/16` | 保持 known_hosts/路由兼容；迁移另立候选 |
-| SSH 启动 | `sshd default` + 发行版 OpenSSH | `sshd boot`，独立于 USB/radio | 更早可用，未引入私有协议 |
+| SSH 启动 | `sshd default` + 发行版 OpenSSH | `sshd default`，独立于 USB/radio | 与官方 runlevel 对齐，未引入私有协议 |
 | NCM 传输 | 主线 DWC3 模型 | 主线 `tx-fifo-resize`；无 OOT 模块 | 修复 4 MiB 传输失败；未把 FIFO 当私有传输层 |
-| USB 睡眠 | 官方默认只有 SSH/apk sleep lock | 5-r23 起同官方；carrier-only guard 仅 debug 外部脚本 | 空闲允许 suspend；长期 USB 维护用测试进程持有的临时锁 |
+| USB 睡眠 | 官方默认只有 SSH/apk sleep lock | 5-r24 起同官方；carrier-only guard 仅 debug 外部脚本 | 空闲允许 suspend；长期 USB 维护用测试进程持有的临时锁 |
 | Wi‑Fi | base-ui 选择 wpa_supplicant，NetworkManager 管设备 | wpa_supplicant/NetworkManager + 板级 `samurai-radio` 启动固件/TFTP/RMTFS | 固件/NV 启动保留板级，网络管理仍是发行版服务 |
-| 桌面 | base-ui、Plasma Mobile/tinydm | 同名 tinydm/Plasma，加板级 powerkey/90Hz | 桌面元包和会话接口保持标准 |
+| 桌面 | base-ui、Plasma Mobile/tinydm | 同名 tinydm/Plasma，加 90Hz panel 亮度时序 quirk | 电源键/DPMS 已交回 KWin/PowerDevil；桌面元包和会话接口保持标准 |
 
 ## 4. 当前验收证据（2026-11-08）
 

@@ -14,12 +14,13 @@ blocks; the mainline-API, thin-board-layer and safe-flash boundaries are
 unchanged.
 
 Settings provenance is now explicit: production keeps postmarketOS/KDE
-defaults plus the irreducible board layer. The installed 5-r22 / 4-r10
-packages still contain the historical board `samurai-sleep-inhibitor` and
-tinydm overrides; the 5-r23 / 4-r11 candidates remove them and restore the
-official `sleep-inhibitor` policy. Historical runtime sections below that
-name `samurai-sleep-inhibitor` describe the older deployment, not the
-production target. See [SETTINGS-PROVENANCE](SETTINGS-PROVENANCE.md).
+defaults plus the irreducible board layer. The installed 5-r24 / 4-r15
+packages restore the official tinydm and sleep-inhibitor baselines. The
+4-r16 candidate removes the retired `samurai-powerkey` bridge so KWin and
+PowerDevil own the physical power key and DPMS policy directly. Historical
+runtime sections below that name `samurai-sleep-inhibitor` or the power-key
+bridge describe older deployments, not the production target. See
+[SETTINGS-PROVENANCE](SETTINGS-PROVENANCE.md).
 
 The PM8150L rear flash is deployed through the standard LED-flash and
 V4L2-flash APIs. The current pair keeps boot `5b4dd487…` and DTB
@@ -52,6 +53,24 @@ and boot-time `depmod -A` path auto-loaded all three modules. `/dev/uhid`,
 runtime gate passed. External PAN/HID peers and cold boot remain open. See
 [BLUETOOTH-HOST-MODULES](BLUETOOTH-HOST-MODULES.md).
 
+The power-key/DPMS investigation ultimately found a SOFEF03F HBM boundary,
+not a first-frame timing failure. Brightness above 1023 requires
+`MIPI_DCS_WRITE_CONTROL_DISPLAY (0x53) = 0xe0` before the brightness write;
+leaving HBM requires `0x53 = 0x20`. KWin restores 1024 (50%) during a DPMS
+wake, so the old driver left the physical panel black while DPMS, DSI and
+the backlight still reported on. The earlier first-frame reapply at
+400/308 only appeared to recover because it stayed in the normal range.
+
+`0009-arm64-panel-sofef03f-serialize-brightness.patch` adds the stock HBM
+sequence through the standard DRM panel, backlight class and MIPI DCS APIs,
+and serializes post-on with brightness updates. It was flashed as only the
+kernel FAT Image; boot and DTB are unchanged. Ten DPMS off/on cycles at
+brightness 1024 and real touch swipes passed. See
+[PANEL-HBM-20261110](PANEL-HBM-20261110.md); the artifact set is
+`panel-hbm-20261110/`. The same image also passed the physical power key
+and an external-power-removed cold boot. `0010` is the consolidated patch
+for new trees; do not stack `0003`/`0005`/`0009`.
+
 ## 2026-11-09 network checkpoint
 
 The previously flashed camera-final boot is the network baseline:
@@ -76,6 +95,37 @@ no private transport layer was added. Runtime evidence is
 (SHA-256 `d0e8d6059620ae07500ff2e751326fadc8e200f84cf5f0895414e88d45b360a0`).
 External-power-removed cold boot, repeated cold boots, a Linux host and
 longer transfers remain open.
+
+## 2026-11-10 USB2 Type-C layer
+
+The USB work is now split at the driver/config boundary:
+
+- `usb2-typec-sink.dtso` enables only the mainline PM8150B Type-C/TCPM
+  path, keeps the deployed `dr_mode = "peripheral"`, and adds no role
+  switch or HS graph. It is compatible with the existing gadget-only
+  Image and is the first DTB-only candidate.
+- `usb2-typec-dual.dtso` adds the standard OTG/role-switch connector
+  graph and limits initial source capability to 5 V / 500 mA. The
+  production Image cannot use it: current Kconfig has
+  `USB_DWC3_GADGET=y`, `USB_DWC3_DUAL_ROLE=n` and `USB_XHCI_HCD=n`.
+- `usb2-vbus-wake.dtso` uses the Android-proven PM8150 GPIO10 VBUS input
+  with the mainline `extcon-usb-gpio` model, routes the SPMI periph IRQ
+  through PDC pin 1, and leaves DWC3 in peripheral mode. The rootfs policy
+  is one udev rule that enables the standard `power/wakeup` attribute.
+  This covers cable insertion/removal wake only; DWC3 still soft-disconnects
+  at system suspend, so same-cable USB resume and NCM continuity are not
+  claimed. See [USB-WAKE-20261110](USB-WAKE-20261110.md).
+- the dual-role Kconfig fragment resolves to an ARM64 config candidate
+  without building an Image. Its only USB changes are gadget to
+  dual-role, xHCI, and the PMIC VBUS regulator becoming built-in.
+- unused `USB_DWC3_SAMURAI_APSD_*` Kconfig/Makefile hooks were removed;
+  they referenced no source file and were disabled.
+
+Offline candidate hashes and the boundary are in
+[USB-TYPEC-20261110](USB-TYPEC-20261110.md) and the source lock. Nothing
+was flashed in this step. USB3/DP and VBUS source behavior remain separate
+future layers; cable wake has its own DTB/rootfs candidate, while
+host-initiated same-cable resume still requires a generic DWC3 patch.
 
 ## 2026-11-09 camera Selection API checkpoint
 

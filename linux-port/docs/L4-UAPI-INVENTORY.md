@@ -19,7 +19,9 @@
 | 当前接口 | 实际消费者/证据 | 标准方向 | 当前动作 |
 | --- | --- | --- | --- |
 | `/sys/devices/platform/sensor-power/state` | [270 native-quiesce](../../reference/kernel270/native-quiesce.py)、[restart-bootloader](../../reference/kernel270/restart-bootloader.py)、板级 quiesce 流程 | 通用 remoteproc prepare/unprepare subdevice；`state` 只读兼容 | genpd/PAS proxy 方案已在真机 `#9` 否决并回退 `#5`；`rproc_subdev` 已在真机 `#2` 通过启动/停止、readiness 和冷启动；旧 `state` 继续保留到消费者迁移完成 |
-| `/sys/class/udc/a600000.usb` | [samurai-usb](../packages/samurai-platform/usr_sbin_samurai-usb)、检查脚本 | 枚举 `/sys/class/udc`，优先当前控制器、单 UDC 回退 | 源级离线测试通过：优先 `a600000.usb`、任意单 UDC 回退、多个 UDC 要求 `SAMURAI_UDC`、显式缺失报错；5-r23 不再安装 debug sleep guard |
+| `/sys/class/udc/a600000.usb` | [samurai-usb](../packages/samurai-platform/usr_sbin_samurai-usb)、检查脚本 | 枚举 `/sys/class/udc`，优先当前控制器、单 UDC 回退 | 源级离线测试通过：优先 `a600000.usb`、任意单 UDC 回退、多个 UDC 要求 `SAMURAI_UDC`、显式缺失报错；5-r24 不再安装 debug sleep guard |
+| `/sys/class/typec/port0` | USB2 Type-C 离线检查脚本 | 标准 Type-C class（power_role/data_role/port_type/orientation） | sink/dual DTB 已构建但未部署；真机门禁用只读枚举，不新增板级 ioctl/sysfs |
+| `/sys/bus/platform/devices/extcon-usb1/power/wakeup` | udev 规则、`check-usb-wake-baseline.sh` | 通用 power wakeup sysfs + `extcon-usb-gpio` | DTB-only 候选已构建；udev 只把 capability 设为 enabled，不新增服务或私有 ioctl；同线 USB resume 不在该 UAPI 内 |
 | `/sys/class/backlight/ae94000.dsi.0` | [桌面边界](DESKTOP-PORTABILITY.md)、Plasma/Phosh 文档 | backlight class 发现，不写死设备名 | 文档/检查脚本先改用 glob/属性读取 |
 | `DSI-1` connector 名 | [Plasma 文档](PLASMA-MOBILE.md)、检查脚本 | DRM connector 枚举/KScreen 查询 | 检查和桌面适配不应把名字当硬件 ABI |
 | `/sys/class/power_supply/samurai-usb-input/*` | 充电状态、power_supply 消费者 | 标准 power_supply 属性 | 属性名是当前板级驱动接口，新增标准属性时保留旧属性 |
@@ -35,7 +37,7 @@
 | `/usr/local/share/dbus-1/system-services/org.freedesktop.ModemManager1.service` | [samurai-platform APKBUILD](../packages/samurai-platform/APKBUILD) | OpenRC/systemd 发行版适配包或标准 D-Bus 策略 | 所有 init 适配都禁止双实例后 |
 | `AUTOLOGIN_UID=10000` | [samurai-desktop post-install](../packages/samurai-desktop/samurai-desktop.post-install) | 安装时从普通本地账号推导，保留已有值 | 新用户/旧用户迁移验证后 |
 | `wayland-1` | [Plasma 文档](PLASMA-MOBILE.md)、检查脚本 | `WAYLAND_DISPLAY`/socket 发现 | 检查脚本和桌面启动器都不再假定编号 |
-| `samurai-powerkey` | [samurai-desktop](../packages/samurai-desktop/APKBUILD) | 留在 Plasma/KWin 桌面层，不进入板级包 | 其它桌面不依赖它 |
+| `samurai-powerkey`（已退役） | [samurai-desktop](../packages/samurai-desktop/APKBUILD) | 4-r16 删除；电源键/DPMS 交回 KWin/PowerDevil 官方路径 | 已满足删除条件，保留 r15 APK 仅作回滚 |
 | `tinydm` 会话配置 | [samurai-desktop README](../packages/samurai-desktop/README.md) | 保留在桌面适配包 | 板级包不再写桌面会话 |
 | `samurai-refresh` | [samurai-refresh](../packages/samurai-refresh/README.md) | 保留为 Phoc/wlroots 历史工具 | 不再作为板级默认依赖 |
 

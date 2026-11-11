@@ -773,8 +773,8 @@ SKU 在宣称“支持所有同型号”之前必须单独验证；尤其是 UEF
 - 它安装 `/usr/local/share/dbus-1/system-services/...ModemManager1.service`
   来阻止 D-Bus 自动激活。这是本机 OpenRC 单实例策略，不应成为
   所有发行版的通用硬件规则；
-- `samurai-powerkey`、KWin 的 DPMS 处理属于 Plasma/KWin，不是板级
-  硬件支持；
+- 电源键/DPMS 由 KWin/PowerDevil 官方路径处理；已退役的
+  `samurai-powerkey` 不再属于板级或生产桌面支持；
 - `samurai-refresh` 是 Phoc/wlroots 历史工具，不应进入板级主包。
 
 拆包后，换发行版只需要提供新的 `samurai-services-*` 包装同一组
@@ -904,9 +904,10 @@ USB SSH 恢复后飞轮即可继续；这不构成跳过源锁和完整启动矩
 - UCM/音频路由；
 - 传感器、振动、GNSS、modem、充电等标准服务。
 
-当前 Plasma 的 `samurai-powerkey` 是一个典型例子：它解决 KWin 6.8.2
-的 PowerDevil 电源键竞争，属于桌面适配，不是“这块屏幕/这个按键的
-通用硬件驱动”。如果换到 Phosh/Sway，不应要求安装它。
+历史上的 `samurai-powerkey` 是一个反例：它曾用独占 evdev 和强制
+KScreen modeset 绕过面板时序问题，属于桌面适配，不是通用硬件驱动。
+4-r16 已删除它；当前只保留 SOFEF03F 面板在 first-frame 后重发标准
+backlight 亮度的驱动薄层。换到 Phosh/Sway 时不需要安装任何电源键桥。
 
 ### “无需额外适配”的现实定义
 

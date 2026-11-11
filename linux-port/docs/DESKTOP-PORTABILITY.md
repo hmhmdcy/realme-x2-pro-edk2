@@ -23,7 +23,7 @@
 | --- | --- | --- | --- | --- |
 | 显示模式 | DRM/KMS、`/sys/class/drm` | 主线 DSI panel，60/90Hz | Plasma 用 KScreen；wlroots 可用 output-management | 实机已验证 |
 | 背光 | `/sys/class/backlight/ae94000.dsi.0/brightness` | 标准 backlight class | Plasma 用 PowerDevil/KAuth；其它桌面可直接写 sysfs 或使用 brightnessctl | 实机已验证 |
-| DPMS/电源键 | input `KEY_POWER`、backlight `bl_power` | 内核输入和面板状态 | Plasma 由 `samurai-desktop` 的 `samurai-powerkey` 接管 | 快捷键路径已验证，实体键待复测 |
+| DPMS/电源键 | input `KEY_POWER`、DRM/KMS、backlight class | 内核输入和面板状态；SOFEF03F HBM/首帧亮度时序薄层，使用标准 DRM panel、backlight class 和 MIPI DCS | Plasma 由 KWin `DpmsInputEventFilter` + PowerDevil `ToggleScreenOnOff` 处理；不再安装 `samurai-powerkey` | KWin 收到实体键并完成 DPMS wake；10 轮 1024 亮度和真实触摸已通过；实体电源键复测仍待 |
 | USB 网络 | USB configfs、`/sys/class/udc` | `samurai-platform` 的 `samurai-usb`，串号取 `/sys/devices/soc0/serial_number` | 无，发行版 `sshd.pam` 提供 SSH | 实机幂等启动已验证 |
 | Wi-Fi | NetworkManager、cfg80211/mac80211 | `samurai-wifi`/`samurai-udhcpc-wlan` | 无 | 实机已验证 |
 | 蜂窝 | ModemManager、QRTR/QMI | `samurai-radio` 和 `samurai-modem-*`；OpenRC 独占 ModemManager，禁止 D-Bus 抢先激活 | Calls/Chatty 只是客户端 | 单实例枚举已恢复；SIM 缺失，注册/通话/数据未验收 |

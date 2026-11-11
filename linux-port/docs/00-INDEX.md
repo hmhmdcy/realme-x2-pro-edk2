@@ -1,6 +1,6 @@
 # Linux技术文档索引
 
-用途：技术说明和早期会话导航。整理日期：2026-11-09；当前功能与部署见[硬件清单](HARDWARE-STATUS.md)及[检查点](../../NEXT-SESSION.md)，操作规则见[WORKING-BOUNDARIES](../../WORKING-BOUNDARIES.md)。
+用途：技术说明和早期会话导航。整理日期：2026-11-11；当前功能与部署见[硬件清单](HARDWARE-STATUS.md)及[检查点](../../NEXT-SESSION.md)，操作规则见[WORKING-BOUNDARIES](../../WORKING-BOUNDARIES.md)。
 
 ## 技术说明
 
@@ -22,9 +22,11 @@
 | [L4-UAPI-INVENTORY.md](L4-UAPI-INVENTORY.md) | 内核 UAPI、L5/L6 配置债、消费者和双栈迁移顺序 |
 | [samurai-dt-v1-contract.md](../dts/samurai-dt-v1-contract.md) | DTB 稳定/动态/vendor 字段、差异账本、兼容规则、源锁和验收矩阵 |
 | [HARDWARE-STATUS.md](HARDWARE-STATUS.md) | 各功能的已证明能力、缺陷和待验收范围 |
+| [FIX-VALIDITY-20261111.md](FIX-VALIDITY-20261111.md) | 已验证修复、离线候选和无效/被取代尝试的有效性台账 |
 | [PLASMA-MOBILE.md](PLASMA-MOBILE.md) | Plasma Mobile 会话、D-Bus 门户、显示亮度、ModemManager、传感器与振动接口 |
 | [DESKTOP-PORTABILITY.md](DESKTOP-PORTABILITY.md) | 板级公共接口与桌面适配层边界、换桌面检查清单 |
 | [USB-NCM-SSH.md](USB-NCM-SSH.md) | USB网络、SSH/SCP与EUD共存路径 |
+| [USB-HOST-RESUME-20261110.md](USB-HOST-RESUME-20261110.md) | U3-only keep-connect、USBwake 调试锁、最终刷入与真机验收证据 |
 | [NFC-NEARD.md](NFC-NEARD.md) | 主线 nxp-nci-i2c、Alpine neard/OpenRC 边界和真实标签验收条件 |
 | [BLUETOOTH-HOST-MODULES.md](BLUETOOTH-HOST-MODULES.md) | 主线 BNEP/UHID/uinput 模块包、官方 BlueZ 加载边界、离线签名/隔离安装和设备验收条件 |
 | [STARTUP-LATENCY-AUDIT.md](STARTUP-LATENCY-AUDIT.md) | 普通重启到 Wi‑Fi/NCM 首次 SSH 的时延、固定等待审计和剩余慢路径 |

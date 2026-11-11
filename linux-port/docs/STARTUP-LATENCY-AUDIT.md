@@ -82,7 +82,7 @@ That comparison exposed two remaining board-level constraints:
    The `samurai-desktop` 4-r9 candidate removes that ordering; Plasma starts
    while optional radio services enumerate.
 2. The board config loaded `samurai-usb-sleep-guard` whenever `usb0` carrier
-   was up. 5-r20 made it opt-in; 5-r23 removes it from the production
+   was up. 5-r20 made it opt-in; 5-r24 removes it from the production
    package entirely. The only installed policy is the standard
    `ssh-session-open`/`apk-running` pair; carrier-only keep-awake lives in
    `linux-port/debug/sleep-policy/`.
@@ -187,7 +187,7 @@ flash, ordinary reboot and external-power-removed cold boot before
   collector must prove Wi-Fi association, DHCP and SSH still converge.
   An isolated bubblewrap test using r17-like `conf.d` fixtures confirmed that
   the install hook leaves NetworkManager/sshd with `rc_need="dbus"` only,
-   removes ModemManager's hard radio dependency. 5-r23 also removes the
+   removes ModemManager's hard radio dependency. 5-r24 also removes the
    remaining local wpa_supplicant/ModemManager ordering so the package
    restores the official base-ui files; verify that candidate before
    deployment.

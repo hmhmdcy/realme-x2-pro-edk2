@@ -54,7 +54,8 @@ KWin 单独 DPMS 关闭。手动 `loginctl suspend` 或直接写 RTC 不属于
 - `samurai-radio`、`samurai-usb`、`samurai-ssc` 等硬件启动服务；
 - NetworkManager 的板级 `wlan0`/`usb0` 接口策略和 DHCP 地址；
 - USB gadget 的标准 configfs 身份、UDC 选择和 `qmult=20`；
-- `samurai-powerkey` 对 `pm8941_pwrkey` 的板级桥接；
+- SOFEF03F 面板的 HBM/首帧亮度时序驱动薄层（标准 DRM panel、backlight
+  class 和 MIPI DCS，不新增私有 UAPI）；
 - `samurai-tinydm-stop` 的旧 KWin cgroup 清理钩子（不改变 tinydm
   的启动依赖或系统电源策略）；
 - ModemManager 的 D-Bus 单所有者覆盖（防止 OpenRC 实例和 D-Bus
@@ -72,6 +73,8 @@ KWin 单独 DPMS 关闭。手动 `loginctl suspend` 或直接写 RTC 不属于
 | --- | --- | --- |
 | NCM 长测的 7200 秒 `elogind-inhibit --what=sleep --mode=block` | `linux-port/scripts/test-usb-ncm-stability.py` | 只在测试进程存活期间持有，结束释放 |
 | USB carrier-only keep-awake | `linux-port/debug/sleep-policy/` | 手动运行；不安装 OpenRC 服务 |
+| USBwake 插电/NCM keep-awake | `linux-port/debug/sleep-policy/usbwake-guard` | 手动运行；等价 PinePhone 的插电不休眠，正式系统不安装 |
+| `usbwake-debug` OpenRC 服务 | `linux-port/debug/sleep-policy/install-usbwake-debug.sh` | 仅调试；正式系统不安装、不加入 runlevel |
 | `rtcwake -m mem -s N` suspend 验收 | `linux-port/scripts/test-suspend-rtcwake.sh` | 需显式 `SAMURAI_ALLOW_SUSPEND=1`，且有人工唤醒条件 |
 | 直接写 RTC sysfs / `loginctl suspend` | 历史证据 | 禁止再用于无人值守测试 |
 | 详细 dmesg/trace/网络抓包 | 测试目录 | 测试结束清理 |

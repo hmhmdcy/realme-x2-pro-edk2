@@ -21,10 +21,10 @@
 | --- | --- | --- | --- | --- |
 | CPU/GPU | DRM MSM、Adreno A6xx、Mesa 用户态；270 审计记录 GPU/相机故障边界 | DRM/KMS、drm fd、标准 GPU ioctl | SoC OPP/电源、GPU carveout | 只记录当前模块/固件版本；不先改 GPU 频率或电源 |
 | 启动/UEFI | EDK2 BDS、Linux EFI stub、标准 `\EFI\BOOT\BOOTAA64.EFI`/GRUB 候选 | UEFI LoadImage/StartImage、EFI stub、标准 EFI removable-media path | BootShim、BDS 直启回退、DTB FFS、面板 handoff/EUD 关闭 | 候选已离线构建但未刷入；持久 UEFI 变量仍未实现 |
-| 显示/DSI | MDSS/DSI、`samsung,sofef03f-m` 面板、背光 class；60/90 Hz 补丁 0016/0017 | DRM/KMS mode、backlight class | 面板时序、DSI lane、背光 GPIO/rail | 保持 60/90 模式不变，把面板/背光板级数据列成 DTS→驱动的资源表 |
+| 显示/DSI | MDSS/DSI、`samsung,sofef03f-m` 面板、背光 class；60/90 Hz 补丁 0016/0017；HBM/首帧亮度收敛补丁 0010 | DRM/KMS mode、backlight class、MIPI DCS | 面板时序、DSI lane、背光 GPIO/rail、HBM 边界和首帧亮度时序 | 保持 60/90 模式不变；面板驱动用标准 MIPI DCS 0x51/0x53 处理 HBM，并串行化 first-frame post-on 与亮度更新，不改 KWin/DPMS API |
 | UFS/存储 | UFS LUN、GPT、4 KiB 逻辑扇区；UFS 电源继承/板级覆盖 | block、UFS/SCSI、GPT | UFS rail、PCIe/PHY 资源、LUN 使用 | 只读记录 LUN/GPT/容量/模块；不先改 UFS 电源或分区 |
 | 输入/按键 | `syna,rmi4-i2c` 触摸、PM8150 GPIO 按键、evdev | input evdev、`KEY_*` | 触摸 reset/IRQ/VIO、按键 GPIO/pinctrl | 记录设备名、event 节点和唤醒属性；不改键值 |
-| USB gadget | DWC3/UDC、configfs、CDC NCM；主线 `tx-fifo-resize` + `qmult=20`；`samurai-usb`；官方 `sleep-inhibitor` | USB gadget/configfs、net device、UDC class、DWC3 device property | UDC 名、USB PHY、串号来源 | `samurai-platform` 5-r21 已安装；5-r23 候选删除调试用 sleep guard。主板直连口上双向 24/24、1798.828 秒 NCM 心跳、1810 样本 Wi‑Fi 心跳和完整 runtime 通过；旧 Genesys Hub、Linux 主机、OTG、多次冷启动和长期空闲仍待 |
+| USB gadget/Type-C/唤醒 | DWC3/UDC、configfs、CDC NCM；主线 `tx-fifo-resize` + `qmult=20`；PM8150B Type-C/TCPM sink 候选；PM8150 GPIO10 `extcon-usb-gpio` VBUS 唤醒候选 | USB gadget/configfs、net device、UDC class、DWC3 device property、Type-C class/TCPM、extcon 和 PMIC/PDC IRQ | UDC 名、USB PHY、串号来源、GPIO10 板级接线；stock 无 FSA4480 证据 | `samurai-platform` 5-r21 网络基线通过。离线构建 sink `b18da562…`、wake `53217926…`；wake 使用 `extcon-usb-gpio` 和 udev `power/wakeup` 策略，SPMI periph IRQ 经 PDC pin 1。extcon binding 不接受 `wakeup-source`，该属性已删除而不是作为唤醒机制。仅覆盖插拔线唤醒；DWC3 peripheral soft-disconnect 和同线 host resume 未实现。dual `ef8e40ba…` 需另建 `DWC3_DUAL_ROLE+xHCI` Image。真机 suspend、host/VBUS、USB3/DP、冷启动仍待 |
 | Wi-Fi | WCN3990/cfg80211、NetworkManager；板级 Wi-Fi helper/firmware 服务 | cfg80211、rfkill、net device | 固件路径、NV/MAC、供电/时钟 | 区分通用无线栈和板级 helper；不先重排 firmware load 顺序。r21 boot 1810 样本心跳通过；固件仍报 invalid permanent MAC，板级 helper 在关联前应用同机 DMS 地址 `PRIVATE_WIFI_MAC`，未写永久 MAC |
 | 蓝牙 | WCN3990 BT UART、BlueZ、HCI；主线 `BNEP/UHID/uinput` 模块候选 | BlueZ/HCI、rfkill、UART、BNEP socket、UHID/uinput 字符设备 | UART pins、firmware、MAC | `samurai-bluetooth-host 0.1.0-r0` 两构逐字节一致、两轮隔离安装和符号/ABI 检查通过；设备安装、autoload、PAN/HID 对端、重启和冷启动仍待 |
 | 音频 | ASoC machine driver `realme,samurai-audio`、Q6AFE/Q6ASM/Q6ADM、MAX98937、ALSA UCM | ALSA PCM/control、UCM、jack | machine driver、speaker amp、mic/headset GPIO | 保留 machine driver；把 UCM/路由和桌面策略分开 |
@@ -105,7 +105,7 @@ GRUB `97ef936d…`。GRUB 以 `search_fs_file` 按 `/Image` 发现卷，不依�
 | 新增文件 | 现阶段原因 | 归类 |
 | --- | --- | --- |
 | `drivers/power/supply/mp2650_charger.c` | 主线没有可直接匹配的 MP2650 充电器驱动；当前使用标准 `power_supply` 类 | 薄电源驱动，后续可尝试上游化 |
-| `drivers/gpu/drm/panel/panel-samsung-sofef03f.c` | 本机面板时序/初始化；使用标准 DRM panel 模型 | 板级面板描述 |
+| `drivers/gpu/drm/panel/panel-samsung-sofef03f.c` | 本机面板时序/初始化；使用标准 DRM panel 模型；1023/1024 HBM 边界用标准 MIPI DCS 0x53 处理，first-frame 后重发标准 backlight 亮度 | 板级面板描述/时序 quirk |
 | `drivers/input/misc/aw8697-samurai.c` | AW8697 触觉控制器；使用 input/ff 和 feedbackd UAPI | 薄板级输入驱动 |
 | `sound/soc/codecs/max98937-samurai.c` | MAX98937 编解码器/功放；使用 ASoC/ALSA | 薄板级 codec |
 | `sound/soc/qcom/samurai-audio.c` | machine driver、DAI link 和板级路由；使用 ASoC machine API | 板级 ASoC glue |
