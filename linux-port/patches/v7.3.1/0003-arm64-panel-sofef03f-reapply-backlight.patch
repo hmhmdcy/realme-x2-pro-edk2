@@ -1,0 +1,98 @@
+From: Codex <codex@openai.com>
+Date: Mon, 9 Nov 2026 16:00:00 +0800
+Subject: [PATCH] drm/panel: sofef03f: reapply backlight after first frame
+
+The SOFEF03F panel accepts the first DCS brightness write after display-on
+but does not apply it reliably.  KWin's DPMS wake path can therefore report
+drm_panel_backlight phase=1 with a valid brightness while the physical
+panel stays black.  A later write through the standard backlight class does
+work.
+
+Schedule two bounded standard backlight updates after panel enable: one
+after the first-frame gate has opened, and one later as a retry.  This
+keeps the workaround inside the panel driver and leaves the DRM/KWin DPMS
+API unchanged.
+
+Signed-off-by: Codex <codex@openai.com>
+---
+diff --git a/drivers/gpu/drm/panel/panel-samsung-sofef03f.c b/drivers/gpu/drm/panel/panel-samsung-sofef03f.c
+--- a/drivers/gpu/drm/panel/panel-samsung-sofef03f.c
++++ b/drivers/gpu/drm/panel/panel-samsung-sofef03f.c
+@@ -11,5 +11,6 @@
+ #include <linux/module.h>
+ #include <linux/regulator/consumer.h>
++#include <linux/workqueue.h>
+ 
+ #include <drm/display/drm_dsc.h>
+ #include <drm/display/drm_dsc_helper.h>
+@@ -41,6 +42,8 @@ struct sofef03f {
+ 	bool supply_enabled[2];
+ 	bool prefer_90;
+ 	bool active_90;
++	struct delayed_work backlight_work;
++	unsigned int backlight_retries;
+ };
+ 
+ static const struct regulator_bulk_data sofef03f_supplies[] = {
+@@ -62,6 +65,28 @@ MODULE_PARM_DESC(refresh, "Preferred panel refresh rate (60 or 90)");
+ 
+ static bool sofef03f_active_90hz(struct sofef03f *ctx);
+ 
++static void sofef03f_backlight_work(struct work_struct *work)
++{
++	struct sofef03f *ctx = container_of(work, struct sofef03f,
++					    backlight_work.work);
++	struct backlight_device *bl = ctx->panel.backlight;
++
++	if (!ctx->panel.prepared)
++		return;
++
++	if (!READ_ONCE(ctx->panel.backlight_ready)) {
++		if (ctx->backlight_retries++ < 5)
++			schedule_delayed_work(&ctx->backlight_work,
++					      msecs_to_jiffies(100));
++		return;
++	}
++
++	backlight_update_status(bl);
++	if (ctx->backlight_retries++ < 1)
++		schedule_delayed_work(&ctx->backlight_work,
++				      msecs_to_jiffies(400));
++}
++
+ static int sofef03f_on(struct sofef03f *ctx)
+ {
+ 	struct mipi_dsi_multi_context dsi_ctx = { .dsi = ctx->dsi };
+@@ -249,4 +274,7 @@ static int sofef03f_enable(struct drm_panel *panel)
+ 	dev_info(&ctx->dsi->dev, "DSC 1080x2400@%d, power mode 0x%02x (stock 0x9c)\n",
+ 		 ctx->active_90 ? 90 : 60, power_mode);
++	ctx->backlight_retries = 0;
++	schedule_delayed_work(&ctx->backlight_work,
++			      msecs_to_jiffies(100));
+ 	return 0;
+ }
+@@ -256,6 +284,8 @@ static int sofef03f_disable(struct drm_panel *panel)
+ 	struct sofef03f *ctx = to_sofef03f(panel);
+ 	struct mipi_dsi_multi_context dsi_ctx = { .dsi = ctx->dsi };
+ 
++	cancel_delayed_work_sync(&ctx->backlight_work);
++	ctx->backlight_retries = 0;
+ 	mipi_dsi_dcs_set_display_off_multi(&dsi_ctx);
+ 	/* Shutdown must progress to unprepare, including after a DCS timeout. */
+ 	msleep(22);
+@@ -408,6 +438,7 @@ static int sofef03f_probe(struct mipi_dsi_device *dsi)
+ 	if (IS_ERR(ctx))
+ 		return PTR_ERR(ctx);
+ 	ctx->dsi = dsi;
++	INIT_DELAYED_WORK(&ctx->backlight_work, sofef03f_backlight_work);
+ 	ctx->prefer_90 = sofef03f_refresh == 90;
+ 	ctx->active_90 = ctx->prefer_90;
+ 	ret = devm_regulator_bulk_get_const(dev, ARRAY_SIZE(sofef03f_supplies),
+@@ -458,6 +489,7 @@ static void sofef03f_remove(struct mipi_dsi_device *dsi)
+ {
+ 	struct sofef03f *ctx = mipi_dsi_get_drvdata(dsi);
+ 
++	cancel_delayed_work_sync(&ctx->backlight_work);
+ 	mipi_dsi_detach(dsi);
+ 	drm_panel_remove(&ctx->panel);
+ }
