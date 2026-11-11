@@ -1,0 +1,174 @@
+From: Codex
+Subject: [PATCH] camerabin: scale viewfinder before conversion
+
+The stock viewfinderbin chain is videoconvert ! videoscale, which converts
+a 1920x1080 YUV frame to RGB before scaling it down.  On the Realme X2 Pro
+that keeps the CPU busy enough to cancel USB charging during camera preview.
+
+Scale in the NV12 domain first, convert to BGRx second, and cap the output
+at 854x480.  The size matches the on-screen preview area and preserves
+30 fps while leaving headroom under the 900 mA SDP input budget.
+
+The size, format and scaler can be overridden with:
+  SAMURAI_VIEWFINDER_WIDTH
+  SAMURAI_VIEWFINDER_HEIGHT
+  SAMURAI_VIEWFINDER_FORMAT
+  SAMURAI_VIEWFINDER_SCALE_METHOD
+---
+diff --git a/gst/camerabin2/gstviewfinderbin.c b/gst/camerabin2/gstviewfinderbin.c
+--- a/gst/camerabin2/gstviewfinderbin.c
++++ b/gst/camerabin2/gstviewfinderbin.c
+@@ -52,6 +52,34 @@
+ 
+ #define DEFAULT_DISABLE_CONVERTERS FALSE
+ 
++static void
++get_preview_size (gint * width, gint * height)
++{
++  const gchar *width_env = g_getenv ("SAMURAI_VIEWFINDER_WIDTH");
++  const gchar *height_env = g_getenv ("SAMURAI_VIEWFINDER_HEIGHT");
++  gint w = (width_env && *width_env) ? atoi (width_env) : 854;
++  gint h = (height_env && *height_env) ? atoi (height_env) : 480;
++
++  *width = (w > 0) ? w : 854;
++  *height = (h > 0) ? h : 480;
++}
++
++static const gchar *
++get_preview_format (void)
++{
++  const gchar *format = g_getenv ("SAMURAI_VIEWFINDER_FORMAT");
++
++  return (format && *format) ? format : "BGRx";
++}
++
++static gint
++get_preview_scale_method (void)
++{
++  const gchar *method = g_getenv ("SAMURAI_VIEWFINDER_SCALE_METHOD");
++
++  return (method && *method) ? atoi (method) : 0;
++}
++
+ /* pad templates */
+ 
+ static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE ("sink",
+@@ -152,8 +180,11 @@
+ {
+   GstElement *csp = NULL;
+   GstElement *videoscale = NULL;
++  GstElement *capsfilter = NULL;
+   GstPad *firstpad = NULL;
+   const gchar *missing_element_name;
++  GstCaps *caps;
++  gint width, height;
+   gboolean newsink = FALSE;
+   gboolean updated_converters = FALSE;
+ 
+@@ -191,18 +222,29 @@
+     gst_ghost_pad_set_target (GST_GHOST_PAD (vfbin->ghostpad), NULL);
+     csp = gst_bin_get_by_name (GST_BIN_CAST (vfbin), "vfbin-csp");
+     videoscale = gst_bin_get_by_name (GST_BIN_CAST (vfbin), "vfbin-videoscale");
++    capsfilter = gst_bin_get_by_name (GST_BIN_CAST (vfbin),
++        "vfbin-capsfilter");
+ 
+     gst_bin_remove (GST_BIN_CAST (vfbin), csp);
+     gst_bin_remove (GST_BIN_CAST (vfbin), videoscale);
++    gst_bin_remove (GST_BIN_CAST (vfbin), capsfilter);
+ 
+     gst_object_unref (csp);
+     gst_object_unref (videoscale);
++    gst_object_unref (capsfilter);
+ 
+     updated_converters = TRUE;
+   } else if (!vfbin->elements_created && !vfbin->disable_converters) {
+     gst_ghost_pad_set_target (GST_GHOST_PAD (vfbin->ghostpad), NULL);
+ 
+     /* add the elements, user wants them */
++    videoscale = gst_element_factory_make ("videoscale", "vfbin-videoscale");
++    if (!videoscale) {
++      missing_element_name = "videoscale";
++      goto missing_element;
++    }
++    gst_bin_add (GST_BIN_CAST (vfbin), videoscale);
++
+     csp = gst_element_factory_make ("videoconvert", "vfbin-csp");
+     if (!csp) {
+       missing_element_name = "videoconvert";
+@@ -210,14 +252,31 @@
+     }
+     gst_bin_add (GST_BIN_CAST (vfbin), csp);
+ 
+-    videoscale = gst_element_factory_make ("videoscale", "vfbin-videoscale");
+-    if (!videoscale) {
+-      missing_element_name = "videoscale";
++    capsfilter = gst_element_factory_make ("capsfilter", "vfbin-capsfilter");
++    if (!capsfilter) {
++      missing_element_name = "capsfilter";
+       goto missing_element;
+     }
+-    gst_bin_add (GST_BIN_CAST (vfbin), videoscale);
++    gst_bin_add (GST_BIN_CAST (vfbin), capsfilter);
+ 
+-    gst_element_link_pads_full (csp, "src", videoscale, "sink",
++    get_preview_size (&width, &height);
++    caps = gst_caps_new_simple ("video/x-raw",
++        "format", G_TYPE_STRING, get_preview_format (),
++        "width", G_TYPE_INT, width,
++        "height", G_TYPE_INT, height, NULL);
++    g_object_set (capsfilter, "caps", caps, NULL);
++    gst_caps_unref (caps);
++
++    g_object_set (videoscale,
++        "method", get_preview_scale_method (),
++        "chroma-resampler", 0, "dither", 0, NULL);
++    g_object_set (csp, "dither", 0, NULL);
++    GST_INFO_OBJECT (vfbin, "viewfinder output %dx%d %s, scale method %d",
++        width, height, get_preview_format (), get_preview_scale_method ());
++
++    gst_element_link_pads_full (videoscale, "src", csp, "sink",
++        GST_PAD_LINK_CHECK_NOTHING);
++    gst_element_link_pads_full (csp, "src", capsfilter, "sink",
+         GST_PAD_LINK_CHECK_NOTHING);
+ 
+     vfbin->elements_created = TRUE;
+@@ -230,21 +289,21 @@
+   /* if sink was replaced -> link it to the internal converters */
+   if (newsink && !vfbin->disable_converters) {
+     gboolean unref = FALSE;
+-    if (!videoscale) {
+-      videoscale = gst_bin_get_by_name (GST_BIN_CAST (vfbin),
+-          "vfbin-videoscale");
++    if (!capsfilter) {
++      capsfilter = gst_bin_get_by_name (GST_BIN_CAST (vfbin),
++          "vfbin-capsfilter");
+       unref = TRUE;
+     }
+ 
+-    if (!gst_element_link_pads_full (videoscale, "src", vfbin->video_sink,
++    if (!gst_element_link_pads_full (capsfilter, "src", vfbin->video_sink,
+             "sink", GST_PAD_LINK_CHECK_CAPS)) {
+       GST_ELEMENT_ERROR (vfbin, CORE, NEGOTIATION, (NULL),
+-          ("linking videoscale and viewfindersink failed"));
++          ("linking viewfinder capsfilter and viewfindersink failed"));
+     }
+ 
+     if (unref)
+-      gst_object_unref (videoscale);
+-    videoscale = NULL;
++      gst_object_unref (capsfilter);
++    capsfilter = NULL;
+   }
+ 
+   /* Check if we need a new ghostpad target */
+@@ -252,8 +311,8 @@
+     if (vfbin->disable_converters) {
+       firstpad = gst_element_get_static_pad (vfbin->video_sink, "sink");
+     } else {
+-      /* csp should always exist at this point */
+-      firstpad = gst_element_get_static_pad (csp, "sink");
++      /* videoscale should always exist at this point */
++      firstpad = gst_element_get_static_pad (videoscale, "sink");
+     }
+   }
+ 

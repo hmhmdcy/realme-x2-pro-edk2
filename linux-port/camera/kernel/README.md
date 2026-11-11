@@ -66,6 +66,96 @@
 
 271（2026-10-18）：当前S5K3M5原生32…512增益码与libcamera r20/config-r15已配套部署；前摄/两后摄原生回归通过，长焦持续预览已有明亮实景，首次AE慢、画质/AF/主摄/Spectra仍待完成。当前身份与源码见[271](../../../reference/kernel271/README.md)。下文旧阶段按历史解释。
 
+## S5KGW1 9280x6944 高像素模式
+
+2026-11-04 完成原厂 64MP mode 0 的实机接入，并解决它与普通
+libcamera 预览的共存问题：
+
+- [`0009-s5kgw1-9280x6944-highres.patch`](0009-s5kgw1-9280x6944-highres.patch)
+  加入原厂 sensormodule mode 0 的 1088 条写入、`9280x6944`
+  `1x1` Bayer 模式和独立的 `768 MHz` link-frequency 菜单项；
+- [`0011-s5kgw1-hide-mode0-from-libcamera.patch`](0011-s5kgw1-hide-mode0-from-libcamera.patch)
+  把 mode 0 从 `enum_frame_size` 中隐藏：libcamera 仍只看到
+  `4608x3456`/`4608x2592`，不会把 `9280x6944` 当成默认最大分辨率；
+  显式 `media-ctl`/`v4l2-ctl` 请求 `9280x6944` 时仍可选择 mode 0；
+- [`0010-camss-full-width-rdi.patch`](0010-camss-full-width-rdi.patch)
+  将 CSIPHY／CSID／ISPIF／VFE／video 的公共宽度上限从 `8191`
+  提升到 `16383`，RAW RDI 可协商 `9280` 宽。该源码补丁保留用于
+  可重放构建；当前设备上的原厂 CAMSS 模块包含源码树中不存在的
+  `sm8150-camss-icp` 路径，不能直接替换成 rebuilt 模块。
+
+当前稳定组合保留原厂 CAMSS 二进制，只用
+[`patch-qcom-camss-full-width.py`](patch-qcom-camss-full-width.py)
+把它内部的 5 处 `mov wN, #8191` 改成 `mov wN, #16383`。脚本会校验
+原厂模块 SHA256 `b7edf58e…37f20`，生成模块 SHA256
+`a976230f…8e47`；高像素 sensor 模块为 `06f81218…4fce9`。
+
+实机验证使用 `v4l2-ctl` 直接配置 sensor → CSIPHY0 → CSID0 →
+VFE0 RDI0，`VIDIOC_DQBUF` 返回完整 `80,550,400` 字节。sensor 内置
+彩条验证了 mode0 RAW 的结构和去马赛克顺序；高像素模式只有约
+10 fps，只用于静态拍摄，不进入 1440x1080 预览链路。
+
+```sh
+SAMURAI_HIGHRES=1 /usr/local/bin/samurai-oem-capture
+```
+
+模块基线为 `7.3.0-rc6-rmx1931-samurai-k363+`。高像素采集目前是独立
+V4L2 路径。已验证普通 `1440x1080 + 4608x3456` 双流、高像素采集、再次
+普通双流、再次高像素采集均可重复；Snapshot 预览仍为 `1440x1080@30`。
+默认 Snapshot 快门经 `samucaptureinject.so` 走 `4608x3456` 双流；
+先写入 Snapshot 的 Camera 相册文件，再覆盖为 OEM JPEG。设置
+`SAMURAI_HIGHRES_ON_SHUTTER=1` 后快门走 `9280x6944`，拍完自动重启
+Snapshot 以恢复取景。
+
+## S5KGW1 720p 取景模式
+
+`0007-s5kgw1-720p-preview-mode.patch` 在现有 0006 测试图案补丁之上，
+加入原厂 sensormodule 的 mode 8：
+
+```
+1280x720, line_length=4624, frame_length=6912 (60.06fps)
+crop={2080,2016,5120,2912}
+```
+
+模式表来自同一份原厂 BIN/XML，sunny 与 qtech 两份描述逐项相等。
+原厂 mode 8 的最小 VTS 是 864 行（按 1.92Gpix/s 约 480fps），
+因此 6912 行是合法的 60fps 档；需要 30fps 时由用户态把 VBLANK
+设回 13840-720=13120 行即可，驱动上限为 0xffff 行。
+`v4l2_find_nearest_size()` 按宽高距离选择，因此 1920x1080 仍会落到
+4608x2592/4608x3456，而不是 1280x720。只有显式请求 1280x720 时才会
+选择 mode 8；它现在是可选高刷档，由 `SAMURAI_PREFER_SOURCE=1280x720@60`
+启用。默认取景走 4608x3456 sensor mode，VFE 缩放到 1440x1080@30，
+对应原厂取景参数；静态照片也沿用该源。
+
+实机验证：显式请求 1280x720 时 sensor 为
+`SGBRG10_1X10/1280x720`，`cam` 与 PipeWire 均稳定 60fps。该模式本身
+没有显著降低 sensor 模拟功耗；USB 净充电主要由 SDP 900mA 输入策略
+保证。
+
+## S5KGW1 4608x2592@60（原厂 mode 3）
+
+`0008-s5kgw1-4608x2592-60fps.patch` 在 0007 基础上把 16:9 的
+4608x2592 模式从原厂 mode 4（30fps）换成 mode 3（60fps）：
+
+```
+4608x2592, line_length=11824, frame_length=2704 (60.06fps)
+crop={32, 864, 9216, 5184}
+```
+
+mode 3 与 mode 2/4 的 PLL/lane 寄存器完全相同，现有 499.2MHz
+link 端点可直接使用。实机 sensor SOF 确实为 60fps，但 4608x2592 的
+全帧吞吐下 A5 IPE 只能交付约 4fps，随后出现 `IMAGE_PAIR_TIMEOUT`，
+因此 1080p60 不能作为当前默认取景路径。
+
+代价：最大曝光从 3584 行降到 2704 行（约 16.6ms），低光拍照
+会受限。因此它当前是“60fps 取景验证”候选，不是最终默认；
+若要通过，应由 libcamera 按 stream 角色在 mode 3/4 之间选择。
+
+离线模块：`.codex-tmp/s5kgw1-1080p60-d9c4e578.ko`
+（vermagic `…-k363+`，SHA256 `d9c4e578…0a13d`），仅保留为实验记录。
+当前设备仍加载含 720p60 模式的 `s5kgw1-720p60-c6189a49.ko`，
+但默认 caps 是 1440x1080@30；720p60 只在显式设置环境变量时启用。
+
 # IMX471内核补丁链
 
 2026-10-18最新：[269](../../../reference/kernel269/README.md)维护分支已删除五个禁用OF实验helper，固件IOVA限制移到RMX1931板级树，公共CAMSS使用标准DMA mask/SG检查。新Image、DTB及全部773模块已从同一清洁提交完整构建成功，五相机目标W=1诊断0，全树1140条待分类；937节点设备树语义保持。候选尚未部署／发布，完整rootfs尚未重建；手机仍267固件/Image183及267模块。以下219/223与267/268构建状态是历史记录，不能替代当前部署身份。

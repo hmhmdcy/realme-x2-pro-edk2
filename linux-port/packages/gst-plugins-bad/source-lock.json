@@ -1,0 +1,21 @@
+{
+  "package": "gst-plugins-bad",
+  "version": "1.28.7-r1",
+  "upstream_recipe": {
+    "url": "https://gitlab.alpinelinux.org/alpine/aports/-/raw/master/community/gst-plugins-bad/APKBUILD",
+    "sha256": "6fe0391b199afc29ddce93ca93d0c90c9864ee696a798ca8b310bee0f0ba3960"
+  },
+  "source_tar": {
+    "url": "https://gstreamer.freedesktop.org/src/gst-plugins-bad/gst-plugins-bad-1.28.7.tar.xz",
+    "sha256": "dc525383c18b2c265bbe6a43d498656cd918aaa130aa4e3abeabcdaa741c3ffe"
+  },
+  "patch": {
+    "file": "0001-camerabin-scale-before-convert.patch",
+    "target": "gst/camerabin2/gstviewfinderbin.c",
+    "sha512": "46ebff3d25f9336edea35841a197483bbfc13681f2ac8e21c8b4666e29c39b4830cc580692ef65f04f72b8925a165d52c237a18c938ed18a661ea709cb8fa321"
+  },
+  "device_artifact": {
+    "file": "libgstcamerabin.so",
+    "sha256": "be94e9dda771c0d0c7de12873ce3877a8af45b33ef0cb2c3fe956b7328d81e12"
+  }
+}

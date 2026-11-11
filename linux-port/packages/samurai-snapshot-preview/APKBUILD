@@ -1,0 +1,45 @@
+maintainer="hmhmdcy <hmhmdcy@users.noreply.github.com>"
+pkgname=samurai-snapshot-preview
+pkgver=0.1.0
+pkgrel=3
+pkgdesc="Realme X2 Pro camera labels and Snapshot preview caps preference"
+url="https://github.com/hmhmdcy/edk2-realme-x2-pro"
+arch="aarch64"
+license="LicenseRef-Local-Project"
+depends="glib gst-plugins-base gstreamer wireplumber"
+makedepends="gcc musl-dev pkgconf gstreamer-dev"
+install="$pkgname.post-install"
+options="!check"
+source="samsinkinject.c
+	samucapsinject.c
+	60-samurai-camera-names.conf
+	99-samurai-snapshot-camera.gschema.override"
+
+builddir="$srcdir"
+
+build() {
+	gcc -shared -fPIC -O2 -Wall -Wextra \
+		-o samsinkinject.so samsinkinject.c \
+		$(pkg-config --cflags --libs gstreamer-1.0 gobject-2.0)
+	gcc -shared -fPIC -O2 -Wall -Wextra \
+		-o samucapsinject.so samucapsinject.c \
+		$(pkg-config --cflags --libs gstreamer-1.0 gobject-2.0)
+}
+
+package() {
+	install -Dm755 "$builddir"/samsinkinject.so \
+		"$pkgdir"/usr/lib/samsinkinject.so
+	install -Dm755 "$builddir"/samucapsinject.so \
+		"$pkgdir"/usr/lib/samucapsinject.so
+	install -Dm644 "$srcdir"/60-samurai-camera-names.conf \
+		"$pkgdir"/etc/wireplumber/wireplumber.conf.d/60-samurai-camera-names.conf
+	install -Dm644 "$srcdir"/99-samurai-snapshot-camera.gschema.override \
+		"$pkgdir"/usr/share/glib-2.0/schemas/99_samurai-snapshot-camera.gschema.override
+}
+
+sha512sums="
+1a7e495c8e8f4f66aa43e50a46d3322c952a2a534597551ca1042f6ebbdd35396971f9e526e92af5f9bc7de374c1c3a8e5b6503acafd69b562233543f0db0b80  samsinkinject.c
+d1ba633928499748bcfa1d7c1130587d08b757eb7b2fb00a2f40543c7de3104d5f93507e33c384349190bf541c6e26dd0292e0a09c51ba297abc507c47131d07  samucapsinject.c
+8aa97b74457e5d97a894ccb146c7b1d8b67713d9e0d25cea1a69ccd84e6ce70b80d1f02522e9dfdad75b7096e759049b338fd5ff78203f0cf84ab1324e882e36  60-samurai-camera-names.conf
+b81bbd06989496ec831a9bf62aa12219c350d6ce931313d2e0b399d34d37956ecaf7d596832e6e0de9ea0cd892083d417abf3de2eb9f78c0205bbc2d68f31398  99-samurai-snapshot-camera.gschema.override
+"

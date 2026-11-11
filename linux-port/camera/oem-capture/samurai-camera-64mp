@@ -1,0 +1,9 @@
+#!/bin/sh
+set -eu
+
+export SAMURAI_HIGHRES_ON_SHUTTER=1
+
+pkill -x snapshot 2>/dev/null || true
+sleep 2
+
+exec gio launch /home/cy122/.local/share/applications/org.gnome.Snapshot.desktop

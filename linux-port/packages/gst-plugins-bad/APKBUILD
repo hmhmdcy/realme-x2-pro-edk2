@@ -1,0 +1,132 @@
+maintainer="team/alpine-desktop <achill@achill.org>"
+pkgname=gst-plugins-bad
+pkgver=1.28.7
+pkgrel=1
+# NOTE: Upgrade together with the whole GStreamer suite &
+# only to even-numbered versions (e.g. 1.18.x, 1.20.x)!
+pkgdesc="GStreamer streaming media framework bad plug-ins"
+url="https://gstreamer.freedesktop.org/"
+arch="all"
+license="GPL-2.0-or-later LGPL-2.0-or-later"
+replaces="gst-plugins-bad1"
+options="!check"
+# chromaprint causes a circular dependency:
+# pipewire -> libcamera -> here -> chromaprint -> ffmpeg -> sdl2 -> pipewire
+makedepends="
+	alsa-lib-dev
+	aom-dev
+	bluez-dev
+	bzip2-dev
+	curl-dev
+	directfb-dev
+	faac-dev
+	faad2-dev
+	fdk-aac-dev
+	flite-dev
+	glib-dev
+	glu-dev
+	gobject-introspection-dev
+	gsm-dev
+	gst-plugins-base-dev
+	gstreamer-dev
+	gtk+3.0-dev
+	lcms2-dev
+	libass-dev
+	libdc1394-dev
+	libde265-dev
+	libdvdnav-dev
+	libdvdread-dev
+	libexif-dev
+	libfreeaptx-dev
+	libgudev-dev
+	libmms-dev
+	libmodplug-dev
+	libnice-dev
+	librsvg-dev
+	libsndfile-dev
+	libsrt-dev
+	libsrtp-dev
+	libusrsctp-dev
+	libva-glx-dev
+	libvdpau-dev
+	libwebp-dev
+	libx11-dev
+	libxkbcommon-dev
+	mesa-dev
+	meson
+	neon-dev
+	openal-soft-dev
+	openexr-dev
+	openh264-dev
+	openjpeg-dev
+	openssl-dev>3
+	opus-dev
+	orc-dev
+	pango-dev
+	rtmpdump-dev
+	sbc-dev
+	soundtouch-dev
+	spandsp-dev
+	tiff-dev
+	vo-aacenc-dev
+	vo-amrwbenc-dev
+	vulkan-headers
+	vulkan-loader-dev
+	wayland-dev
+	wayland-protocols
+	x265-dev
+	zbar-dev
+	"
+subpackages="$pkgname-dbg $pkgname-lang $pkgname-dev"
+source="
+	https://gstreamer.freedesktop.org/src/gst-plugins-bad/gst-plugins-bad-$pkgver.tar.xz
+	0001-jifmux-Make-copies-of-parsed-image-buffer-parts.patch
+	test-skip.patch
+	0001-camerabin-scale-before-convert.patch
+	"
+ldpath="/usr/lib/gstreamer-1.0"
+
+case "$CARCH" in
+s390x)
+	;;
+*)
+	makedepends="$makedepends libldac-dev"
+	;;
+esac
+
+case "$CARCH" in
+x86|armhf|armv7)
+	;;
+*)
+	makedepends="$makedepends svt-av1-dev"
+	;;
+esac
+
+build() {
+	CFLAGS="$CFLAGS -O2" \
+	CXXFLAGS="$CXXFLAGS -O2" \
+	CPPFLAGS="$CPPFLAGS -O2" \
+	abuild-meson \
+		-Db_lto=true \
+		-Dpackage-origin="https://alpinelinux.org" \
+		-Dpackage-name="GStreamer bad plug-ins (Alpine Linux)" \
+		-Dintrospection=enabled \
+		-Dgpl=enabled \
+		-Dsctp=enabled \
+		-Dsrt=enabled \
+		-Dva=enabled \
+		-Dtests=disabled \
+		. output
+	meson compile -C output
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C output
+}
+
+sha512sums="
+2ae81e1584fa1e4450a039780c22510c67ab6d88fdbec5dccb5407c1256e59834aad83784dadc994c014ed8334ac40de96b5a239a4521b186d1462338328bc25  gst-plugins-bad-1.28.7.tar.xz
+2b3911604e36a2888ef2666567f3caac02a5d31d346ef4a3d15ce5626dff88db29fdd7004c6c97401925ef5d6ea9aa05d767d34a1ee28186edf0a9347af6a594  0001-jifmux-Make-copies-of-parsed-image-buffer-parts.patch
+5fc29049383f8b2158888fd1b6c1e89f027ca87552b437cd709597718c284d5c2e6c6526432f84eedcb216cfae1657b619d4172cf8fd8bdaa15c90740bae0316  test-skip.patch
+46ebff3d25f9336edea35841a197483bbfc13681f2ac8e21c8b4666e29c39b4830cc580692ef65f04f72b8925a165d52c237a18c938ed18a661ea709cb8fa321  0001-camerabin-scale-before-convert.patch
+"

@@ -1,3 +1,3 @@
 [D-BUS Service]
 Name=org.gnome.Snapshot
-Exec=/usr/bin/env GSK_RENDERER=cairo GDK_DISABLE=gl,vulkan,offload /usr/bin/snapshot --gapplication-service
+Exec=/usr/bin/env LD_PRELOAD=/usr/lib/samucapsinject.so:/usr/local/lib/gstjifpreload.so:/usr/local/lib/samucaptureinject.so SAMURAI_PREFER_SOURCE=1440x1080@30 SAMURAI_CAPTURE_ON_SHUTTER=1 GSK_RENDERER=cairo GDK_DISABLE=gl,vulkan,offload /usr/bin/snapshot --gapplication-service

@@ -1,0 +1,42 @@
+diff --git a/drivers/media/i2c/s5kgw1.c b/drivers/media/i2c/s5kgw1.c
+index d2f736e55..000000000 100644
+--- a/drivers/media/i2c/s5kgw1.c
++++ b/drivers/media/i2c/s5kgw1.c
+@@ -57,6 +57,7 @@ struct s5kgw1_mode {
+ 	u32 line_length;
+ 	u32 frame_length;
+ 	u32 link_freq_index;
++	bool hidden;
+ 	struct v4l2_rect crop;
+ 	const struct s5kgw1_reg *regs;
+ 	unsigned int num_regs;
+@@ -82,4 +83,5 @@ static const struct s5kgw1_mode s5kgw1_modes[] = {
+ 		.width = 9280, .height = 6944,
+ 		.line_length = 20112, .frame_length = 9472,
++		.hidden = true,
+ 		.link_freq_index = 1,
+ 		.crop = { 0, 0, 9280, 6944 },
+@@ -502,10 +502,20 @@ static int s5kgw1_enum_size(struct v4l2_subdev *sd,
+ {
+ 	const struct s5kgw1_mode *mode;
++	unsigned int i, visible = 0;
+ 
+-	if (fse->pad || fse->stream || fse->code != S5KGW1_CODE ||
+-	    fse->index >= ARRAY_SIZE(s5kgw1_modes))
++	if (fse->pad || fse->stream || fse->code != S5KGW1_CODE)
+ 		return -EINVAL;
+-	mode = &s5kgw1_modes[fse->index];
++
++	for (i = 0; i < ARRAY_SIZE(s5kgw1_modes); i++) {
++		mode = &s5kgw1_modes[i];
++		if (mode->hidden)
++			continue;
++		if (fse->index == visible++)
++			break;
++	}
++	if (i == ARRAY_SIZE(s5kgw1_modes))
++		return -EINVAL;
++
+ 	fse->min_width = fse->max_width = mode->width;
+ 	fse->min_height = fse->max_height = mode->height;
+ 	return 0;

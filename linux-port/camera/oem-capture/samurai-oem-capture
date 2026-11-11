@@ -1,0 +1,134 @@
+#!/bin/sh
+set -eu
+
+USER_NAME="${SAMURAI_USER:-cy122}"
+CAMERA="${SAMURAI_CAMERA:-/base/soc@0/cci@ac4a000/i2c-bus@0/camera@10}"
+HIGHRES="${SAMURAI_HIGHRES:-0}"
+OUT_ROOT="${SAMURAI_CAPTURE_DIR:-/home/${USER_NAME}/Pictures/OEM}"
+STAMP="$(date +%Y%m%d-%H%M%S)"
+OUT="${OUT_ROOT}/OEM-${STAMP}"
+FINAL_JPEG="${SAMURAI_FINAL_JPEG:-}"
+
+if [ "${SAMURAI_ALLOW_SNAPSHOT:-0}" != "1" ] &&
+   pgrep -u "${USER_NAME}" -x snapshot >/dev/null 2>&1; then
+	echo "Snapshot is using the camera; close it before capturing." >&2
+	exit 2
+fi
+
+mkdir -p "${OUT}"
+
+wait_video_idle() {
+	VIDEO="$(media-ctl -d /dev/media0 -e msm_vfe0_video0)"
+	tries=0
+	while ! v4l2-ctl -d "${VIDEO}" --get-fmt-video >/dev/null 2>&1; do
+		tries=$((tries + 1))
+		if [ "${tries}" -ge 30 ]; then
+			echo "camera video node is still busy" >&2
+			return 1
+		fi
+		sleep 0.5
+	done
+}
+
+capture_highres() {
+	SENSOR_SD="$(media-ctl -d /dev/media0 -e 's5kgw1 6-0010')"
+	VIDEO="$(media-ctl -d /dev/media0 -e msm_vfe0_video0)"
+
+	wait_video_idle
+	media-ctl -d /dev/media0 -r
+	media-ctl -d /dev/media0 \
+		-l '"s5kgw1 6-0010":0->"msm_csiphy0":0[1]'
+	media-ctl -d /dev/media0 \
+		-l '"msm_csiphy0":1->"msm_csid0":0[1]'
+	media-ctl -d /dev/media0 \
+		-l '"msm_csid0":1->"msm_vfe0_rdi0":0[1]'
+	media-ctl -d /dev/media0 \
+		-V '"s5kgw1 6-0010":0[fmt:SGBRG10_1X10/9280x6944]'
+	media-ctl -d /dev/media0 \
+		-V '"msm_csiphy0":0[fmt:SGBRG10_1X10/9280x6944]' \
+		-V '"msm_csiphy0":1[fmt:SGBRG10_1X10/9280x6944]'
+	media-ctl -d /dev/media0 \
+		-V '"msm_csid0":0[fmt:SGBRG10_1X10/9280x6944]' \
+		-V '"msm_csid0":1[fmt:SGBRG10_1X10/9280x6944]'
+	media-ctl -d /dev/media0 \
+		-V '"msm_vfe0_rdi0":0[fmt:SGBRG10_1X10/9280x6944]'
+
+	v4l2-ctl -d "${VIDEO}" \
+		--set-fmt-video=width=9280,height=6944,pixelformat=pGAA
+	v4l2-ctl -d "${VIDEO}" --get-fmt-video
+
+	if ! timeout 40s v4l2-ctl -d "${VIDEO}" --stream-mmap \
+		--stream-count=1 --stream-to="${OUT}/still-9280x6944.raw"; then
+		media-ctl -d /dev/media0 -r
+		echo "high-resolution capture failed" >&2
+		return 1
+	fi
+	media-ctl -d /dev/media0 -r
+
+	if [ -x /usr/local/bin/samurai-demosaic ]; then
+		if /usr/local/bin/samurai-demosaic \
+			"${OUT}/still-9280x6944.raw" \
+			"${OUT}/still-9280x6944.ppm" 9280 6944; then
+			if command -v magick >/dev/null 2>&1; then
+				magick "${OUT}/still-9280x6944.ppm" -quality 92 \
+					"${OUT}/Photo from ${STAMP}.jpeg"
+			elif command -v convert >/dev/null 2>&1; then
+				convert "${OUT}/still-9280x6944.ppm" -quality 92 \
+					"${OUT}/Photo from ${STAMP}.jpeg"
+			fi
+			rm -f "${OUT}/still-9280x6944.ppm"
+		fi
+	fi
+}
+
+# OEM preview + master-picture parameters, captured as two libcamera streams:
+#   viewfinder 1440x1080 NV12
+#   still      4608x3456 SGBRG10_CSI2P (10-bit MIPI packed)
+if [ "${HIGHRES}" = "1" ]; then
+	capture_highres
+else
+		tries=0
+	while ! cam --camera="${CAMERA}" --capture=1 \
+		-s role=viewfinder,width=1440,height=1080,pixelformat=NV12 \
+		-s role=raw,width=4608,height=3456,pixelformat=SRGGB10_CSI2P \
+		--file="${OUT}/cam-#.bin"; do
+		rm -f "${OUT}"/cam-*.bin
+		tries=$((tries + 1))
+			if [ "${tries}" -ge 20 ]; then
+			echo "camera did not become available" >&2
+			exit 1
+		fi
+		sleep 0.5
+	done
+
+	mv "${OUT}/cam-cam0-stream0-000000.bin" \
+		"${OUT}/preview-1440x1080.nv12" 2>/dev/null || true
+	mv "${OUT}/cam-cam0-stream1-000000.bin" \
+		"${OUT}/still-4608x3456.raw" 2>/dev/null || true
+fi
+
+if [ -x /usr/local/bin/samurai-demosaic ] &&
+   [ -f "${OUT}/still-4608x3456.raw" ]; then
+	if /usr/local/bin/samurai-demosaic \
+		"${OUT}/still-4608x3456.raw" "${OUT}/still-4608x3456.ppm"; then
+		if command -v magick >/dev/null 2>&1; then
+			magick "${OUT}/still-4608x3456.ppm" -quality 92 \
+				"${OUT}/Photo from ${STAMP}.jpeg"
+		elif command -v convert >/dev/null 2>&1; then
+			convert "${OUT}/still-4608x3456.ppm" -quality 92 \
+				"${OUT}/Photo from ${STAMP}.jpeg"
+		fi
+		rm -f "${OUT}/still-4608x3456.ppm"
+	fi
+fi
+
+ls -l "${OUT}"
+if [ -n "${FINAL_JPEG}" ] &&
+   [ -f "${OUT}/Photo from ${STAMP}.jpeg" ]; then
+	cp "${OUT}/Photo from ${STAMP}.jpeg" "${FINAL_JPEG}"
+fi
+if [ "${HIGHRES}" = "1" ]; then
+	echo "RAW: ${OUT}/still-9280x6944.raw"
+else
+	echo "RAW: ${OUT}/still-4608x3456.raw"
+fi

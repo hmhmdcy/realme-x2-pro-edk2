@@ -116,7 +116,7 @@ Comment[zh_CN]=拍摄照片和视频
 Comment[zh_TW]=拍攝照片與錄製影片
 Comment=Take pictures and videos
 Type=Application
-Exec=/usr/bin/env GSK_RENDERER=cairo GDK_DISABLE=gl,vulkan,offload /usr/bin/snapshot
+Exec=/usr/bin/env LD_PRELOAD=/usr/lib/samucapsinject.so:/usr/local/lib/gstjifpreload.so:/usr/local/lib/samucaptureinject.so SAMURAI_PREFER_SOURCE=1440x1080@30 SAMURAI_CAPTURE_ON_SHUTTER=1 GSK_RENDERER=cairo GDK_DISABLE=gl,vulkan,offload /usr/bin/snapshot
 Terminal=false
 Categories=AudioVideo;Video;Recorder;GNOME;GTK;
 # Translators: Search terms to find this application. Do NOT translate or localize the semicolons! The list MUST also end with a semicolon!

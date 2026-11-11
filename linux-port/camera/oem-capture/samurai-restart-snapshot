@@ -1,0 +1,10 @@
+#!/bin/sh
+set -eu
+
+sleep 1
+pkill -x snapshot 2>/dev/null || true
+sleep 1
+
+nohup gio launch \
+	/home/cy122/.local/share/applications/org.gnome.Snapshot.desktop \
+	>/tmp/snapshot-relaunch.log 2>&1 &

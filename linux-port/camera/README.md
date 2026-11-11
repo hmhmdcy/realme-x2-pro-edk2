@@ -8,6 +8,52 @@
 
 遵循[操作规则](../../WORKING-BOUNDARIES.md)和[原厂资料优先工作流](../docs/PORTING-WORKFLOW.md)。复用已提取的四摄配置、EEPROM、模式树、HAL算法和现有构建；缺项才提取原厂固件或定向检索公开仓库。先匹配模组、模式、位深和处理域，再转换接入，实测补齐缺失标定。
 
+> **基线说明（2026-11-11）**：本文件 2026-11-03/04 的帧率、RAW 和
+> 高像素实机结果来自 `7.3.0-rc6-rmx1931-samurai-k363+`。其中
+> `9280x6944`、`4608x2592@60` 等内核补丁是否已进入当前 v7.3.1 生产树，
+> 必须查 `kernel/source-lock.json`；不能把 k363 结果直接写成 v7.3.1
+> 已验收。与内核版本无关的是 WirePlumber 命名、Snapshot 启动器环境变量
+> 和 GStreamer `viewfinderbin` 用户态路径。`4608x2592@60` 虽能出 sensor
+> 60fps，但 A5 IPE 只有约 4fps 并出现 `IMAGE_PAIR_TIMEOUT`，不是可用的
+> 默认 1080p60 取景方案。
+
+应用侧三颗后摄同名导致无法区分的问题由
+[WirePlumber 规则](wireplumber/README.md)修复：按 `device.product.name`
+将 S5KGW1／IMX319／S5K3M5 分别命名为主摄、超广角和长焦。该配置只改
+PipeWire 节点名称，不改驱动、libcamera 或原厂调校。
+这些规则、Snapshot 默认主摄设置和快速取景路径已固化到
+[`samurai-snapshot-preview`](../packages/samurai-snapshot-preview/) 包，
+不再依赖用户目录中的手工副本。
+
+[预览帧率实测](PERFORMANCE.md)：2026-11-03 分层复测确认主摄在 4608x3456 下
+全链路 30 fps（sensor／VFE RDI／VFE 缩放／libcamera／GStreamer／PipeWire）。
+早前记录的 11–15 fps 已定位为遗留僵尸 `v4l2-ctl` 采集进程占用 CAMSS 通道，
+清理后不再复现；sensor 模式表与 MIPI 配置与原厂 mode 3 逐条一致，无需改动。
+应用侧绘制路径已定位为 `gtk4paintablesink` 默认协商 YUV、由 Cairo
+逐帧转 RGB。正式修复已下沉到
+[`gst-plugins-bad` 的 `viewfinderbin`](../packages/gst-plugins-bad/)：
+先在 NV12 域缩放到 854x480，再以最近邻、无抖动转成 BGRx。实机预览
+在 30fps 源下稳定 30 fps，CPU 约占单核 17%。原厂主摄取景参数是
+`1440x1080@30`，启动器通过 `samucapsinject.so` 把相机源 caps 首选
+改为 `1440x1080@30`；Snapshot 取景与拍照均为 1440x1080。OEM
+`s5kgw1` 的 1280x720 模式仍保留在 `0007` 补丁中，可把
+`SAMURAI_PREFER_SOURCE` 改为 `1280x720@60` 切换到 59–60fps 档，
+代价是拍照降到 720p。原厂 4608x3456 主拍走
+[`oem-capture/`](oem-capture/) 的双流 RAW 路径；64MP
+`9280x6944` mode 0 已通过 `SAMURAI_HIGHRES=1` 独立 V4L2 RDI 路径
+实拍验证，并与普通取景双流反复切换通过；mode 0 对 libcamera 隐藏，
+默认 Snapshot 快门走原厂 `4608x3456` 双流，设置
+`SAMURAI_HIGHRES_ON_SHUTTER=1` 后可自动拍摄
+`9280x6944`，拍完自动重启应用恢复取景。
+旧的 `preview-fastpath/samsinkinject.so` 保留为可选兼容回退。
+同一电脑 USB 口在 SDP 900mA 输入策略下，亮度 400/2047 时 1080p 源
+取景电池净流为 `+21..+39mA`，空闲约 `+320..+350mA`。
+该修复不改 Snapshot 源码、也不重编译 Snapshot：改动只在
+GStreamer `viewfinderbin`（`libgstcamerabin.so`）和启动器环境变量，
+设备上的 `/usr/bin/snapshot` 仍是发行包 `snapshot-51.0-r0` 的原文件。
+其他 Linux 手机（libcamera/EGL、Megapixels、Librem 5）的同类处理方式见
+[Linux 预览路径对照](LINUX-PREVIEW-COMPARISON.md)。
+
 [449](../../reference/kernel449/README.md)同Manager六周期263图／265IPE通过，旧长测重复回执仍记失败。[450](../../reference/kernel450/README.md)统计淘汰修复9000图严格原始回执通过，同SOF PD10／GTM／WB／历史匹配、重复0，仍5缺SOF。[451](../../reference/kernel451/COMPARISON-HARDWARE.md)隔离1080p旧→新→旧proxy共540图严格通过，返回尾部缩短但基线漂移。[452](../../reference/kernel452/DIAGNOSTIC-HARDWARE.md)353物理IPE取证：缺SOF168有PD10／统计，无成功FULL用户态DQ／IPE配对，DMA／驱动交付及瞬时供给待区分。
 
 [459／452 r2](../../reference/kernel459/HARDWARE-SUMMARY.md)新增2738消费／2739物理IPE严格回执，90秒未复现gap；尾环有覆盖，V4L2过滤误选RDI0，不能宣称根因修复。当时正式栈、服务和独立trace已恢复，随后USB拔插使外部充电检查false，该轮不记通过。441几何、442 LTM、443原厂16:9 DS4、444 IPA6及448租约等后续实装范围以484为准；光学、编码视频、HDR、第五摄像头和多摄未完。

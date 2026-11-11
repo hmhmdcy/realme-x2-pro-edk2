@@ -1,0 +1,93 @@
+{
+  "stage": "gw1-mode0-highres-coexistence-20261104",
+  "kernel_release": "7.3.0-rc6-rmx1931-samurai-k363+",
+  "sensor": "s5kgw1 6-0010",
+  "oem_mode": 0,
+  "width": 9280,
+  "height": 6944,
+  "format": "SGBRG10_1X10",
+  "link_frequency_hz": 768000000,
+  "mode0_register_writes": 1088,
+  "v4l2_bytesperline": 11600,
+  "v4l2_sizeimage": 80550400,
+  "dqbuf_bytesused": 80550400,
+  "raw_sha256": "37741649ec20bd72540214ec6111a77efe6c26de6df1d9f3c570d94872c66705",
+  "jpeg_sha256": "e22cc62c48bab1d4fbfd673b5fa30c8ef7be3c5e5a30bf5375f4fd883b0e982f",
+  "jpeg_dimensions": "9280x6944",
+  "additional_capture": {
+    "raw_sha256": "50800fdbc9deba577e92d73b684ecaeb25d0c64eea855157f54ea94f9b819cfa",
+    "jpeg_sha256": "9a705154c9d59076c9393dd5d1b19c720bedc3252b2f80e0ad70b216ca6db9ab"
+  },
+  "test_pattern": {
+    "name": "Color Bars",
+    "raw_sha256": "0c92a8443a9668cf68ce865b0ca3a89d9c63451c57c5deee39fc5b266573888d",
+    "jpeg_sha256": "33e081bc9ef51f3f83e5eefe28bac53a28e5190c3511a9c1249c1fbff2b77b9c",
+    "visually_verified": true
+  },
+  "demosaic_seconds": 0.84,
+  "jpeg_encode_seconds": 1.54,
+  "samurai_oem_capture_highres_verified_as_user": true,
+  "mode0_hidden_from_libcamera": true,
+  "normal_dual_stream_verified": true,
+  "normal_dual_stream_before_highres": true,
+  "normal_dual_stream_after_highres": true,
+  "highres_repeat_verified": true,
+  "snapshot_preview": {
+    "resolution": "1440x1080",
+    "sensor_mode": "4608x3456",
+    "fps": 30,
+    "gdk_frame_interval_ms": 33.3,
+    "screenshot": "/tmp/snapshot-verify.png",
+    "post_highres_screenshot": "/tmp/v6-highres-final.png"
+  },
+  "snapshot_shutter_integrated": true,
+  "snapshot_shutter_normal_via_default_launcher": true,
+  "snapshot_shutter_normal_gallery_verified": true,
+  "snapshot_shutter_highres_via_launcher_environment": true,
+  "snapshot_shutter_highres_gallery_verified": true,
+  "samurai_oem_capture_sha256": "697761ed7ba83d5be145860bb5c19f6aa1a550ecb8cda640b3067a90df75233a",
+  "snapshot_shutter_normal_capture": {
+    "camera_jpeg_dimensions": "4608x3456",
+    "camera_jpeg_sha256": "53d0c9daebf6acf1b094087aee7b822d381ac368b42091f551bc40eb8510fde5"
+  },
+  "snapshot_shutter_highres_capture": {
+    "camera_jpeg_dimensions": "9280x6944",
+    "camera_jpeg_sha256": "adec21ddaf681a3ec1e62df50cc06964e56afd35a6312e2466c89ae059ec67a8"
+  },
+  "snapshot_shutter_injector_sha256": "4183a8a11dfbeb6bd4e13eeed08d687575c3fce73aed83ec0ef324ba392ac567",
+  "snapshot_preview_restored_after_highres": true,
+  "snapshot_shutter_highres_relaunches_snapshot": true,
+  "gallery_screenshot": "/tmp/final-gallery.png",
+  "patches": {
+    "s5kgw1_mode0": {
+      "file": "0009-s5kgw1-9280x6944-highres.patch",
+      "sha256": "c44746332a4425e86543c78e3e2c3da4046ec1779ae9d767e90cdcb1d802c98c"
+    },
+    "s5kgw1_hide_mode0": {
+      "file": "0011-s5kgw1-hide-mode0-from-libcamera.patch",
+      "sha256": "181ed99b25ccd30a3fac6138131279cb833d9565e385000e30a80fadff50fa40"
+    },
+    "camss_source_reference": {
+      "file": "0010-camss-full-width-rdi.patch",
+      "sha256": "ef91bd14aed89776ba983cebc79c9cbbf6158bba501bbc9101177c5113bbed69",
+      "deployed": false
+    },
+    "camss_binary_patch": {
+      "file": "patch-qcom-camss-full-width.py",
+      "sha256": "86bfb2d300ac67260bb7a78ff255b0f037075e3d40211477f41ba52039a28ac0",
+      "deployed": true
+    }
+  },
+  "modules": {
+    "s5kgw1": {
+      "sha256": "06f81218ba62d603d3c327e14538799a09bd0da2fb1eb7d3f927c7488b14fce9",
+      "bytes": 186432
+    },
+    "qcom_camss": {
+      "sha256": "a976230f8241d89b96b4a8627d19907443a0091b423222e2751764ecaed38e47",
+      "bytes": 2936296,
+      "patched_from": "b7edf58ebba8a252c01e17dedaf893cbd16790e284ed83727b9ea72a7dc37f20"
+    }
+  },
+  "dark_scene_note": "The real scene was dark because the room lights were off; the sensor color-bar capture proves mode 0 image data is valid."
+}
