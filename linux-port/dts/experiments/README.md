@@ -14,6 +14,7 @@ policy. None of these fragments is activated by the production OS wrapper.
 | `usb2-typec-dual.dtso` | USB Type-C | requires a new Image with DWC3 dual-role and xHCI |
 | `sm8150-samurai-usb-typec-sink.dts` | USB Type-C | full source-level sink wrapper for kexec/offline validation |
 | `sm8150-samurai-usb-typec-sink-compact.dts` | USB Type-C | boot-FFS-fit sink wrapper; drops only the disabled, absent Ethernet node |
+| `sm8150-samurai-usb-otg.dts` | USB OTG | deployed full source-level dual-role/xHCI candidate using the enlarged DTB FFS path |
 
 The independent build profiles are:
 
@@ -46,7 +47,7 @@ See [`USB-TYPEC-20261110.md`](../../docs/USB-TYPEC-20261110.md) and
 The sink profile does not change `dr_mode` or add a role-switch graph; the
 dual profile is not deployable with the current Image.
 
-The deployed 2026-11-12 boot DTB is built from
+The deployed 2026-11-12 sink boot DTB is built from
 `sm8150-samurai-usb-typec-sink-compact.dts`.  It keeps the production
 `model`/`chassis-type` and all USB nodes, removes only the disabled SM8150
 Ethernet controller (not populated on RMX1931), and fits the existing
@@ -61,6 +62,14 @@ live sampling showed GPIO10 does not follow VBUS.  See
 `sm8150-samurai-experiment-os.dts` is an offline reconstruction profile for
 the deployed `9736b861...` experiment. It is intentionally separate from
 `../split-ba61/sm8150-samurai-os.dts`.
+
+The OTG candidate is built from `sm8150-samurai-usb-otg.dts`. It keeps the
+production model/chassis metadata, deletes only the unpopulated Ethernet
+controller, and enables the standard PM8150B dual-role connector, DWC3
+`dr_mode=otg`, `usb-role-switch`, and bidirectional HS endpoint graph.
+USB3/QMP/DP, the second USB controller, EUD, GPIO10 extcon, and keep-connect
+remain disabled or absent. See
+[`USB-OTG-20261112.md`](../../docs/USB-OTG-20261112.md).
 
 ## Offline reconstruction result
 

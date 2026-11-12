@@ -15,6 +15,7 @@ dbus_enabled=${SAMURAI_USB_RECOVER_DBUS:-1}
 interval=${SAMURAI_USB_RECOVER_INTERVAL:-2}
 grace=${SAMURAI_USB_RECOVER_GRACE:-12}
 reattach_grace=${SAMURAI_USB_RECOVER_REATTACH_GRACE:-20}
+mode_grace=${SAMURAI_USB_RECOVER_MODE_GRACE:-10}
 max_attempts=${SAMURAI_USB_RECOVER_MAX:-2}
 stable_reset=${SAMURAI_USB_RECOVER_STABLE_RESET:-300}
 
@@ -316,6 +317,8 @@ recover_link()
 
 	write_state armed 1
 	write_state stable_since "$(date +%s)"
+	write_state reattach_since 0
+	write_state mode_reattach_since 0
 	log_event "RECOVER_OK attempt=$attempts reason=$reason state=configured carrier=1"
 	return 0
 }
@@ -329,6 +332,7 @@ status()
 	printf 'armed=%s\n' "$(read_state armed)"
 	printf 'attempts=%s\n' "$(read_state attempts)"
 	printf 'reattach_since=%s\n' "$(read_state reattach_since)"
+	printf 'mode_reattach_since=%s\n' "$(read_state mode_reattach_since)"
 	printf 'seen_configured=%s\n' "$(read_state seen_configured)"
 }
 
@@ -340,8 +344,10 @@ monitor()
 	[ -e "$run_dir/online" ] || write_state online 0
 	[ -e "$run_dir/stable_since" ] || write_state stable_since 0
 	[ -e "$run_dir/reattach_since" ] || write_state reattach_since 0
+	[ -e "$run_dir/mode_reattach_since" ] || write_state mode_reattach_since 0
 	[ -e "$run_dir/seen_configured" ] || write_state seen_configured 0
 	stuck_since=0
+	previous_ncm_mode=0
 
 	while :; do
 		mode=$(current_usb_mode 2>/dev/null || true)
@@ -349,6 +355,17 @@ monitor()
 		developer_mode|tethering_mode) ncm_mode=1 ;;
 		*) ncm_mode=0 ;;
 		esac
+		if [ "$ncm_mode" = 1 ]; then
+			if [ "$previous_ncm_mode" = 1 ]; then
+				mode_transition=0
+			else
+				mode_transition=1
+			fi
+			previous_ncm_mode=1
+		else
+			mode_transition=0
+			previous_ncm_mode=0
+		fi
 		if [ "$ncm_mode" -ne 1 ]; then
 			if [ "$(read_state armed)" = 1 ]; then
 				log_event "DISARM reason=mode=$mode"
@@ -356,6 +373,7 @@ monitor()
 			write_state armed 0
 			write_state stable_since 0
 			write_state reattach_since 0
+			write_state mode_reattach_since 0
 			stuck_since=0
 			sleep "$interval"
 			continue
@@ -400,6 +418,7 @@ monitor()
 			esac
 			write_state stable_since "$stable_since"
 			write_state reattach_since 0
+			write_state mode_reattach_since 0
 			write_state seen_configured 1
 			if [ "$(read_state armed)" != 1 ]; then
 				log_event "ARM state=configured carrier=1"
@@ -448,7 +467,31 @@ monitor()
 						write_state reattach_since 0
 					fi
 				fi
-		fi
+			fi
+			mode_reattach_since=$(read_state mode_reattach_since)
+			case $mode_reattach_since in
+			''|*[!0-9]*|0) mode_reattach_since=0 ;;
+			esac
+			if [ "$mode_transition" = 1 ] &&
+				[ "$(read_state seen_configured)" = 1 ] &&
+				[ "$state" = configured ] &&
+				[ "$carrier" != 1 ] &&
+				[ "$mode_reattach_since" -eq 0 ]; then
+				mode_reattach_since=$now
+				write_state mode_reattach_since "$mode_reattach_since"
+				log_event "MODE_REATTACH mode=$mode state=configured carrier=$carrier"
+			fi
+			if [ "$mode_reattach_since" -gt 0 ] &&
+				[ $((now - mode_reattach_since)) -ge "$mode_grace" ]; then
+				if recover_link mode_transition; then
+					write_state mode_reattach_since 0
+				else
+					write_state mode_reattach_since "$now"
+					if [ "$(read_state attempts)" -ge "$max_attempts" ]; then
+						write_state mode_reattach_since 0
+					fi
+				fi
+			fi
 		fi
 		sleep "$interval"
 	done

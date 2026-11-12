@@ -1,0 +1,50 @@
+From: Realme X2 Pro Linux port <hmhmdcy@users.noreply.github.com>
+Subject: [PATCH] server: honor the DHCP broadcast flag
+
+RFC 2131 clients may set the BROADCAST flag before they have an IP
+address. Windows NCM can request a broadcast reply after a gadget
+re-enumeration, but unudhcpd currently forces every OFFER and ACK to the
+configured client address. Add the socket broadcast capability and send
+the response to 255.255.255.255 when the request asks for it. Preserve
+the existing unicast and ARP path for clients that do not set the flag.
+---
+diff --git a/server.c b/server.c
+index eed01e8..0eadec9 100644
+--- a/server.c
++++ b/server.c
+@@ -49,7 +49,6 @@ int dhcp_create_response(dhcp_config *config, dhcp_message *request, dhcp_messag
+ 	memcpy(&response->flags, &request->flags, sizeof(request->flags));
+ 	memcpy(&response->giaddr, &request->giaddr, sizeof(request->giaddr));
+ 	memcpy(response->chaddr, request->chaddr, request->hlen);
+-	memset(&response->flags, 0, sizeof(response->flags));
+ 
+ 	memset(&response->options, 0, sizeof(response->options));
+ 
+@@ -105,10 +104,15 @@ int dhcp_create_response(dhcp_config *config, dhcp_message *request, dhcp_messag
+ 
+ int dhcp_send_response(dhcp_config *config, dhcp_message *response, struct sockaddr_in *client_addr) {
+ 	int len = sizeof(*response);
++	int broadcast = ntohs(response->flags) & 0x8000;
+ 
+-	client_addr->sin_addr.s_addr = inet_addr(config->client_ip);
+-	if (add_arp_entry(config, response->chaddr, response->hlen, response->yiaddr) != 0) {
+-		return 1;
++	if (broadcast) {
++		client_addr->sin_addr.s_addr = INADDR_BROADCAST;
++	} else {
++		client_addr->sin_addr.s_addr = inet_addr(config->client_ip);
++		if (add_arp_entry(config, response->chaddr, response->hlen, response->yiaddr) != 0) {
++			return 1;
++		}
+ 	}
+ 	if ((sendto(config->server_sock, response, len, 0, (struct sockaddr *)client_addr, sizeof(*client_addr))) < 0) {
+ 		perror("Unable to send DHCP response");
+@@ -153,6 +157,8 @@ int dhcp_server_init(dhcp_config *config) {
+ 
+ 	int so_reuseaddr = 1;
+ 	setsockopt(config->server_sock, SOL_SOCKET, SO_REUSEADDR, &so_reuseaddr, sizeof(so_reuseaddr));
++	int so_broadcast = 1;
++	setsockopt(config->server_sock, SOL_SOCKET, SO_BROADCAST, &so_broadcast, sizeof(so_broadcast));
+ 
+ 	memset(&config->server_addr, 0, sizeof(config->server_addr));
+ 	config->server_addr.sin_family = AF_INET;

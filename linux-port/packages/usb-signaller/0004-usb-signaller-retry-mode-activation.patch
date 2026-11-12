@@ -1,0 +1,99 @@
+From: Realme X2 Pro Linux port <hmhmdcy@users.noreply.github.com>
+Subject: [PATCH] scripts: retry NetworkManager mode activation
+
+After a DWC3 role transition the NCM netdev can appear before
+NetworkManager accepts it as managed. A single immediate nmcli call can
+then race the gadget setup and leave a valid usb-signaller mode without
+its network profile. Retry management and activation for bounded periods
+without blocking the OpenRC one-shot service indefinitely.
+---
+diff --git a/distro/scripts/usb-signaller-developer-mode.sh b/distro/scripts/usb-signaller-developer-mode.sh
+index bf1d8ca..e17d878 100755
+--- a/distro/scripts/usb-signaller-developer-mode.sh
++++ b/distro/scripts/usb-signaller-developer-mode.sh
+@@ -38,16 +38,28 @@ _stop_unudhcpd() {
+ 
+ wait_for_interface() {
+     count=0
+-    while [ ! -e "/sys/class/net/$IFACE" ] && [ "$count" -lt 10 ]; do
++    while [ ! -e "/sys/class/net/$IFACE" ] && [ "$count" -lt 30 ]; do
+         count=$((count + 1))
+         sleep 1
+     done
+     [ -e "/sys/class/net/$IFACE" ]
+ }
+ 
++ensure_managed() {
++    count=0
++    while [ "$count" -lt 30 ]; do
++        if nmcli device set "$IFACE" managed yes >/dev/null 2>&1; then
++            return 0
++        fi
++        count=$((count + 1))
++        sleep 1
++    done
++    return 1
++}
++
+ activate_connection() {
+     count=0
+-    while [ "$count" -lt 10 ]; do
++    while [ "$count" -lt 30 ]; do
+         if nmcli connection up "$CONNECTION_NAME" >/dev/null 2>&1; then
+             return 0
+         fi
+@@ -61,7 +73,8 @@ up() {
+     # The host can take a moment to create the NCM netdev and raise carrier
+     # after a gadget rebind. Do not make the mode service fail prematurely.
+     wait_for_interface || true
+-    nmcli device set "$IFACE" managed yes >/dev/null 2>&1 || true
++    ensure_managed ||
++        echo "NetworkManager did not accept $IFACE as managed"
+ 
+     # Clean up possible left-over
+     nmcli connection delete "$CONNECTION_NAME" >/dev/null 2>&1 || true
+diff --git a/distro/scripts/usb-signaller-tethering-mode.sh b/distro/scripts/usb-signaller-tethering-mode.sh
+index f1103f6..ba20a5a 100755
+--- a/distro/scripts/usb-signaller-tethering-mode.sh
++++ b/distro/scripts/usb-signaller-tethering-mode.sh
+@@ -14,16 +14,28 @@ CONNECTION_NAME=${CONNECTION_NAME:-"Tethering Mode"}
+ 
+ wait_for_interface() {
+     count=0
+-    while [ ! -e "/sys/class/net/$IFACE" ] && [ "$count" -lt 10 ]; do
++    while [ ! -e "/sys/class/net/$IFACE" ] && [ "$count" -lt 30 ]; do
+         count=$((count + 1))
+         sleep 1
+     done
+     [ -e "/sys/class/net/$IFACE" ]
+ }
+ 
++ensure_managed() {
++    count=0
++    while [ "$count" -lt 30 ]; do
++        if nmcli device set "$IFACE" managed yes >/dev/null 2>&1; then
++            return 0
++        fi
++        count=$((count + 1))
++        sleep 1
++    done
++    return 1
++}
++
+ activate_connection() {
+     count=0
+-    while [ "$count" -lt 10 ]; do
++    while [ "$count" -lt 30 ]; do
+         if nmcli connection up "$CONNECTION_NAME" >/dev/null 2>&1; then
+             return 0
+         fi
+@@ -37,7 +49,8 @@ up() {
+     # The host can take a moment to create the NCM netdev and raise carrier
+     # after a gadget rebind. Do not make the mode service fail prematurely.
+     wait_for_interface || true
+-    nmcli device set "$IFACE" managed yes >/dev/null 2>&1 || true
++    ensure_managed ||
++        echo "NetworkManager did not accept $IFACE as managed"
+ 
+     # Clean up possible left-over
+     nmcli connection delete "$CONNECTION_NAME" >/dev/null 2>&1 || true

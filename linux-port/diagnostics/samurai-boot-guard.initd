@@ -1,0 +1,18 @@
+#!/sbin/openrc-run
+description="One-shot rollback guard for an armed boot/logdump experiment"
+
+depend() {
+	need localmount
+	after udev
+}
+
+supervisor=supervise-daemon
+command=/usr/sbin/samurai-boot-guard
+command_args=monitor
+pidfile=/run/samurai-boot-guard.pid
+respawn_delay=30
+respawn_max=0
+
+start_pre() {
+	mkdir -p /run/samurai-boot-guard /var/log/samurai
+}

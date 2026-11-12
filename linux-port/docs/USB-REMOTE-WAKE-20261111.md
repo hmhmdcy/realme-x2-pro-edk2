@@ -21,8 +21,10 @@
   `snps,gadget-keep-connect-sys-sleep` 已关闭。
 - 现在使用标准 DWC3 gadget suspend/resume。插着线和拔线两种场景都能
   正常 suspend，boot ID 不变。
-- 正式适配已走主线 PM8150B Type-C/TCPM + `usb-c-connector` sink；
-  当前 gadget-only 数据路径不需要 `usb-role-switch`，也不重新引入
+- 正式适配已走主线 PM8150B Type-C/TCPM + `usb-c-connector`；
+  2026-11-11 当时的 gadget-only 数据路径不需要 `usb-role-switch`；
+  2026-11-12 后续 OTG Image 已加入标准 URS，但物理 host 仍未验收；
+  也不重新引入
   GPIO10 extcon。USBIN 观察器只用于证明唤醒硬件路径，不是最终
   Type-C 设计。
 

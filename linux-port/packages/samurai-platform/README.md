@@ -1,10 +1,11 @@
-# samurai-platform 6-r2
+# samurai-platform 6-r3
 
-6-r2 is installed on the handset. It keeps the standard postmarketOS
+6-r3 is the OTG recovery candidate. It keeps the standard postmarketOS
 USB ownership model and adds the bounded `samurai-usb-recover` path:
 
 ```text
-usb-signaller 0.4.3-r3
+usb-signaller 0.4.3-r4
+unudhcpd 0.5.0-r2
 postmarketos-usb-moded
 NetworkManager + unudhcpd.usb0 + umtprd
 Developer 172.16.42.1/16, 0525:a4a1, qmult=20
@@ -12,15 +13,45 @@ Tethering 10.42.0.1/24
 MTP 0525:a4a2
 ```
 
+When the installed dual-role kernel registers a standard `usb_role`
+provider, `usb-signaller` exposes `host_mode` through the same
+usb-moded D-Bus API. In synthetic host/device tests the role switch,
+`usb-moded.mode_request=host_mode`, xHCI root buses and return to
+Developer NCM all worked without a board-owned host command. Physical
+OTG adapters and attached peripherals are still a separate hardware
+acceptance.
+
 The recovery service preserves the active usb-moded mode across a DWC3
 unbind/bind, restarts the matching standard mode service, and bounds
 `rc-service` calls so a stalled controller cannot hang the monitor.
-6-r2 then toggles the standard UDC `soft_connect` control so the host
+6-r2 and later toggle the standard UDC `soft_connect` control so the host
 performs a clean enumeration and DHCP exchange instead of retaining its
 failed NCM adapter state. The ordinary reboot and `ip link down`
 recovery tests are recorded in `linux-port/docs/PMOS-USB-20261112.md`.
 Physical cable/orientation checks and same-cable U3 host-resume remain
 open.
+
+6-r3 adds a separate bounded reattach path for an explicit transition
+from `host_mode` (or another non-NCM mode) back to Developer/Tethering.
+The previous controller can report UDC `configured` while the host never
+raises NCM carrier; because VBUS never toggles, the older recovery state
+machine stayed disarmed. The new path records
+`MODE_REATTACH mode=...`, waits for the standard mode service, then uses
+the same bounded DWC3 unbind/bind and UDC `soft_connect` recovery. The
+attempt budget remains at most two per cable session.
+
+Signed candidate:
+
+```text
+E:/edk2-samurai-out/standard-arm64-v731/
+  usb-hotfix-otg-r3-20261112/samurai-platform-6-r3.apk
+SHA-256 96951fef807c593396ce685a9b2367c0bb8d071be9ccc3bbcb286c44f11c4548
+```
+
+On the handset, `MODE_REATTACH -> RECOVER_BEGIN reason=mode_transition
+-> RECOVER_OK` restored carrier and Windows DHCP without a manual
+rebind. `test-usb-moded-host-mode.sh` then returned
+`RESULT=PASS failures=0`.
 
 6-r1 moved the runtime USB gadget owner from the board script
 `samurai-usb` to the standard postmarketOS stack:
@@ -35,7 +66,7 @@ open.
 Board USB descriptors live in
 `/etc/usb-signaller.d/90-samurai.toml`, not in a private gadget builder.
 The override uses an upstreamable `[gadget]` layer in
-`usb-signaller>=0.4.3-r3`: `0525:a4a1`, composite class `ef/02/01`,
+`usb-signaller>=0.4.3-r4`: `0525:a4a1`, composite class `ef/02/01`,
 `MaxPower=500` and NCM `qmult=20`. MTP uses `0525:a4a2`.
 
 The legacy `/usr/sbin/samurai-usb` remains installed as an explicit

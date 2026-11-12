@@ -1,0 +1,37 @@
+{
+  "schema": "samurai-unudhcpd-source-v1",
+  "upstream": {
+    "url": "https://gitlab.nura.eco/nura/unudhcpd",
+    "version": "0.5.0",
+    "archive_sha512": "f7ee846f0e2bfb24832ecf45a0bfc7bae1de459596e1dd5899290c8245c78012b5e4e3eb3207dd46a42664652403b5105281cded9e09f13107052e86c1546467"
+  },
+  "patch": {
+    "file": "0012-unudhcpd-honor-dhcp-broadcast-flag.patch",
+    "sha256": "23279371d5c224f75a2a1306a5b11aa1457f32459fbd79ca77da13dc456ab1e0",
+    "sha512": "ba8b70d3437dd3770f8ef5bd6064907c4439d04c7328cb94ed8fd52facae564d9d5371c2446d0aa8fadf73a3fbfcbc6faf07efc93ac442e6d3caa9bd67322740",
+    "applies_cleanly_to": "0.5.0"
+  },
+  "runtime_binary": {
+    "arch": "aarch64",
+    "libc": "musl",
+    "sha256": "4c2ca9ef8bc9473c680d112ca8df4b6fa9e3eeda604455cb6b38a20fbffa7b87",
+    "built_on": "RMX1931",
+    "command": "gcc -O2 -Wall -Wextra -DVERSION=\"0.1\" -o unudhcpd main.c server.c"
+  },
+  "package_artifacts": {
+    "unudhcpd": {
+      "version": "0.5.0-r2",
+      "sha256": "67cc4aca6aa17cb4ec7c7cc5bcdeec1ddcb032a11a77b5a204f13edccb9b45d3"
+    },
+    "unudhcpd-openrc": {
+      "version": "0.5.0-r2",
+      "sha256": "af45f76fcf14eec5940eb57aa9c3964bf466359dbdb5350a01a3493dbff6a21b"
+    }
+  },
+  "verified": [
+    "APK signatures and local index verify with the device trust key",
+    "Windows DHCP lease 172.16.42.2/24 with server 172.16.42.1",
+    "two UDC soft reconnect cycles reacquire DHCP",
+    "NCM SSH and 8 MiB round-trip remain functional"
+  ]
+}

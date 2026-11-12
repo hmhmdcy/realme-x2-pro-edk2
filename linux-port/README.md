@@ -34,6 +34,7 @@
 - [L2-L4 收敛计划](docs/LAYER-CONVERGENCE-PLAN.md)：工作包、飞轮闸门、基线快照和停止规则。
 - [F2FS完整rootfs](docs/ROOTFS-F2FS-IMAGE.md)、[保留Android的研究](docs/ROOTFS-PRESERVE-ANDROID.md)：方案与历史边界，结合后续会话核对部署范围。
 - [USB NCM/SSH](docs/USB-NCM-SSH.md)：通信路径与验收。
+- [USB OTG](docs/USB-OTG-20261112.md)：DWC3 dual-role/xHCI 与标准 Type-C OTG 的部署状态和物理验收边界。
 - [测试飞轮](../FLYWHEEL.md)：按本次设备、源码和镜像身份实施一轮验证。
 - [会话索引](../sessions/INDEX.md)：阶段实验、补丁与reference证据；[显示152—165](../sessions/display-handoff-152-165.md)为本次整理的专题历史。
 

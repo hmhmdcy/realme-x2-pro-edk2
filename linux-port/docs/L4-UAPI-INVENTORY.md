@@ -20,7 +20,7 @@
 | --- | --- | --- | --- |
 | `/sys/devices/platform/sensor-power/state` | [270 native-quiesce](../../reference/kernel270/native-quiesce.py)、[restart-bootloader](../../reference/kernel270/restart-bootloader.py)、板级 quiesce 流程 | 通用 remoteproc prepare/unprepare subdevice；`state` 只读兼容 | genpd/PAS proxy 方案已在真机 `#9` 否决并回退 `#5`；`rproc_subdev` 已在真机 `#2` 通过启动/停止、readiness 和冷启动；旧 `state` 继续保留到消费者迁移完成 |
 | `/sys/class/udc/a600000.usb` | [samurai-usb](../packages/samurai-platform/usr_sbin_samurai-usb)、检查脚本 | 枚举 `/sys/class/udc`，优先当前控制器、单 UDC 回退 | 源级离线测试通过：优先 `a600000.usb`、任意单 UDC 回退、多个 UDC 要求 `SAMURAI_UDC`、显式缺失报错；5-r24 不再安装 debug sleep guard |
-| `/sys/class/typec/port0` | USB2 Type-C 离线检查脚本 | 标准 Type-C class（power_role/data_role/port_type/orientation） | sink/dual DTB 已构建但未部署；真机门禁用只读枚举，不新增板级 ioctl/sysfs |
+| `/sys/class/typec/port0` | USB2 Type-C/OTG 检查脚本、usb-signaller URS | 标准 Type-C class（power_role/data_role/port_type/orientation） | dual-role DTB/Image 已部署，device 与 synthetic host 已通过；物理 OTG 外设待验收。真机门禁用只读枚举，不新增板级 ioctl/sysfs |
 | ~~`/sys/bus/platform/devices/extcon-usb1/power/wakeup`~~ | — | 已撤回 | 2026-11-11 真机否定 GPIO10 VBUS：厂商 DTS 注释掉 `vbus-gpio`/consumer，实测 IRQ 120 始终为 0。overlay、udev 规则已删除；不再作为 UAPI |
 | `/sys/class/backlight/ae94000.dsi.0` | [桌面边界](DESKTOP-PORTABILITY.md)、Plasma/Phosh 文档 | backlight class 发现，不写死设备名 | 文档/检查脚本先改用 glob/属性读取 |
 | `DSI-1` connector 名 | [Plasma 文档](PLASMA-MOBILE.md)、检查脚本 | DRM connector 枚举/KScreen 查询 | 检查和桌面适配不应把名字当硬件 ABI |

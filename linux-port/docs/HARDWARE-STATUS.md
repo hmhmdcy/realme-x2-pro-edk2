@@ -5,8 +5,9 @@
 不擦写 NV/persist/校准/userdata 的约束不变。
 
 目标更新（2026-11-10）：活动块切换到 USB 标准平台适配。先只把
-PM8150B Type-C/TCPM 作为 DTB-only sink 候选；DWC3 host/OTG 需要另建
+PM8150B Type-C/TCPM 作为 DTB-only sink 候选；DWC3 host/OTG 另行构建
 `DWC3_DUAL_ROLE+xHCI` Image，USB3/DP 和 suspend wake 继续独立分层。
+2026-11-12 该 dual-role Image/DTB 已部署，物理 OTG 外设仍待验收。
 
 目标更新（2026-11-12）：标准 PM8150B Type-C/TCPM、`usb-c-connector`、
 PM8150B VBUS regulator 和 Type-C `wakeup-source` 已作为持久 DTB/Image
@@ -22,16 +23,20 @@ PM8150B 模式周期重新 attach 后，`port0-partner` 存在、non-PD、
 [`USB-TYPEC-WAKE-20261112`](USB-TYPEC-WAKE-20261112.md)。
 
 目标更新（2026-11-12，postmarketOS USB）：普通 USB 运行时已迁移到
-标准 `usb-signaller 0.4.3-r3` + `postmarketos-usb-moded` +
-NetworkManager + `unudhcpd` + `umtprd`，板级差异只保留描述符、
-DHCP 地址和有界 DWC3 恢复。`samurai-platform 6-r2` 已安装；6-r1
-完成普通重启后在同一 boot 升级到 r2，Developer `0525:a4a1`、
+标准 `usb-signaller 0.4.3-r4` + `postmarketos-usb-moded` +
+NetworkManager + `unudhcpd 0.5.0-r2` + `umtprd`，板级差异只保留
+描述符、DHCP 地址和有界 DWC3 恢复。`samurai-platform 6-r3` 已安装；
+6-r1 完成普通重启后在同一 boot 升级到 r2，Developer `0525:a4a1`、
 class `ef/02/01`、MaxPower 500、
 `qmult=20`、`usb0=172.16.42.1/16`，Windows NCM/Problem 0、
 DHCP `172.16.42.2` 和严格 host-key NCM SSH 均通过；Tethering
 `10.42.0.1/24`、MTP `0525:a4a2`/WPD 和 charging-only 也通过。
 `samurai-usb-recover` 用标准 DWC3 unbind/bind + usb-moded D-Bus
 恢复当前模式，并在末尾用标准 UDC `soft_connect` 强制主机干净重枚举。
+6-r3 额外处理 `host_mode` -> Developer/Tethering 后 UDC
+`configured` 但主机未拉起 NCM carrier 的路径；真机
+`MODE_REATTACH` 后 carrier、Windows DHCP `172.16.42.2/24` 和
+Problem 0 均自动恢复，没有人工 DWC3 重绑。
 `ip link down` 注入在 boot ID 不变下恢复到 configured/carrier 1，
 Windows 同窗口重新取得 `172.16.42.2/24` DHCP 租约且 Problem 0。
 一次 RTC suspend 烟测后 NCM 会先消失、约 20 秒内自动重连，说明
@@ -39,6 +44,26 @@ suspend 期间不保持同一条活动链路，不能写成 USB host-resume；�
 suspend/resume soak 中的主机 DHCP 行为仍未验收。物理插拔/反插、
 长期 suspend soak 和同线 U3 仍未验收。
 详见 [`PMOS-USB-20261112`](PMOS-USB-20261112.md)。
+
+目标更新（2026-11-12，OTG）：已构建并部署主线 DWC3 dual-role +
+xHCI Image/DTB。配置以手机原 `/proc/config.gz` 为基线，只改变
+`REGULATOR_QCOM_USB_VBUS=m→y`、`USB_DWC3_GADGET=y→n`、
+`USB_DWC3_DUAL_ROLE=n→y`、`USB_XHCI_HCD=n→y`，并启用
+`USB_XHCI_PLATFORM`；同时带入上游通用 QSCRATCH `VBUS_VALID`
+probe override 修复，避免 OTG 默认 peripheral 时首次 device
+会话未置位。DTB 使用标准 PM8150B `usb-c-connector`
+dual-role、DWC3 `dr_mode=otg` + `usb-role-switch` 和双向 HS endpoint
+graph；USB3/DP、第二 USB 控制器和 EUD 保持关闭。候选 boot 只改变
+DTB FFS，BdsDxe/PlatformSmbiosDxe/UiApp 逐字节不变；同时生成独立
+release `...-usbwake-otg` 的 772 模块包，避免覆盖原可回滚模块树。
+当前 `f02a6e0a...` boot 已完成 device NCM、Tethering/MTP/charging
+模式回归、两轮 synthetic host/device 切换（host 下
+`usb-moded.mode_request=host_mode`）、标准 usb-moded host_mode、
+30 秒 s2idle 和 NCM 8 MiB 往返；切回 device 后 UDC/NCM/DHCP
+自动恢复，无需人工 DWC3 重绑。物理 USB-C OTG adapter、U 盘/HID、
+自动 TCPM host 选择、反插
+和 VBUS source 仍未验收。详见
+[`USB-OTG-20261112`](USB-OTG-20261112.md)。
 
 2026-11-10 电源键/显示最终结论：官方路径仍是 elogind
 `HandlePowerKey=ignore`、KWin `DpmsInputEventFilter` 和 PowerDevil
@@ -236,7 +261,7 @@ fastboot 暖启动未知 USB 的 workaround 见 [USB-NCM-SSH](USB-NCM-SSH.md)。
 | 传感器 | remoteproc、IIO、SensorProxy、标准 claim/release | `sensor-power` 板级 subdevice/电顺序 | readiness、旋转和短 PM 通过；SSR、freezer 竞态、精度与长期跨 boot 开放 |
 | 蜂窝 | `qcom_q6v5_pas`、QRTR/QMI、IPA、ModemManager | 板级 MCFG 目录/配置复制 | modem 可 running；真实 SIM、数据、通话、短信和 UIM 未验收 |
 | Wi-Fi/蓝牙 | cfg80211/mac80211、hci_uart、btqca、BlueZ | 板级校准/固件与上电顺序、同机 DMS MAC 查询 | Wi‑Fi 当前 boot 1810 样本/1820.51 秒 SSH 心跳通过；WCN3990 仍记录 invalid MAC，但启动脚本在关联前应用 DMS 地址 `PRIVATE_WIFI_MAC`（BT `PRIVATE_BT_MAC`），多次启动一致；BT 音频/连接、冷启动和长稳开放 |
-| USB | `qcom,sm8150-dwc3`/`qcom,snps-dwc3`、UDC、configfs NCM；PM8150B Type-C/TCPM + `usb-c-connector` + VBUS regulator | 无私有 USB 传输层，只有板级 NCM 配置脚本；stock 无 FSA4480 证据；boot DTB 删除不存在的 disabled Ethernet 节点以适配 FFS 容量 | 2026-11-12 标准 Type-C sink/device 持久 DTB + Image 冷启动通过：`port0` sink/device、`wakeup-source` enabled、`usb_vbus` disabled/0 users；3×15 s + 1×60 s + 8×15 s + 16×30 s `s2idle` 睡满、boot ID 不变、UDC/NCM 自动恢复，soak 后 30 分钟心跳 216 样本且 NCM/Wi‑Fi/PnP 失败均为 0，Windows PnP Problem Code 0（无 Code 43）；保持 VBUS 的 20 轮 UDC soft reconnect 全部恢复，100 ms PnP 采样出现 20 次消失/重建且无 Code 43；suspend 边界 diagnostic 证明 Type-C IRQ → SPMI → PDC。一次 awake PM8150B 模式周期重新 attach 后 partner 存在且为 non-PD、`orientation=normal`，但这不是物理插线或反插验收。2026-11-11 已撤回 GPIO10 extcon 和 keep-connect。物理插线/拔线唤醒、反插、长期插拔 soak 和同线 U3 host-resume 仍未验收；当前内核仍是 `DWC3_GADGET`，dual-role host 需新 Image。见 [USB-TYPEC-WAKE-20261112](USB-TYPEC-WAKE-20261112.md) |
+| USB | `qcom,sm8150-dwc3`/`qcom,snps-dwc3`、UDC、configfs NCM；PM8150B Type-C/TCPM + `usb-c-connector` + VBUS regulator；DWC3 dual-role/xHCI | 无私有 USB 传输层；stock 无 FSA4480 证据；板级只提供 USB 描述符、DHCP 地址、标准 URS 策略和有界 DWC3 恢复 | 2026-11-12 sink Type-C 唤醒、长期 s2idle、soft reconnect 和 PM8150B IRQ→PDC 证据保留。OTG Image/DTB 已部署并冷启动：`dr_mode=otg`、`usb-role-switch`、device NCM、模式周期、一次 synthetic host/device、15 秒 s2idle 和 8 MiB NCM 往返通过；host role 注册 xHCI root bus，恢复 device 后 UDC/NCM/DHCP 自动恢复且 Windows PnP 为 0。物理 OTG adapter、U 盘/键盘、自动 TCPM host、反插/VBUS source、长期插拔和同线 U3 host-resume 未验收。见 [USB-OTG-20261112](USB-OTG-20261112.md) 和 [USB-TYPEC-WAKE-20261112](USB-TYPEC-WAKE-20261112.md) |
 | 充电 | `bq28z610`、`mp2650`、标准 `power_supply` | 板级阈值/保护参数 | 标准绑定和短测通过；高压、完整 PD/APSD、长期计时与温界未验收 |
 | NFC | NXP NCI I2C 标准控制器、Alpine `neard 0.20`、`org.neard` D-Bus | 板级供电/接线；`samurai-platform 5-r22` 只增加 `neard-openrc` 默认 runlevel | `neard-openrc` + `neard` 和 5-r22 已安装；普通重启后 `nfc0`、neard 默认 runlevel、D-Bus 属性、电源和轮询启停通过；无实体标签，TagFound/读写/eSE 未验收 |
 | 指纹 | 尚无功能主线驱动 | 传感器/SPI/供电/TEE/用户态认证链 | 未做功能验收，是当前最大的未标准化硬件块 |
@@ -275,7 +300,7 @@ vendor 根属性和 `samurai_diag` trace 依赖。它们不能以“能跑”为
 | 振动 | AW8697驱动与电气检查通过。`Realme X2 Pro AW8697 haptics`已由板级udev规则标记为`FEEDBACKD_TYPE=vibra`；标准feedbackd D-Bus `TriggerFeedback(button-pressed)`返回id2且`EndFeedback`成功 | 实际振幅、时长和桌面触感未由用户确认；跨启动和长稳待验 |
 | 蓝牙 | 234实际RTS模型三变体16/2、16/0、16/2及H4回放8例通过；暂时诊断取得2个完整phase5回包/UART对应/1301事件无丢失，未复现错误。扫描因预上电属性Not Powered未完成，已恢复原185模块/config/helper/keys/787文件、最终健康0；裸RTS模型不满足真实锁契约，未部署功能补丁。[234](../../reference/kernel234/README.md)。205两次普通启动/8轮上下电/4次重注册未复现phase5，206已恢复原185模块/helper/BlueZ并核对keys；这不是phase5修复。204 RX wake/sleep已部署；首轮前9/45.14秒RTC PM后13、错误增量0，第二boot启动重组0，外部BT事件唤醒未验；首轮phase5仍1。200新boot startup及8秒只扫描发现10设备、退出恢复、重组增量0；185功率脉冲前导NUL及短写/flow修复保持；当时原扫描错误1/候选0、3模式响应及开启状态s2idle/延后扫描通过；189三个传感器PM窗内重组增量0、密钥保持。2026-11-09 `samurai-bluetooth-host 0.1.0-r0` 已安装；boot `071abbb5…` 上 `bnep/uhid/uinput` 自动加载，`/dev/uhid`、`/dev/uinput`、BNEP socket、BlueZ `hci0` 和 777 模块完整 gate 通过 | 189旧boot出现phase5/3.2Mbps/chunk13/partial0/firstff重组1，区别于旧phase2前导00，需继续修复。外部 PAN/HID 对端、配对/连接/音频、冷启动和带业务 suspend 未验收；没有对端证据时不能声称 PAN/HID 业务通过 |
 | Wi-Fi | 200新boot自动connected，早期管理端点超时保留；2.4/5GHz通信已有回归；189三轮传感器PM的第1/3轮观察约5.33/0.53秒关联5180，最终5180，未手工重绑驱动；2026-11-08 当前 boot 5GHz/VHT 866.7 Mbit/s 连续关联约79分钟，beacon loss 0，power save off；2026-11-09 r21 boot 完成 1810 个 SSH 样本/1820.51 秒、最大间隔 1.01 秒，DMS 地址 `PRIVATE_WIFI_MAC` 在多次启动一致；原厂 decompiled DTB 的 WiFi 节点与蓝牙共用四个 PMIC regulator，当前 DTB 已绑定；ath10k 只把原厂未使用的 `vdd-3.3-ch1` 退回 dummy | 第2轮35秒窗内仍未关联，之后又执行第3轮PM，不能称第2轮自行恢复；185立即醒后2秒检查失败仍保留。冷启动、完整休眠通信恢复及长期稳定性仍开放；不能把 dummy ch1 直接当成断连根因 |
-| 普通USB与OTG | USB 2.0 Type-C；2026-11-09 r21 boot 在主板直连口完成双向 `64K/256K/1M/4M` 各三轮 24/24、1798.828 秒 NCM 心跳；UDC `configured`、`usb0` carrier 1、`qmult=20`；严格 host-key Wi‑Fi/NCM SSH 和最终 runtime/Plasma 门禁通过。2026-11-12 标准 Type-C sink DTB/Image 已部署，3×15 s + 1×60 s + 8×15 s s2idle 和 NCM 恢复通过；普通 USB 已迁移到 `usb-signaller 0.4.3-r3` + `postmarketos-usb-moded` + NetworkManager/unudhcpd/umtprd，`samurai-platform 6-r2` 的有界 DWC3 重绑与 UDC `soft_connect` 已在 `ip link down` 注入后自动恢复，并让 Windows 重新取得 DHCP `172.16.42.2/24`；8 轮 soak 由主机自行重枚举、未触发强制重绑 | 旧 Genesys 扩展 Hub 端口仍会停在 `VID_0000&PID_0001`/Code 43；当前 Image 缺 `DWC3_DUAL_ROLE`/xHCI，OTG host 尚未实现；Windows 网卡复位权限、USB 归档尾部中断、IPv6、EUD 接收/退出、Linux 主机、更长时间空闲和多次冷启动待验收。DWC3 suspend 仍会 soft-disconnect；默认由标准 `ssh-session-open` 持有 sleep 锁。物理 Type-C 插拔唤醒、反插和同线 host-resume 尚未验收 |
+| 普通USB与OTG | USB 2.0 Type-C；2026-11-09 r21 boot 在主板直连口完成双向 `64K/256K/1M/4M` 各三轮 24/24、1798.828 秒 NCM 心跳；UDC `configured`、`usb0` carrier 1、`qmult=20`；严格 host-key Wi‑Fi/NCM SSH 和最终 runtime/Plasma 门禁通过。2026-11-12 标准 Type-C sink DTB/Image 已部署，s2idle 和 NCM 恢复通过；普通 USB 已迁移到 `usb-signaller 0.4.3-r4` + `postmarketos-usb-moded` + NetworkManager/`unudhcpd 0.5.0-r2`/umtprd，`samurai-platform 6-r3` 的有界 DWC3 重绑、UDC `soft_connect` 和 MODE_REATTACH 已在 `ip link down`、host→device 注入后自动恢复，并让 Windows 重新取得 DHCP `172.16.42.2/24`；OTG Image/DTB 已部署，device-mode、Tethering/MTP/charging、2 轮 synthetic 与标准 usb-moded host/device 切换、30 秒 s2idle 及 8 MiB NCM 往返通过 | 旧 Genesys 扩展 Hub 端口仍会停在 `VID_0000&PID_0001`/Code 43；物理 USB-C OTG adapter、U 盘/键盘、自动 TCPM host、反插和 VBUS source 尚未验收；Windows 网卡复位权限、USB 归档尾部中断、IPv6、EUD 接收/退出、Linux 主机、更长时间空闲和多次冷启动待验收。DWC3 suspend 仍会 soft-disconnect；默认由标准 `ssh-session-open` 持有 sleep 锁。物理 Type-C 插拔唤醒、反插和同线 host-resume 尚未验收 |
 | 触摸 | 用户确认可解锁、操作应用，原生驱动工作 | 边缘/方向/多触点与休眠后恢复、长稳 |
 
 已有基础还包括UFS访问、CPU调频表、PMIC温度与按键/EUD。CPU高频压力、UFS持续负载、整机功耗、冷启动及系统休眠唤醒仍需跨功能验收；不能以驱动注册或短窗口健康代替日用完成。

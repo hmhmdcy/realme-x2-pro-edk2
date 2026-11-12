@@ -1,6 +1,6 @@
 # Linux技术文档索引
 
-用途：技术说明和早期会话导航。整理日期：2026-11-11；当前功能与部署见[硬件清单](HARDWARE-STATUS.md)及[检查点](../../NEXT-SESSION.md)，操作规则见[WORKING-BOUNDARIES](../../WORKING-BOUNDARIES.md)。
+用途：技术说明和早期会话导航。整理日期：2026-11-12；当前功能与部署见[硬件清单](HARDWARE-STATUS.md)及[检查点](../../NEXT-SESSION.md)，操作规则见[WORKING-BOUNDARIES](../../WORKING-BOUNDARIES.md)。
 
 ## 技术说明
 
@@ -27,6 +27,7 @@
 | [DESKTOP-PORTABILITY.md](DESKTOP-PORTABILITY.md) | 板级公共接口与桌面适配层边界、换桌面检查清单 |
 | [USB-NCM-SSH.md](USB-NCM-SSH.md) | USB网络、SSH/SCP与EUD共存路径 |
 | [PMOS-USB-20261112.md](PMOS-USB-20261112.md) | postmarketOS 标准 usb-signaller、模式矩阵、有界恢复和 suspend 边界 |
+| [USB-OTG-20261112.md](USB-OTG-20261112.md) | 主线 DWC3 dual-role/xHCI + PM8150B Type-C OTG 已部署候选、配置差分、验收与回滚 |
 | [USB-HOST-RESUME-20261110.md](USB-HOST-RESUME-20261110.md) | U3-only keep-connect、USBwake 调试锁、最终刷入与真机验收证据 |
 | [NFC-NEARD.md](NFC-NEARD.md) | 主线 nxp-nci-i2c、Alpine neard/OpenRC 边界和真实标签验收条件 |
 | [BLUETOOTH-HOST-MODULES.md](BLUETOOTH-HOST-MODULES.md) | 主线 BNEP/UHID/uinput 模块包、官方 BlueZ 加载边界、离线签名/隔离安装和设备验收条件 |

@@ -27,10 +27,17 @@
     "applies_after": "0002-usb-signaller-network-ownership.patch",
     "applies_cleanly_to": "v0.4.3 with the preceding local patches"
   },
+  "patch_4": {
+    "file": "0004-usb-signaller-retry-mode-activation.patch",
+    "sha256": "c9e75d0070780aa8b7aa1165ebeda0f53a4ac0e16239ede2a651a014bfb9763d",
+    "sha512": "588605dea21292bdc91a62855f48391aaac880ed2a937e6b21cec977c307ef9b9ad98981e952155aa730ac54895ee33c6b4746f27a66bfd47052d58c67c69bcf",
+    "applies_after": "0003-usb-signaller-wait-for-network.patch",
+    "applies_cleanly_to": "v0.4.3 with the preceding local patches"
+  },
   "patched_sources": {
     "Cargo.toml": "8d8555ef5ac99580e36efecb1a315c9058e09e6ab0bf26fd402ab81f9dc787c9",
-    "distro/scripts/usb-signaller-developer-mode.sh": "20bafc80e4aaab06dac3f20ffedb19238bcb5c2dcef95e5d692db6b9b5c20f99",
-    "distro/scripts/usb-signaller-tethering-mode.sh": "531cea10bd91b36a2b3388bd83f74630366275cba2567b8d0e5f5d961091f18b",
+    "distro/scripts/usb-signaller-developer-mode.sh": "e985ce1955caad9d6dc88b72e6e829f33beb58202341c69c6758cfcc9c378042",
+    "distro/scripts/usb-signaller-tethering-mode.sh": "4239d162c4c6928f4a7357044050bd6dbcc1eb2eeb6ba65ee737b8e1fe6e7272",
     "src/configuration.rs": "f357509d9ac3c4910251dd0c1420bf9a8608101401b56495ce1a5116b47c35af",
     "src/dbus.rs": "f6c37478356f5fa0d1e4260b919272693a261a7d0e99aaf80d2e695a48c7f0aa",
     "src/gadget.rs": "c0bf3857647e02350ffed329c5b11c2bb198518b7bcafe8b78bd57d714e3f944",
@@ -50,17 +57,18 @@
       "NCM developer/tethering and MTP modes reach UDC configured",
       "ordinary reboot reaches Developer with usb0=172.16.42.1/16",
       "Windows UsbNcm Problem 0, DHCP 172.16.42.2 and NCM SSH pass",
-      "automatic DWC3 recovery restores Developer carrier after ip link down"
+      "automatic DWC3 recovery restores Developer carrier after ip link down",
+      "bounded nmcli management/activation retry returns host->device NCM"
     ]
   },
   "package_artifacts": {
     "usb-signaller": {
-      "version": "0.4.3-r3",
-      "sha256": "1851fedfa7e8853566d41f79a20449cdee426537c830e90572a488258e309a84"
+      "version": "0.4.3-r4",
+      "sha256": "b6563532bd884cd14b34b2dd283a1f7e179f2fd82cb1c3e4f36ca01221867e30"
     },
     "usb-signaller-openrc": {
-      "version": "0.4.3-r3",
-      "sha256": "67ec911a0757e1e7208478dd37916600712fcccc99460524310707c4a33c9129"
+      "version": "0.4.3-r4",
+      "sha256": "34b84c0c7ea97b5c9b3057a3db58bf2fb5dfd2195a084933a1d12c2ab7620cb2"
     }
   }
 }

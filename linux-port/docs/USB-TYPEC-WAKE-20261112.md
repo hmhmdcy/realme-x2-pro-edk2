@@ -2,6 +2,13 @@
 
 ## 结论
 
+> 本页记录 2026-11-12 的 Type-C sink/唤醒阶段。随后部署的
+> `...-usbwake-otg` 内核已把同一 Type-C 节点扩展为 dual-role；
+> 当前运行状态见
+> [`USB-OTG-20261112.md`](USB-OTG-20261112.md)。本页的 sink
+> 运行时快照和 boot ID 为该阶段证据，不代表当前 OTG 内核的当前
+> 启动。
+
 标准 PM8150B Type-C/TCPM、`usb-c-connector`、PM8150B VBUS
 regulator 和 DWC3/NCM 已作为**持久 DTB + Image** 冷启动部署并通过
 短时 `s2idle` 稳定性验证。当前状态：
@@ -219,7 +226,8 @@ PMIC/SPMI/PDC 路径能把唤醒送到系统。
 用 RTC `since_epoch` 复核；因此表中的 15/60 秒是实际经过时间。
 每次 resume 后 Windows 会重新枚举，标准 `usb-signaller` 模式服务或
 `samurai-usb-recover` 能在 12–20 秒内恢复 UDC `configured` 和
-`usb0 carrier=1`。`samurai-platform 6-r2` 的恢复路径还会用标准 UDC
+`usb0 carrier=1`。`samurai-platform 6-r2` 及之后（当前 6-r3）
+的恢复路径还会用标准 UDC
 `soft_connect` 强制主机干净重枚举，使 Windows 重新执行 DHCP。
 
 另有 15 分钟主机侧心跳：108 个样本，NCM 失败 0、Wi‑Fi 失败 0、
@@ -417,8 +425,10 @@ partner；旧状态或不上报 partner 的源仍可能出现该对象缺失。
   Windows UsbNcm 也长期保持 U0；不能用 Windows NCM 做该验收，
   需要 Linux 主机 autosuspend；
 - PD/APSD 合同、PPS、SuperVOOC 等充电协议行为；
-- `usb-role-switch`/dual-role/host 模式。当前 Image 仍是
-  `DWC3_GADGET`，没有 xHCI。
+- `usb-role-switch`/dual-role/host 模式的物理外设验收。后续
+  OTG Image 已启用 `DWC3_DUAL_ROLE`、xHCI 和标准 URS，并完成
+  synthetic host/device；U 盘、键盘、自动 TCPM host 与反插仍未
+  验收。
 
 ## 回滚
 

@@ -1,12 +1,12 @@
-# 当前：postmarketOS USB 栈已部署；物理插拔/同线 resume 待验收
+# 当前：OTG device/synthetic/恢复已验证；物理 OTG 外设待验收
 
 ## 2026-11-12 postmarketOS USB 当前状态
 
 - 普通 USB 运行时已从板级 `samurai-usb` 迁移到标准
-  `usb-signaller 0.4.3-r3` + `postmarketos-usb-moded` +
-  NetworkManager + `unudhcpd` + `umtprd`；`samurai-platform 6-r2`
-  已安装；6-r1 完成普通重启后在同一 boot 升级到 r2。当前 boot ID
-  `fc04a2e7-894b-4814-878e-6fdf5d44cc43`。
+  `usb-signaller 0.4.3-r4` + `postmarketos-usb-moded` +
+  NetworkManager + `unudhcpd 0.5.0-r2` + `umtprd`；
+  `samurai-platform 6-r3` 已安装。当前 OTG boot ID
+  `f02a6e0a-8357-49f8-bd79-a2508143056a`。
 - Developer 默认模式为 `0525:a4a1`、class `ef/02/01`、MaxPower 500、
   NCM `qmult=20`、`usb0=172.16.42.1/16`；Windows UsbNcm Problem 0，
   DHCP `172.16.42.2/24`，严格 host-key NCM SSH 通过。Tethering
@@ -14,20 +14,38 @@
 - `samurai-usb-recover` 已改为通过标准 DWC3 unbind/bind 和
   usb-moded D-Bus 恢复当前模式；`ip link down` 注入在 boot ID 不变
   下恢复到 UDC `configured`/carrier 1，标准模式服务自动重绑。
-  `6-r2` 在末尾用公开 UDC `soft_connect` 强制干净重枚举；实测
+  `6-r2` 及之后在末尾用公开 UDC `soft_connect` 强制干净重枚举；实测
   Windows 在同一恢复窗口重新取得 `172.16.42.2/24` DHCP 租约，
   `USB\VID_0525&PID_A4A1` 和 UsbNcm 均 Problem 0。
-- 一次 `rtcwake -m mem -s 15` 烟测后 NCM 先消失、约 20 秒内自动
+- `unudhcpd 0.5.0-r2` 只保留 BROADCAST flag 修复：Windows NCM
+  重枚举后可要求 `255.255.255.255:68` 广播 OFFER/ACK。两轮
+  UDC soft reconnect 均重新取得 DHCP。`usb-signaller 0.4.3-r4`
+  为 `nmcli device ... managed yes` 增加有界重试。
+- `samurai-platform 6-r3` 新增 `reason=mode_transition`：
+  `host_mode` 或其他非 NCM 模式切回 Developer/Tethering 后，若
+  UDC `configured` 但 carrier 缺失，10 秒后执行同一有界 DWC3
+  recovery。真机 `MODE_REATTACH -> RECOVER_OK` 后 Windows
+  重新取得 DHCP；标准 `test-usb-moded-host-mode.sh` 已
+  `RESULT=PASS failures=0`。
+- OTG Image/DTB 已部署并冷启动：device-mode NCM、Tethering/MTP/
+  charging、两轮 synthetic host/device 切换、标准 usb-moded
+  host_mode、30 秒 s2idle 和 8 MiB NCM 往返通过；host role
+  注册 xHCI root bus，恢复 device
+  后 UDC/NCM/DHCP 自动恢复，无需人工 DWC3 重绑。
+- 一次 `rtcwake -m mem -s 30` 烟测后 NCM 先消失、随后自动
   重连；suspend 期间不保持同一条活动链路，不能写成 USB host-resume。
-  `dmesg` entry/exit 时差约 0.7 秒，睡眠时长仍需单独验收。
-- 早期一次重连曾停在 APIPA；设备侧 `unudhcpd`/UDC/carrier 正常。
-  `6-r2` 的 UDC `soft_connect` 已在该 `ip link down` 恢复路径解决，
-  但更长 suspend/resume soak 的主机 DHCP 行为仍待验收。
-- 未验收仍是物理插线/拔线、反插方向、长期插拔/suspend soak、
-  Windows 物理 replug 后 Code 43、同线 U3 host-resume；当前内核
-  仍无 `DWC3_DUAL_ROLE`/xHCI，不能声明 OTG host。
+  墙钟 32 秒，`suspend_stats.success +1`、`fail=0`，boot ID 不变；
+  Windows 重新取得 DHCP `172.16.42.2/24`。
+- 早期 APIPA 已由 `unudhcpd 0.5.0-r2` 的广播回复修复和 UDC
+  `soft_connect` 重枚举覆盖；两轮 soft reconnect、模式回归、
+  host/device 切换与 suspend 后的 Windows DHCP 均恢复。
+- 未验收仍是物理 Type-C OTG adapter、U 盘/键盘、自动 TCPM host、
+  反插方向、VBUS source、长期插拔/suspend soak、Windows 物理
+  replug 后 Code 43 和同线 U3 host-resume。当前内核已有
+  `DWC3_DUAL_ROLE`/xHCI，但 synthetic host 不能写成物理 OTG 通过。
 - 详细证据、包哈希和板级分层见
-  [PMOS-USB-20261112](linux-port/docs/PMOS-USB-20261112.md)。
+  [PMOS-USB-20261112](linux-port/docs/PMOS-USB-20261112.md) 和
+  [USB-OTG-20261112](linux-port/docs/USB-OTG-20261112.md)。
 
 ## 历史：2026-11-12 Type-C 唤醒与验证
 

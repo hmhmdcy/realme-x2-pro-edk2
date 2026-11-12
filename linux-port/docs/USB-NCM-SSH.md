@@ -74,13 +74,17 @@ controller 内部状态。USBIN 测试脚本已改成结束时强制重绑 DWC3 
 
 ## 2026-11-12 postmarketOS 自动恢复
 
-当前运行时由标准 `usb-signaller 0.4.3-r3` 管理 gadget 和模式，
-`samurai-platform 6-r2` 只保留 SM8150 DWC3 的有界恢复：
+当前运行时由标准 `usb-signaller 0.4.3-r4` 管理 gadget 和模式，
+`unudhcpd 0.5.0-r2` 提供 DHCP，`samurai-platform 6-r3` 只保留
+SM8150 DWC3 的有界恢复：
 
 - 只有本次电缆会话曾达到 `UDC=configured` 且 `usb0 carrier=1` 才武装；
 - `online=1` 但链路持续丢失 12 秒时，执行一次 DWC3 unbind/bind；
 - 曾成功枚举过且 VBUS 0 -> 1 后 20 秒仍未配置时，执行一次
   `reason=reattach` 的 DWC3 unbind/bind；
+- 从 `host_mode` 或其他非 NCM 模式切回 Developer/Tethering 后，
+  若 UDC 已 `configured` 但主机没有拉起 carrier，等待 10 秒后执行
+  一次 `reason=mode_transition` 的同一有界恢复；
 - 每会话最多连续两次，成功后通过 usb-moded D-Bus 恢复原模式，并
   重启对应的标准模式服务；
 - 最后写入公开 UDC `soft_connect` 的 `disconnect`/`connect`，让主机
@@ -214,6 +218,11 @@ rootfs 不再启动 Dropbear，SSH 由发行版 `sshd.pam` 提供；当前
 必须在设备在线时作为单独候选迁移并重新做主机侧验收，不能和设备离线
 时的启动策略修改混在同一个包内。
 
+2026-11-12 的运行时已完成该迁移：rootfs 使用 `unudhcpd 0.5.0-r2`
+和 `172.16.42.1/16`。该本地包只增加 RFC 2131 BROADCAST flag
+处理；Windows NCM 在 gadget 重枚举后若请求广播回复，OFFER/ACK
+会发往 `255.255.255.255:68`，否则保留原有单播/ARP 路径。
+
 `samurai-platform` 5-r24 起正式包不再安装 carrier-only guard，也不再
 安装 `samurai-sleep-inhibitor`。正式系统直接使用 postmarketOS 官方的
 `/etc/sleep-inhibitor.conf` 和官方 `sleep-inhibitor` 服务：有活跃 SSH
@@ -324,8 +333,8 @@ PM8150B Type-C/充电器 IRQ 的 `enable_irq_wake()` 支持；不应在板级
 | 系统 suspend 后的 USB 插拔唤醒 | **未支持** | GPIO10 extcon 被否定并删除；没有可信 VBUS/attach 源。下一步走 PM8150B Type-C/TCPM |
 | 同线主机发给手机的 USB resume | **未支持** | keep-connect 已禁用（拔线时 `dp_hs_phy_irq` 伪唤醒，插线 resume 曾致 Code 43）；标准路径不保留 U3 链路 |
 | VBUS/充电器检测 | 部分 | MP2650 只做 I2C `power_supply` 轮询，没有 IRQ/wakeup 布防 |
-| Type-C CC/PD 与 role switch | 部分/离线候选 | sink DTB 已构建，保持 `dr_mode = "peripheral"`、无 role-switch；dual-role 需新内核 |
-| OTG/host mode | 未实现，候选已准备 | 当前 Image 是 `DWC3_GADGET` 且无 xHCI；dual DTB + Kconfig fragment 已落盘，尚未构建/刷入 |
+| Type-C CC/PD 与 role switch | sink 已验证；OTG dual-role 已部署 | 当前运行内核为 `dr_mode = "otg"`、`usb-role-switch` 和 PM8150B Type-C/TCPM；role=device，物理 host 选择待验收 |
+| OTG/host mode | device 与 synthetic host 已验证，物理外设待验收 | `...-usbwake-otg` Image/DTB/boot/logdump/772 模块包已部署；synthetic host 注册 xHCI root bus 并自动回到 device。U 盘/键盘、自动 Type-C host、反插和 VBUS source 未验收，见 [USB-OTG-20261112](USB-OTG-20261112.md) |
 | USB3 SuperSpeed | 未启用 | `usb_1_qmpphy` disabled，`maximum-speed = "high-speed"` |
 | DisplayPort alt mode | 未实现 | 同一 QMP PHY/DP 路径未接入 |
 | 充电控制/输入限流/watchdog | 未实现 | MP2650 驱动明确只读，避免未验证的保护链被改写 |

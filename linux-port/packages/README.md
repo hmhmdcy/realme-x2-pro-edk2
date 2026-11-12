@@ -19,6 +19,7 @@
 | [samurai-platform](samurai-platform/) | noarch 板级公共层：ALSA UCM、Wi-Fi、Modem、USB、蓝牙；PulseAudio 为可选子包 |
 | [samurai-refresh](samurai-refresh/) | Phoc/wlr-output-management 历史工具；Plasma 使用 KScreen |
 | [phoc](phoc/) | 修复 Phoc 对非首选固定输出模式的处理 |
+| [unudhcpd](unudhcpd/) | 标准 unudhcpd 的 DHCP broadcast 回复修复；Developer/Tethering 共用 |
 
 ## GNSS 软件包
 

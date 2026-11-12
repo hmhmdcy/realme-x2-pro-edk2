@@ -179,7 +179,7 @@ platform_files = [
 for source, target, mode in platform_files:
     copy_file(platform_source / source, platform / target, mode)
 make_package(
-    "samurai-platform", "6-r1", "noarch", platform,
+    "samurai-platform", "6-r3", "noarch", platform,
     {
         "description": "Realme X2 Pro board-level platform and services",
         "license": "LicenseRef-Local-Project",
@@ -189,7 +189,8 @@ make_package(
             "python3 openrc eudev iproute2 util-linux libqmi qmi-utils "
             "networkmanager bluez wpa_supplicant openssh-server-pam "
             "alsa-ucm-conf alsa-utils sleep-inhibitor dnsmasq "
-            "neard-openrc postmarketos-usb-moded usb-signaller>=0.4.3-r3"),
+            "neard-openrc postmarketos-usb-moded usb-signaller>=0.4.3-r4 "
+            "unudhcpd>=0.5.0-r2"),
     },
     {
         "post-install": platform_source / "samurai-platform.post-install",

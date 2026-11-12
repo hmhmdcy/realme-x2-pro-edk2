@@ -1,0 +1,73 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Source-level USB2 OTG candidate for RMX1931.
+ *
+ * This wrapper is deliberately compiled without -@. Its DTB is larger than
+ * the currently deployed embedded section, so it requires the enlarged
+ * DTB-FFS boot candidate rather than the in-place small-DTB path. It uses
+ * the mainline PM8150B Type-C/TCPM connector, DWC3 usb-role-switch and HS
+ * endpoint graph. USB3, QMP/DP and the absent FSA4480/SBU mux remain
+ * disabled.
+ */
+
+#include <dt-bindings/usb/pd.h>
+#include "sm8150-samurai.dts"
+
+/* SM8150 Ethernet is not populated on RMX1931. */
+/delete-node/ &ethernet;
+
+&pm8150b_vbus {
+	regulator-min-microamp = <500000>;
+	regulator-max-microamp = <500000>;
+	status = "okay";
+};
+
+&pm8150b_typec {
+	status = "okay";
+	vdd-pdphy-supply = <&vreg_l2a_3p1>;
+	wakeup-source;
+
+	connector {
+		compatible = "usb-c-connector";
+		label = "USB-C";
+
+		power-role = "dual";
+		try-power-role = "sink";
+		data-role = "dual";
+		self-powered;
+
+		vbus-supply = <&pm8150b_vbus>;
+		source-pdos = <PDO_FIXED(5000, 500,
+					 PDO_FIXED_DUAL_ROLE |
+					 PDO_FIXED_USB_COMM |
+					 PDO_FIXED_DATA_SWAP)>;
+		sink-pdos = <PDO_FIXED(5000, 500,
+				       PDO_FIXED_DUAL_ROLE |
+				       PDO_FIXED_USB_COMM |
+				       PDO_FIXED_DATA_SWAP)>;
+		op-sink-microwatt = <2500000>;
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+
+				pm8150b_hs_in: endpoint {
+					remote-endpoint = <&usb_1_dwc3_hs>;
+				};
+			};
+		};
+	};
+};
+
+&usb_1_dwc3 {
+	dr_mode = "otg";
+	usb-role-switch;
+	role-switch-default-mode = "peripheral";
+};
+
+&usb_1_dwc3_hs {
+	remote-endpoint = <&pm8150b_hs_in>;
+};
