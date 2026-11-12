@@ -75,7 +75,8 @@ controller 内部状态。USBIN 测试脚本已改成结束时强制重绑 DWC3 
 ## 2026-11-12 postmarketOS 自动恢复
 
 当前运行时由标准 `usb-signaller 0.4.3-r4` 管理 gadget 和模式，
-`unudhcpd 0.5.0-r2` 提供 DHCP，`samurai-platform 6-r3` 只保留
+`unudhcpd 0.5.0-r2` 提供 DHCP，`samurai-platform` 6-r3 及之后的
+6-r5/6-r6 只保留
 SM8150 DWC3 的有界恢复：
 
 - 只有本次电缆会话曾达到 `UDC=configured` 且 `usb0 carrier=1` 才武装；
@@ -85,6 +86,8 @@ SM8150 DWC3 的有界恢复：
 - 从 `host_mode` 或其他非 NCM 模式切回 Developer/Tethering 后，
   若 UDC 已 `configured` 但主机没有拉起 carrier，等待 10 秒后执行
   一次 `reason=mode_transition` 的同一有界恢复；
+- 6-r6 按 configfs gadget generation 识别短 `host_mode` 会话，并把
+  恢复自身重建的 generation 写回基线，避免尝试预算被自己无限复位；
 - 每会话最多连续两次，成功后通过 usb-moded D-Bus 恢复原模式，并
   重启对应的标准模式服务；
 - 最后写入公开 UDC `soft_connect` 的 `disconnect`/`connect`，让主机

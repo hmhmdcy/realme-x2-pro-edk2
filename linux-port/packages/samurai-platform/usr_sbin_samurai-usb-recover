@@ -69,12 +69,22 @@ dbus_usb_mode()
 	[ "$dbus_enabled" = 1 ] || return 1
 	command -v dbus-send >/dev/null 2>&1 || return 1
 	reply=$(dbus-send --system --type=method_call --print-reply \
+		--reply-timeout=5000 \
 		--dest=com.meego.usb_moded /com/meego/usb_moded \
 		com.meego.usb_moded.mode_request 2>/dev/null) || return 1
 	mode=$(printf '%s\n' "$reply" |
 		sed -n 's/.*string "\(.*\)"/\1/p' | tail -n 1)
 	[ -n "$mode" ] || return 1
 	printf '%s\n' "$mode"
+}
+
+monitor_usb_mode()
+{
+	if [ "$dbus_enabled" = 1 ]; then
+		dbus_usb_mode
+	else
+		configfs_usb_mode
+	fi
 }
 
 configfs_usb_mode()
@@ -97,6 +107,34 @@ configfs_usb_mode()
 		esac
 	done
 	return 1
+}
+
+ncm_gadget_generation()
+{
+	case $1 in
+	developer_mode)
+		gadget=$configfs_dir/usb-signaller-developer
+		;;
+	tethering_mode)
+		gadget=$configfs_dir/usb-signaller-tethering
+		;;
+	*)
+		return 1
+		;;
+	esac
+	[ -d "$gadget" ] || return 1
+	# A standard usb-signaller mode change tears down and recreates the
+	# configfs gadget.  Track that identity as well as the D-Bus mode name
+	# so a short host_mode transition cannot be missed by the poll loop.
+	stat -c '%i:%Y:%Z' "$gadget" 2>/dev/null || return 1
+}
+
+refresh_generation_baseline()
+{
+	mode=$(configfs_usb_mode 2>/dev/null || true)
+	[ -n "$mode" ] || return 0
+	generation=$(ncm_gadget_generation "$mode" 2>/dev/null || true)
+	[ -n "$generation" ] && write_state generation "$generation"
 }
 
 current_usb_mode()
@@ -297,6 +335,11 @@ recover_link()
 		{ log_event "RECOVER_FAIL reason=udc_missing"; return 1; }
 
 	restart_gadget >/dev/null 2>&1 || true
+	# restart_gadget intentionally recreates the active configfs gadget.
+	# Record that generation as the new baseline so the monitor does not
+	# mistake our own recovery for a fresh user mode transition and reset
+	# the retry budget forever.
+	refresh_generation_baseline
 	# A DWC3 rebind can leave the host with stale DHCP/NCM state.  Toggle
 	# the standard UDC soft_connect control after userspace is ready so
 	# the host performs a clean enumeration and DHCP exchange.
@@ -319,6 +362,7 @@ recover_link()
 	write_state stable_since "$(date +%s)"
 	write_state reattach_since 0
 	write_state mode_reattach_since 0
+	refresh_generation_baseline
 	log_event "RECOVER_OK attempt=$attempts reason=$reason state=configured carrier=1"
 	return 0
 }
@@ -350,16 +394,45 @@ monitor()
 	previous_ncm_mode=0
 
 	while :; do
-		mode=$(current_usb_mode 2>/dev/null || true)
+		previous_generation=$(read_state generation)
+		mode=$(monitor_usb_mode 2>/dev/null || true)
+		if [ -z "$mode" ]; then
+			if [ "$previous_ncm_mode" != unknown ]; then
+				log_event "MODE_UNKNOWN; recovery paused"
+			fi
+			previous_ncm_mode=unknown
+			stuck_since=0
+			sleep "$interval"
+			continue
+		fi
 		case $mode in
 		developer_mode|tethering_mode) ncm_mode=1 ;;
 		*) ncm_mode=0 ;;
 		esac
+		generation=
 		if [ "$ncm_mode" = 1 ]; then
-			if [ "$previous_ncm_mode" = 1 ]; then
+			generation=$(ncm_gadget_generation "$mode" 2>/dev/null || true)
+			# During a role transition usb-moded can report the requested
+			# NCM mode while the host-mode gadget is already active.  The
+			# configfs gadget is the authoritative userspace session marker.
+			[ -n "$generation" ] || ncm_mode=0
+		fi
+		if [ "$ncm_mode" = 1 ]; then
+			if [ "$previous_ncm_mode" = 1 ] &&
+				[ -n "$previous_generation" ] &&
+				[ "$generation" = "$previous_generation" ]; then
 				mode_transition=0
 			else
 				mode_transition=1
+				attempts=$(read_state attempts)
+				case $attempts in
+				''|*[!0-9]*) attempts=0 ;;
+				esac
+				if [ "$attempts" -gt 0 ]; then
+					write_state attempts 0
+					log_event "BUDGET_RESET reason=mode_transition attempts=$attempts"
+				fi
+				write_state generation "$generation"
 			fi
 			previous_ncm_mode=1
 		else

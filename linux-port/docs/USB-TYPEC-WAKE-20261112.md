@@ -226,7 +226,8 @@ PMIC/SPMI/PDC 路径能把唤醒送到系统。
 用 RTC `since_epoch` 复核；因此表中的 15/60 秒是实际经过时间。
 每次 resume 后 Windows 会重新枚举，标准 `usb-signaller` 模式服务或
 `samurai-usb-recover` 能在 12–20 秒内恢复 UDC `configured` 和
-`usb0 carrier=1`。`samurai-platform 6-r2` 及之后（当前 6-r3）
+`usb0 carrier=1`。`samurai-platform 6-r2` 及之后（当前安装 6-r5，
+6-r6 恢复脚本验证中）
 的恢复路径还会用标准 UDC
 `soft_connect` 强制主机干净重枚举，使 Windows 重新执行 DHCP。
 

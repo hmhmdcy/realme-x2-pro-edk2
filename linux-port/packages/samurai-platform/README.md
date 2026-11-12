@@ -1,6 +1,6 @@
-# samurai-platform 6-r3
+# samurai-platform 6-r6
 
-6-r3 is the OTG recovery candidate. It keeps the standard postmarketOS
+6-r6 is the current OTG recovery candidate. It keeps the standard postmarketOS
 USB ownership model and adds the bounded `samurai-usb-recover` path:
 
 ```text
@@ -31,7 +31,7 @@ recovery tests are recorded in `linux-port/docs/PMOS-USB-20261112.md`.
 Physical cable/orientation checks and same-cable U3 host-resume remain
 open.
 
-6-r3 adds a separate bounded reattach path for an explicit transition
+6-r3 added a separate bounded reattach path for an explicit transition
 from `host_mode` (or another non-NCM mode) back to Developer/Tethering.
 The previous controller can report UDC `configured` while the host never
 raises NCM carrier; because VBUS never toggles, the older recovery state
@@ -40,18 +40,38 @@ machine stayed disarmed. The new path records
 the same bounded DWC3 unbind/bind and UDC `soft_connect` recovery. The
 attempt budget remains at most two per cable session.
 
+6-r4 and 6-r5 close the mode-transition race found by repeated
+`test-usb-moded-host-mode.sh` runs:
+
+- an unrecognised D-Bus state pauses recovery instead of falling back to
+  the wrong configfs mode;
+- the mode-request D-Bus call has an explicit reply timeout;
+- a new Developer/Tethering session resets the bounded retry budget,
+  logged as `BUDGET_RESET reason=mode_transition`;
+- the offline mode-transition test checks the reset explicitly.
+
+6-r6 also makes a missed short `host_mode` transition recoverable. The
+monitor records the active configfs gadget generation (inode and
+timestamps), not only the polled D-Bus mode name. A later gadget
+generation is treated as a new user session even if the monitor never
+sampled `host_mode`. Recovery writes the post-rebind generation back as
+the baseline, so the watchdog cannot mistake its own restart for a new
+session and reset its retry budget forever. A three-round handset run of
+the standard host-mode test passed with a bounded attempt count. The
+offline generation regression is
+`linux-port/diagnostics/test-usb-recover-generation.sh`.
+
 Signed candidate:
 
 ```text
 E:/edk2-samurai-out/standard-arm64-v731/
-  usb-hotfix-otg-r3-20261112/samurai-platform-6-r3.apk
-SHA-256 96951fef807c593396ce685a9b2367c0bb8d071be9ccc3bbcb286c44f11c4548
+  usb-hotfix-otg-r6-20261112/samurai-platform-6-r6.apk
+SHA-256 74ea9659eab45d9913ebebc47b5afe284d1760d9a3f7055e1bcc1916d1c1870f
 ```
 
-On the handset, `MODE_REATTACH -> RECOVER_BEGIN reason=mode_transition
--> RECOVER_OK` restored carrier and Windows DHCP without a manual
-rebind. `test-usb-moded-host-mode.sh` then returned
-`RESULT=PASS failures=0`.
+The 6-r6 script is already the live recovery implementation used for the
+three-round handset test; the signed APK still needs installation and
+package-level verification after device access returns.
 
 6-r1 moved the runtime USB gadget owner from the board script
 `samurai-usb` to the standard postmarketOS stack:

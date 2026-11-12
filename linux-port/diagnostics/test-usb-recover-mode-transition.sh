@@ -23,6 +23,7 @@ mkdir -p "$tmp/run" "$tmp/log"
 printf '1\n' >"$tmp/run/seen_configured"
 printf '1\n' >"$tmp/run/online"
 printf '0\n' >"$tmp/run/armed"
+printf '2\n' >"$tmp/run/attempts"
 printf 'configured' >"$tmp/sys/class/udc/a600000.usb/state"
 printf '0' >"$tmp/sys/class/net/usb0/carrier"
 printf '1\n' >"$tmp/sys/class/power_supply/mp2650-input/online"
@@ -71,6 +72,8 @@ done
 printf 'carrier=%s\n' "$(cat "$tmp/sys/class/net/usb0/carrier")"
 
 grep -q 'MODE_REATTACH mode=developer_mode state=configured' \
+	"$tmp/log/recover.log"
+grep -q 'BUDGET_RESET reason=mode_transition attempts=2' \
 	"$tmp/log/recover.log"
 grep -q 'RECOVER_BEGIN attempt=1 reason=mode_transition' \
 	"$tmp/log/recover.log"

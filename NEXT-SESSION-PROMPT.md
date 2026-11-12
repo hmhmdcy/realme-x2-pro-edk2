@@ -1,24 +1,22 @@
-# 当前目标（2026-11-09）
+# 当前目标（2026-11-12）
 
-Wi‑Fi/NCM/SSH 已修复，仅保留为每次平台/内核变更后的强制回归门禁；
-继续用 Linux v7.3.1 主线模型/API 适配其余硬件。
+适配 RMX1931 的主线 Linux OTG：DWC3 dual-role、xHCI、标准
+PM8150B Type-C/TCPM、`usb-c-connector`、`usb-role-switch` 和 VBUS
+策略。私有代码只保留不可避免的板级层；禁止 GPIO10 extcon、
+`keep-connect`、私有 ioctl 和 OOT 冒充验收；不写
+NV/persist/calibration/userdata。
 
-约束不变：无人值守优先；私有代码只留无法标准化的极薄板级层；禁止
-私有 ioctl、Android/Binder 和 OOT 冒充验收；保留来源/哈希锁、可复现
-签名包、推荐路线、成对 `boot`+`logdump` 和回退；不擦写
-NV/persist/校准/userdata。
+当前已通过：OTG Image/DTB 冷启动、NCM/MTP/Tethering/charging、
+synthetic host/device、三轮标准 usb-moded host_mode、xHCI root
+bus、Developer 自动恢复及 Windows DHCP/PnP。6-r6 已按 configfs
+gadget generation 修复恢复预算竞态，签名 APK 已备。
 
-顺序：
+未通过：物理 USB-C OTG hub/adapter、U 盘、键盘、反插、自动 TCPM
+host、VBUS source、长期 host soak、同线 U3 host-resume。物理 OTG
+不能由 synthetic 结果替代。
 
-1. PM8150L 闪光灯：DTB/boot/FAT 和 verifier 已过，待 fastboot 恢复后
-   按 logdump→boot 成对刷入。
-2. 私有 `status` sysfs 删除：Image `f8d89621…`/FAT `ca205192…`
-   离线通过，未装机。
-3. NFC：Alpine `neard 0.20`/OpenRC + 主线 `nxp-nci-i2c`；
-   `samurai-platform 5-r22` 与探针已备，真实标签未验。
-4. 蓝牙 PAN/HID：`samurai-bluetooth-host 0.1.0-r0` 仅含主线
-   `bnep`/`uhid`/`uinput`；两构和隔离安装已过，autoload/外部对端/冷启动未验。
-5. 其后：音频/PM/SSR、传感器、SIM、高压充电、显示与相机 userspace。
-
-恢复设备后先读 `NEXT-SESSION.md`，确认 boot ID、`taint=0`、网络回归门禁
-和分区回读，再单变量刷入。普通 `reboot` 不等于拔电冷启动。
+立即：设备在一次 30 秒 `rtcwake` 后于 Wi‑Fi/NCM 均不可达；先由现场
+按电源键恢复，读取 `usb-otg-suspend.log`、`dmesg`、
+`suspend_stats`、boot ID 和 `pm_wakeup_irq`。恢复访问后安装
+`samurai-platform-6-r6.apk`，收集三轮 host-mode 原始日志，再继续
+物理验收。不要在无人值守下重复 suspend 测试。

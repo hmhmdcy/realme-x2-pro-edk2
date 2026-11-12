@@ -1,11 +1,24 @@
 # 当前：OTG device/synthetic/恢复已验证；物理 OTG 外设待验收
 
+## 立即恢复步骤
+
+- 设备在 2026-11-12 约 21:18 后进入不可达状态，疑似卡在
+  `rtcwake -m mem -s 30` 的 suspend。需要用户在现场按电源键恢复；
+  不要继续远程发送 suspend 命令。
+- 恢复后先读取 `/var/log/samurai/usb-otg-suspend.log`、
+  `dmesg`、`suspend_stats`、boot ID、`pm_wakeup_irq`，再决定是否
+  是 RTC 唤醒源或 USB/DWC3 suspend 路径问题。
+- 完成 6-r6 APK 安装与签名复核，并收集
+  `/tmp/r6b-host-mode-3x.log`、`/var/log/samurai/usb-recover.log`、
+  `/var/log/samurai/usb-moded-host-mode.log` 到证据目录。
+
 ## 2026-11-12 postmarketOS USB 当前状态
 
 - 普通 USB 运行时已从板级 `samurai-usb` 迁移到标准
   `usb-signaller 0.4.3-r4` + `postmarketos-usb-moded` +
   NetworkManager + `unudhcpd 0.5.0-r2` + `umtprd`；
-  `samurai-platform 6-r3` 已安装。当前 OTG boot ID
+  `samurai-platform 6-r5` 已安装；6-r6 恢复脚本已直接部署进行验证，
+  签名 APK 已构建但尚未安装。当前 OTG boot ID
   `f02a6e0a-8357-49f8-bd79-a2508143056a`。
 - Developer 默认模式为 `0525:a4a1`、class `ef/02/01`、MaxPower 500、
   NCM `qmult=20`、`usb0=172.16.42.1/16`；Windows UsbNcm Problem 0，
@@ -21,12 +34,19 @@
   重枚举后可要求 `255.255.255.255:68` 广播 OFFER/ACK。两轮
   UDC soft reconnect 均重新取得 DHCP。`usb-signaller 0.4.3-r4`
   为 `nmcli device ... managed yes` 增加有界重试。
-- `samurai-platform 6-r3` 新增 `reason=mode_transition`：
+- `samurai-platform` 6-r3 新增 `reason=mode_transition`：
   `host_mode` 或其他非 NCM 模式切回 Developer/Tethering 后，若
   UDC `configured` 但 carrier 缺失，10 秒后执行同一有界 DWC3
   recovery。真机 `MODE_REATTACH -> RECOVER_OK` 后 Windows
   重新取得 DHCP；标准 `test-usb-moded-host-mode.sh` 已
   `RESULT=PASS failures=0`。
+- 6-r5/6-r6 继续修复连续模式切换竞态。6-r6 按 configfs gadget
+  generation 识别用户会话，并把恢复自身重建的 generation
+  写回基线，避免 watchdog 自己重置尝试预算。21:03–21:09 连续
+  三轮 `test-usb-moded-host-mode.sh` 全部
+  `RESULT=PASS failures=0`；`test-usb-recover-generation.sh`
+  离线回归通过。6-r6 APK SHA-256
+  `74ea9659eab45d9913ebebc47b5afe284d1760d9a3f7055e1bcc1916d1c1870f`。
 - OTG Image/DTB 已部署并冷启动：device-mode NCM、Tethering/MTP/
   charging、两轮 synthetic host/device 切换、标准 usb-moded
   host_mode、30 秒 s2idle 和 8 MiB NCM 往返通过；host role
@@ -36,6 +56,11 @@
   重连；suspend 期间不保持同一条活动链路，不能写成 USB host-resume。
   墙钟 32 秒，`suspend_stats.success +1`、`fail=0`，boot ID 不变；
   Windows 重新取得 DHCP `172.16.42.2/24`。
+- 2026-11-12 晚再次执行 30 秒 RTC suspend 后，设备在 Wi‑Fi
+  `192.168.0.114` 和 NCM `172.16.42.1` 两条路径均不可达，未返回
+  `RTCWAKE_RC`。这次只能记为 suspend 未解决失败；需要用户在现场
+  按电源键恢复，不能继续无人值守 suspend 测试，也不能把早先通过
+  记录当成当前状态。
 - 早期 APIPA 已由 `unudhcpd 0.5.0-r2` 的广播回复修复和 UDC
   `soft_connect` 重枚举覆盖；两轮 soft reconnect、模式回归、
   host/device 切换与 suspend 后的 Windows DHCP 均恢复。
