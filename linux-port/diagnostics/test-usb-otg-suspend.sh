@@ -5,26 +5,48 @@
 # the USB-NCM SSH connection may disappear without killing the test.
 #
 # Usage: test-usb-otg-suspend.sh [seconds] [--preflight-only]
+#        [--staged] [--stages-only] [--require-dpm-watchdog]
 
 set -u
 
 root=${SAMURAI_SUSPEND_ROOT:-}
 seconds=${1:-15}
 case $seconds in
-''|*[!0-9]*) echo "usage: $0 [seconds] [--preflight-only]" >&2; exit 2 ;;
+''|*[!0-9]*)
+	echo "usage: $0 [seconds] [--preflight-only] [--staged] [--stages-only] [--require-dpm-watchdog]" >&2
+	exit 2
+	;;
 esac
 [ "$seconds" -ge 2 ] ||
-	{ echo "usage: $0 [seconds] [--preflight-only]" >&2; exit 2; }
+	{
+		echo "usage: $0 [seconds] [--preflight-only] [--staged] [--stages-only] [--require-dpm-watchdog]" >&2
+		exit 2
+	}
+shift
 preflight_only=0
-if [ "${2:-}" = --preflight-only ]; then
-	preflight_only=1
-elif [ -n "${2:-}" ]; then
-	echo "usage: $0 [seconds] [--preflight-only]" >&2
-	exit 2
-fi
+staged=0
+stages_only=0
+require_dpm_watchdog=0
+for argument in "$@"; do
+	case $argument in
+	--preflight-only) preflight_only=1 ;;
+	--staged) staged=1 ;;
+	--stages-only) staged=1; stages_only=1 ;;
+	--require-dpm-watchdog) require_dpm_watchdog=1 ;;
+	*)
+		echo "usage: $0 [seconds] [--preflight-only] [--staged] [--stages-only] [--require-dpm-watchdog]" >&2
+		exit 2
+		;;
+	esac
+done
 
 log=${SAMURAI_SUSPEND_LOG:-$root/var/log/samurai/usb-otg-suspend.log}
 rtc=$root/sys/class/rtc/rtc0
+pm_test=$root/sys/power/pm_test
+dpm_watchdog=$root/sys/module/pm/parameters/dpm_watchdog_enabled
+kernel_panic=$root/proc/sys/kernel/panic
+pstore=$root/sys/fs/pstore
+suspend_stats=$root/sys/power/suspend_stats
 
 log_event()
 {
@@ -40,6 +62,65 @@ snapshot()
 	fail=$(cat "$root/sys/power/suspend_stats/fail" 2>/dev/null || echo missing)
 	pm_wakeup_irq=$(cat "$root/sys/power/pm_wakeup_irq" 2>/dev/null || echo missing)
 	log_event "STATE udc=$state carrier=$carrier success=$success fail=$fail pm_wakeup_irq=$pm_wakeup_irq"
+}
+
+read_int()
+{
+	value=$(cat "$1" 2>/dev/null || true)
+	case $value in
+	''|*[!0-9]*) printf '0\n' ;;
+	*) printf '%s\n' "$value" ;;
+	esac
+}
+
+read_optional()
+{
+	cat "$1" 2>/dev/null || true
+}
+
+pm_test_saved=0
+dpm_saved=0
+saved_pm_test=
+saved_dpm_watchdog=
+saved_panic=
+
+save_debug_controls()
+{
+	saved_pm_test=$(read_optional "$pm_test")
+	pm_test_saved=1
+	if [ "$require_dpm_watchdog" -eq 1 ]; then
+		saved_dpm_watchdog=$(read_optional "$dpm_watchdog")
+		saved_panic=$(read_optional "$kernel_panic")
+		dpm_saved=1
+	fi
+}
+
+restore_debug_controls()
+{
+	if [ "$pm_test_saved" -eq 1 ]; then
+		printf '%s\n' "$saved_pm_test" >"$pm_test" 2>/dev/null || true
+		pm_test_saved=0
+	fi
+	if [ "$dpm_saved" -eq 1 ]; then
+		printf '%s\n' "$saved_dpm_watchdog" >"$dpm_watchdog" 2>/dev/null || true
+		printf '%s\n' "$saved_panic" >"$kernel_panic" 2>/dev/null || true
+		dpm_saved=0
+	fi
+}
+
+enable_debug_watchdog()
+{
+	printf 'Y\n' >"$dpm_watchdog" || {
+		log_event "FAIL cannot enable DPM watchdog"
+		return 1
+	}
+	printf '30\n' >"$kernel_panic" || {
+		log_event "FAIL cannot set kernel panic timeout"
+		printf 'N\n' >"$dpm_watchdog" 2>/dev/null || true
+		return 1
+	}
+	log_event "DPM_WATCHDOG enabled panic_timeout=30"
+	return 0
 }
 
 rtc_irq_count()
@@ -99,6 +180,20 @@ rtc_preflight()
 		log_event "FAIL stale host root $(basename "$host_bus"); recover or reboot first"
 		preflight_failed=1
 	done
+	if [ "$staged" -eq 1 ]; then
+		[ -w "$pm_test" ] ||
+			{ log_event "FAIL PM test control is missing or read-only"; preflight_failed=1; }
+		[ -r "$suspend_stats/last_failed_dev" ] ||
+			{ log_event "FAIL suspend_stats last_failed_dev is missing"; preflight_failed=1; }
+	fi
+	if [ "$require_dpm_watchdog" -eq 1 ]; then
+		[ -w "$dpm_watchdog" ] ||
+			{ log_event "FAIL DPM watchdog control is missing or read-only"; preflight_failed=1; }
+		[ -w "$kernel_panic" ] ||
+			{ log_event "FAIL kernel panic timeout is missing or read-only"; preflight_failed=1; }
+		[ -d "$pstore" ] ||
+			{ log_event "FAIL pstore is unavailable"; preflight_failed=1; }
+	fi
 	[ "$preflight_failed" -eq 0 ] || return 1
 
 	printf '0\n' >"$rtc/wakealarm" || {
@@ -122,8 +217,54 @@ rtc_preflight()
 	return 0
 }
 
+run_pm_stage()
+{
+	stage=$1
+	before_success=$(read_int "$suspend_stats/success")
+	before_fail=$(read_int "$suspend_stats/fail")
+	before_dev=$(read_optional "$suspend_stats/last_failed_dev")
+	before_errno=$(read_optional "$suspend_stats/last_failed_errno")
+	before_step=$(read_optional "$suspend_stats/last_failed_step")
+	start_epoch=$(date +%s)
+	printf '%s\n' "$stage" >"$pm_test" || {
+		log_event "FAIL cannot select PM test stage=$stage"
+		return 1
+	}
+	printf 'mem\n' >"$root/sys/power/state"
+	rc=$?
+	end_epoch=$(date +%s)
+	elapsed=$((end_epoch - start_epoch))
+	printf 'none\n' >"$pm_test" 2>/dev/null || true
+	after_success=$(read_int "$suspend_stats/success")
+	after_fail=$(read_int "$suspend_stats/fail")
+	after_dev=$(read_optional "$suspend_stats/last_failed_dev")
+	after_errno=$(read_optional "$suspend_stats/last_failed_errno")
+	after_step=$(read_optional "$suspend_stats/last_failed_step")
+	log_event "PM_TEST_STAGE stage=$stage rc=$rc elapsed_seconds=$elapsed success=$before_success->$after_success fail=$before_fail->$after_fail"
+	log_event "PM_TEST_STAGE_DETAIL stage=$stage dev=$after_dev errno=$after_errno step=$after_step"
+	[ "$rc" -eq 0 ] || {
+		log_event "FAIL pm_test stage=$stage rc=$rc"
+		return 1
+	}
+	[ "$after_success" -gt "$before_success" ] || {
+		log_event "FAIL pm_test stage=$stage did not increment suspend success"
+		return 1
+	}
+	[ "$after_fail" -eq "$before_fail" ] || {
+		log_event "FAIL pm_test stage=$stage recorded a suspend failure"
+		return 1
+	}
+	[ "$after_dev" = "$before_dev" ] &&
+		[ "$after_errno" = "$before_errno" ] &&
+		[ "$after_step" = "$before_step" ] || {
+		log_event "FAIL pm_test stage=$stage changed last-failed device state"
+		return 1
+	}
+	return 0
+}
+
 mkdir -p "${log%/*}"
-log_event "BEGIN seconds=$seconds boot_id=$(cat "$root/proc/sys/kernel/random/boot_id" 2>/dev/null || echo unknown)"
+log_event "BEGIN seconds=$seconds staged=$staged stages_only=$stages_only require_dpm_watchdog=$require_dpm_watchdog boot_id=$(cat "$root/proc/sys/kernel/random/boot_id" 2>/dev/null || echo unknown)"
 snapshot
 if ! rtc_preflight; then
 	log_event "RESULT=FAIL preflight suspend_unproven"
@@ -135,25 +276,50 @@ if [ "$preflight_only" -eq 1 ]; then
 fi
 if [ "${SAMURAI_SUSPEND_DETACHED:-0}" != 1 ]; then
 	log_event "DETACH_START ssh=${SSH_CONNECTION:-none}"
+	detached_args=$seconds
+	[ "$staged" -eq 0 ] || detached_args="$detached_args --staged"
+	[ "$stages_only" -eq 0 ] || detached_args="$detached_args --stages-only"
+	[ "$require_dpm_watchdog" -eq 0 ] ||
+		detached_args="$detached_args --require-dpm-watchdog"
 	SAMURAI_SUSPEND_DETACHED=1 \
-		nohup sh "$0" "$seconds" >>"$log" 2>&1 &
+		nohup sh "$0" $detached_args >>"$log" 2>&1 &
 	detached_pid=$!
-	log_event "DETACHED pid=$detached_pid requested_seconds=$seconds"
+	log_event "DETACHED pid=$detached_pid requested_seconds=$seconds staged=$staged stages_only=$stages_only require_dpm_watchdog=$require_dpm_watchdog"
 	printf 'started detached suspend pid=%s; reconnect after the requested window\n' \
 		"$detached_pid"
 	exit 0
 fi
 
-start_epoch=$(date +%s)
-rtcwake -m mem -s "$seconds"
-rc=$?
-end_epoch=$(date +%s)
-elapsed=$((end_epoch - start_epoch))
+save_debug_controls
+trap restore_debug_controls EXIT
+trap 'restore_debug_controls; exit 1' HUP INT TERM
 
-log_event "RTCWAKE_RC=$rc elapsed_seconds=$elapsed requested_seconds=$seconds"
-if [ "$elapsed" -lt $((seconds - 2)) ]; then
-	log_event "FAIL early_wake elapsed_seconds=$elapsed requested_seconds=$seconds"
-	rc=1
+rc=0
+if [ "$require_dpm_watchdog" -eq 1 ]; then
+	enable_debug_watchdog || rc=1
+fi
+if [ "$staged" -eq 1 ] && [ "$rc" -eq 0 ]; then
+	for stage in freezer devices platform processors; do
+		if ! run_pm_stage "$stage"; then
+			log_event "RESULT=FAIL pm_test stage=$stage"
+			rc=1
+			break
+		fi
+	done
+fi
+
+if [ "$rc" -eq 0 ] && [ "$stages_only" -eq 0 ]; then
+	start_epoch=$(date +%s)
+	rtcwake -m mem -s "$seconds"
+	rc=$?
+	end_epoch=$(date +%s)
+	elapsed=$((end_epoch - start_epoch))
+
+	log_event "RTCWAKE_RC=$rc elapsed_seconds=$elapsed requested_seconds=$seconds"
+	if [ "$elapsed" -lt $((seconds - 2)) ]; then
+		log_event "FAIL early_wake elapsed_seconds=$elapsed requested_seconds=$seconds"
+		rc=1
+	fi
 fi
 snapshot
 dmesg | grep -Ei 'PM: suspend|suspend exit|dwc3|typec|tcpm|xhci' |

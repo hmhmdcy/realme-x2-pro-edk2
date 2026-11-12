@@ -41,6 +41,20 @@ prepare_tree()
 		>"$root/proc/interrupts"
 }
 
+prepare_debug_controls()
+{
+	root=$1
+	mkdir -p "$root/sys/module/pm/parameters"
+	mkdir -p "$root/sys/fs/pstore"
+	mkdir -p "$root/proc/sys/kernel"
+	printf 'none\n' >"$root/sys/power/pm_test"
+	printf 'N\n' >"$root/sys/module/pm/parameters/dpm_watchdog_enabled"
+	printf '0\n' >"$root/proc/sys/kernel/panic"
+	printf '\n' >"$root/sys/power/suspend_stats/last_failed_dev"
+	printf '0\n' >"$root/sys/power/suspend_stats/last_failed_errno"
+	printf '\n' >"$root/sys/power/suspend_stats/last_failed_step"
+}
+
 positive=$tmp/positive
 prepare_tree "$positive"
 (
@@ -89,5 +103,33 @@ if grep -q 'RTC_ALARM_AWAKE' \
 	echo "negative case armed an alarm before passing preflight" >&2
 	exit 1
 fi
+
+debug_negative=$tmp/debug-negative
+prepare_tree "$debug_negative"
+if SAMURAI_SUSPEND_ROOT="$debug_negative" \
+	SAMURAI_SUSPEND_LOG="$debug_negative/var/log/samurai/usb-otg-suspend.log" \
+	sh "$svc" 30 --preflight-only --staged >/dev/null 2>&1; then
+	echo "missing PM debug controls unexpectedly passed --staged" >&2
+	exit 1
+fi
+grep -q 'FAIL PM test control is missing or read-only' \
+	"$debug_negative/var/log/samurai/usb-otg-suspend.log"
+
+debug_positive=$tmp/debug-positive
+prepare_tree "$debug_positive"
+prepare_debug_controls "$debug_positive"
+(
+	sleep 1
+	printf ' 42:      11       0       0       0       0       0  pm8xxx_rtc_alarm\n' \
+		>"$debug_positive/proc/interrupts"
+) &
+helper=$!
+SAMURAI_SUSPEND_ROOT="$debug_positive" \
+SAMURAI_SUSPEND_LOG="$debug_positive/var/log/samurai/usb-otg-suspend.log" \
+	sh "$svc" 30 --preflight-only --staged --require-dpm-watchdog >/dev/null
+wait "$helper"
+helper=
+grep -q 'RESULT=PASS preflight_only' \
+	"$debug_positive/var/log/samurai/usb-otg-suspend.log"
 
 echo "RESULT: suspend preflight test passed"

@@ -1,0 +1,14 @@
+# PM diagnostics for the RMX1931 OTG suspend investigation.
+#
+# This is a diagnostic fragment, not part of the production config. The
+# DPM watchdog is compiled in but disabled by default; the suspend test
+# explicitly enables it and sets /proc/sys/kernel/panic for unattended
+# recovery.
+CONFIG_PM_DEBUG=y
+CONFIG_PM_ADVANCED_DEBUG=y
+CONFIG_PM_SLEEP_DEBUG=y
+CONFIG_EXPERT=y
+CONFIG_DPM_WATCHDOG=y
+# CONFIG_DPM_WATCHDOG_ENABLED is not set
+CONFIG_DPM_WATCHDOG_TIMEOUT=90
+CONFIG_DPM_WATCHDOG_WARNING_TIMEOUT=15
