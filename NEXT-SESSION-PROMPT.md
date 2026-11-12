@@ -18,7 +18,7 @@ host、VBUS source、长期 host soak、同线 U3 host-resume。物理 OTG
 立即：设备在一次 30 秒 `rtcwake` 后于 Wi‑Fi/NCM 均不可达；先由现场
 按电源键恢复，读取 `usb-otg-suspend.log`、`dmesg`、
 `suspend_stats`、boot ID 和 `pm_wakeup_irq`。恢复访问后安装
-`samurai-platform-6-r7.apk`，收集三轮 host-mode 原始日志，再继续
+`samurai-platform-6-r8.apk`，收集三轮 host-mode 原始日志，再继续
 物理验收。真正 suspend 前先跑
 `test-usb-otg-suspend.sh 30 --preflight-only`；不要在 preflight
 失败或无人值守下重复 suspend 测试。通过后脚本会自后台化，SSH

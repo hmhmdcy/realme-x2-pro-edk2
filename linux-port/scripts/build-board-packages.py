@@ -179,7 +179,7 @@ platform_files = [
 for source, target, mode in platform_files:
     copy_file(platform_source / source, platform / target, mode)
 make_package(
-    "samurai-platform", "6-r7", "noarch", platform,
+    "samurai-platform", "6-r8", "noarch", platform,
     {
         "description": "Realme X2 Pro board-level platform and services",
         "license": "LicenseRef-Local-Project",

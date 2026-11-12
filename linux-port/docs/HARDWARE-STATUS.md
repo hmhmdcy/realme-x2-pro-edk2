@@ -26,7 +26,7 @@ PM8150B 模式周期重新 attach 后，`port0-partner` 存在、non-PD、
 标准 `usb-signaller 0.4.3-r4` + `postmarketos-usb-moded` +
 NetworkManager + `unudhcpd 0.5.0-r2` + `umtprd`，板级差异只保留
 描述符、DHCP 地址和有界 DWC3 恢复。设备已安装
-`samurai-platform 6-r5`，6-r6/6-r7 已签名构建；本会话把 6-r6
+`samurai-platform 6-r5`，6-r6/6-r7/6-r8 已签名构建；本会话把 6-r6
 恢复脚本直接部署到 `/usr/sbin/samurai-usb-recover` 进行验证。
 6-r1 完成普通重启后在同一 boot 升级到 r2，Developer `0525:a4a1`、
 class `ef/02/01`、MaxPower 500、
@@ -43,8 +43,9 @@ Problem 0 均自动恢复，没有人工 DWC3 重绑。
 `host_mode` 切换，并将恢复自身重建的 generation 写回基线，避免
 尝试预算被无限复位。连续三轮标准 usb-moded host/device 测试均为
 `RESULT=PASS failures=0`，恢复次数保持有界；离线 regression 通过。
-6-r7 对 `MODE_REATTACH` 先执行标准 UDC `soft_connect` 重连，
-只有 soft 重连无法恢复 carrier 时才回退完整 DWC3 unbind/bind；
+6-r8 对 UDC `configured` 但 carrier 丢失的 `link_lost` 和
+`MODE_REATTACH` 先执行标准 UDC `soft_connect` 重连，只有 soft
+重连无法恢复 carrier 时才回退完整 DWC3 unbind/bind；两个
 fake-sysfs soft-first 测试已通过，实机路径仍待设备恢复。
 `ip link down` 注入在 boot ID 不变下恢复到 configured/carrier 1，
 Windows 同窗口重新取得 `172.16.42.2/24` DHCP 租约且 Problem 0。

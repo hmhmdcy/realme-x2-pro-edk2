@@ -1,6 +1,6 @@
-# samurai-platform 6-r7
+# samurai-platform 6-r8
 
-6-r7 is the current OTG recovery candidate. It keeps the standard postmarketOS
+6-r8 is the current OTG recovery candidate. It keeps the standard postmarketOS
 USB ownership model and adds the bounded `samurai-usb-recover` path:
 
 ```text
@@ -61,28 +61,31 @@ the standard host-mode test passed with a bounded attempt count. The
 offline generation regression is
 `linux-port/diagnostics/test-usb-recover-generation.sh`.
 
-6-r7 adds a soft-first path for `MODE_REATTACH`. When the controller
-still reports UDC `configured` but the host did not raise NCM carrier,
-the recovery service first toggles the public UDC `soft_connect` control
-and waits for carrier. It only performs the full DWC3 unbind/bind when
-that lightweight reconnect does not recover the link. This keeps the
-standard controller reset as the fallback while avoiding an unnecessary
-DWC3 rebind on a stale host-side link. The offline fake-sysfs regression
-`linux-port/diagnostics/test-usb-recover-soft-first.sh` proves that
-successful soft recovery emits `SOFT_RECOVER_OK`, leaves the DWC3 unbind
-control untouched, and does not consume a full-recovery attempt.
+6-r7 introduced a soft-first path for `MODE_REATTACH`: when UDC is still
+`configured` but NCM carrier is missing, the recovery service first
+toggles the public UDC `soft_connect` control and waits for carrier. It
+only performs the full DWC3 unbind/bind when that lightweight reconnect
+does not recover the link.
+
+6-r8 extends the same soft-first behavior to an established `link_lost`
+event. Offline fake-sysfs tests `test-usb-recover-soft-first.sh` and
+`test-usb-recover-soft-link-lost.sh` prove that successful soft recovery
+emits `SOFT_RECOVER_OK`, leaves the DWC3 unbind control untouched, and
+does not consume a full-recovery attempt. This keeps the standard
+controller reset as the fallback while avoiding an unnecessary DWC3
+rebind on a stale host-side link.
 
 Signed candidate:
 
 ```text
 E:/edk2-samurai-out/standard-arm64-v731/
-  usb-hotfix-otg-r7-20261112/samurai-platform-6-r7.apk
-SHA-256 f2ec991bd51e2bf0c76d69c1a101fd7a5f0933c1613a1b1a4d21f83ff4da31f3
+  usb-hotfix-otg-r8-20261112/samurai-platform-6-r8.apk
+SHA-256 a69d81d8cb2729fd51cfc6a9c1e73b001e6efa29e2bf0369c4fb3ced5a4bd3f3
 ```
 
 The 6-r6 generation fix is already the live recovery implementation used
-for the three-round handset test. The 6-r7 soft-first fallback is
-offline-tested only; both signed packages still need installation and
+for the three-round handset test. The 6-r8 soft-first fallback is
+offline-tested only; the signed package still needs installation and
 package-level verification after device access returns.
 
 6-r1 moved the runtime USB gadget owner from the board script

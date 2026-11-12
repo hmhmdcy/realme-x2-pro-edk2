@@ -552,7 +552,10 @@ monitor()
 				stuck_since=$now
 				log_event "LINK_LOST state=$state carrier=$carrier"
 			elif [ $((now - stuck_since)) -ge "$grace" ]; then
-				if recover_link link_lost; then
+				if [ "$soft_enabled" = 1 ] &&
+					soft_recover_link link_lost; then
+					stuck_since=0
+				elif recover_link link_lost; then
 					stuck_since=0
 				else
 					stuck_since=$now
