@@ -294,6 +294,15 @@ cable, the phone's Type-C connector, or Windows root-hub port 5. A
 known-good cable and a different host port are required before
 continuing OTG host acceptance.
 
+### Wi-Fi remains independent of the USB reset loop
+
+A 60-second unattended access check ran 12 Wi-Fi SSH probes at 5-second
+intervals while DWC3 tracing recorded **23 resets / 24 suspends**. All
+12 probes returned exit code 0, the boot ID stayed
+`755f152f-b40b-4465-a147-565e4b247122`, and `mp2650-input/online`
+stayed 1. The failing USB link therefore does not take out the Wi-Fi
+management path; unattended recovery access is still available.
+
 ## Remaining blocker
 
 Windows root-hub port 5 still enters a reset/re-enumeration loop. It
