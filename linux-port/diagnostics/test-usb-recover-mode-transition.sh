@@ -40,7 +40,7 @@ printf 'connect\n' >"$tmp/sys/class/udc/a600000.usb/soft_connect"
 			printf configured >"$tmp/sys/class/udc/a600000.usb/state"
 			printf 1 >"$tmp/sys/class/net/usb0/carrier"
 		fi
-		if [ "$(cat "$tmp/sys/class/udc/a600000.usb/soft_connect")" = disconnect ]; then
+		if [ "$(cat "$tmp/sys/class/udc/a600000.usb/soft_connect" 2>/dev/null)" = disconnect ]; then
 			printf 'disconnect\n' >>"$tmp/soft-connect-events"
 		fi
 		sleep 0.2
@@ -59,6 +59,7 @@ SAMURAI_USB_RECOVER_INTERVAL=1 \
 SAMURAI_USB_RECOVER_MODE_GRACE=2 \
 SAMURAI_USB_RECOVER_REATTACH_GRACE=20 \
 SAMURAI_USB_RECOVER_MAX=1 \
+SAMURAI_USB_RECOVER_SOFT=0 \
 SAMURAI_USB_RECOVER_RUN_DIR="$tmp/run" \
 SAMURAI_USB_RECOVER_LOG="$tmp/log/recover.log" \
 SAMURAI_USB_RECOVER_RESTART_CMD=/bin/true \

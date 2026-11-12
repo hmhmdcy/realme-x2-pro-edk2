@@ -18,6 +18,8 @@ reattach_grace=${SAMURAI_USB_RECOVER_REATTACH_GRACE:-20}
 mode_grace=${SAMURAI_USB_RECOVER_MODE_GRACE:-10}
 max_attempts=${SAMURAI_USB_RECOVER_MAX:-2}
 stable_reset=${SAMURAI_USB_RECOVER_STABLE_RESET:-300}
+soft_enabled=${SAMURAI_USB_RECOVER_SOFT:-1}
+soft_grace=${SAMURAI_USB_RECOVER_SOFT_GRACE:-10}
 
 discover_udc()
 {
@@ -218,6 +220,41 @@ reconnect_udc()
 	printf 'disconnect\n' >"$soft_connect" || return 1
 	sleep 1
 	printf 'connect\n' >"$soft_connect" || return 1
+}
+
+soft_recover_link()
+{
+	reason=$1
+	state=$(read_value "$udc_dir/$udc/state")
+	[ "$state" = configured ] || return 1
+
+	log_event "SOFT_RECOVER_BEGIN reason=$reason state=configured carrier=$(read_value "$carrier_path")"
+	reconnect_udc || {
+		log_event "SOFT_RECOVER_FAIL reason=soft_connect"
+		return 1
+	}
+	if ! wait_udc_state configured 15; then
+		log_event "SOFT_RECOVER_FAIL reason=not_configured state=$(read_value "$udc_dir/$udc/state")"
+		return 1
+	fi
+	count=0
+	while [ "$(read_value "$carrier_path")" != 1 ] &&
+		[ "$count" -lt "$soft_grace" ]; do
+		count=$((count + 1))
+		sleep 1
+	done
+	if [ "$(read_value "$carrier_path")" != 1 ]; then
+		log_event "SOFT_RECOVER_FAIL reason=no_carrier state=configured"
+		return 1
+	fi
+
+	write_state armed 1
+	write_state stable_since "$(date +%s)"
+	write_state reattach_since 0
+	write_state mode_reattach_since 0
+	write_state seen_configured 1
+	log_event "SOFT_RECOVER_OK reason=$reason state=configured carrier=1"
+	return 0
 }
 
 service_bounded()
@@ -556,7 +593,10 @@ monitor()
 			fi
 			if [ "$mode_reattach_since" -gt 0 ] &&
 				[ $((now - mode_reattach_since)) -ge "$mode_grace" ]; then
-				if recover_link mode_transition; then
+				if [ "$soft_enabled" = 1 ] &&
+					soft_recover_link mode_transition; then
+					write_state mode_reattach_since 0
+				elif recover_link mode_transition; then
 					write_state mode_reattach_since 0
 				else
 					write_state mode_reattach_since "$now"

@@ -23,7 +23,7 @@
   `usb-signaller 0.4.3-r4` + `postmarketos-usb-moded` +
   NetworkManager + `unudhcpd 0.5.0-r2` + `umtprd`；
   `samurai-platform 6-r5` 已安装；6-r6 恢复脚本已直接部署进行验证，
-  签名 APK 已构建但尚未安装。当前 OTG boot ID
+  6-r6/6-r7 签名 APK 已构建但尚未安装。当前 OTG boot ID
   `f02a6e0a-8357-49f8-bd79-a2508143056a`。
 - Developer 默认模式为 `0525:a4a1`、class `ef/02/01`、MaxPower 500、
   NCM `qmult=20`、`usb0=172.16.42.1/16`；Windows UsbNcm Problem 0，
@@ -52,6 +52,10 @@
   `RESULT=PASS failures=0`；`test-usb-recover-generation.sh`
   离线回归通过。6-r6 APK SHA-256
   `74ea9659eab45d9913ebebc47b5afe284d1760d9a3f7055e1bcc1916d1c1870f`。
+- 6-r7 在 `MODE_REATTACH` 先尝试标准 UDC `soft_connect` 重连，
+  失败后才回退完整 DWC3 unbind/bind。fake-sysfs soft-first 测试
+  通过；APK SHA-256
+  `f2ec991bd51e2bf0c76d69c1a101fd7a5f0933c1613a1b1a4d21f83ff4da31f3`。
 - OTG Image/DTB 已部署并冷启动：device-mode NCM、Tethering/MTP/
   charging、两轮 synthetic host/device 切换、标准 usb-moded
   host_mode、30 秒 s2idle 和 8 MiB NCM 往返通过；host role
