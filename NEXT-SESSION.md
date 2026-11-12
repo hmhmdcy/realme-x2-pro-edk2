@@ -8,6 +8,9 @@
 - 恢复后先读取 `/var/log/samurai/usb-otg-suspend.log`、
   `dmesg`、`suspend_stats`、boot ID、`pm_wakeup_irq`，再决定是否
   是 RTC 唤醒源或 USB/DWC3 suspend 路径问题。
+- 新的 suspend 脚本会先做不 suspend 的 RTC alarm preflight；先运行
+  `/root/samurai-tests/test-usb-otg-suspend.sh 30 --preflight-only`，
+  失败时禁止进入真正 suspend。
 - 完成 6-r6 APK 安装与签名复核，并收集
   `/tmp/r6b-host-mode-3x.log`、`/var/log/samurai/usb-recover.log`、
   `/var/log/samurai/usb-moded-host-mode.log` 到证据目录。
