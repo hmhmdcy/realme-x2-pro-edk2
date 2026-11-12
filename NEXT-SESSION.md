@@ -17,6 +17,8 @@
 - 一次 `rtcwake -m mem -s 15` 烟测后 NCM 先消失、约 20 秒内自动
   重连；suspend 期间不保持同一条活动链路，不能写成 USB host-resume。
   `dmesg` entry/exit 时差约 0.7 秒，睡眠时长仍需单独验收。
+- 后续一次重连中 Windows UsbNcm 停在 APIPA；设备侧
+  `unudhcpd`/UDC/carrier 正常，主机 DHCP/适配器复位仍是独立问题。
 - 未验收仍是物理插线/拔线、反插方向、长期插拔/suspend soak、
   Windows 物理 replug 后 Code 43、同线 U3 host-resume；当前内核
   仍无 `DWC3_DUAL_ROLE`/xHCI，不能声明 OTG host。

@@ -33,7 +33,9 @@ DHCP `172.16.42.2` 和严格 host-key NCM SSH 均通过；Tethering
 恢复当前模式，`ip link down` 注入在 boot ID 不变下恢复到 configured/
 carrier 1。一次 RTC suspend 烟测后 NCM 会先消失、约 20 秒内自动
 重连，说明 suspend 期间不保持同一条活动链路，不能写成 USB
-host-resume。物理插拔/反插、长期 suspend soak 和同线 U3 仍未验收。
+host-resume；后续一次重连中 Windows UsbNcm 停在 APIPA，而设备侧
+`unudhcpd`/UDC/carrier 正常，主机 DHCP 复位仍待处理。物理插拔/
+反插、长期 suspend soak 和同线 U3 仍未验收。
 详见 [`PMOS-USB-20261112`](PMOS-USB-20261112.md)。
 
 2026-11-10 电源键/显示最终结论：官方路径仍是 elogind
