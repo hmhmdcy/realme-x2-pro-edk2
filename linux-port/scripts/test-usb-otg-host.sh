@@ -50,6 +50,18 @@ value()
 	fi
 }
 
+find_vbus_regulator()
+{
+	for regulator in "$root"/sys/class/regulator/regulator.*; do
+		[ -e "$regulator" ] || continue
+		[ "$(value "/sys/class/regulator/${regulator##*/}/name")" = usb_vbus ] ||
+			continue
+		printf '%s\n' "${regulator##*/}"
+		return 0
+	done
+	return 1
+}
+
 role_count=0
 for role in "$root"/sys/class/usb_role/*; do
 	[ -e "$role" ] || continue
@@ -67,6 +79,16 @@ typec_orientation=$(value /sys/class/typec/port0/orientation)
 echo "typec.port0.power_role=$typec_power_role"
 echo "typec.port0.data_role=$typec_data_role"
 echo "typec.port0.orientation=$typec_orientation"
+vbus_regulator=
+if find_vbus_regulator >/dev/null; then
+	vbus_regulator=$(find_vbus_regulator)
+	vbus_state=$(value "/sys/class/regulator/$vbus_regulator/state")
+	echo "regulator.$vbus_regulator.name=usb_vbus"
+	echo "regulator.$vbus_regulator.state=$vbus_state"
+else
+	vbus_state=missing
+	echo "regulator.usb_vbus=missing"
+fi
 if [ "$require_typec_data_role" -eq 1 ]; then
 	case $typec_data_role in
 	*'[host]'*) echo "typec.data_role_active=host" ;;
@@ -77,6 +99,10 @@ if [ "$require_vbus_source" -eq 1 ]; then
 	case $typec_power_role in
 	*'[source]'*) echo "typec.vbus_source=active" ;;
 	*) fail "Type-C port is not actively sourcing VBUS" ;;
+	esac
+	case $vbus_state in
+	enabled*) echo "regulator.usb_vbus_enabled=1" ;;
+	*) fail "USB VBUS regulator is not enabled while Type-C is a source" ;;
 	esac
 fi
 
