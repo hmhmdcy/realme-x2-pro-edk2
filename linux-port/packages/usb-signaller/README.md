@@ -27,10 +27,13 @@ Patch contents:
   host re-enumeration;
 - bounded retry of `nmcli device set ... managed yes`, because a post-role
   switch netdev can appear before NetworkManager accepts it.
+- preserve Developer/Tethering when the host has addressed the gadget but
+  stopped before SET_CONFIGURATION, so the board recovery service can
+  reconnect the public UDC interface instead of downgrading to Charging.
 
-The patch is intended to be submitted upstream. Until accepted, it is
+The patches are intended to be submitted upstream. Until accepted, they are
 version-pinned to upstream tag `v0.4.3`; the candidate package is
-`0.4.3-r4`.
+`0.4.3-r5`.
 
 With the deployed dual-role kernel, upstream usb-signaller also discovers
 the standard `a600000.usb-role-switch` provider. It advertises

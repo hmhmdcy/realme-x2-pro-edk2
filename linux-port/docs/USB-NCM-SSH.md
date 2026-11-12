@@ -1,5 +1,13 @@
 # 普通USB网络与SSH（session72）
 
+> 2026-11-13 当前 boot 重新暴露了一个独立的枚举故障：手机 UDC 停在
+> `default`/high-speed，主机未完成 SET_CONFIGURATION，Windows 没有
+> present 的 `0525:a4a1` 实例。Wi‑Fi SSH 正常；`usb-signaller` 不再
+> 因 10 秒超时降级到 charging-only，恢复服务也可做有界软重连/DWC3
+> 重绑，但两次尝试后主机仍未 configured。这不是 NCM/OTG 验收通过，
+> 证据和剩余判别步骤见
+> [USB-ENUM-RECOVERY-20261113](USB-ENUM-RECOVERY-20261113.md)。
+
 > 2026-11-12 当前运行时已切换到 postmarketOS 标准 `usb-signaller` +
 > NetworkManager + `unudhcpd` + `umtprd` 栈：默认 Developer 地址是
 > `172.16.42.1/16`（DHCP 客户端 `172.16.42.2`），模式由

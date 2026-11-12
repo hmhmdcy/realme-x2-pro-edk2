@@ -34,13 +34,20 @@
     "applies_after": "0003-usb-signaller-wait-for-network.patch",
     "applies_cleanly_to": "v0.4.3 with the preceding local patches"
   },
+  "patch_5": {
+    "file": "0005-usb-signaller-preserve-mode-on-incomplete-enumeration.patch",
+    "sha256": "be1b21c2b83880bc05620bc93fb1276c39b6713ef5a34b11b147c6e576f1161e",
+    "sha512": "bf43ed1624bde810e68f216802939c450f95cada58113489ff51fd24f0e5b12fb38a0fe418f305d1c8e29fbe1dc7b9321b0bafcf2707b95ec05c7d0df38d4aa2",
+    "applies_after": "0004-usb-signaller-retry-mode-activation.patch",
+    "applies_cleanly_to": "v0.4.3 with the preceding local patches"
+  },
   "patched_sources": {
     "Cargo.toml": "8d8555ef5ac99580e36efecb1a315c9058e09e6ab0bf26fd402ab81f9dc787c9",
     "distro/scripts/usb-signaller-developer-mode.sh": "e985ce1955caad9d6dc88b72e6e829f33beb58202341c69c6758cfcc9c378042",
     "distro/scripts/usb-signaller-tethering-mode.sh": "4239d162c4c6928f4a7357044050bd6dbcc1eb2eeb6ba65ee737b8e1fe6e7272",
     "src/configuration.rs": "f357509d9ac3c4910251dd0c1420bf9a8608101401b56495ce1a5116b47c35af",
     "src/dbus.rs": "f6c37478356f5fa0d1e4260b919272693a261a7d0e99aaf80d2e695a48c7f0aa",
-    "src/gadget.rs": "c0bf3857647e02350ffed329c5b11c2bb198518b7bcafe8b78bd57d714e3f944",
+    "src/gadget.rs": "cfc497cec054a490c9e43ee6e2042b28f79a8034268e9f5bf7da16479fe7e6e5",
     "src/udc.rs": "cd50e78de61ea9fa824fa377099c614d01a2d7d3ebb49f6cbdfaae907eba1a88"
   },
   "runtime_candidate": {
@@ -61,6 +68,26 @@
       "bounded nmcli management/activation retry returns host->device NCM",
       "standard usb-moded host_mode returns to Developer across three consecutive handset rounds",
       "configfs gadget-generation recovery keeps the DWC3 retry budget bounded"
+    ]
+  },
+  "runtime_candidate_enum_recovery": {
+    "arch": "aarch64",
+    "libc": "musl",
+    "path": "/usr/bin/usb-signaller",
+    "sha256": "6ae3384d5bbd07614c2c3baf341159f8f1cd59e31d6e059b5bc1d31708f005b1",
+    "built_on": "RMX1931",
+    "command": "CARGO_NET_GIT_FETCH_WITH_CLI=true cargo build --release --locked",
+    "verified": [
+      "release build succeeds with the v0.4.3 lockfile",
+      "patches 0001-0005 apply cleanly to the pristine v0.4.3 archive",
+      "cargo test: 6 passed, 0 failed, 6 hardware/root-only tests ignored",
+      "OpenRC restart exposes developer_mode while the host leaves the UDC in default state",
+      "bounded recovery does not downgrade the selected mode to charging-only"
+    ],
+    "unverified": [
+      "host completes enumeration after the recovery reconnect",
+      "Windows UsbNcm returns without a physical cable or port reset",
+      "candidate APK is built and installed through the package manager"
     ]
   },
   "package_artifacts": {

@@ -79,6 +79,19 @@ source。物理 USB-C OTG adapter、U 盘/HID、自动 TCPM host 选择、
 反插和 VBUS source 仍未验收。详见
 [`USB-OTG-20261112`](USB-OTG-20261112.md)。
 
+目标更新（2026-11-13，USB 枚举恢复）：当前 OTG boot
+`755f152f...` 在 Wi‑Fi SSH 可达的情况下，主机只把 UDC 留在
+`default`/high-speed，未完成 SET_CONFIGURATION，`usb0` carrier 0，
+Windows 没有 present 的 `0525:a4a1`。`usb-signaller` 已修复“10 秒
+未 configured 就降级 Charging”的策略：`default`/`address` 现在保留
+Developer/Tethering；`samurai-usb-recover` 新增有界枚举恢复，先做
+标准 UDC `soft_connect`，再回退 DWC3 unbind/bind。真机两次尝试均
+回到 `RECOVER_FAIL reason=not_configured`，所以 NCM 枚举仍未恢复；
+这不是 OTG、NCM 或 suspend 验收通过。下一步需要物理 replug/主机
+端口复位或 Linux `usbmon` 主机侧抓包以区分主机端口拒绝与 gadget
+描述符问题。详见
+[`USB-ENUM-RECOVERY-20261113`](USB-ENUM-RECOVERY-20261113.md)。
+
 2026-11-10 电源键/显示最终结论：官方路径仍是 elogind
 `HandlePowerKey=ignore`、KWin `DpmsInputEventFilter` 和 PowerDevil
 移动端默认 `ToggleScreenOnOff`。实体键能到 KWin，DPMS wake trace 为

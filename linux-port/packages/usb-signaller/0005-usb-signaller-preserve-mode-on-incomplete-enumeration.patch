@@ -1,0 +1,36 @@
+From: Realme X2 Pro Linux port <hmhmdcy@users.noreply.github.com>
+Subject: [PATCH] gadget: preserve the selected mode before SET_CONFIGURATION
+
+A host can address the gadget and then stop during descriptor/config
+selection, which leaves the UDC in default or address state even though
+the selected mode is valid. Treating every such host failure as a fatal
+mode switch downgrades the device to charging-only and prevents the
+standard recovery service from reconnecting the public UDC interface.
+
+Keep the requested mode active once the host has addressed the gadget.
+Full configuration remains the normal success path, and not-attached
+retains the existing offline-gadget success path.
+---
+diff --git a/src/gadget.rs b/src/gadget.rs
+index c0bf385..00d1bc2 100644
+--- a/src/gadget.rs
++++ b/src/gadget.rs
+@@ -190,6 +190,18 @@ impl ConfigFsGadget {
+                 );
+                 return Ok(());
+             }
++            /*
++             * A host can address the gadget and then stop before SET_CONFIGURATION
++             * (for example after a stale Windows port error). Keep the requested
++             * mode armed so the standard recovery service can reconnect the public
++             * UDC interface instead of downgrading the whole device to charging-only.
++             */
++            if state == "default" || state == "address" {
++                println!(
++                    "Gadget enabled; host addressed it but did not configure the interface yet"
++                );
++                return Ok(());
++            }
+         }
+
+         return Err(anyhow::anyhow!(

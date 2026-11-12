@@ -1,6 +1,6 @@
-# samurai-platform 6-r8
+# samurai-platform 6-r9
 
-6-r8 is the current OTG recovery candidate. It keeps the standard postmarketOS
+6-r9 is the current OTG recovery candidate. It keeps the standard postmarketOS
 USB ownership model and adds the bounded `samurai-usb-recover` path:
 
 ```text
@@ -74,6 +74,14 @@ emits `SOFT_RECOVER_OK`, leaves the DWC3 unbind control untouched, and
 does not consume a full-recovery attempt. This keeps the standard
 controller reset as the fallback while avoiding an unnecessary DWC3
 rebind on a stale host-side link.
+
+6-r9 adds a separate bounded path for a host that addressed the UDC but
+stopped before SET_CONFIGURATION. When VBUS is online, the selected mode
+is Developer/Tethering, and UDC state is `default` or `address` with a
+known link speed, recovery first toggles the standard UDC `soft_connect`
+and then falls back to the same bounded DWC3 rebind. It never acts on an
+unattached UDC or a charger-only cable. The matching offline test is
+`test-usb-recover-enum-stuck.sh`.
 
 Signed candidate:
 

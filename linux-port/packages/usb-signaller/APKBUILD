@@ -3,7 +3,7 @@ pkgname=usb-signaller
 pkgver=0.4.3
 # Local board-descriptor, network-recovery and activation retry backport;
 # upstream 0.4.3-r0 remains the baseline.
-pkgrel=4
+pkgrel=5
 pkgdesc="Switch between different USB gadgets"
 url="https://codeberg.org/DylanVanAssche/usb-signaller"
 arch="all"
@@ -14,6 +14,7 @@ source="$pkgname-$pkgver.tar.gz::https://codeberg.org/DylanVanAssche/usb-signall
 	0002-usb-signaller-network-ownership.patch
 	0003-usb-signaller-wait-for-network.patch
 	0004-usb-signaller-retry-mode-activation.patch
+	0005-usb-signaller-preserve-mode-on-incomplete-enumeration.patch
 "
 makedepends="cargo-auditable eudev-dev"
 subpackages="$pkgname-systemd $pkgname-openrc"
@@ -57,4 +58,5 @@ sha512sums="
 59ba09ea5d66d24ff2c0804d254080cef3d40111f5e707474960afbbed7627fd5618dad97b2fcadc648f389702e07c1cda0abd1024f6001a9d4f493ec6dbcc2e  0002-usb-signaller-network-ownership.patch
 b1fa10ae964c206c85364b8368cf88e467a46e9851a1b6cabfce2f9f4656c50e4515446202d7ace5a1febb258701cef839caab1af9137d21b1b8f0450223d319  0003-usb-signaller-wait-for-network.patch
 588605dea21292bdc91a62855f48391aaac880ed2a937e6b21cec977c307ef9b9ad98981e952155aa730ac54895ee33c6b4746f27a66bfd47052d58c67c69bcf  0004-usb-signaller-retry-mode-activation.patch
+bf43ed1624bde810e68f216802939c450f95cada58113489ff51fd24f0e5b12fb38a0fe418f305d1c8e29fbe1dc7b9321b0bafcf2707b95ec05c7d0df38d4aa2  0005-usb-signaller-preserve-mode-on-incomplete-enumeration.patch
 "
