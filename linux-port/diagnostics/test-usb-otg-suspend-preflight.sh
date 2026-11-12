@@ -19,7 +19,9 @@ prepare_tree()
 	root=$1
 	mkdir -p "$root/sys/class/rtc/rtc0/device/power"
 	mkdir -p "$root/sys/class/udc/a600000.usb"
+	mkdir -p "$root/sys/class/usb_role/a600000.usb-role-switch"
 	mkdir -p "$root/sys/class/net/usb0"
+	mkdir -p "$root/sys/class/power_supply/mp2650-input"
 	mkdir -p "$root/sys/power/suspend_stats"
 	mkdir -p "$root/proc/sys/kernel/random"
 	mkdir -p "$root/var/log/samurai"
@@ -29,7 +31,9 @@ prepare_tree()
 	printf 'rtc-pm8xxx\n' >"$root/sys/class/rtc/rtc0/name"
 	: >"$root/sys/class/rtc/rtc0/wakealarm"
 	printf 'configured\n' >"$root/sys/class/udc/a600000.usb/state"
+	printf 'device\n' >"$root/sys/class/usb_role/a600000.usb-role-switch/role"
 	printf '1\n' >"$root/sys/class/net/usb0/carrier"
+	printf '1\n' >"$root/sys/class/power_supply/mp2650-input/online"
 	printf '1\n' >"$root/sys/power/suspend_stats/success"
 	printf '0\n' >"$root/sys/power/suspend_stats/fail"
 	printf '0\n' >"$root/sys/power/pm_wakeup_irq"
@@ -54,6 +58,8 @@ helper=
 cat "$positive/var/log/samurai/usb-otg-suspend.log"
 grep -q 'RTC_PREFLIGHT name=rtc-pm8xxx wakeup=enabled' \
 	"$positive/var/log/samurai/usb-otg-suspend.log"
+grep -q 'RTC_PREFLIGHT_LINK role=device udc=configured carrier=1 vbus_online=1' \
+	"$positive/var/log/samurai/usb-otg-suspend.log"
 grep -q 'RTC_ALARM_AWAKE irq_before=10 irq_after=11' \
 	"$positive/var/log/samurai/usb-otg-suspend.log"
 grep -q 'RESULT=PASS preflight_only' \
@@ -76,7 +82,7 @@ fi
 cat "$negative/var/log/samurai/usb-otg-suspend.log"
 grep -q 'FAIL rtc0 wakeup=disabled' \
 	"$negative/var/log/samurai/usb-otg-suspend.log"
-grep -q 'RESULT=FAIL preflight rtc0_alarm_unproven' \
+grep -q 'RESULT=FAIL preflight suspend_unproven' \
 	"$negative/var/log/samurai/usb-otg-suspend.log"
 if grep -q 'RTC_ALARM_AWAKE' \
 	"$negative/var/log/samurai/usb-otg-suspend.log"; then

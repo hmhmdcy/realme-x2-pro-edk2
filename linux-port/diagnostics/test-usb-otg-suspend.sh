@@ -61,6 +61,11 @@ rtc_preflight()
 	rtc_name=$(cat "$rtc/name" 2>/dev/null || echo missing)
 	rtc_wakeup=$(cat "$rtc/device/power/wakeup" 2>/dev/null || echo missing)
 	log_event "RTC_PREFLIGHT name=$rtc_name wakeup=$rtc_wakeup mem_sleep=$mem_sleep"
+	usb_role=$(cat "$root"/sys/class/usb_role/*/role 2>/dev/null || echo missing)
+	udc=$(cat "$root/sys/class/udc/a600000.usb/state" 2>/dev/null || echo missing)
+	carrier=$(cat "$root/sys/class/net/usb0/carrier" 2>/dev/null || echo missing)
+	vbus_online=$(cat "$root/sys/class/power_supply/mp2650-input/online" 2>/dev/null || echo missing)
+	log_event "RTC_PREFLIGHT_LINK role=$usb_role udc=$udc carrier=$carrier vbus_online=$vbus_online"
 
 	if [ ! -d "$rtc" ]; then
 		log_event "FAIL rtc0 is missing"
@@ -81,6 +86,19 @@ rtc_preflight()
 		log_event "FAIL pm8xxx_rtc_alarm IRQ is not registered"
 		preflight_failed=1
 	fi
+	[ "$usb_role" = device ] ||
+		{ log_event "FAIL DWC3 role=$usb_role, expected device"; preflight_failed=1; }
+	[ "$udc" = configured ] ||
+		{ log_event "FAIL UDC state=$udc, expected configured"; preflight_failed=1; }
+	[ "$carrier" = 1 ] ||
+		{ log_event "FAIL usb0 carrier=$carrier, expected 1"; preflight_failed=1; }
+	[ "$vbus_online" = 1 ] ||
+		{ log_event "FAIL VBUS online=$vbus_online, expected 1"; preflight_failed=1; }
+	for host_bus in "$root"/sys/bus/usb/devices/usb*; do
+		[ -e "$host_bus" ] || continue
+		log_event "FAIL stale host root $(basename "$host_bus"); recover or reboot first"
+		preflight_failed=1
+	done
 	[ "$preflight_failed" -eq 0 ] || return 1
 
 	printf '0\n' >"$rtc/wakealarm" || {
@@ -108,7 +126,7 @@ mkdir -p "${log%/*}"
 log_event "BEGIN seconds=$seconds boot_id=$(cat "$root/proc/sys/kernel/random/boot_id" 2>/dev/null || echo unknown)"
 snapshot
 if ! rtc_preflight; then
-	log_event "RESULT=FAIL preflight rtc0_alarm_unproven"
+	log_event "RESULT=FAIL preflight suspend_unproven"
 	exit 1
 fi
 if [ "$preflight_only" -eq 1 ]; then
