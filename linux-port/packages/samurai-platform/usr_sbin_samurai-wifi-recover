@@ -1,0 +1,85 @@
+#!/bin/sh
+# SPDX-License-Identifier: BSD-3-Clause
+#
+# Recover the RMX1931 Wi-Fi data path after the Plasma Mobile Wi-Fi KCM
+# (plasma-settings -m kcm_mobile_wifi) gets stuck toggling
+# wireless-enabled.  This is a userspace/NetworkManager recovery, not a
+# driver or firmware reset, and it deliberately does not restart
+# NetworkManager so an active USB NCM SSH session stays available.
+
+set -u
+
+WIFI_CONNECTION=${SAMURAI_WIFI_CONNECTION:-"Samurai Wi-Fi"}
+WLAN=${SAMURAI_WIFI_IFACE:-wlan0}
+WAIT_MAX=${SAMURAI_WIFI_RECOVER_WAIT:-20}
+
+log()
+{
+	printf '%s %s\n' "$(date -Is)" "$*"
+}
+
+connected()
+{
+	nmcli -t -f DEVICE,STATE device status 2>/dev/null |
+		grep -q "^$WLAN:connected$"
+}
+
+if connected; then
+	log "WIFI_ALREADY_CONNECTED iface=$WLAN"
+	exit 0
+fi
+
+# The Plasma Mobile Wi-Fi KCM can enter a radio-control feedback loop:
+# it writes wireless-enabled on/off faster than NetworkManager can
+# settle.  Kill only that transient settings process.
+killed=0
+for proc in /proc/[0-9]*; do
+	[ -r "$proc/cmdline" ] || continue
+	cmd=$(tr '\0' ' ' <"$proc/cmdline")
+	case "$cmd" in
+	*plasma-settings*kcm_mobile_wifi*)
+		pid=${proc##*/}
+		log "KILL_STUCK_KCM pid=$pid"
+		kill -TERM "$pid" 2>/dev/null || true
+		killed=1
+		;;
+	esac
+done
+[ "$killed" -eq 0 ] || sleep 1
+
+if command -v rfkill >/dev/null 2>&1; then
+	rfkill unblock wifi 2>/dev/null || true
+fi
+nmcli radio wifi on >/dev/null 2>&1 || true
+ip link set "$WLAN" up 2>/dev/null || true
+
+count=0
+while [ "$count" -lt "$WAIT_MAX" ]; do
+	if connected; then
+		log "WIFI_RECOVERED iface=$WLAN"
+		nmcli -t -f DEVICE,STATE device status 2>/dev/null |
+			grep "^$WLAN:" || true
+		exit 0
+	fi
+	count=$((count + 1))
+	sleep 1
+done
+
+# NetworkManager may have lost the activation request while the KCM was
+# looping.  Re-activate the standard saved connection once.
+nmcli connection up "$WIFI_CONNECTION" >/dev/null 2>&1 || true
+count=0
+while [ "$count" -lt "$WAIT_MAX" ]; do
+	if connected; then
+		log "WIFI_RECOVERED_AFTER_ACTIVATE iface=$WLAN"
+		exit 0
+	fi
+	count=$((count + 1))
+	sleep 1
+done
+
+log "WIFI_RECOVER_FAILED iface=$WLAN state=$(cat "/sys/class/net/$WLAN/operstate" 2>/dev/null || echo missing)"
+rfkill list 2>/dev/null || true
+nmcli radio 2>/dev/null || true
+nmcli device status 2>/dev/null || true
+exit 1

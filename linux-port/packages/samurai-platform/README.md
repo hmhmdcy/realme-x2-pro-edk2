@@ -93,6 +93,14 @@ carrier loss as a USB reset condition. The regression is
 `test-usb-recover-carrier-no-reset.sh`; the removed soft-first and
 soft-link-lost tests no longer apply.
 
+6-r11 adds `/usr/sbin/samurai-wifi-recover`. The Plasma Mobile Wi-Fi
+KCM (`plasma-settings -m kcm_mobile_wifi`) can get stuck sending
+NetworkManager radio-control on/off requests; when that happens,
+`rfkill` may remain soft-blocked and `wlan0` stays down. The recovery
+script kills only that stuck KCM, clears the Wi-Fi rfkill block,
+enables the NetworkManager radio and brings `wlan0` up without
+restarting NetworkManager, so USB NCM SSH remains available.
+
 Signed candidate:
 
 ```text

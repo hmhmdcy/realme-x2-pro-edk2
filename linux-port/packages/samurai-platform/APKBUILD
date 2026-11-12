@@ -1,7 +1,7 @@
 maintainer="hmhmdcy <hmhmdcy@users.noreply.github.com>"
 pkgname=samurai-platform
 pkgver=6
-pkgrel=10
+pkgrel=11
 pkgdesc="Realme X2 Pro platform"
 url="https://github.com/hmhmdcy/pmaports"
 arch="noarch"
@@ -10,7 +10,7 @@ options="!check"
 depends="python3 openrc eudev iproute2 util-linux libqmi qmi-utils networkmanager bluez wpa_supplicant openssh-server-pam alsa-ucm-conf alsa-utils sleep-inhibitor dnsmasq neard-openrc postmarketos-usb-moded usb-signaller>=0.4.3-r4 unudhcpd>=0.5.0-r2"
 subpackages="$pkgname-pulse"
 install="$pkgname.post-install"
-source="usr_libexec_samurai-audio-route etc_pulse_daemon.conf.d_90-samurai.conf usr_sbin_samurai-bluetooth usr_sbin_samurai-modem-configs usr_sbin_samurai-modem-remoteproc usr_sbin_samurai-radio-address usr_sbin_samurai-udhcpc-wlan usr_sbin_samurai-wifi usr_sbin_samurai-usb usr_sbin_samurai-usb-recover etc_init.d_samurai-loopback etc_init.d_samurai-radio etc_init.d_samurai-usb etc_init.d_samurai-usb-recover etc_NetworkManager_conf.d_20-samurai-wlan.conf etc_usb-signaller.d_90-samurai.toml etc_unudhcpd.conf etc_conf.d_unudhcpd usr_local_share_dbus-1_system-services_org.freedesktop.ModemManager1.service 99-realme-rmx1931-sensors.rules 99-realme-rmx1931-haptics.rules usr_share_alsa_ucm2_conf.d_Realme_X2_Pro_HiFi.conf usr_share_alsa_ucm2_conf.d_Realme_X2_Pro_Realme_X2_Pro.conf etc_samurai_usb-dhcp.conf"
+source="usr_libexec_samurai-audio-route etc_pulse_daemon.conf.d_90-samurai.conf usr_sbin_samurai-bluetooth usr_sbin_samurai-modem-configs usr_sbin_samurai-modem-remoteproc usr_sbin_samurai-radio-address usr_sbin_samurai-udhcpc-wlan usr_sbin_samurai-wifi usr_sbin_samurai-wifi-recover usr_sbin_samurai-usb usr_sbin_samurai-usb-recover etc_init.d_samurai-loopback etc_init.d_samurai-radio etc_init.d_samurai-usb etc_init.d_samurai-usb-recover etc_NetworkManager_conf.d_20-samurai-wlan.conf etc_usb-signaller.d_90-samurai.toml etc_unudhcpd.conf etc_conf.d_unudhcpd usr_local_share_dbus-1_system-services_org.freedesktop.ModemManager1.service 99-realme-rmx1931-sensors.rules 99-realme-rmx1931-haptics.rules usr_share_alsa_ucm2_conf.d_Realme_X2_Pro_HiFi.conf usr_share_alsa_ucm2_conf.d_Realme_X2_Pro_Realme_X2_Pro.conf etc_samurai_usb-dhcp.conf"
 package() {
  install -Dm755 "$srcdir"/usr_libexec_samurai-audio-route "$pkgdir"/usr/libexec/samurai-audio-route
  install -Dm755 "$srcdir"/usr_sbin_samurai-bluetooth "$pkgdir"/usr/sbin/samurai-bluetooth
@@ -19,6 +19,7 @@ package() {
  install -Dm755 "$srcdir"/usr_sbin_samurai-radio-address "$pkgdir"/usr/sbin/samurai-radio-address
  install -Dm755 "$srcdir"/usr_sbin_samurai-udhcpc-wlan "$pkgdir"/usr/sbin/samurai-udhcpc-wlan
  install -Dm755 "$srcdir"/usr_sbin_samurai-wifi "$pkgdir"/usr/sbin/samurai-wifi
+ install -Dm755 "$srcdir"/usr_sbin_samurai-wifi-recover "$pkgdir"/usr/sbin/samurai-wifi-recover
  install -Dm755 "$srcdir"/usr_sbin_samurai-usb "$pkgdir"/usr/sbin/samurai-usb
  install -Dm755 "$srcdir"/usr_sbin_samurai-usb-recover "$pkgdir"/usr/sbin/samurai-usb-recover
  install -Dm755 "$srcdir"/etc_init.d_samurai-loopback "$pkgdir"/etc/init.d/samurai-loopback
@@ -54,6 +55,7 @@ c095e06d252732afa60d0d303f502b80e40fc337513a2974fa9e8c50257238f26c9512569cd2877b
 6dc665811144147f81c70ad7477088be47f15d97f9db3a5e2de4c73855911bb717e0be5d5b433f588f4af55f57442febb3abbc763edbe2b9f1f94dd42de71609  usr_sbin_samurai-radio-address
 62414aa3e2087a97c71954a630070cf61d3873a1e825e33e58328edafe94193cdcde6258e09ad045700c9969325660a286e8448645df6f7da344e30644ecab65  usr_sbin_samurai-udhcpc-wlan
 06cff98056368a3f09951dc78a45c17842a4263ebe54628cb20cd8a308c577cbae36ea97806bab31810ad948795e40920fbef91b434f9829bcc6c26fec1e7061  usr_sbin_samurai-wifi
+ecbc147d764ddd586770a575805cae9470df50a508a0f09bc56a431462e906e8660246612496cb715bd3ba499868f12b91672722abb55d15647302a87a312656  usr_sbin_samurai-wifi-recover
 bff54287726e6dc82c9f203d564a04c8744bc3e33c3004eaf313d49f2e523ab18c13cf50057227cad6d92faed41153b53735bc87958965f01c38f492855bd3a2  usr_sbin_samurai-usb
 ad228238543e99d957309facb4fa6194e8b391dd2360ea4dc344660c67190c6f0e4ce71e1e5757f274357419ed2958709953ed7679a4fb1b68fa83b059bbef83  usr_sbin_samurai-usb-recover
 99766805c16cfdc8d280ab84d77dd8d98da85794c380ba62a67a20d56e7fed32c6c60ae22f8b782238d8685cf4c6cf1634e2e7c0585fccaaa3f64360fdf32137  etc_init.d_samurai-loopback

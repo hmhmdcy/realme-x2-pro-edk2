@@ -42,6 +42,19 @@ role/orientation 与 VBUS 状态稳定，NCM 数据路径曾成功返回
 `host_mode`；当前只差物理 OTG adapter 下的 host role、VBUS source
 和外部设备枚举验收。
 
+目标更新（2026-11-13 06:10，USB 稳定 + Wi-Fi）：用户重启并调整
+物理连接后，boot ID `709bd3bc-9684-471b-ab49-8fdf04eebc0d`，
+手机在 root-hub port 6 以 `0525:a4a1`/high-speed/address 13
+保持超过 40 秒；60 秒 DWC3 trace 为 `RESET=0 SUSPEND=0`，
+UDC `configured`、`usb0` carrier 1。USB NCM SSH 和 Wi-Fi SSH
+可同时使用，8 MiB scp 经 USB NCM 传输后 SHA-256 完全一致。
+“Wi-Fi 关闭再打开打不开”已复现为 Plasma Mobile Wi-Fi KCM
+`plasma-settings -m kcm_mobile_wifi` 卡在 radio-control on/off
+反馈循环，不是 ath10k 固件故障；终止该 KCM并
+`rfkill unblock wifi` + `nmcli radio wifi on` + `ip link set wlan0 up`
+即可恢复，`nmcli radio wifi off/on` 本身也已验证正常。OTG host
+仍需物理 OTG adapter + U 盘/键盘验收。
+
 目标更新（2026-11-12，postmarketOS USB）：普通 USB 运行时已迁移到
 标准 `usb-signaller 0.4.3-r4` + `postmarketos-usb-moded` +
 NetworkManager + `unudhcpd 0.5.0-r2` + `umtprd`，板级差异只保留

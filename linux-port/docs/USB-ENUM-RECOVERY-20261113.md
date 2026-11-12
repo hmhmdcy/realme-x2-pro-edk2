@@ -327,6 +327,61 @@ physical discriminators are (in order): flip the phone-side Type-C plug
 180 degrees without changing the cable, then replace the cable, then
 inspect/clean the phone Type-C receptacle.
 
+### 2026-11-13 05:56-06:10 CST: link recovered, both SSH paths stable
+
+After the user rebooted and changed the physical setup, the phone came
+back with a new boot ID
+`709bd3bc-9684-471b-ab49-8fdf04eebc0d` and a stable USB link on
+root-hub port 6. Measurements:
+
+```text
+port 6: 0525:a4a1, high-speed, address 13 unchanged for >40 s
+DWC3 60 s: RESET=0 SUSPEND=0
+UDC: configured, usb0 carrier=1
+USB NCM SSH: success (source-bound 172.16.42.2)
+8 MiB scp over NCM: SHA-256 match
+Wi-Fi SSH: success at 192.168.0.114
+```
+
+The 8 MiB file was sent over the USB NCM interface and its phone-side
+SHA-256 was
+`6ae125335d7ecf62ad55678cd0c9b3d9f4f8f2f6288aec5ac8cd7b1ed8069ea8`,
+matching the host copy. USB and Wi-Fi SSH were usable simultaneously.
+This closes the immediate "USB or Wi-Fi, but not both" failure for the
+current boot and cable setup.
+
+### Wi-Fi toggle failure: stuck Plasma Mobile KCM
+
+The user-reported "Wi-Fi off then on does not come back" was reproduced
+while USB SSH was healthy. `rfkill` showed phy0 soft-blocked and
+`wlan0` stayed `unavailable`/`DOWN`. NetworkManager's log showed
+`radio-control wireless-enabled:on/off` from **pid 5209**, repeatedly,
+many times per second. The process was:
+
+```text
+/usr/sbin/plasma-settings -m kcm_mobile_wifi
+```
+
+The Plasma Mobile Wi-Fi KCM was stuck in a radio-control feedback loop,
+not a ath10k firmware failure. Killing that settings process, then:
+
+```sh
+rfkill unblock wifi
+nmcli radio wifi on
+ip link set wlan0 up
+```
+
+restored `wlan0`, DHCP `192.168.0.114/24` and Wi-Fi SSH. A subsequent
+plain `nmcli radio wifi off` / `on` cycle also recovered normally, so
+the NetworkManager/wpa_supplicant stack is healthy.
+
+The repeatable recovery script is
+`linux-port/packages/samurai-platform/usr_sbin_samurai-wifi-recover`
+(installed as `/usr/sbin/samurai-wifi-recover`); it kills the stuck KCM,
+clears rfkill, enables the radio, brings `wlan0` up and waits for
+`Samurai Wi-Fi` to connect without restarting NetworkManager (so the
+USB NCM SSH session remains available).
+
 ## Remaining blocker
 
 Windows root-hub port 5 still enters a reset/re-enumeration loop. It
