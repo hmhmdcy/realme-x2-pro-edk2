@@ -7,20 +7,27 @@
 #
 # Usage:
 #   test-usb-otg-host.sh [--storage] [--hid] [--allow-no-device]
+#                         [--require-vbus-source] [--require-typec-data-role]
 
 set -u
 
+root=${SAMURAI_USB_TEST_ROOT:-}
+dmesg_cmd=${SAMURAI_USB_DMESG:-dmesg}
 require_storage=0
 require_hid=0
 allow_no_device=0
+require_vbus_source=0
+require_typec_data_role=0
 
 for argument in "$@"; do
 	case "$argument" in
 	--storage) require_storage=1 ;;
 	--hid) require_hid=1 ;;
 	--allow-no-device) allow_no_device=1 ;;
+	--require-vbus-source) require_vbus_source=1 ;;
+	--require-typec-data-role) require_typec_data_role=1 ;;
 	*)
-		echo "usage: $0 [--storage] [--hid] [--allow-no-device]" >&2
+		echo "usage: $0 [--storage] [--hid] [--allow-no-device] [--require-vbus-source] [--require-typec-data-role]" >&2
 		exit 2
 		;;
 	esac
@@ -36,30 +43,50 @@ fail()
 
 value()
 {
-	if [ -r "$1" ]; then
-		cat "$1"
+	if [ -r "$root$1" ]; then
+		cat "$root$1"
 	else
 		echo missing
 	fi
 }
 
 role_count=0
-for role in /sys/class/usb_role/*; do
+for role in "$root"/sys/class/usb_role/*; do
 	[ -e "$role" ] || continue
-	role_value=$(value "$role/role")
-	echo "usb_role.$(basename "$role").role=$role_value"
+	role_name=$(basename "$role")
+	role_value=$(value "/sys/class/usb_role/$role_name/role")
+	echo "usb_role.$role_name.role=$role_value"
 	[ "$role_value" = host ] && role_count=$((role_count + 1))
 done
 [ "$role_count" -gt 0 ] ||
 	fail "no USB role-switch reports host role"
 
-if [ ! -e /sys/bus/platform/drivers/xhci-hcd ]; then
+typec_power_role=$(value /sys/class/typec/port0/power_role)
+typec_data_role=$(value /sys/class/typec/port0/data_role)
+typec_orientation=$(value /sys/class/typec/port0/orientation)
+echo "typec.port0.power_role=$typec_power_role"
+echo "typec.port0.data_role=$typec_data_role"
+echo "typec.port0.orientation=$typec_orientation"
+if [ "$require_typec_data_role" -eq 1 ]; then
+	case $typec_data_role in
+	*'[host]'*) echo "typec.data_role_active=host" ;;
+	*) fail "Type-C port is not actively in data host role" ;;
+	esac
+fi
+if [ "$require_vbus_source" -eq 1 ]; then
+	case $typec_power_role in
+	*'[source]'*) echo "typec.vbus_source=active" ;;
+	*) fail "Type-C port is not actively sourcing VBUS" ;;
+	esac
+fi
+
+if [ ! -e "$root/sys/bus/platform/drivers/xhci-hcd" ]; then
 	fail "xHCI platform driver is not registered"
 fi
 
 root_hubs=0
 external_devices=0
-for device in /sys/bus/usb/devices/*; do
+for device in "$root"/sys/bus/usb/devices/*; do
 	[ -e "$device" ] || continue
 	name=$(basename "$device")
 	case "$name" in
@@ -68,7 +95,7 @@ for device in /sys/bus/usb/devices/*; do
 		*-*) ;;
 		*)
 			root_hubs=$((root_hubs + 1))
-			echo "root_hub.$name.speed=$(value "$device/speed")"
+			echo "root_hub.$name.speed=$(value "/sys/bus/usb/devices/$name/speed")"
 			continue
 			;;
 		esac
@@ -76,11 +103,11 @@ for device in /sys/bus/usb/devices/*; do
 	esac
 	[ -r "$device/idVendor" ] || continue
 	external_devices=$((external_devices + 1))
-	echo "device.$name.idVendor=$(value "$device/idVendor")"
-	echo "device.$name.idProduct=$(value "$device/idProduct")"
-	echo "device.$name.manufacturer=$(value "$device/manufacturer")"
-	echo "device.$name.product=$(value "$device/product")"
-	echo "device.$name.speed=$(value "$device/speed")"
+	echo "device.$name.idVendor=$(value "/sys/bus/usb/devices/$name/idVendor")"
+	echo "device.$name.idProduct=$(value "/sys/bus/usb/devices/$name/idProduct")"
+	echo "device.$name.manufacturer=$(value "/sys/bus/usb/devices/$name/manufacturer")"
+	echo "device.$name.product=$(value "/sys/bus/usb/devices/$name/product")"
+	echo "device.$name.speed=$(value "/sys/bus/usb/devices/$name/speed")"
 done
 
 [ "$root_hubs" -gt 0 ] ||
@@ -103,9 +130,9 @@ if [ "$require_storage" -eq 1 ]; then
 fi
 
 if [ "$require_hid" -eq 1 ]; then
-	if [ -d /sys/bus/usb/drivers/usbhid ]; then
+	if [ -d "$root/sys/bus/usb/drivers/usbhid" ]; then
 		hid_bindings=0
-		for binding in /sys/bus/usb/drivers/usbhid/*; do
+		for binding in "$root"/sys/bus/usb/drivers/usbhid/*; do
 			[ -e "$binding" ] || continue
 			case "$(basename "$binding")" in
 			bind|unbind|module) continue ;;
@@ -120,11 +147,11 @@ if [ "$require_hid" -eq 1 ]; then
 	fi
 fi
 
-if dmesg 2>/dev/null |
+if "$dmesg_cmd" 2>/dev/null |
 	grep -Eiq \
 	'(usb [0-9-]+.*(device descriptor read|unable to enumerate|error -|not accepting address))'; then
 	echo "--- relevant dmesg tail ---"
-	dmesg | grep -Ei 'usb|xhci' | tail -n 80
+	"$dmesg_cmd" | grep -Ei 'usb|xhci' | tail -n 80
 	fail "USB enumeration error found in dmesg"
 fi
 

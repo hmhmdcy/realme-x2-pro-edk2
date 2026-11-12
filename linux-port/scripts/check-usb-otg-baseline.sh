@@ -147,16 +147,20 @@ if [ "$expected_role" != any ] &&
 	fail "no USB role-switch reports the requested $expected_role role"
 fi
 
+typec_ports=0
 for port in /sys/class/typec/port*; do
 	[ -e "$port" ] || continue
 	name=$(basename "$port")
 	case "$name" in
 	*-partner) continue ;;
 	esac
+	typec_ports=$((typec_ports + 1))
 	echo "typec.$name.power_role=$(value "$port/power_role")"
 	echo "typec.$name.data_role=$(value "$port/data_role")"
 	echo "typec.$name.orientation=$(value "$port/orientation")"
 done
+[ "$typec_ports" -gt 0 ] ||
+	fail "no Type-C port is registered"
 
 case "$expected_role" in
 device)

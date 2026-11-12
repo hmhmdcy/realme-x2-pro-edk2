@@ -73,6 +73,12 @@
   反插方向、VBUS source、长期插拔/suspend soak、Windows 物理
   replug 后 Code 43 和同线 U3 host-resume。当前内核已有
   `DWC3_DUAL_ROLE`/xHCI，但 synthetic host 不能写成物理 OTG 通过。
+- synthetic host 实测 `usb_role=host` 但 Type-C data
+  `host [device]`、power `source [sink]`：直接写 DWC3 URS 没有让
+  标准 TCPM 进入 host/source。物理测试必须用
+  `--require-typec-data-role`，无源 OTG 再加
+  `--require-vbus-source`；有源 dock 的 power `[sink]` 只能证明
+  host data，不能证明手机 VBUS source。
 - 详细证据、包哈希和板级分层见
   [PMOS-USB-20261112](linux-port/docs/PMOS-USB-20261112.md) 和
   [USB-OTG-20261112](linux-port/docs/USB-OTG-20261112.md)。
