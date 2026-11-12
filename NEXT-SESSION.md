@@ -6,7 +6,7 @@
   `usb-signaller 0.4.3-r3` + `postmarketos-usb-moded` +
   NetworkManager + `unudhcpd` + `umtprd`；`samurai-platform 6-r1`
   已安装并完成普通重启。当前 boot ID
-  `80acc2bf-267a-4876-8241-a3552128fcb5`。
+  `fc04a2e7-894b-4814-878e-6fdf5d44cc43`。
 - Developer 默认模式为 `0525:a4a1`、class `ef/02/01`、MaxPower 500、
   NCM `qmult=20`、`usb0=172.16.42.1/16`；Windows UsbNcm Problem 0，
   DHCP `172.16.42.2/24`，严格 host-key NCM SSH 通过。Tethering
