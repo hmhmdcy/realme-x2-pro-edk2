@@ -34,7 +34,13 @@ role/orientation 与 VBUS 状态稳定，NCM 数据路径曾成功返回
 `SSH-2.0-OpenSSH_10.6`，因此当前剩余边界是数据线、手机 Type-C
 座或 Windows root-hub port 5 的物理链路，而不是 NCM 描述符或恢复
 服务。物理线缆/端口排除前，不记 NCM、OTG host 或 suspend/wake
-通过。
+通过。OTG host 软件前置条件另行通过只读门禁
+`check-usb-otg-baseline.sh device`：`DWC3_DUAL_ROLE`、`XHCI_HCD`、
+`USB_ROLE_SWITCH`、`REGULATOR_QCOM_USB_VBUS`、`USB_STORAGE`、
+`USB_HID` 均为 `y`，connector `power-role=dual`/`data-role=dual`/
+`try-power-role=sink`，`usb_vbus` 500 mA，`usb_moded` 公布
+`host_mode`；当前只差物理 OTG adapter 下的 host role、VBUS source
+和外部设备枚举验收。
 
 目标更新（2026-11-12，postmarketOS USB）：普通 USB 运行时已迁移到
 标准 `usb-signaller 0.4.3-r4` + `postmarketos-usb-moded` +

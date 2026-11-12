@@ -256,6 +256,15 @@ device, orientation `normal`, `mp2650-input/online=1`, no new
 `pmic-typec` or PD kernel messages. The Type-C/TCPM layer is not
 toggling the data link.
 
+Windows' global USB selective-suspend policy was also tested. It was
+enabled for AC and DC in the active power scheme. Disabling both for a
+30-second observation window did not stop the loop: the trace still
+showed 13 resets / 12 suspends / 12 enumerations, and the device logged
+a `VBUS_OFF`/`VBUS_ON` pair. The policy was restored to its original
+enabled state afterwards. This rules out the global selective-suspend
+setting as the primary cause; the port is power-cycling or losing VBUS
+independently of that policy.
+
 ### NCM data path can carry traffic
 
 Windows created the NCM adapter and intermittently obtained the DHCP
