@@ -58,6 +58,11 @@ grep -q 'RTC_ALARM_AWAKE irq_before=10 irq_after=11' \
 	"$positive/var/log/samurai/usb-otg-suspend.log"
 grep -q 'RESULT=PASS preflight_only' \
 	"$positive/var/log/samurai/usb-otg-suspend.log"
+if grep -q 'DETACHED' \
+	"$positive/var/log/samurai/usb-otg-suspend.log"; then
+	echo "preflight-only unexpectedly detached a suspend worker" >&2
+	exit 1
+fi
 
 negative=$tmp/negative
 prepare_tree "$negative"

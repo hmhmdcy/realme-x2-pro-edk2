@@ -115,6 +115,16 @@ if [ "$preflight_only" -eq 1 ]; then
 	log_event "RESULT=PASS preflight_only"
 	exit 0
 fi
+if [ "${SAMURAI_SUSPEND_DETACHED:-0}" != 1 ]; then
+	log_event "DETACH_START ssh=${SSH_CONNECTION:-none}"
+	SAMURAI_SUSPEND_DETACHED=1 \
+		nohup sh "$0" "$seconds" >>"$log" 2>&1 &
+	detached_pid=$!
+	log_event "DETACHED pid=$detached_pid requested_seconds=$seconds"
+	printf 'started detached suspend pid=%s; reconnect after the requested window\n' \
+		"$detached_pid"
+	exit 0
+fi
 
 start_epoch=$(date +%s)
 rtcwake -m mem -s "$seconds"

@@ -10,7 +10,9 @@
   是 RTC 唤醒源或 USB/DWC3 suspend 路径问题。
 - 新的 suspend 脚本会先做不 suspend 的 RTC alarm preflight；先运行
   `/root/samurai-tests/test-usb-otg-suspend.sh 30 --preflight-only`，
-  失败时禁止进入真正 suspend。
+  失败时禁止进入真正 suspend。preflight 通过后脚本会自后台化，
+  SSH 命令立即返回；按请求秒数 + 20 秒后重连读
+  `/var/log/samurai/usb-otg-suspend.log`，不要在前台等待。
 - 完成 6-r6 APK 安装与签名复核，并收集
   `/tmp/r6b-host-mode-3x.log`、`/var/log/samurai/usb-recover.log`、
   `/var/log/samurai/usb-moded-host-mode.log` 到证据目录。

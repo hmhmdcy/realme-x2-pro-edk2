@@ -21,4 +21,5 @@ host、VBUS source、长期 host soak、同线 U3 host-resume。物理 OTG
 `samurai-platform-6-r6.apk`，收集三轮 host-mode 原始日志，再继续
 物理验收。真正 suspend 前先跑
 `test-usb-otg-suspend.sh 30 --preflight-only`；不要在 preflight
-失败或无人值守下重复 suspend 测试。
+失败或无人值守下重复 suspend 测试。通过后脚本会自后台化，SSH
+立即返回，约 50 秒后重连读日志。
