@@ -217,9 +217,10 @@ PMIC/SPMI/PDC 路径能把唤醒送到系统。
 睡眠时长：本板的 s2idle 会冻结局部 printk 时钟，即使实际睡满，两个
 时间戳也可能只相差约 0.6–0.7 秒。上表使用 `rtcwake` 的墙钟时间，并
 用 RTC `since_epoch` 复核；因此表中的 15/60 秒是实际经过时间。
-每次 resume 后 Windows 会重新枚举，`samurai-usb` NCM 服务或
+每次 resume 后 Windows 会重新枚举，标准 `usb-signaller` 模式服务或
 `samurai-usb-recover` 能在 12–20 秒内恢复 UDC `configured` 和
-`usb0 carrier=1`。
+`usb0 carrier=1`。`samurai-platform 6-r2` 的恢复路径还会用标准 UDC
+`soft_connect` 强制主机干净重枚举，使 Windows 重新执行 DHCP。
 
 另有 15 分钟主机侧心跳：108 个样本，NCM 失败 0、Wi‑Fi 失败 0、
 Windows PnP 失败 0、`LastArrivalDate` 变化 0。证据在

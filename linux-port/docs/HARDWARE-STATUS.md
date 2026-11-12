@@ -24,18 +24,20 @@ PM8150B 模式周期重新 attach 后，`port0-partner` 存在、non-PD、
 目标更新（2026-11-12，postmarketOS USB）：普通 USB 运行时已迁移到
 标准 `usb-signaller 0.4.3-r3` + `postmarketos-usb-moded` +
 NetworkManager + `unudhcpd` + `umtprd`，板级差异只保留描述符、
-DHCP 地址和有界 DWC3 恢复。`samurai-platform 6-r1` 已安装；普通
-重启后 Developer `0525:a4a1`、class `ef/02/01`、MaxPower 500、
+DHCP 地址和有界 DWC3 恢复。`samurai-platform 6-r2` 已安装；6-r1
+完成普通重启后在同一 boot 升级到 r2，Developer `0525:a4a1`、
+class `ef/02/01`、MaxPower 500、
 `qmult=20`、`usb0=172.16.42.1/16`，Windows NCM/Problem 0、
 DHCP `172.16.42.2` 和严格 host-key NCM SSH 均通过；Tethering
 `10.42.0.1/24`、MTP `0525:a4a2`/WPD 和 charging-only 也通过。
 `samurai-usb-recover` 用标准 DWC3 unbind/bind + usb-moded D-Bus
-恢复当前模式，`ip link down` 注入在 boot ID 不变下恢复到 configured/
-carrier 1。一次 RTC suspend 烟测后 NCM 会先消失、约 20 秒内自动
-重连，说明 suspend 期间不保持同一条活动链路，不能写成 USB
-host-resume；后续一次重连中 Windows UsbNcm 停在 APIPA，而设备侧
-`unudhcpd`/UDC/carrier 正常，主机 DHCP 复位仍待处理。物理插拔/
-反插、长期 suspend soak 和同线 U3 仍未验收。
+恢复当前模式，并在末尾用标准 UDC `soft_connect` 强制主机干净重枚举。
+`ip link down` 注入在 boot ID 不变下恢复到 configured/carrier 1，
+Windows 同窗口重新取得 `172.16.42.2/24` DHCP 租约且 Problem 0。
+一次 RTC suspend 烟测后 NCM 会先消失、约 20 秒内自动重连，说明
+suspend 期间不保持同一条活动链路，不能写成 USB host-resume；更长
+suspend/resume soak 中的主机 DHCP 行为仍未验收。物理插拔/反插、
+长期 suspend soak 和同线 U3 仍未验收。
 详见 [`PMOS-USB-20261112`](PMOS-USB-20261112.md)。
 
 2026-11-10 电源键/显示最终结论：官方路径仍是 elogind
@@ -273,7 +275,7 @@ vendor 根属性和 `samurai_diag` trace 依赖。它们不能以“能跑”为
 | 振动 | AW8697驱动与电气检查通过。`Realme X2 Pro AW8697 haptics`已由板级udev规则标记为`FEEDBACKD_TYPE=vibra`；标准feedbackd D-Bus `TriggerFeedback(button-pressed)`返回id2且`EndFeedback`成功 | 实际振幅、时长和桌面触感未由用户确认；跨启动和长稳待验 |
 | 蓝牙 | 234实际RTS模型三变体16/2、16/0、16/2及H4回放8例通过；暂时诊断取得2个完整phase5回包/UART对应/1301事件无丢失，未复现错误。扫描因预上电属性Not Powered未完成，已恢复原185模块/config/helper/keys/787文件、最终健康0；裸RTS模型不满足真实锁契约，未部署功能补丁。[234](../../reference/kernel234/README.md)。205两次普通启动/8轮上下电/4次重注册未复现phase5，206已恢复原185模块/helper/BlueZ并核对keys；这不是phase5修复。204 RX wake/sleep已部署；首轮前9/45.14秒RTC PM后13、错误增量0，第二boot启动重组0，外部BT事件唤醒未验；首轮phase5仍1。200新boot startup及8秒只扫描发现10设备、退出恢复、重组增量0；185功率脉冲前导NUL及短写/flow修复保持；当时原扫描错误1/候选0、3模式响应及开启状态s2idle/延后扫描通过；189三个传感器PM窗内重组增量0、密钥保持。2026-11-09 `samurai-bluetooth-host 0.1.0-r0` 已安装；boot `071abbb5…` 上 `bnep/uhid/uinput` 自动加载，`/dev/uhid`、`/dev/uinput`、BNEP socket、BlueZ `hci0` 和 777 模块完整 gate 通过 | 189旧boot出现phase5/3.2Mbps/chunk13/partial0/firstff重组1，区别于旧phase2前导00，需继续修复。外部 PAN/HID 对端、配对/连接/音频、冷启动和带业务 suspend 未验收；没有对端证据时不能声称 PAN/HID 业务通过 |
 | Wi-Fi | 200新boot自动connected，早期管理端点超时保留；2.4/5GHz通信已有回归；189三轮传感器PM的第1/3轮观察约5.33/0.53秒关联5180，最终5180，未手工重绑驱动；2026-11-08 当前 boot 5GHz/VHT 866.7 Mbit/s 连续关联约79分钟，beacon loss 0，power save off；2026-11-09 r21 boot 完成 1810 个 SSH 样本/1820.51 秒、最大间隔 1.01 秒，DMS 地址 `PRIVATE_WIFI_MAC` 在多次启动一致；原厂 decompiled DTB 的 WiFi 节点与蓝牙共用四个 PMIC regulator，当前 DTB 已绑定；ath10k 只把原厂未使用的 `vdd-3.3-ch1` 退回 dummy | 第2轮35秒窗内仍未关联，之后又执行第3轮PM，不能称第2轮自行恢复；185立即醒后2秒检查失败仍保留。冷启动、完整休眠通信恢复及长期稳定性仍开放；不能把 dummy ch1 直接当成断连根因 |
-| 普通USB与OTG | USB 2.0 Type-C；2026-11-09 r21 boot 在主板直连口完成双向 `64K/256K/1M/4M` 各三轮 24/24、1798.828 秒 NCM 心跳；UDC `configured`、`usb0` carrier 1、`qmult=20`；严格 host-key Wi‑Fi/NCM SSH 和最终 runtime/Plasma 门禁通过。2026-11-12 标准 Type-C sink DTB/Image 已部署，3×15 s + 1×60 s + 8×15 s s2idle 和 NCM 恢复通过；`samurai-platform 5-r30` 有界 DWC3 重绑已实测恢复，8 轮 soak 由主机自行重枚举、未触发强制重绑 | 旧 Genesys 扩展 Hub 端口仍会停在 `VID_0000&PID_0001`/Code 43；当前 Image 缺 `DWC3_DUAL_ROLE`/xHCI，OTG host 尚未实现；Windows 网卡复位权限、USB 归档尾部中断、IPv6、EUD 接收/退出、Linux 主机、更长时间空闲和多次冷启动待验收。DWC3 suspend 仍会 soft-disconnect；默认由标准 `ssh-session-open` 持有 sleep 锁。物理 Type-C 插拔唤醒、反插和同线 host-resume 尚未验收 |
+| 普通USB与OTG | USB 2.0 Type-C；2026-11-09 r21 boot 在主板直连口完成双向 `64K/256K/1M/4M` 各三轮 24/24、1798.828 秒 NCM 心跳；UDC `configured`、`usb0` carrier 1、`qmult=20`；严格 host-key Wi‑Fi/NCM SSH 和最终 runtime/Plasma 门禁通过。2026-11-12 标准 Type-C sink DTB/Image 已部署，3×15 s + 1×60 s + 8×15 s s2idle 和 NCM 恢复通过；普通 USB 已迁移到 `usb-signaller 0.4.3-r3` + `postmarketos-usb-moded` + NetworkManager/unudhcpd/umtprd，`samurai-platform 6-r2` 的有界 DWC3 重绑与 UDC `soft_connect` 已在 `ip link down` 注入后自动恢复，并让 Windows 重新取得 DHCP `172.16.42.2/24`；8 轮 soak 由主机自行重枚举、未触发强制重绑 | 旧 Genesys 扩展 Hub 端口仍会停在 `VID_0000&PID_0001`/Code 43；当前 Image 缺 `DWC3_DUAL_ROLE`/xHCI，OTG host 尚未实现；Windows 网卡复位权限、USB 归档尾部中断、IPv6、EUD 接收/退出、Linux 主机、更长时间空闲和多次冷启动待验收。DWC3 suspend 仍会 soft-disconnect；默认由标准 `ssh-session-open` 持有 sleep 锁。物理 Type-C 插拔唤醒、反插和同线 host-resume 尚未验收 |
 | 触摸 | 用户确认可解锁、操作应用，原生驱动工作 | 边缘/方向/多触点与休眠后恢复、长稳 |
 
 已有基础还包括UFS访问、CPU调频表、PMIC温度与按键/EUD。CPU高频压力、UFS持续负载、整机功耗、冷启动及系统休眠唤醒仍需跨功能验收；不能以驱动注册或短窗口健康代替日用完成。

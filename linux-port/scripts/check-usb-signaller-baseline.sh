@@ -38,11 +38,12 @@ apk info -e postmarketos-usb-moded >/dev/null 2>&1 ||
 rc-service usb-signaller status >/dev/null 2>&1 ||
 	bad 'usb-signaller service is not started'
 
-[ "$(cat "/sys/class/udc/$UDC/state" 2>/dev/null || true)" = configured ] ||
-	bad "UDC $UDC is not configured"
+udc_state=$(cat "/sys/class/udc/$UDC/state" 2>/dev/null || true)
 
 case "$mode" in
 developer_mode)
+	[ "$udc_state" = configured ] ||
+		bad "UDC $UDC is not configured in developer mode"
 	g=$CONFIGFS/usb-signaller-developer
 	expect "$g/idVendor" 0x0525
 	expect "$g/idProduct" 0xa4a1
@@ -67,6 +68,8 @@ developer_mode)
 		bad 'unudhcpd address pair is incorrect'
 	;;
 tethering_mode)
+	[ "$udc_state" = configured ] ||
+		bad "UDC $UDC is not configured in tethering mode"
 	g=$CONFIGFS/usb-signaller-tethering
 	expect "$g/idVendor" 0x0525
 	expect "$g/idProduct" 0xa4a1
@@ -85,6 +88,8 @@ tethering_mode)
 		bad 'IPv4 forwarding is disabled'
 	;;
 mtp_ffs_mode)
+	[ "$udc_state" = configured ] ||
+		bad "UDC $UDC is not configured in MTP mode"
 	g=$CONFIGFS/usb-signaller-mtp
 	expect "$g/idVendor" 0x0525
 	expect "$g/idProduct" 0xa4a2
@@ -99,6 +104,9 @@ mtp_ffs_mode)
 		bad 'umtprd is not running'
 	;;
 charging_only)
+	[ "$udc_state" != configured ] &&
+		ok 'UDC is not configured in charging-only mode' ||
+		bad 'charging mode still has a configured UDC'
 	for gadget in "$CONFIGFS"/*; do
 		[ -d "$gadget" ] || continue
 		[ -z "$(cat "$gadget/UDC" 2>/dev/null || true)" ] ||

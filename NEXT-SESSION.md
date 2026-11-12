@@ -4,8 +4,8 @@
 
 - 普通 USB 运行时已从板级 `samurai-usb` 迁移到标准
   `usb-signaller 0.4.3-r3` + `postmarketos-usb-moded` +
-  NetworkManager + `unudhcpd` + `umtprd`；`samurai-platform 6-r1`
-  已安装并完成普通重启。当前 boot ID
+  NetworkManager + `unudhcpd` + `umtprd`；`samurai-platform 6-r2`
+  已安装；6-r1 完成普通重启后在同一 boot 升级到 r2。当前 boot ID
   `fc04a2e7-894b-4814-878e-6fdf5d44cc43`。
 - Developer 默认模式为 `0525:a4a1`、class `ef/02/01`、MaxPower 500、
   NCM `qmult=20`、`usb0=172.16.42.1/16`；Windows UsbNcm Problem 0，
@@ -14,11 +14,15 @@
 - `samurai-usb-recover` 已改为通过标准 DWC3 unbind/bind 和
   usb-moded D-Bus 恢复当前模式；`ip link down` 注入在 boot ID 不变
   下恢复到 UDC `configured`/carrier 1，标准模式服务自动重绑。
+  `6-r2` 在末尾用公开 UDC `soft_connect` 强制干净重枚举；实测
+  Windows 在同一恢复窗口重新取得 `172.16.42.2/24` DHCP 租约，
+  `USB\VID_0525&PID_A4A1` 和 UsbNcm 均 Problem 0。
 - 一次 `rtcwake -m mem -s 15` 烟测后 NCM 先消失、约 20 秒内自动
   重连；suspend 期间不保持同一条活动链路，不能写成 USB host-resume。
   `dmesg` entry/exit 时差约 0.7 秒，睡眠时长仍需单独验收。
-- 后续一次重连中 Windows UsbNcm 停在 APIPA；设备侧
-  `unudhcpd`/UDC/carrier 正常，主机 DHCP/适配器复位仍是独立问题。
+- 早期一次重连曾停在 APIPA；设备侧 `unudhcpd`/UDC/carrier 正常。
+  `6-r2` 的 UDC `soft_connect` 已在该 `ip link down` 恢复路径解决，
+  但更长 suspend/resume soak 的主机 DHCP 行为仍待验收。
 - 未验收仍是物理插线/拔线、反插方向、长期插拔/suspend soak、
   Windows 物理 replug 后 Code 43、同线 U3 host-resume；当前内核
   仍无 `DWC3_DUAL_ROLE`/xHCI，不能声明 OTG host。

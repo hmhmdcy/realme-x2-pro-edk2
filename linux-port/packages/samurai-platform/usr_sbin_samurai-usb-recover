@@ -172,6 +172,15 @@ wait_udc_state()
 	return 1
 }
 
+reconnect_udc()
+{
+	soft_connect=$udc_dir/$udc/soft_connect
+	[ -w "$soft_connect" ] || return 0
+	printf 'disconnect\n' >"$soft_connect" || return 1
+	sleep 1
+	printf 'connect\n' >"$soft_connect" || return 1
+}
+
 service_bounded()
 {
 	if command -v timeout >/dev/null 2>&1; then
@@ -287,6 +296,10 @@ recover_link()
 		{ log_event "RECOVER_FAIL reason=udc_missing"; return 1; }
 
 	restart_gadget >/dev/null 2>&1 || true
+	# A DWC3 rebind can leave the host with stale DHCP/NCM state.  Toggle
+	# the standard UDC soft_connect control after userspace is ready so
+	# the host performs a clean enumeration and DHCP exchange.
+	reconnect_udc || true
 	if ! wait_udc_state configured 30; then
 		log_event "RECOVER_FAIL reason=not_configured state=$(read_value "$udc_dir/$udc/state")"
 		return 1

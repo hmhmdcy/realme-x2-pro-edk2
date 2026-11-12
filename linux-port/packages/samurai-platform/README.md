@@ -1,6 +1,6 @@
-# samurai-platform 6-r1
+# samurai-platform 6-r2
 
-6-r1 is installed on the handset. It keeps the standard postmarketOS
+6-r2 is installed on the handset. It keeps the standard postmarketOS
 USB ownership model and adds the bounded `samurai-usb-recover` path:
 
 ```text
@@ -15,11 +15,14 @@ MTP 0525:a4a2
 The recovery service preserves the active usb-moded mode across a DWC3
 unbind/bind, restarts the matching standard mode service, and bounds
 `rc-service` calls so a stalled controller cannot hang the monitor.
-The ordinary reboot and `ip link down` recovery tests are recorded in
-`linux-port/docs/PMOS-USB-20261112.md`. Physical cable/orientation
-checks and same-cable U3 host-resume remain open.
+6-r2 then toggles the standard UDC `soft_connect` control so the host
+performs a clean enumeration and DHCP exchange instead of retaining its
+failed NCM adapter state. The ordinary reboot and `ip link down`
+recovery tests are recorded in `linux-port/docs/PMOS-USB-20261112.md`.
+Physical cable/orientation checks and same-cable U3 host-resume remain
+open.
 
-6-r1 moves the runtime USB gadget owner from the board script
+6-r1 moved the runtime USB gadget owner from the board script
 `samurai-usb` to the standard postmarketOS stack:
 
 - `usb-signaller` owns configfs modes, UDC binding and the usb-moded D-Bus API;
@@ -49,6 +52,9 @@ Runtime evidence on the handset:
 - Developer/Tethering service transitions now stop the previous OpenRC
   mode service instead of leaving it `crashed`;
 - `samurai-usb-recover` reports `armed=1` with the usb-signaller backend.
+- a forced `ip link down` recovery re-establishes DWC3 and triggers a
+  fresh Windows DHCP lease (`172.16.42.2/24`) without an adapter reset;
+  both the composite device and UsbNcm remain at Problem 0.
 
 Still requiring physical cable/orientation checks, unplug/replug after a
 suspend, and long-time suspend/resume soak. The ordinary reboot path is

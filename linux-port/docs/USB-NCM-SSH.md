@@ -72,20 +72,46 @@ USB NCM SSH 到 10.42.0.1 成功
 controller 内部状态。USBIN 测试脚本已改成结束时强制重绑 DWC3 并重启
 `samurai-usb`，避免把测试态留给主机。
 
-## 2026-11-12 自动恢复服务
+## 2026-11-12 postmarketOS 自动恢复
 
-`samurai-platform 5-r30` 已把上述人工重绑改成有界自动恢复：
+当前运行时由标准 `usb-signaller 0.4.3-r3` 管理 gadget 和模式，
+`samurai-platform 6-r2` 只保留 SM8150 DWC3 的有界恢复：
 
 - 只有本次电缆会话曾达到 `UDC=configured` 且 `usb0 carrier=1` 才武装；
 - `online=1` 但链路持续丢失 12 秒时，执行一次 DWC3 unbind/bind；
 - 曾成功枚举过且 VBUS 0 -> 1 后 20 秒仍未配置时，执行一次
   `reason=reattach` 的 DWC3 unbind/bind；
-- 每会话最多连续两次，成功后重启 `samurai-usb`；
+- 每会话最多连续两次，成功后通过 usb-moded D-Bus 恢复原模式，并
+  重启对应的标准模式服务；
+- 最后写入公开 UDC `soft_connect` 的 `disconnect`/`connect`，让主机
+  重新枚举并重新执行 DHCP；
 - 链路稳定 300 秒后刷新尝试预算；
 - 只插充电器、从未枚举的会话不会触发无意义重绑。
 
 日志：`/var/log/samurai/usb-recover.log`；状态：
 `/run/samurai-usb-recover/`。
+
+实测人为 `ip link set usb0 down` 后：
+
+```text
+13:51:17 LINK_LOST state=configured carrier=
+13:51:29 RECOVER_BEGIN attempt=1 reason=link_lost ...
+13:51:36 RECOVER_OK attempt=1 reason=link_lost state=configured carrier=1
+```
+
+boot ID 不变；Windows 在 `13:51:32` 重新取得 DHCP
+`172.16.42.2/24`，DHCP server `172.16.42.1`，
+`USB\VID_0525&PID_A4A1` 和 `UsbNcm Host Device #5` 均为
+Problem 0。该路径解决的是控制器恢复后的主机旧 NCM/DHCP 状态，
+不表示 suspend 期间链路保持在线。
+
+### 5-r30 历史
+
+`samurai-platform 5-r30` 已把上述人工重绑改成有界自动恢复：
+
+- 原先只重启板级 `samurai-usb`；
+- 6-r1 起改为 usb-moded D-Bus + 标准 usb-signaller 模式服务；
+- 6-r2 起增加恢复后的 UDC `soft_connect` 重枚举。
 
 标准 Type-C + USB 唤醒部署后已完成 3×15 秒、1×60 秒和追加
 8×15 秒 `s2idle`。每次 resume 后 Windows 重新枚举，UDC/NCM
