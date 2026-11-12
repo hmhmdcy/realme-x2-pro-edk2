@@ -160,9 +160,11 @@ platform_files = [
     ("usr_sbin_samurai-udhcpc-wlan", "usr/sbin/samurai-udhcpc-wlan", 0o755),
     ("usr_sbin_samurai-wifi", "usr/sbin/samurai-wifi", 0o755),
     ("usr_sbin_samurai-usb", "usr/sbin/samurai-usb", 0o755),
+    ("usr_sbin_samurai-usb-recover", "usr/sbin/samurai-usb-recover", 0o755),
     ("etc_init.d_samurai-loopback", "etc/init.d/samurai-loopback", 0o755),
     ("etc_init.d_samurai-radio", "etc/init.d/samurai-radio", 0o755),
     ("etc_init.d_samurai-usb", "etc/init.d/samurai-usb", 0o755),
+    ("etc_init.d_samurai-usb-recover", "etc/init.d/samurai-usb-recover", 0o755),
     ("etc_samurai_usb-dhcp.conf", "etc/samurai/usb-dhcp.conf", 0o644),
     ("etc_NetworkManager_conf.d_20-samurai-wlan.conf", "etc/NetworkManager/conf.d/20-samurai-wlan.conf", 0o644),
     ("etc_NetworkManager_conf.d_90-samurai-usb.conf", "etc/NetworkManager/conf.d/90-samurai-usb.conf", 0o644),
@@ -175,7 +177,7 @@ platform_files = [
 for source, target, mode in platform_files:
     copy_file(platform_source / source, platform / target, mode)
 make_package(
-    "samurai-platform", "5-r26", "noarch", platform,
+    "samurai-platform", "5-r30", "noarch", platform,
     {
         "description": "Realme X2 Pro board-level platform and services",
         "license": "LicenseRef-Local-Project",

@@ -23,7 +23,7 @@
 | `samurai-desktop` 4-r16 | **有效的架构收敛**：删除 `samurai-powerkey` Python 桥和 OpenRC 服务，电源键/DMPS 回到官方 KWin/PowerDevil 路径 | 包已离线构建、签名；尚未在设备安装。见 [DESKTOP-R16-20261109](DESKTOP-R16-20261109.md) |
 | KWin `0103-retry-transient-ebusy-commits.patch` | **独立的瞬时 EBUSY workaround**，不是 HBM 根因 | `kwin 6.8.2-r3` 已安装；10 轮锁屏/DPMS/触摸无新增 EBUSY。Plasma 6.8.3 后优先删除或换上游修复。见 [kwin README](../packages/kwin/README.md) |
 | USB 控制器分层清理 | **有效清理**：删除无消费者的 577 行 Femto PHY 私有 window API；SPMI periph IRQ 移入 `sm8150.dtsi` | `0005/0011/0012` 在 `604f840` 基线可 apply，PHY/core/gadget/dwc3-qcom 对象编译通过；已刷机验证。见 [USB-LAYER-CLEANUP-20261111](USB-LAYER-CLEANUP-20261111.md) |
-| U3-only keep-connect | **已禁用（不是有效修复）**：拔线但链路残留 U3 时布防 `dp_hs_phy_irq`，每次 suspend 0.6 秒内被伪唤醒；插线 resume 后曾出现 Windows Code 43 | 板级 `snps,gadget-keep-connect-sys-sleep` 已关闭；内核 cable-event fallback 保留但未启用。标准 suspend/resume 已验收。见 [USB-REMOTE-WAKE-20261111](USB-REMOTE-WAKE-20261111.md) |
+| U3-only keep-connect | **已禁用（不是有效修复）**：拔线但链路残留 U3 时布防 `dp_hs_phy_irq`，观测到该 IRQ 增长；printk 局部时钟显示的 0.6 秒差不能单独证明实际未睡，但这不是可信的唤醒源且有 Windows Code 43 风险 | 板级 `snps,gadget-keep-connect-sys-sleep` 已关闭；内核 cable-event fallback 保留但未启用。标准 suspend/resume 已验收。见 [USB-REMOTE-WAKE-20261111](USB-REMOTE-WAKE-20261111.md) |
 | 相机预览 854x480 快路径 | **有效适配**：`viewfinderbin` 先在 NV12 域缩放，再转 BGRx，避免 Cairo 逐帧 1080p YUV→RGB | 实机 30 fps、单核约 17%、SDP 900 mA 下净充 `+21..+39 mA`。见 [PERFORMANCE](../camera/PERFORMANCE.md) |
 | 1440x1080 取景 / 4608x3456 双流 / 9280x6944 高像素 | **在 k363 基线上有效的相机路径**：原厂取景参数、RAW 双流和高像素 mode 0 均已实拍 | 高像素约 10 fps，只作静态拍摄；当前 v7.3.1 生产树是否携带这些补丁要以 source-lock 为准，不能把 k363 结果写成 v7.3.1 已验收。见 [camera kernel README](../camera/kernel/README.md) |
 
@@ -73,3 +73,32 @@ git log --oneline 2380c0e463~1..HEAD
 各提交只包含对应主题的源码、补丁、包配方、脚本和文档；未提交
 `reference/charging-*` 的既有工作区改动，也未提交设备临时日志或预编译
 `.so`。
+
+## 2026-11-12 更新
+
+本台账的“尚未验收”表中“USB2 Type-C sink/dual 仅离线构建”和
+“USB 插拔线唤醒未支持”已被后续工作推进：
+
+- 标准 PM8150B Type-C/TCPM、`usb-c-connector`、PM8150B VBUS
+  regulator 和 Type-C `wakeup-source` 已作为持久 DTB/Image 冷启动
+  部署；
+- `/sys/class/typec/port0` 为 sink/device/rev 1.2；当前链路没有
+  物理插线前的 `port0-partner`、`orientation=unknown` 状态已由一次
+  awake PM8150B 模式周期改变；当前为 partner present（non-PD）、
+  `orientation=normal`。这仍不能替代物理 C-to-C 方向验收。
+  Type-C 平台设备 `power/wakeup=enabled`，`usb_vbus` regulator
+  500 mA、disabled、0 users；
+- 3×15 秒 + 1×60 秒 + 8×15 秒 `s2idle` 睡满、boot ID 不变，
+  UDC/NCM 自动恢复；suspend 边界 diagnostic 证明 Type-C IRQ →
+  SPMI → PDC，但不是物理插线；
+- 人为 `dwc3-qcom` unbind 后 `samurai-usb-recover` 自动
+  `RECOVER_BEGIN/RECOVER_OK`，NCM SSH 恢复，Windows PnP Problem
+  Code 0；
+- `samurai-platform 5-r30` 把恢复服务扩展为“已成功枚举过的会话在
+  VBUS 0 -> 1 后仍不配置时”执行有界的 `reason=reattach` 重绑；
+  fake-sysfs 状态机和一次真实 `reason=link_lost` 注入均通过；
+- 物理插线/拔线唤醒、反插方向、长期插拔 soak 和同线 U3
+  host-resume **仍未验收**。
+
+当前部署、哈希、回滚和待执行的物理测试见
+[`USB-TYPEC-WAKE-20261112.md`](USB-TYPEC-WAKE-20261112.md)。

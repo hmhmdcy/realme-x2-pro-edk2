@@ -1,21 +1,118 @@
-# 当前：标准 USB suspend/resume 已验收；USB wake 撤回
+# 当前：标准 Type-C/TCPM 已部署；物理 USB 唤醒待验收
 
-## 2026-11-11 USB 唤醒结论
+## 2026-11-12 当前 USB 状态
+
+- 标准 PM8150B Type-C/TCPM、`usb-c-connector`、500 mA PM8150B
+  VBUS regulator、DWC3/NCM 已作为持久 DTB + Image 部署并冷启动运行。
+  `port0` 为 sink/device；awake 模式周期后的当前链路为 non-PD
+  partner、`orientation=normal`；反插仍需物理翻接。
+  `mp2650-input/online=1`，Windows `0525:a4a1` PnP Problem 0；当前 boot ID
+  `0225f227-30f8-4541-b200-cdf53cb7f311`。
+- Type-C 平台设备
+  `c440000.spmi:pmic@2:typec@1500/power/wakeup=enabled`。唤醒补丁为
+  `linux-port/patches/experiments/0010-usb-typec-pmic-attach-wake.patch`
+  （当前 SHA-256 `6ccc...a1f37b13`；已部署 `#6` 使用较早的
+  `0f2069...`，仅差格式和错误路径 unwind，成功路径相同）；
+  3×15 s + 1×60 s s2idle 均以 RTC
+  秒数确认实际睡满，UDC/NCM 自动恢复，boot ID 不变。之后 8 轮
+  15 s soak 全部睡满 17 s，`suspend.success` 18→26，boot ID 不变，
+  Windows PnP 仍为 Problem 0；主机自行重枚举，未触发强制 DWC3
+  重绑。soak 后 30 分钟心跳 216 样本，NCM/Wi‑Fi/PnP 失败均 0，
+  `LastArrivalDate` 变化 0。
+- 无人值守阶段又完成 16×30 s soak：16/16 轮睡满 32 s，
+  `suspend.success` 28→44，boot ID 不变；每轮 UDC 自动回到
+  `configured`、carrier=1，没有 `RECOVER_BEGIN`，也没有人工 DWC3
+  重绑。随后 30/30 次 UDC soft reconnect 全部恢复；高频率 Windows
+  PnP 采样只看到预期的消失/重建，没有 Code 43。
+- suspend 边界诊断 `typec-irq-probe/typec_wake_near.c` 已证明：
+  Type-C 驱动布防后生成真实 PM8150B CC 事件，系统在 15 s RTC 前
+  4–5 s 恢复，Type-C IRQ +4、TCPM wake events 76→85；unarmed
+  对照睡满且 IRQ 增量为 0。该模块仅是诊断，已卸载，不得进入生产。
+  当前 boot 的 `/proc/sys/kernel/tainted=4608`（`0x1200`：启动 warning
+  + 诊断模块 OOT）；最终生产验收需在不加载诊断模块的冷启动上重新
+  记录 taint，至少清掉 OOT 位，不要假设一定为 0。
+- `samurai-platform 5-r30` 已签名构建并安装。恢复服务对已建立链路的
+  `reason=link_lost` 已在真机自动恢复；`reason=reattach` 已通过
+  fake-sysfs 状态机测试。当前服务 `armed=1`、`seen_configured=1`。
+  APK SHA-256 `e96f0c085605c5d657e5f3a34f7788f21e1339b0156c8e75222e27aed3e174a0`。
+- 主机侧自动 VBUS 断电仍不可用：当前 NCM 在 AMD PTXH root hub
+  端口 5；NVIDIA PPC 不在该路径，ANX7411 UCM 驱动没有普通用户
+  接口。MUTT 3.0.2 的 `UsbCApiCmd.exe` 未提权返回 `0x80070005`。
+  物理插拔仍需人工，不能把 synthetic CC 事件当成插拔验收。
+- 已用 `LOCALVERSION=-usbwake` 重建匹配 release 的 Image 候选：
+  `e1e607de3cc574791182931b28f99c2ecfab4afc451fdfc19a87ddcb8ae0e31a`，
+  UTS 为 `7.3.1-rmx1931-samurai-v731-usbwake`。它**未部署**；WSL
+  源码还含有既存显示改动，刷入前必须先做来源/差异审查和回滚验证；
+  同树 `modules` 构建通过（3095 个 `.ko`），`checkpatch` 0 errors /
+  0 checks，`dt_binding_check` 通过。
+- 仍未验收：物理拔线后插线唤醒、物理拔线唤醒、反插方向、长期反复
+  插拔/枚举，以及同线 U3 host-resume。当前 DWC3 仍是 gadget-only，
+  suspend 会 soft-disconnect；不能用 Windows NCM 的 U0 存活冒充
+  host resume。
+- 诊断结论：awake 下直接切换 PM8150B Type-C 模式能产生
+  `cc-state-change`/`attach-detach`/`sig-tx` IRQ；suspend 边界
+  diagnostic 已证明 IRQ → SPMI → PDC 路径。物理线缆事件仍是
+  唯一可接受的 Type-C 插拔唤醒验收。
+
+2026-11-12 远程会话复查：当前 `suspend.success=47`、`fail=0`，
+UDC `configured`、`usb0 carrier=1`、VBUS online、Type-C
+`sink/device`、partner present（non-PD）且 `orientation=normal`，
+平台唤醒源仍为 `enabled`。但用户当前只远程控制 PC、不在手机旁，
+因此不能执行翻插头、拔线或插线；物理验收暂停在这个门禁，不能把
+16×30 s soak、soft reconnect 或 synthetic CC 事件写成“插拔唤醒已通过”。
+
+用户在场时可直接在已插线状态执行拔线测试：
+
+```sh
+# 只读预检（不会 suspend）
+DRY_RUN=1 /root/samurai-tests/test-usb-typec-wake.sh remove 120
+
+/root/samurai-tests/test-usb-typec-wake.sh remove 120
+```
+
+拔线后若要测插入唤醒，先确认 `mp2650-input/online=0`，再执行：
+
+```sh
+/root/samurai-tests/test-usb-typec-wake.sh insert 120
+```
+
+脚本现在用 RTC 秒数判断提前恢复，并在启动时检查 Type-C 平台
+`power/wakeup=enabled`；屏幕是否点亮不是判据。
+
+另有一个非持久 observer 正在记录 VBUS/UDC/carrier、Type-C 方向和
+suspend 计数变化，日志为
+`/var/log/samurai/typec-transitions-20261112-observer.log`；它只用于
+事后关联，不能单独判定唤醒成功。observer 运行时又做了一次 15 s
+`s2idle`，26→27、boot ID 不变，observer 存活并记录了
+UDC/carrier 掉线后约 1 秒恢复。设备上当前脚本哈希：
+`test-usb-typec-wake.sh` `9d777a4c17d1ce4d397c93812ff37bc9c60f3e8b3db308c7a98d40ec93d42aa9`，
+`typec-transition-observer.sh` `3e35f278...8c6063e`。随后 5 分钟
+心跳 33 样本，NCM/Wi‑Fi/PnP 失败均 0。
+另做了 `test-usb-typec-wake.sh remove 10` 不拔线负对照：RTC 12 秒
+唤醒、success 27→28、online 1→1、IRQ/TCPM 增量为 0，脚本正确
+返回 `RESULT: FAIL`，证明不会把 RTC-only wake 误报为 USB wake。
+
+当前回滚：boot `4f62605f...ee9835`，logdump
+`898e7608...33979`。详细证据见
+[USB-TYPEC-WAKE-20261112](linux-port/docs/USB-TYPEC-WAKE-20261112.md)。
+
+## 历史：2026-11-11 USB 唤醒撤回
 
 - PM8150 GPIO10 `extcon-usb-gpio` 被真机证据否定：厂商
   `refs/19781/sm8150-mtp.dtsi` 里 `vbus-gpio` 和 `&usb1` 消费者都被
   注释掉；实测 GPIO10 不跟随 VBUS，IRQ 120 始终为 0。overlay、udev
   规则和包条目已删除。
 - keep-connect RFC 在拔线但链路仍显示 U3 时布防 `dp_hs_phy_irq`，
-  每次 suspend 0.6 秒内被伪唤醒；插线 resume 还出现过 Windows
-  Code 43。板级 opt-in 已关闭，保留内核 cable-event fallback 供将来
-  标准 Type-C 源使用。
+  观测到该 IRQ 增长；printk 局部时钟显示的 0.6 秒差不能单独证明
+  实际未睡，但它不是可信唤醒源且插线 resume 曾出现 Windows Code 43。
+  板级 opt-in 已关闭，保留内核 cable-event fallback 供将来标准
+  Type-C 源使用。
 - 标准路径已验证：插着线 `rtcwake -m mem -s 20` 返回 0；拔线
   `rtcwake -m mem -s 30` 实测睡 32 秒，`suspend.success` +1，
   boot ID 不变，`dp_hs_phy_irq` 不变。
-- USB wake 目前**未支持**。下一步应启用主线 PM8150B Type-C/TCPM +
-  `usb-role-switch`，用 `vbus-change`/`attach-detach` 事件进入 PDC
-  唤醒路径；不要恢复 GPIO10 extcon。
+- 当时 USB wake **未支持**；主线 PM8150B Type-C/TCPM +
+  `usb-c-connector` 已于 2026-11-12 部署，下一步只剩真实电缆插拔
+  验收。`usb-role-switch`/host 模式仍未接入；不要恢复 GPIO10 extcon。
 - 证据、产物和回滚见
   [USB-REMOTE-WAKE-20261111](linux-port/docs/USB-REMOTE-WAKE-20261111.md)。
 

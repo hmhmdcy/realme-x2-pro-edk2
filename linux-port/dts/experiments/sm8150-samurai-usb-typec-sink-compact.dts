@@ -1,0 +1,39 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Capacity-constrained PM8150B Type-C sink DTB for the current A/B boot slot.
+ *
+ * The firmware-embedded DTB section is 114716 bytes.  This wrapper keeps the
+ * production board description and the standard PM8150B TCPM/connector nodes,
+ * but drops the disabled SM8150 Ethernet controller node, which does not exist
+ * on RMX1931.  That leaves the root model/chassis-type and all USB nodes
+ * intact while fitting the existing in-place DTB section.
+ */
+
+#include <dt-bindings/usb/pd.h>
+#include "sm8150-samurai.dts"
+
+/delete-node/ &ethernet;
+
+&pm8150b_vbus {
+	regulator-min-microamp = <500000>;
+	regulator-max-microamp = <500000>;
+	status = "okay";
+};
+
+&pm8150b_typec {
+	status = "okay";
+	vdd-pdphy-supply = <&vreg_l2a_3p1>;
+	wakeup-source;
+
+	connector {
+		compatible = "usb-c-connector";
+
+		power-role = "sink";
+		data-role = "device";
+
+		vbus-supply = <&pm8150b_vbus>;
+
+		sink-pdos = <PDO_FIXED(5000, 500, PDO_FIXED_USB_COMM)>;
+		op-sink-microwatt = <2500000>;
+	};
+};

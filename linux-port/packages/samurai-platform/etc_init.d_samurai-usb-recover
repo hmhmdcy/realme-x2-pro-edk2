@@ -1,0 +1,19 @@
+#!/sbin/openrc-run
+description="Bounded DWC3 recovery for Samurai USB NCM"
+
+depend() {
+	need localmount
+	use samurai-usb
+	after udev samurai-usb
+}
+
+supervisor=supervise-daemon
+command=/usr/sbin/samurai-usb-recover
+command_args=monitor
+pidfile=/run/samurai-usb-recover.pid
+respawn_delay=5
+respawn_max=0
+
+start_pre() {
+	mkdir -p /run/samurai-usb-recover /var/log/samurai
+}

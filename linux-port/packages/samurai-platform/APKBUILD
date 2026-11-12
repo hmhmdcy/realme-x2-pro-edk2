@@ -1,7 +1,7 @@
 maintainer="hmhmdcy <hmhmdcy@users.noreply.github.com>"
 pkgname=samurai-platform
 pkgver=5
-pkgrel=26
+pkgrel=30
 pkgdesc="Realme X2 Pro platform"
 url="https://github.com/hmhmdcy/pmaports"
 arch="noarch"
@@ -10,7 +10,7 @@ options="!check"
 depends="python3 openrc eudev iproute2 util-linux libqmi qmi-utils networkmanager bluez wpa_supplicant openssh-server-pam alsa-ucm-conf alsa-utils sleep-inhibitor dnsmasq neard-openrc"
 subpackages="$pkgname-pulse"
 install="$pkgname.post-install"
-source="usr_libexec_samurai-audio-route etc_pulse_daemon.conf.d_90-samurai.conf usr_sbin_samurai-bluetooth usr_sbin_samurai-modem-configs usr_sbin_samurai-modem-remoteproc usr_sbin_samurai-radio-address usr_sbin_samurai-udhcpc-wlan usr_sbin_samurai-wifi usr_sbin_samurai-usb etc_init.d_samurai-loopback etc_init.d_samurai-radio etc_init.d_samurai-usb etc_NetworkManager_conf.d_20-samurai-wlan.conf etc_NetworkManager_conf.d_90-samurai-usb.conf usr_local_share_dbus-1_system-services_org.freedesktop.ModemManager1.service 99-realme-rmx1931-sensors.rules 99-realme-rmx1931-haptics.rules usr_share_alsa_ucm2_conf.d_Realme_X2_Pro_HiFi.conf usr_share_alsa_ucm2_conf.d_Realme_X2_Pro_Realme_X2_Pro.conf etc_samurai_usb-dhcp.conf"
+source="usr_libexec_samurai-audio-route etc_pulse_daemon.conf.d_90-samurai.conf usr_sbin_samurai-bluetooth usr_sbin_samurai-modem-configs usr_sbin_samurai-modem-remoteproc usr_sbin_samurai-radio-address usr_sbin_samurai-udhcpc-wlan usr_sbin_samurai-wifi usr_sbin_samurai-usb usr_sbin_samurai-usb-recover etc_init.d_samurai-loopback etc_init.d_samurai-radio etc_init.d_samurai-usb etc_init.d_samurai-usb-recover etc_NetworkManager_conf.d_20-samurai-wlan.conf etc_NetworkManager_conf.d_90-samurai-usb.conf usr_local_share_dbus-1_system-services_org.freedesktop.ModemManager1.service 99-realme-rmx1931-sensors.rules 99-realme-rmx1931-haptics.rules usr_share_alsa_ucm2_conf.d_Realme_X2_Pro_HiFi.conf usr_share_alsa_ucm2_conf.d_Realme_X2_Pro_Realme_X2_Pro.conf etc_samurai_usb-dhcp.conf"
 package() {
  install -Dm755 "$srcdir"/usr_libexec_samurai-audio-route "$pkgdir"/usr/libexec/samurai-audio-route
  install -Dm755 "$srcdir"/usr_sbin_samurai-bluetooth "$pkgdir"/usr/sbin/samurai-bluetooth
@@ -20,9 +20,11 @@ package() {
  install -Dm755 "$srcdir"/usr_sbin_samurai-udhcpc-wlan "$pkgdir"/usr/sbin/samurai-udhcpc-wlan
  install -Dm755 "$srcdir"/usr_sbin_samurai-wifi "$pkgdir"/usr/sbin/samurai-wifi
  install -Dm755 "$srcdir"/usr_sbin_samurai-usb "$pkgdir"/usr/sbin/samurai-usb
+ install -Dm755 "$srcdir"/usr_sbin_samurai-usb-recover "$pkgdir"/usr/sbin/samurai-usb-recover
  install -Dm755 "$srcdir"/etc_init.d_samurai-loopback "$pkgdir"/etc/init.d/samurai-loopback
  install -Dm755 "$srcdir"/etc_init.d_samurai-radio "$pkgdir"/etc/init.d/samurai-radio
  install -Dm755 "$srcdir"/etc_init.d_samurai-usb "$pkgdir"/etc/init.d/samurai-usb
+ install -Dm755 "$srcdir"/etc_init.d_samurai-usb-recover "$pkgdir"/etc/init.d/samurai-usb-recover
  install -Dm644 "$srcdir"/etc_samurai_usb-dhcp.conf "$pkgdir"/etc/samurai/usb-dhcp.conf
  install -Dm644 "$srcdir"/etc_NetworkManager_conf.d_20-samurai-wlan.conf "$pkgdir"/etc/NetworkManager/conf.d/20-samurai-wlan.conf
  install -Dm644 "$srcdir"/etc_NetworkManager_conf.d_90-samurai-usb.conf "$pkgdir"/etc/NetworkManager/conf.d/90-samurai-usb.conf
@@ -51,9 +53,11 @@ c095e06d252732afa60d0d303f502b80e40fc337513a2974fa9e8c50257238f26c9512569cd2877b
 62414aa3e2087a97c71954a630070cf61d3873a1e825e33e58328edafe94193cdcde6258e09ad045700c9969325660a286e8448645df6f7da344e30644ecab65  usr_sbin_samurai-udhcpc-wlan
 06cff98056368a3f09951dc78a45c17842a4263ebe54628cb20cd8a308c577cbae36ea97806bab31810ad948795e40920fbef91b434f9829bcc6c26fec1e7061  usr_sbin_samurai-wifi
 9e6ffd5291cf17caeddd40b914da8cf05328cdaa5665535577a10715f40c4ea49de57f907bb64d3977a05555a7358379420939f7f31d88cd6d0f7b0e895af92b  usr_sbin_samurai-usb
+a3176855e5bd6e8b5d2ae3231b6c912d3a0d02860e26f54e887e7dcae031e3c210dfe1a069995d22576917f201b4d439f88388e5f7ed95a69c9997f9aa547b6f  usr_sbin_samurai-usb-recover
 99766805c16cfdc8d280ab84d77dd8d98da85794c380ba62a67a20d56e7fed32c6c60ae22f8b782238d8685cf4c6cf1634e2e7c0585fccaaa3f64360fdf32137  etc_init.d_samurai-loopback
 14df52b1365b976a234e2cfa7fbaa6e2238d2a7e818fec1abe29419af98d4cde1e43b2040a4a7901f9731adbcb4e33c4204bf26db0d8b4ff773ad07fb89df1ef  etc_init.d_samurai-radio
 70d30e9411c3c7393747dacb4d724bfb130e31cff30f960fb330d1973bac1b0a3f934c0358e36f532de8e0f10bcbd16e03886c3ec6c831c2720cb01d307f0be2  etc_init.d_samurai-usb
+1fcee00cf90bb9d7efb97c5167ce9ccf84ec56fa9f3ff579fc960cce9511f448f58e19afddf7a9ded01386d728bca117de007c888c433ece1a961befe2266e86  etc_init.d_samurai-usb-recover
 7d81890122f63c43c4c99062986818156ae091a05ffb8352c1f4c372b20a797efe4e901266f4222f61fea2e44d3711216fa58d3a014874de1cd3aaebd25276e8  etc_NetworkManager_conf.d_20-samurai-wlan.conf
 98357776e02b8aff3b585280bf9d4a3082ae8ad694ac880616ca66fec423ee2a645bf65840194e51d0345c6a60fa4c426f183a955ac0233e77c1fa476fb90499  etc_NetworkManager_conf.d_90-samurai-usb.conf
 5aa260d1938d2aa099d01532d8bd1fda8b6b64b8240b8114f78adde2eb25b9f5844aa9bf43a4e165379860ba7e7fceae72545d1e4e5a0e15246a16f23b86c641  usr_local_share_dbus-1_system-services_org.freedesktop.ModemManager1.service

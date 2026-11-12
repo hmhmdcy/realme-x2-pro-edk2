@@ -104,3 +104,13 @@ fallback（`8b9a05b3c`），将来接入标准 Type-C/PMIC attach 源后可重�
 - `linux-port/dts/v731/source-lock.json` 的 `usb_wake_candidate`
   段仍是 2026-11-10 的候选快照，未随本轮重建；以本文和
   `USB-WAKE-20261110.md` 的新哈希为准。
+
+## 2026-11-12 追加
+
+标准 Type-C 层已落地并持久部署：PM8150B Type-C/TCPM、
+`usb-c-connector`、PM8150B VBUS regulator、Type-C `wakeup-source`
+和 `0010-usb-typec-pmic-attach-wake.patch` 一起进入 boot DTB/Image。
+3×15 秒 + 1×60 秒 `s2idle`、DWC3 自动恢复和 Windows Problem Code 0
+通过；物理插线/拔线唤醒仍需真实电缆动作。本文的
+`usb2-vbus-wake` 撤回结论仍然有效，keep-connect 继续保持禁用。
+详见 [`USB-TYPEC-WAKE-20261112.md`](USB-TYPEC-WAKE-20261112.md)。

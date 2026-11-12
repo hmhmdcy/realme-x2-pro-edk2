@@ -1,4 +1,19 @@
-# samurai-platform 5-r26
+# samurai-platform 5-r30
+
+5-r30 extends `samurai-usb-recover` with a bounded VBUS-on reattach
+watchdog. It already recovers an established NCM link after 12 seconds
+lost while VBUS is present, performing at most two complete DWC3
+unbind/bind cycles per cable session. The new path also waits 20 seconds
+after a VBUS 0 -> 1 transition if the UDC never becomes `configured`;
+that covers an unplug/replug that leaves the controller stale. A
+successful recovery returns to the normal five-minute attempt-reset
+window. Both the established-link and reattach paths use the same
+standard DWC3 unbind/bind interface, log their reason, and stop after the
+two-attempt budget; there is no infinite loop or private kernel ABI. The
+reattach state machine has an offline fake-sysfs test. It only activates
+after a cable session has reached UDC `configured` at least once, so a
+wall charger that never enumerates does not cause a rebind loop. A physical
+unplug/replug and cold-boot acceptance are still required.
 
 5-r26 removes the 5-r25 USB VBUS wake udev rule. The PM8150 GPIO10
 `extcon-usb-gpio` assumption was disproved on hardware: the vendor DTS

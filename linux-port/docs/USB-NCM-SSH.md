@@ -30,6 +30,74 @@ r21 同 boot 最终结果：双向 `64K/256K/1M/4M` 各 3 轮 24/24、
 采样间隔 1.01 秒，verdict `b3dd4e29…`。普通重启后的启动脚本自动
 恢复 `qmult=20`，不是手工热改；真正断电冷启动和 Linux 主机仍待验证。
 
+## 2026-11-11 UDC 卡住与 Windows Code 43
+
+USBIN 唤醒实验后出现过一次真正的手机侧控制器卡住：充电口仍报告
+`online=1`，但 UDC 是 `not attached`、DWC3 link 是 `Disconnected`；
+Windows 连续 reset 后把设备停掉，报 Code 43
+`请求 USB 设备描述符失败`。仅执行 UDC `soft_connect=connect` 或
+`rc-service samurai-usb restart` 没有恢复。
+
+完整控制器重绑后恢复：
+
+```sh
+echo a600000.usb > /sys/bus/platform/drivers/dwc3-qcom/unbind
+sleep 1
+echo a600000.usb > /sys/bus/platform/drivers/dwc3-qcom/bind
+sleep 3
+rc-service samurai-usb restart
+```
+
+恢复后的实际门禁：
+
+```text
+UDC configured, high-speed
+link On
+Windows 0525:a4a1 / UsbNcm Host Device: OK, Problem 0
+Windows NCM DHCP 10.42.0.2
+usb0 carrier 1, qmult 20
+30 s 状态采样无重新枚举
+USB NCM SSH 到 10.42.0.1 成功
+```
+
+因此这类 Code 43 不能只清 Windows phantom 设备。先看手机 UDC 和 link：
+如果 UDC 不是 `configured`，必须重绑 DWC3；只重连 gadget 不足以清掉
+controller 内部状态。USBIN 测试脚本已改成结束时强制重绑 DWC3 并重启
+`samurai-usb`，避免把测试态留给主机。
+
+## 2026-11-12 自动恢复服务
+
+`samurai-platform 5-r30` 已把上述人工重绑改成有界自动恢复：
+
+- 只有本次电缆会话曾达到 `UDC=configured` 且 `usb0 carrier=1` 才武装；
+- `online=1` 但链路持续丢失 12 秒时，执行一次 DWC3 unbind/bind；
+- 曾成功枚举过且 VBUS 0 -> 1 后 20 秒仍未配置时，执行一次
+  `reason=reattach` 的 DWC3 unbind/bind；
+- 每会话最多连续两次，成功后重启 `samurai-usb`；
+- 链路稳定 300 秒后刷新尝试预算；
+- 只插充电器、从未枚举的会话不会触发无意义重绑。
+
+日志：`/var/log/samurai/usb-recover.log`；状态：
+`/run/samurai-usb-recover/`。
+
+标准 Type-C + USB 唤醒部署后已完成 3×15 秒、1×60 秒和追加
+8×15 秒 `s2idle`。每次 resume 后 Windows 重新枚举，UDC/NCM
+在 12–20 秒内恢复；8×15 秒 soak 的 `suspend.success` 为 18→26，
+主机自行重枚举，没有触发强制重绑，Windows
+`USB\VID_0525&PID_A4A1\62BC28A1` 保持 Problem Code 0。物理拔线
+唤醒和长期反复插拔仍未验收，见
+[`USB-TYPEC-WAKE-20261112.md`](USB-TYPEC-WAKE-20261112.md)。
+
+随后追加 16×30 秒 `s2idle`：16/16 轮睡满 32 秒，
+`suspend.success` 28→44，UDC/carrier 每轮恢复，恢复服务没有触发
+强制重绑。另做 20 轮保持 VBUS 的 UDC `soft_connect`
+disconnect/connect：20/20 在 3–4 秒内恢复；主机以
+`CM_Get_DevNode_Status` 每 100 ms 采样 1629 次，所有 present
+样本均为 `problem=0`，设备节点恰好出现 20 次消失/重建，没有
+Code 43，也没有 `RECOVER_BEGIN`。
+测试后 32 MiB NCM 上传 1.146 秒并通过哈希。该测试不能替代物理
+Type-C 插拔唤醒。
+
 ## 2026-11-08 历史失败分层
 
 当前 boot `849bdfb8-1adf-420f-ba1c-bcded615f25b` 的失败点不在

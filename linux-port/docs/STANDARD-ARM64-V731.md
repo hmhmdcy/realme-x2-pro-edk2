@@ -111,8 +111,10 @@ The USB work is now split at the driver/config boundary:
 - `usb2-vbus-wake.dtso` was withdrawn on 2026-11-11. The vendor DTS
   comments out the PM8150 GPIO10 `vbus-gpio` and its `&usb1` consumer, and
   live sampling showed GPIO10 does not follow VBUS. The board now uses the
-  standard DWC3 gadget suspend/resume path and makes no USB wake claim. See
-  [USB-REMOTE-WAKE-20261111](USB-REMOTE-WAKE-20261111.md).
+  standard DWC3 gadget suspend/resume path. On 2026-11-12 the persistent
+  PM8150B Type-C/TCPM wake source was added and 3×15 s + 1×60 s `s2idle`
+  cycles passed; physical cable wake is still unverified. See
+  [USB-TYPEC-WAKE-20261112](USB-TYPEC-WAKE-20261112.md).
 - the dual-role Kconfig fragment resolves to an ARM64 config candidate
   without building an Image. Its only USB changes are gadget to
   dual-role, xHCI, and the PMIC VBUS regulator becoming built-in.

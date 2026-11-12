@@ -1,0 +1,27 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Source-level PM8150B Type-C sink wrapper for RMX1931.
+ *
+ * This includes the production samurai DTS and enables the standard
+ * PM8150B TCPM plus usb-c-connector model without using a runtime overlay.
+ * It is intended for kexec validation before a persistent boot deployment.
+ */
+
+#include <dt-bindings/usb/pd.h>
+#include "sm8150-samurai.dts"
+
+&pm8150b_typec {
+	status = "okay";
+	vdd-pdphy-supply = <&vreg_l2a_3p1>;
+	wakeup-source;
+
+	connector {
+		compatible = "usb-c-connector";
+
+		power-role = "sink";
+		data-role = "device";
+
+		sink-pdos = <PDO_FIXED(5000, 500, PDO_FIXED_USB_COMM)>;
+		op-sink-microwatt = <2500000>;
+	};
+};

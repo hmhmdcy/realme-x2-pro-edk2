@@ -201,8 +201,10 @@ IRQ，不是 PDC wake 线，U0 下没有可用的 SoC 唤醒路径。
 使用 PDC wake IRQ。
 
 随后一次“手机先 U3、再系统 suspend”的组合测试取得
-`suspend_stats/success = 1`，但手机只睡了约 0.6 秒就提前唤醒，主机
-仍在 S3 中约 57 秒后才恢复。因此这不是成功的 host-resume 样本。
+`suspend_stats/success = 1`，但 printk 的局部 entry/exit 只差约
+0.6 秒；本板 s2idle 会冻结局部时钟，这个差值不能证明实际睡眠时长。
+同一轮主机仍在 S3 中约 57 秒后才恢复，因此仍不是成功的 host-resume
+样本。
 目前还不能把提前唤醒归因于 `dp_hs_phy_irq`：该计数器在之前的 S3
 诊断中已经增加过，必须用同一轮的 before/after 计数判断。测试脚本
 现在会记录完整的 `wakeup_sources`、PDC/PHY/RTC/charger IRQ 和

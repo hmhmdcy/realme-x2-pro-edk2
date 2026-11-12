@@ -130,6 +130,12 @@ if command -v udevadm >/dev/null 2>&1; then
 	udevadm trigger --subsystem-match=input --action=change >/dev/null 2>&1 || true
 fi
 
+if command -v rc-update >/dev/null 2>&1 &&
+	[ -x /etc/init.d/samurai-usb-recover ]; then
+	rc-update add samurai-usb-recover default >/dev/null 2>&1 || true
+	rc-service samurai-usb-recover restart >/dev/null 2>&1 || true
+fi
+
 # NFC uses the upstream neard daemon and the kernel's standard NCI device.
 # Do not start or reset a live daemon from the package transaction; only make
 # the service part of the normal boot set. The runtime probe starts it

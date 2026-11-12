@@ -52,6 +52,11 @@ each other; do not try to replay `0001` then `0002` as the USB base.
   `usb2-vbus-wake.dtso` overlay and its udev rule were withdrawn on
   2026-11-11 after the GPIO10 assumption was disproved on hardware.
 
-Do not re-enable `0006`/`0007`/`0013` on this board until a standard
-PM8150B Type-C/TCPM attach/VBUS source is wired. See
-[`USB-REMOTE-WAKE-20261111.md`](../../docs/USB-REMOTE-WAKE-20261111.md).
+`../experiments/0010-usb-typec-pmic-attach-wake.patch` now provides the
+standard PM8150B Type-C/TCPM attach/VBUS wake source. It is built into the
+deployed Image and persistent Type-C DTB; the platform `power/wakeup`
+state is enabled and 3×15 s + 1×60 s `s2idle` cycles passed with UDC/NCM
+recovery. Physical cable-insert/removal wake is still the missing
+acceptance step. Do not re-enable `0006`/`0007`/`0013` until that physical
+test passes. See
+[`USB-TYPEC-WAKE-20261112.md`](../../docs/USB-TYPEC-WAKE-20261112.md).

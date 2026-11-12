@@ -12,6 +12,8 @@ policy. None of these fragments is activated by the production OS wrapper.
 | `samurai-debug-bootargs.dtsi` | startup policy | move to debug entry/LoadOptions |
 | `usb2-typec-sink.dtso` | USB Type-C | DTB-only, current gadget-only kernel, TCPM sink/device |
 | `usb2-typec-dual.dtso` | USB Type-C | requires a new Image with DWC3 dual-role and xHCI |
+| `sm8150-samurai-usb-typec-sink.dts` | USB Type-C | full source-level sink wrapper for kexec/offline validation |
+| `sm8150-samurai-usb-typec-sink-compact.dts` | USB Type-C | boot-FFS-fit sink wrapper; drops only the disabled, absent Ethernet node |
 
 The independent build profiles are:
 
@@ -43,6 +45,14 @@ See [`USB-TYPEC-20261110.md`](../../docs/USB-TYPEC-20261110.md) and
 [`build-usb-typec-candidates.py`](../../scripts/build-usb-typec-candidates.py).
 The sink profile does not change `dr_mode` or add a role-switch graph; the
 dual profile is not deployable with the current Image.
+
+The deployed 2026-11-12 boot DTB is built from
+`sm8150-samurai-usb-typec-sink-compact.dts`.  It keeps the production
+`model`/`chassis-type` and all USB nodes, removes only the disabled SM8150
+Ethernet controller (not populated on RMX1931), and fits the existing
+114716-byte embedded DTB section at 114595 bytes.  See
+[`USB-TYPEC-WAKE-20261112.md`](../../docs/USB-TYPEC-WAKE-20261112.md).
+
 The former `usb2-vbus-wake` profile was withdrawn on 2026-11-11.  The vendor
 DTS comments out the PM8150 GPIO10 `vbus-gpio` and its `&usb1` consumer, and
 live sampling showed GPIO10 does not follow VBUS.  See

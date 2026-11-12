@@ -8,6 +8,19 @@
 PM8150B Type-C/TCPM 作为 DTB-only sink 候选；DWC3 host/OTG 需要另建
 `DWC3_DUAL_ROLE+xHCI` Image，USB3/DP 和 suspend wake 继续独立分层。
 
+目标更新（2026-11-12）：标准 PM8150B Type-C/TCPM、`usb-c-connector`、
+PM8150B VBUS regulator 和 Type-C `wakeup-source` 已作为持久 DTB/Image
+冷启动部署；3×15 秒 + 1×60 秒 + 8×15 秒 + 16×30 秒
+`s2idle`、UDC/NCM 自动恢复和 Windows
+PnP Problem Code 0 通过，追加 8×15 秒 soak 也通过；保持 VBUS 的
+20 轮 UDC soft disconnect/connect 使主机重复重枚举，20/20 恢复且
+高速 PnP 采样无 Code 43；suspend 边界
+diagnostic 已证明 Type-C IRQ → SPMI → PDC 可提前唤醒。一次 awake
+PM8150B 模式周期重新 attach 后，`port0-partner` 存在、non-PD、
+`orientation=normal`；这仍不是物理方向验收。物理插线/拔线唤醒、
+反插、长期插拔 soak 和同线 U3 host-resume 仍未验收。详见
+[`USB-TYPEC-WAKE-20261112`](USB-TYPEC-WAKE-20261112.md)。
+
 2026-11-10 电源键/显示最终结论：官方路径仍是 elogind
 `HandlePowerKey=ignore`、KWin `DpmsInputEventFilter` 和 PowerDevil
 移动端默认 `ToggleScreenOnOff`。实体键能到 KWin，DPMS wake trace 为
@@ -204,7 +217,7 @@ fastboot 暖启动未知 USB 的 workaround 见 [USB-NCM-SSH](USB-NCM-SSH.md)。
 | 传感器 | remoteproc、IIO、SensorProxy、标准 claim/release | `sensor-power` 板级 subdevice/电顺序 | readiness、旋转和短 PM 通过；SSR、freezer 竞态、精度与长期跨 boot 开放 |
 | 蜂窝 | `qcom_q6v5_pas`、QRTR/QMI、IPA、ModemManager | 板级 MCFG 目录/配置复制 | modem 可 running；真实 SIM、数据、通话、短信和 UIM 未验收 |
 | Wi-Fi/蓝牙 | cfg80211/mac80211、hci_uart、btqca、BlueZ | 板级校准/固件与上电顺序、同机 DMS MAC 查询 | Wi‑Fi 当前 boot 1810 样本/1820.51 秒 SSH 心跳通过；WCN3990 仍记录 invalid MAC，但启动脚本在关联前应用 DMS 地址 `PRIVATE_WIFI_MAC`（BT `PRIVATE_BT_MAC`），多次启动一致；BT 音频/连接、冷启动和长稳开放 |
-| USB | `qcom,sm8150-dwc3`/`qcom,snps-dwc3`、UDC、configfs NCM；PM8150B Type-C/TCPM 候选 | 无私有 USB 传输层，只有板级 NCM 配置脚本；stock 无 FSA4480 证据 | 5-r21 网络基线通过；标准 `tx-fifo-resize` + `qmult=20`。2026-11-11 撤回 PM8150 GPIO10 extcon（厂商 DTS 注释掉 `vbus-gpio`/consumer，实测不跟随 VBUS）和 keep-connect opt-in（拔线时 `dp_hs_phy_irq` 伪唤醒，插线 resume 曾致 Windows Code 43）。标准 suspend/resume 已验证：插线 20 s、拔线 30 s（实测 32 s），boot ID 不变。USB wake 未支持，下一步走 PM8150B Type-C/TCPM；当前内核仍是 `DWC3_GADGET`，dual-role host 需新 Image。见 [USB-REMOTE-WAKE-20261111](USB-REMOTE-WAKE-20261111.md) |
+| USB | `qcom,sm8150-dwc3`/`qcom,snps-dwc3`、UDC、configfs NCM；PM8150B Type-C/TCPM + `usb-c-connector` + VBUS regulator | 无私有 USB 传输层，只有板级 NCM 配置脚本；stock 无 FSA4480 证据；boot DTB 删除不存在的 disabled Ethernet 节点以适配 FFS 容量 | 2026-11-12 标准 Type-C sink/device 持久 DTB + Image 冷启动通过：`port0` sink/device、`wakeup-source` enabled、`usb_vbus` disabled/0 users；3×15 s + 1×60 s + 8×15 s + 16×30 s `s2idle` 睡满、boot ID 不变、UDC/NCM 自动恢复，soak 后 30 分钟心跳 216 样本且 NCM/Wi‑Fi/PnP 失败均为 0，Windows PnP Problem Code 0（无 Code 43）；保持 VBUS 的 20 轮 UDC soft reconnect 全部恢复，100 ms PnP 采样出现 20 次消失/重建且无 Code 43；suspend 边界 diagnostic 证明 Type-C IRQ → SPMI → PDC。一次 awake PM8150B 模式周期重新 attach 后 partner 存在且为 non-PD、`orientation=normal`，但这不是物理插线或反插验收。2026-11-11 已撤回 GPIO10 extcon 和 keep-connect。物理插线/拔线唤醒、反插、长期插拔 soak 和同线 U3 host-resume 仍未验收；当前内核仍是 `DWC3_GADGET`，dual-role host 需新 Image。见 [USB-TYPEC-WAKE-20261112](USB-TYPEC-WAKE-20261112.md) |
 | 充电 | `bq28z610`、`mp2650`、标准 `power_supply` | 板级阈值/保护参数 | 标准绑定和短测通过；高压、完整 PD/APSD、长期计时与温界未验收 |
 | NFC | NXP NCI I2C 标准控制器、Alpine `neard 0.20`、`org.neard` D-Bus | 板级供电/接线；`samurai-platform 5-r22` 只增加 `neard-openrc` 默认 runlevel | `neard-openrc` + `neard` 和 5-r22 已安装；普通重启后 `nfc0`、neard 默认 runlevel、D-Bus 属性、电源和轮询启停通过；无实体标签，TagFound/读写/eSE 未验收 |
 | 指纹 | 尚无功能主线驱动 | 传感器/SPI/供电/TEE/用户态认证链 | 未做功能验收，是当前最大的未标准化硬件块 |
@@ -243,7 +256,7 @@ vendor 根属性和 `samurai_diag` trace 依赖。它们不能以“能跑”为
 | 振动 | AW8697驱动与电气检查通过。`Realme X2 Pro AW8697 haptics`已由板级udev规则标记为`FEEDBACKD_TYPE=vibra`；标准feedbackd D-Bus `TriggerFeedback(button-pressed)`返回id2且`EndFeedback`成功 | 实际振幅、时长和桌面触感未由用户确认；跨启动和长稳待验 |
 | 蓝牙 | 234实际RTS模型三变体16/2、16/0、16/2及H4回放8例通过；暂时诊断取得2个完整phase5回包/UART对应/1301事件无丢失，未复现错误。扫描因预上电属性Not Powered未完成，已恢复原185模块/config/helper/keys/787文件、最终健康0；裸RTS模型不满足真实锁契约，未部署功能补丁。[234](../../reference/kernel234/README.md)。205两次普通启动/8轮上下电/4次重注册未复现phase5，206已恢复原185模块/helper/BlueZ并核对keys；这不是phase5修复。204 RX wake/sleep已部署；首轮前9/45.14秒RTC PM后13、错误增量0，第二boot启动重组0，外部BT事件唤醒未验；首轮phase5仍1。200新boot startup及8秒只扫描发现10设备、退出恢复、重组增量0；185功率脉冲前导NUL及短写/flow修复保持；当时原扫描错误1/候选0、3模式响应及开启状态s2idle/延后扫描通过；189三个传感器PM窗内重组增量0、密钥保持。2026-11-09 `samurai-bluetooth-host 0.1.0-r0` 已安装；boot `071abbb5…` 上 `bnep/uhid/uinput` 自动加载，`/dev/uhid`、`/dev/uinput`、BNEP socket、BlueZ `hci0` 和 777 模块完整 gate 通过 | 189旧boot出现phase5/3.2Mbps/chunk13/partial0/firstff重组1，区别于旧phase2前导00，需继续修复。外部 PAN/HID 对端、配对/连接/音频、冷启动和带业务 suspend 未验收；没有对端证据时不能声称 PAN/HID 业务通过 |
 | Wi-Fi | 200新boot自动connected，早期管理端点超时保留；2.4/5GHz通信已有回归；189三轮传感器PM的第1/3轮观察约5.33/0.53秒关联5180，最终5180，未手工重绑驱动；2026-11-08 当前 boot 5GHz/VHT 866.7 Mbit/s 连续关联约79分钟，beacon loss 0，power save off；2026-11-09 r21 boot 完成 1810 个 SSH 样本/1820.51 秒、最大间隔 1.01 秒，DMS 地址 `PRIVATE_WIFI_MAC` 在多次启动一致；原厂 decompiled DTB 的 WiFi 节点与蓝牙共用四个 PMIC regulator，当前 DTB 已绑定；ath10k 只把原厂未使用的 `vdd-3.3-ch1` 退回 dummy | 第2轮35秒窗内仍未关联，之后又执行第3轮PM，不能称第2轮自行恢复；185立即醒后2秒检查失败仍保留。冷启动、完整休眠通信恢复及长期稳定性仍开放；不能把 dummy ch1 直接当成断连根因 |
-| 普通USB与OTG | USB 2.0 Type-C；2026-11-09 r21 boot 在主板直连口完成双向 `64K/256K/1M/4M` 各三轮 24/24、1798.828 秒 NCM 心跳；UDC `configured`、`usb0` carrier 1、`qmult=20`；严格 host-key Wi‑Fi/NCM SSH 和最终 runtime/Plasma 门禁通过。2026-11-10 的 sink DTB 和 dual DTB/config 已离线构建，语义差分只落在 PM8150B Type-C/DWC3 层 | 旧 Genesys 扩展 Hub 端口仍会停在 `VID_0000&PID_0001`/Code 43；当前 Image 缺 `DWC3_DUAL_ROLE`/xHCI，OTG host 尚未实现；Windows 网卡复位权限、USB 归档尾部中断、IPv6、EUD 接收/退出、Linux 主机、更长时间空闲和多次冷启动待验收。DWC3 suspend 仍会 soft-disconnect；默认由标准 `ssh-session-open` 持有 sleep 锁。设备本轮 SSH 握手前关闭，Type-C 候选尚未真机验证 |
+| 普通USB与OTG | USB 2.0 Type-C；2026-11-09 r21 boot 在主板直连口完成双向 `64K/256K/1M/4M` 各三轮 24/24、1798.828 秒 NCM 心跳；UDC `configured`、`usb0` carrier 1、`qmult=20`；严格 host-key Wi‑Fi/NCM SSH 和最终 runtime/Plasma 门禁通过。2026-11-12 标准 Type-C sink DTB/Image 已部署，3×15 s + 1×60 s + 8×15 s s2idle 和 NCM 恢复通过；`samurai-platform 5-r30` 有界 DWC3 重绑已实测恢复，8 轮 soak 由主机自行重枚举、未触发强制重绑 | 旧 Genesys 扩展 Hub 端口仍会停在 `VID_0000&PID_0001`/Code 43；当前 Image 缺 `DWC3_DUAL_ROLE`/xHCI，OTG host 尚未实现；Windows 网卡复位权限、USB 归档尾部中断、IPv6、EUD 接收/退出、Linux 主机、更长时间空闲和多次冷启动待验收。DWC3 suspend 仍会 soft-disconnect；默认由标准 `ssh-session-open` 持有 sleep 锁。物理 Type-C 插拔唤醒、反插和同线 host-resume 尚未验收 |
 | 触摸 | 用户确认可解锁、操作应用，原生驱动工作 | 边缘/方向/多触点与休眠后恢复、长稳 |
 
 已有基础还包括UFS访问、CPU调频表、PMIC温度与按键/EUD。CPU高频压力、UFS持续负载、整机功耗、冷启动及系统休眠唤醒仍需跨功能验收；不能以驱动注册或短窗口健康代替日用完成。
