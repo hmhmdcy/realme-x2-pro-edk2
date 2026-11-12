@@ -303,6 +303,30 @@ intervals while DWC3 tracing recorded **23 resets / 24 suspends**. All
 stayed 1. The failing USB link therefore does not take out the Wi-Fi
 management path; unattended recovery access is still available.
 
+### Port 6 cross-check (2026-11-13 05:39-05:41 CST)
+
+The phone was moved from root-hub port 5 to port 6. The same failure
+followed it: port 6 showed new addresses 97/98/99 and then
+`Enumerating`/`NoDevice`, while a 60-second DWC3 trace recorded
+**114 resets / 110 suspends**. In the same window, the keyboard on
+port 5 stayed at address 95 and remained `Connected` for the full
+cross-check:
+
+```text
+05:41:23-05:41:46 PORT 5 Connected VID=3837 PID=3003 ADDR=95
+05:41:36 PORT 6 Connected VID=0525 PID=A4A1 ADDR=43
+05:41:40 PORT 6 Connected VID=0525 PID=A4A1 ADDR=44
+05:41:42 PORT 6 NoDevice
+05:41:44 PORT 6 Connected VID=0525 PID=A4A1 ADDR=50
+05:41:46 PORT 6 Enumerating
+```
+
+The host root hub and both physical ports can sustain a stable device;
+the failure follows the phone/cable, not a specific host port. The next
+physical discriminators are (in order): flip the phone-side Type-C plug
+180 degrees without changing the cable, then replace the cable, then
+inspect/clean the phone Type-C receptacle.
+
 ## Remaining blocker
 
 Windows root-hub port 5 still enters a reset/re-enumeration loop. It
