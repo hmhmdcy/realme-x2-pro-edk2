@@ -1,5 +1,6 @@
 #!/bin/sh
-# Bounded recovery for a DWC3 controller that loses an established NCM link.
+# Bounded recovery for a DWC3 controller stuck before enumeration.
+# A missing NCM carrier while UDC is configured is not a USB reset condition.
 set -eu
 
 root=${SAMURAI_USB_RECOVER_ROOT:-}
@@ -16,7 +17,7 @@ interval=${SAMURAI_USB_RECOVER_INTERVAL:-2}
 grace=${SAMURAI_USB_RECOVER_GRACE:-12}
 reattach_grace=${SAMURAI_USB_RECOVER_REATTACH_GRACE:-20}
 mode_grace=${SAMURAI_USB_RECOVER_MODE_GRACE:-10}
-enum_grace=${SAMURAI_USB_RECOVER_ENUM_GRACE:-15}
+enum_grace=${SAMURAI_USB_RECOVER_ENUM_GRACE:-30}
 max_attempts=${SAMURAI_USB_RECOVER_MAX:-2}
 stable_reset=${SAMURAI_USB_RECOVER_STABLE_RESET:-300}
 soft_enabled=${SAMURAI_USB_RECOVER_SOFT:-1}
@@ -523,8 +524,16 @@ monitor()
 				''|*[!0-9]*) attempts=0 ;;
 				esac
 				if [ "$attempts" -gt 0 ]; then
-					write_state attempts 0
-					log_event "BUDGET_RESET reason=mode_transition attempts=$attempts"
+					# Gadget generations can change while recovery rebuilds
+					# its own mode, or while the user switches modes.  Keep
+					# the retry budget bounded; only VBUS reattach or a
+					# stable configured+carrier session resets it.
+					if [ "$(read_state seen_configured)" = 1 ]; then
+						budget_reason=mode_transition
+					else
+						budget_reason=no_configured
+					fi
+					log_event "BUDGET_KEEP reason=$budget_reason attempts=$attempts"
 				fi
 				write_state generation "$generation"
 			fi
@@ -643,71 +652,17 @@ monitor()
 					fi
 				fi
 			fi
-		elif [ "$(read_state armed)" = 1 ]; then
-			now=$(date +%s)
+		else
+			# Carrier is a network-layer property.  It can legitimately
+			# drop while USB remains configured (NCM alt 0, host idle or
+			# autosuspend), and must never trigger a DWC3 rebind.  Only a
+			# persistent default/address stall above is a USB recovery
+			# condition.
 			write_state stable_since 0
 			write_state enum_since 0
-			if [ "$stuck_since" -eq 0 ]; then
-				stuck_since=$now
-				log_event "LINK_LOST state=$state carrier=$carrier"
-			elif [ $((now - stuck_since)) -ge "$grace" ]; then
-				if [ "$soft_enabled" = 1 ] &&
-					soft_recover_link link_lost; then
-					stuck_since=0
-				elif recover_link link_lost; then
-					stuck_since=0
-				else
-					stuck_since=$now
-					if [ "$(read_state attempts)" -ge "$max_attempts" ]; then
-						write_state armed 0
-					fi
-				fi
-			fi
-		else
-			write_state enum_since 0
-			reattach_since=$(read_state reattach_since)
-			case $reattach_since in
-			''|*[!0-9]*|0) reattach_since=0 ;;
-			esac
-			now=$(date +%s)
-			if [ "$reattach_since" -gt 0 ] &&
-				[ $((now - reattach_since)) -ge "$reattach_grace" ]; then
-				if recover_link reattach; then
-					write_state reattach_since 0
-				else
-					reattach_since=$(date +%s)
-					if [ "$(read_state attempts)" -ge "$max_attempts" ]; then
-						write_state reattach_since 0
-					fi
-				fi
-			fi
-			mode_reattach_since=$(read_state mode_reattach_since)
-			case $mode_reattach_since in
-			''|*[!0-9]*|0) mode_reattach_since=0 ;;
-			esac
-			if [ "$mode_transition" = 1 ] &&
-				[ "$(read_state seen_configured)" = 1 ] &&
-				[ "$state" = configured ] &&
-				[ "$carrier" != 1 ] &&
-				[ "$mode_reattach_since" -eq 0 ]; then
-				mode_reattach_since=$now
-				write_state mode_reattach_since "$mode_reattach_since"
-				log_event "MODE_REATTACH mode=$mode state=configured carrier=$carrier"
-			fi
-			if [ "$mode_reattach_since" -gt 0 ] &&
-				[ $((now - mode_reattach_since)) -ge "$mode_grace" ]; then
-				if [ "$soft_enabled" = 1 ] &&
-					soft_recover_link mode_transition; then
-					write_state mode_reattach_since 0
-				elif recover_link mode_transition; then
-					write_state mode_reattach_since 0
-				else
-					write_state mode_reattach_since "$now"
-					if [ "$(read_state attempts)" -ge "$max_attempts" ]; then
-						write_state mode_reattach_since 0
-					fi
-				fi
-			fi
+			write_state reattach_since 0
+			write_state mode_reattach_since 0
+			stuck_since=0
 		fi
 		sleep "$interval"
 	done

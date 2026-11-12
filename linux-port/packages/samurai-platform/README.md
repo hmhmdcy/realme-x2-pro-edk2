@@ -83,6 +83,16 @@ and then falls back to the same bounded DWC3 rebind. It never acts on an
 unattached UDC or a charger-only cable. The matching offline test is
 `test-usb-recover-enum-stuck.sh`.
 
+6-r10 removes the earlier carrier-loss and mode-reattach recovery
+paths. A configured UDC with NCM carrier 0 is a valid network state:
+Windows may leave the NCM data interface at alt 0 while idle. Rebinding
+DWC3 there caused a reset/enumeration feedback loop. Recovery now acts
+only after `default`/`address` persists for 30 seconds, does not reset
+its attempt budget on a gadget-generation change, and never treats
+carrier loss as a USB reset condition. The regression is
+`test-usb-recover-carrier-no-reset.sh`; the removed soft-first and
+soft-link-lost tests no longer apply.
+
 Signed candidate:
 
 ```text
@@ -91,10 +101,12 @@ E:/edk2-samurai-out/standard-arm64-v731/
 SHA-256 a69d81d8cb2729fd51cfc6a9c1e73b001e6efa29e2bf0369c4fb3ced5a4bd3f3
 ```
 
-The 6-r6 generation fix is already the live recovery implementation used
-for the three-round handset test. The 6-r8 soft-first fallback is
-offline-tested only; the signed package still needs installation and
-package-level verification after device access returns.
+The 6-r6 generation fix and the 6-r10 carrier-no-reset policy are the
+live recovery implementation. The 6-r8 soft-first fallback was
+offline-tested but has been withdrawn because carrier 0 is a valid NCM
+idle state and the rebind caused a host enumeration feedback loop. The
+6-r10 script is deployed; the signed APK package still needs rebuilding
+and package-level verification.
 
 6-r1 moved the runtime USB gadget owner from the board script
 `samurai-usb` to the standard postmarketOS stack:

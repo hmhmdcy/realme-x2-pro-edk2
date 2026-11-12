@@ -22,6 +22,20 @@ PM8150B 模式周期重新 attach 后，`port0-partner` 存在、non-PD、
 反插、长期插拔 soak 和同线 U3 host-resume 仍未验收。详见
 [`USB-TYPEC-WAKE-20261112`](USB-TYPEC-WAKE-20261112.md)。
 
+目标更新（2026-11-13，USB 枚举）：`samurai-usb-recover` 6-r10 已
+实机部署。旧版 carrier-loss 恢复会在 Windows 将 NCM 数据接口切到
+alt 0 时重绑 DWC3，实测形成约 2 秒一次的枚举/复位正反馈；6-r10
+删除该路径，只在 UDC 持续 `default`/`address` 30 秒时做有界恢复，
+且 gadget generation 变化不再重置尝试预算。停用旧恢复服务后 UDC
+可稳定保持 `configured`。进一步隔离显示最小 ACM `1d6b:0104` 与
+最小 NCM `0525:a4a1` 在 full-speed 下同样被 Windows 每约 2 秒
+重新分配地址；production high-speed NCM 亦相同。Type-C
+role/orientation 与 VBUS 状态稳定，NCM 数据路径曾成功返回
+`SSH-2.0-OpenSSH_10.6`，因此当前剩余边界是数据线、手机 Type-C
+座或 Windows root-hub port 5 的物理链路，而不是 NCM 描述符或恢复
+服务。物理线缆/端口排除前，不记 NCM、OTG host 或 suspend/wake
+通过。
+
 目标更新（2026-11-12，postmarketOS USB）：普通 USB 运行时已迁移到
 标准 `usb-signaller 0.4.3-r4` + `postmarketos-usb-moded` +
 NetworkManager + `unudhcpd 0.5.0-r2` + `umtprd`，板级差异只保留
@@ -43,10 +57,12 @@ Problem 0 均自动恢复，没有人工 DWC3 重绑。
 `host_mode` 切换，并将恢复自身重建的 generation 写回基线，避免
 尝试预算被无限复位。连续三轮标准 usb-moded host/device 测试均为
 `RESULT=PASS failures=0`，恢复次数保持有界；离线 regression 通过。
-6-r8 对 UDC `configured` 但 carrier 丢失的 `link_lost` 和
-`MODE_REATTACH` 先执行标准 UDC `soft_connect` 重连，只有 soft
-重连无法恢复 carrier 时才回退完整 DWC3 unbind/bind；两个
-fake-sysfs soft-first 测试已通过，实机路径仍待设备恢复。
+6-r8 曾对 UDC `configured` 但 carrier 丢失的 `link_lost` 和
+`MODE_REATTACH` 先执行标准 UDC `soft_connect` 重连；6-r10 已撤回
+这条路径。实机证明 carrier 0 是合法的 NCM 网络状态，旧路径会造成
+DWC3 重绑和主机枚举的正反馈。6-r10 仅在 UDC 持续
+`default`/`address` 30 秒时做有界恢复，不再因 carrier 或 gadget
+generation 变化触发 USB 复位。
 `ip link down` 注入在 boot ID 不变下恢复到 configured/carrier 1，
 Windows 同窗口重新取得 `172.16.42.2/24` DHCP 租约且 Problem 0。
 早期 RTC suspend 烟测后 NCM 会先消失、约 20 秒内自动重连，说明

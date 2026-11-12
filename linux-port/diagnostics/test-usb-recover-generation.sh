@@ -1,8 +1,7 @@
 #!/bin/sh
-# Offline regression for recovery-owned gadget generations.  A watchdog
-# rebind must not reset its own retry budget, while a later short host-mode
-# transition must still be detected even if the poll loop never observes the
-# in-between non-NCM mode.
+# Offline regression for recovery-owned gadget generations.  A gadget
+# generation change must keep the retry budget bounded; a configured UDC
+# with carrier 0 must not trigger a USB reset or soft reconnect.
 set -eu
 
 svc=${1:?usage: test-usb-recover-generation.sh SERVICE}
@@ -84,14 +83,14 @@ for file in "$tmp/run"/*; do
 	printf '%s=%s\n' "$(basename "$file")" "$(cat "$file")"
 done
 
-grep -q 'BUDGET_RESET reason=mode_transition attempts=2' \
+grep -q 'BUDGET_KEEP reason=mode_transition attempts=2' \
 	"$tmp/log/recover.log"
-grep -q 'RECOVER_OK attempt=1 reason=link_lost' \
-	"$tmp/log/recover.log"
-# One reset for the user-visible starting session and one for the later short
-# host transition.  A reset caused by the watchdog's own restart would add a
-# third entry and make the retry budget unbounded.
-[ "$(grep -c 'BUDGET_RESET reason=mode_transition' "$tmp/log/recover.log")" -eq 2 ]
-grep -q 'BUDGET_RESET reason=mode_transition attempts=1' \
-	"$tmp/log/recover.log"
-[ "$(cat "$tmp/run/attempts")" = 0 ]
+# One bounded-budget entry for the initial session and one for the later
+# gadget generation change.
+[ "$(grep -c 'BUDGET_KEEP reason=mode_transition' "$tmp/log/recover.log")" -eq 2 ]
+if grep -Eq 'SOFT_RECOVER_BEGIN|RECOVER_BEGIN' "$tmp/log/recover.log"; then
+	echo "carrier-only session unexpectedly triggered USB recovery" >&2
+	exit 1
+fi
+[ ! -s "$tmp/sys/bus/platform/drivers/dwc3-qcom/unbind" ]
+[ "$(cat "$tmp/run/attempts")" = 2 ]
