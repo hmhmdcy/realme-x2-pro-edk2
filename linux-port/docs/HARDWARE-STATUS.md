@@ -65,12 +65,14 @@ graph；USB3/DP、第二 USB 控制器和 EUD 保持关闭。候选 boot 只改�
 DTB FFS，BdsDxe/PlatformSmbiosDxe/UiApp 逐字节不变；同时生成独立
 release `...-usbwake-otg` 的 772 模块包，避免覆盖原可回滚模块树。
 当前 `f02a6e0a...` boot 已完成 device NCM、Tethering/MTP/charging
-模式回归、两轮 synthetic host/device 切换（host 下
-`usb-moded.mode_request=host_mode`）、标准 usb-moded host_mode、
-30 秒 s2idle 和 NCM 8 MiB 往返；切回 device 后 UDC/NCM/DHCP
-自动恢复，无需人工 DWC3 重绑。物理 USB-C OTG adapter、U 盘/HID、
-自动 TCPM host 选择、反插
-和 VBUS source 仍未验收。详见
+模式回归、synthetic host/device 切换、连续三轮标准 usb-moded
+host_mode 和 NCM 8 MiB 往返；切回 device 后 UDC/NCM/DHCP 自动
+恢复，无需人工 DWC3 重绑。早期一次 30 秒 s2idle 通过记录保留，
+但 2026-11-12 晚复测后设备卡在不可达状态，当前 suspend 未解决。
+synthetic host 只把 `usb_role` 写成 host，Type-C 仍是 data
+`host [device]`、power `source [sink]`，因此不是 TCPM host/VBUS
+source。物理 USB-C OTG adapter、U 盘/HID、自动 TCPM host 选择、
+反插和 VBUS source 仍未验收。详见
 [`USB-OTG-20261112`](USB-OTG-20261112.md)。
 
 2026-11-10 电源键/显示最终结论：官方路径仍是 elogind
