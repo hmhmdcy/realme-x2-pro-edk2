@@ -1,0 +1,743 @@
+From: Realme X2 Pro Linux port <hmhmdcy@users.noreply.github.com>
+Subject: [PATCH] gadget: support board descriptor overrides
+
+Allow board configuration to override the USB descriptor fields that were
+previously hard-coded per mode. Keep the shipped defaults unchanged when no
+override is present.
+
+Also wait for real host enumeration before starting userspace services, and
+accept initramfs-owned gadgets that do not have an explicit configuration
+string.
+---
+diff --git a/Cargo.toml b/Cargo.toml
+index da3b607..07b3066 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -6,7 +6,7 @@ license = "GPL-3.0-or-later"
+ 
+ [dependencies]
+ zbus = { version = "5.18.0", default-features = false, features = ["tokio"] }
+-tokio = { version = "1.53.0", default-features = false, features = ["macros", "signal"] }
++tokio = { version = "1.53.0", default-features = false, features = ["macros", "signal", "sync"] }
+ futures-lite = { version = "2.6.1", default-features = false }
+ anyhow = "1.0.104"
+ tokio-udev = "0.10.0"
+diff --git a/src/dbus.rs b/src/dbus.rs
+index 29dc217..dfd0c39 100644
+--- a/src/dbus.rs
++++ b/src/dbus.rs
+@@ -1,5 +1,6 @@
+ use anyhow::Result;
+ use std::string::String;
++use tokio::sync::Mutex;
+ use tokio::time::{Duration, sleep};
+ use zbus::{Connection, connection, interface, object_server::SignalEmitter};
+ 
+@@ -10,6 +11,8 @@ use crate::utils::{string_to_udcmode, udcmode_to_string};
+ 
+ pub struct UsbModedDBus;
+ 
++static SET_MODE_LOCK: Mutex<()> = Mutex::const_new(());
++
+ pub async fn create_usbmoded_connection() -> Result<Connection> {
+     return Ok(connection::Builder::system()?
+         .name("com.meego.usb_moded")?
+@@ -29,6 +32,10 @@ impl UsbModedDBus {
+         mode: &str,
+         #[zbus(signal_emitter)] emitter: SignalEmitter<'_>,
+     ) -> Result<String, zbus::fdo::Error> {
++        // The default mode is applied while the D-Bus service is becoming
++        // ready. Serialize that transition with user-requested mode changes so
++        // configfs, OpenRC mode services and NetworkManager cannot overlap.
++        let _guard = SET_MODE_LOCK.lock().await;
+         println!("ℹ️  DBus: set_mode({mode})");
+ 
+         /* Netboot mode may never be interrupted */
+diff --git a/README.md b/README.md
+index 8db7180..5e80048 100644
+--- a/README.md
++++ b/README.md
+@@ -72,6 +72,49 @@ allowing distros to provide a sane default but also users to change that default
+ 
+ - **storage\_path** (String): path to the image to serve, for example: `/data/myimage.iso`
+ 
++### Section gadget
++
++Board vendors can override USB device and configuration descriptors without
++changing usb-signaller. Put these settings in a `*.toml` drop-in below
++`/etc/usb-signaller.d/` so distro defaults remain intact.
++
++- **manufacturer** (String): manufacturer string shared by all USB modes.
++- **serialnumber** (String): serial number string shared by all USB modes. If
++  omitted, usb-signaller uses the first device-tree compatible string.
++
++The following optional keys are available in each mode table:
++`[gadget.developer]`, `[gadget.tethering]`, `[gadget.mtp]`,
++`[gadget.accessory]` and `[gadget.mass_storage]`.
++
++- **id\_vendor** / **id\_product** (Integer): USB vendor and product IDs.
++- **product** (String): USB product string.
++- **configuration** (String): configuration description.
++- **device\_class** / **device\_subclass** / **device\_protocol** (Integer):
++  device descriptor class triple. Composite network functions commonly use
++  `0xef`, `0x02`, `0x01`.
++- **max\_power** (Integer): configuration `MaxPower` in milliamperes.
++- **ncm\_qmult** (Integer): NCM function `qmult` for NCM developer and
++  tethering gadgets.
++
++Example board override:
++
++```toml
++[gadget]
++manufacturer = "Example"
++serialnumber = "example-device"
++
++[gadget.developer]
++id_vendor = 0x0525
++id_product = 0xa4a1
++product = "Example NCM"
++configuration = "Example NCM"
++device_class = 0xef
++device_subclass = 0x02
++device_protocol = 0x01
++max_power = 500
++ncm_qmult = 20
++```
++
+ ## USB modes
+ 
+ The following USB modes are available:
+diff --git a/src/configuration.rs b/src/configuration.rs
+index 7ad5708..ac3bfc5 100644
+--- a/src/configuration.rs
++++ b/src/configuration.rs
+@@ -7,6 +7,7 @@ use uapi_config::SearchDirectories;
+ pub struct Configuration {
+     main: Option<MainConfiguration>,
+     mass_storage: Option<MassStorageConfiguration>,
++    gadget: Option<GadgetFileConfiguration>,
+ }
+ 
+ #[derive(Debug, Deserialize, Default)]
+@@ -20,6 +21,117 @@ struct MassStorageConfiguration {
+     storage_path: Option<String>,
+ }
+ 
++#[derive(Debug, Deserialize, Default)]
++struct GadgetFileConfiguration {
++    manufacturer: Option<String>,
++    serialnumber: Option<String>,
++    developer: Option<GadgetModeConfiguration>,
++    tethering: Option<GadgetModeConfiguration>,
++    mtp: Option<GadgetModeConfiguration>,
++    accessory: Option<GadgetModeConfiguration>,
++    mass_storage: Option<GadgetModeConfiguration>,
++}
++
++#[derive(Debug, Deserialize, Default, Clone)]
++struct GadgetModeConfiguration {
++    id_vendor: Option<u16>,
++    id_product: Option<u16>,
++    product: Option<String>,
++    configuration: Option<String>,
++    device_class: Option<u8>,
++    device_subclass: Option<u8>,
++    device_protocol: Option<u8>,
++    max_power: Option<u16>,
++    ncm_qmult: Option<u8>,
++}
++
++/* Effective gadget settings for one mode after merging all drop-in files. */
++#[derive(Debug, Default, Clone)]
++pub struct GadgetConfiguration {
++    pub id_vendor: Option<u16>,
++    pub id_product: Option<u16>,
++    pub manufacturer: Option<String>,
++    pub product: Option<String>,
++    pub serialnumber: Option<String>,
++    pub configuration: Option<String>,
++    pub device_class: Option<u8>,
++    pub device_subclass: Option<u8>,
++    pub device_protocol: Option<u8>,
++    pub max_power: Option<u16>,
++    pub ncm_qmult: Option<u8>,
++}
++
++impl GadgetModeConfiguration {
++    fn merge(&mut self, other: GadgetModeConfiguration) {
++        if other.id_vendor.is_some() {
++            self.id_vendor = other.id_vendor;
++        }
++        if other.id_product.is_some() {
++            self.id_product = other.id_product;
++        }
++        if other.product.is_some() {
++            self.product = other.product;
++        }
++        if other.configuration.is_some() {
++            self.configuration = other.configuration;
++        }
++        if other.device_class.is_some() {
++            self.device_class = other.device_class;
++        }
++        if other.device_subclass.is_some() {
++            self.device_subclass = other.device_subclass;
++        }
++        if other.device_protocol.is_some() {
++            self.device_protocol = other.device_protocol;
++        }
++        if other.max_power.is_some() {
++            self.max_power = other.max_power;
++        }
++        if other.ncm_qmult.is_some() {
++            self.ncm_qmult = other.ncm_qmult;
++        }
++    }
++}
++
++impl GadgetFileConfiguration {
++    fn merge(&mut self, other: GadgetFileConfiguration) {
++        if other.manufacturer.is_some() {
++            self.manufacturer = other.manufacturer;
++        }
++        if other.serialnumber.is_some() {
++            self.serialnumber = other.serialnumber;
++        }
++        merge_gadget_mode(&mut self.developer, other.developer);
++        merge_gadget_mode(&mut self.tethering, other.tethering);
++        merge_gadget_mode(&mut self.mtp, other.mtp);
++        merge_gadget_mode(&mut self.accessory, other.accessory);
++        merge_gadget_mode(&mut self.mass_storage, other.mass_storage);
++    }
++
++    fn for_mode(&self, mode: &str) -> Option<GadgetModeConfiguration> {
++        match mode {
++            "developer" => self.developer.clone(),
++            "tethering" => self.tethering.clone(),
++            "mtp" => self.mtp.clone(),
++            "accessory" => self.accessory.clone(),
++            "mass_storage" => self.mass_storage.clone(),
++            _ => None,
++        }
++    }
++}
++
++fn merge_gadget_mode(
++    destination: &mut Option<GadgetModeConfiguration>,
++    source: Option<GadgetModeConfiguration>,
++) {
++    if let Some(source) = source {
++        match destination {
++            Some(destination) => destination.merge(source),
++            None => *destination = Some(source),
++        }
++    }
++}
++
+ impl Configuration {
+     fn read() -> Result<Self> {
+         let main_config_files = SearchDirectories::classic_system()
+@@ -35,6 +147,7 @@ impl Configuration {
+         /* Accumulate merged state with mutable, initialized defaults */
+         let mut merged_main = MainConfiguration::default();
+         let mut merged_mass_storage = MassStorageConfiguration::default();
++        let mut merged_gadget = GadgetFileConfiguration::default();
+         let mut found = false;
+ 
+         for (path, _file) in files {
+@@ -49,6 +162,9 @@ impl Configuration {
+             if let Some(mass_storage_section) = parsed.mass_storage {
+                 merged_mass_storage.storage_path = mass_storage_section.storage_path;
+             }
++            if let Some(gadget_section) = parsed.gadget {
++                merged_gadget.merge(gadget_section);
++            }
+         }
+ 
+         if !found {
+@@ -59,6 +175,7 @@ impl Configuration {
+         return Ok(Configuration {
+             main: Some(merged_main),
+             mass_storage: Some(merged_mass_storage),
++            gadget: Some(merged_gadget),
+         });
+     }
+ 
+@@ -108,4 +225,28 @@ impl Configuration {
+             }
+         }
+     }
++
++    /*
++     * Board-specific USB descriptor overrides. Mode strings map to the
++     * corresponding [gadget.<mode>] table in usb-signaller.toml drop-ins.
++     */
++    pub fn get_gadget_configuration(mode: &str) -> Result<GadgetConfiguration> {
++        let config = Self::read()?;
++        let gadget = config.gadget.unwrap_or_default();
++        let mode = gadget.for_mode(mode).unwrap_or_default();
++
++        return Ok(GadgetConfiguration {
++            id_vendor: mode.id_vendor,
++            id_product: mode.id_product,
++            manufacturer: gadget.manufacturer,
++            product: mode.product,
++            serialnumber: gadget.serialnumber,
++            configuration: mode.configuration,
++            device_class: mode.device_class,
++            device_subclass: mode.device_subclass,
++            device_protocol: mode.device_protocol,
++            max_power: mode.max_power,
++            ncm_qmult: mode.ncm_qmult,
++        });
++    }
+ }
+diff --git a/src/gadget.rs b/src/gadget.rs
+index f2d18b9..5afbcac 100644
+--- a/src/gadget.rs
++++ b/src/gadget.rs
+@@ -34,10 +34,15 @@ const DEFAULT_CONFIG_PATH: &str = "c.1";
+ const UDC_NODE: &str = "UDC";
+ const ID_VENDOR_NODE: &str = "idVendor";
+ const ID_PRODUCT_NODE: &str = "idProduct";
++const DEVICE_CLASS_NODE: &str = "bDeviceClass";
++const DEVICE_SUBCLASS_NODE: &str = "bDeviceSubClass";
++const DEVICE_PROTOCOL_NODE: &str = "bDeviceProtocol";
+ const MANUFACTURER_NODE: &str = "manufacturer";
+ const PRODUCT_NODE: &str = "product";
+ const SERIALNUMBER_NODE: &str = "serialnumber";
+ const CONFIGURATION_NODE: &str = "configuration";
++const MAX_POWER_NODE: &str = "MaxPower";
++const NCM_QMULT_NODE: &str = "qmult";
+ const UDC_PATH: &str = "udc";
+ const STATE_NODE: &str = "state";
+ 
+@@ -163,21 +168,33 @@ impl ConfigFsGadget {
+         )?;
+ 
+         /*
+-         * Block until UDC enters 'configured' mode before considered enabled,
+-         * allow escaping when cable is unplugged.
++         * Userspace network and FunctionFS services need the host to finish
++         * enumeration before they can bind to the gadget. Wait for that, but
++         * do not fail a valid offline gadget switch when no cable is attached.
+          */
+-        match Self::wait_for_state(udc_name, "configured") {
+-            Ok(()) => {
++        for _ in 1..=100 {
++            thread::sleep(Duration::from_millis(100));
++            let state = sysfs_read(
++                PathBuf::from(SYSFS_CLASS_BASE_PATH)
++                    .join(UDC_PATH)
++                    .join(udc_name)
++                    .join(STATE_NODE),
++            )?;
++            if state == "configured" {
+                 println!("UDC entered 'configured' state");
++                return Ok(());
+             }
+-            Err(_error) => {
++            if state == "not attached" {
+                 println!(
+-                    "Gadget enabled but not operational: UDC did not enter 'configured' state if cable is unplugged, assuming success"
++                    "Gadget enabled without a connected host, no userspace service required yet"
+                 );
++                return Ok(());
+             }
+-        };
++        }
+ 
+-        return Ok(());
++        return Err(anyhow::anyhow!(
++            "Gadget remained attached but UDC did not enter 'configured' state within 10s"
++        ));
+     }
+ 
+     pub fn disable(gadget_name: &str) -> anyhow::Result<()> {
+@@ -199,6 +216,38 @@ impl ConfigFsGadget {
+         serialnumber: &str,
+         default_function: &str,
+         configuration_description: &str,
++    ) -> anyhow::Result<Self> {
++        return Self::create_with_options(
++            gadget_name,
++            id_vendor,
++            id_product,
++            manufacturer,
++            product,
++            serialnumber,
++            default_function,
++            configuration_description,
++            0,
++            0,
++            0,
++            2,
++            None,
++        );
++    }
++
++    pub fn create_with_options(
++        gadget_name: &str,
++        id_vendor: u16,
++        id_product: u16,
++        manufacturer: &str,
++        product: &str,
++        serialnumber: &str,
++        default_function: &str,
++        configuration_description: &str,
++        device_class: u8,
++        device_subclass: u8,
++        device_protocol: u8,
++        max_power: u16,
++        ncm_qmult: Option<u8>,
+     ) -> anyhow::Result<Self> {
+         if Self::configfs_base_path(gadget_name).exists() {
+             //return Err(format!("Gadget already exists: {}", Self::configfs_base_path(gadget_name).display()).into());
+@@ -212,6 +261,18 @@ impl ConfigFsGadget {
+                 .join(STRINGS_PATH)
+                 .join(LANGUAGE_PATH),
+         )?;
++        sysfs_write(
++            Self::configfs_base_path(gadget_name).join(DEVICE_CLASS_NODE),
++            format!("{device_class:#04x}").as_str(),
++        )?;
++        sysfs_write(
++            Self::configfs_base_path(gadget_name).join(DEVICE_SUBCLASS_NODE),
++            format!("{device_subclass:#04x}").as_str(),
++        )?;
++        sysfs_write(
++            Self::configfs_base_path(gadget_name).join(DEVICE_PROTOCOL_NODE),
++            format!("{device_protocol:#04x}").as_str(),
++        )?;
+ 
+         /* Create default function */
+         sysfs_mkdir(
+@@ -219,6 +280,17 @@ impl ConfigFsGadget {
+                 .join(FUNCTIONS_PATH)
+                 .join(default_function),
+         )?;
++        if default_function.starts_with("ncm.")
++            && let Some(qmult) = ncm_qmult
++        {
++            sysfs_write(
++                Self::configfs_base_path(gadget_name)
++                    .join(FUNCTIONS_PATH)
++                    .join(default_function)
++                    .join(NCM_QMULT_NODE),
++                qmult.to_string().as_str(),
++            )?;
++        }
+ 
+         /* Create configuration */
+         sysfs_mkdir(
+@@ -242,6 +314,13 @@ impl ConfigFsGadget {
+                 .join(CONFIGURATION_NODE),
+             configuration_description,
+         )?;
++        sysfs_write(
++            Self::configfs_base_path(gadget_name)
++                .join(CONFIGS_PATH)
++                .join(DEFAULT_CONFIG_PATH)
++                .join(MAX_POWER_NODE),
++            max_power.to_string().as_str(),
++        )?;
+ 
+         /* Link single function to configuration to expose this function when the gadget is enabled */
+         sysfs_symlink(
+diff --git a/src/udc.rs b/src/udc.rs
+index 11712dd..5fec47b 100644
+--- a/src/udc.rs
++++ b/src/udc.rs
+@@ -129,54 +129,68 @@ impl UDC {
+         println!("Preparing gadget mode switch");
+         let name;
+         let binding = sysfs_read(PathBuf::from(DEVICE_TREE_BASE_PATH).join(COMPATIBLE_NODE))?;
+-        let serialnumber = binding
++        let mut serialnumber = binding
+             .split("\0")
+             .collect::<Vec<&str>>()
+             .first()
+-            .map_or("usb-signaller", |v| v);
+-        let vendor;
+-        let product;
+-        let id_vendor;
+-        let id_product;
++            .map_or("usb-signaller", |v| v)
++            .to_string();
++        let mut vendor;
++        let mut product;
++        let mut id_vendor;
++        let mut id_product;
+         let default_function;
+-        let configuration_description;
++        let mut configuration_description;
++        let config_mode = match mode {
++            UDCMode::Developer => "developer",
++            UDCMode::Tethering => "tethering",
++            UDCMode::MTP => "mtp",
++            UDCMode::Accessory => "accessory",
++            UDCMode::MassStorage | UDCMode::CdRom => "mass_storage",
++            UDCMode::Charging | UDCMode::Netboot | UDCMode::Unknown => "",
++        };
++        let gadget_config =
++            Configuration::get_gadget_configuration(config_mode).unwrap_or_else(|error| {
++                eprintln!("⚠️  Unable to read gadget configuration: {error:?}");
++                Default::default()
++            });
+ 
+         match mode {
+             UDCMode::Developer => {
+                 name = "usb-signaller-developer";
+-                vendor = "Linux Foundation";
+-                product = "NCM USB gadget (developer)";
++                vendor = "Linux Foundation".to_string();
++                product = "NCM USB gadget (developer)".to_string();
+                 id_vendor = 0x1D6B; /* Linux Foundation */
+                 id_product = 0x0103; /* NCM gadget */
+                 default_function = "ncm.usb0";
+-                configuration_description = "Developer mode";
++                configuration_description = "Developer mode".to_string();
+             }
+             UDCMode::Tethering => {
+                 name = "usb-signaller-tethering";
+-                vendor = "Linux Foundation";
+-                product = "NCM USB gadget (tethering)";
++                vendor = "Linux Foundation".to_string();
++                product = "NCM USB gadget (tethering)".to_string();
+                 id_vendor = 0x1D6B; /* Linux Foundation */
+                 id_product = 0x0103; /* NCM gadget */
+                 default_function = "ncm.usb0";
+-                configuration_description = "Tethering mode";
++                configuration_description = "Tethering mode".to_string();
+             }
+             UDCMode::MTP => {
+                 name = "usb-signaller-mtp";
+-                vendor = "Linux Foundation";
+-                product = "FunctionFS USB gadget (MTP)";
++                vendor = "Linux Foundation".to_string();
++                product = "FunctionFS USB gadget (MTP)".to_string();
+                 id_vendor = 0x1D6B; /* Linux Foundation */
+                 id_product = 0x0105; /* FunctionFS gadget */
+                 default_function = "ffs.mtp";
+-                configuration_description = "MTP mode";
++                configuration_description = "MTP mode".to_string();
+             }
+             UDCMode::Accessory => {
+                 name = "usb-signaller-accessory";
+-                vendor = "Google Inc.";
+-                product = "Android Open Accessory (accessory)";
++                vendor = "Google Inc.".to_string();
++                product = "Android Open Accessory (accessory)".to_string();
+                 id_vendor = 0x18D1; /* Google Inc. */
+                 id_product = 0x2D00; /* Android Open Accessory (accessory) */
+                 default_function = "ffs.accessory";
+-                configuration_description = "Accessory mode";
++                configuration_description = "Accessory mode".to_string();
+             }
+             UDCMode::Charging => {
+                 /* Disable current gadget and userspace services to enforce charging-only */
+@@ -217,12 +231,12 @@ impl UDC {
+             UDCMode::MassStorage | UDCMode::CdRom => {
+                 Configuration::get_storage_path()?;
+                 name = "usb-signaller-mass-storage";
+-                vendor = "Linux Foundation";
+-                product = "Mass Storage USB gadget";
++                vendor = "Linux Foundation".to_string();
++                product = "Mass Storage USB gadget".to_string();
+                 id_vendor = 0x1D6B; /* Linux Foundation */
+                 id_product = 0x0104; /* Multifunction Composite / storage */
+                 default_function = "mass_storage.0";
+-                configuration_description = "Mass storage mode";
++                configuration_description = "Mass storage mode".to_string();
+             }
+             UDCMode::Unknown => {
+                 return Err(anyhow::anyhow!("Cannot set UDC to mode 'Unknown'"));
+@@ -232,17 +246,45 @@ impl UDC {
+             }
+         }
+ 
++        if let Some(value) = gadget_config.id_vendor {
++            id_vendor = value;
++        }
++        if let Some(value) = gadget_config.id_product {
++            id_product = value;
++        }
++        if let Some(value) = gadget_config.manufacturer {
++            vendor = value;
++        }
++        if let Some(value) = gadget_config.product {
++            product = value;
++        }
++        if let Some(value) = gadget_config.serialnumber {
++            serialnumber = value;
++        }
++        if let Some(value) = gadget_config.configuration {
++            configuration_description = value;
++        }
++        let device_class = gadget_config.device_class.unwrap_or(0);
++        let device_subclass = gadget_config.device_subclass.unwrap_or(0);
++        let device_protocol = gadget_config.device_protocol.unwrap_or(0);
++        let max_power = gadget_config.max_power.unwrap_or(2);
++
+         /* Create new gadget with new configuration */
+         println!("Creating new gadget with requested configuration");
+-        let new_gadget = ConfigFsGadget::create(
++        let new_gadget = ConfigFsGadget::create_with_options(
+             name,
+             id_vendor,
+             id_product,
+-            vendor,
+-            product,
+-            serialnumber,
++            vendor.as_str(),
++            product.as_str(),
++            serialnumber.as_str(),
+             default_function,
+-            configuration_description,
++            configuration_description.as_str(),
++            device_class,
++            device_subclass,
++            device_protocol,
++            max_power,
++            gadget_config.ncm_qmult,
+         )?;
+ 
+         /* If all preparations went well, disable current gadget and enable new one */
+@@ -456,8 +498,12 @@ impl UDC {
+             let entry = ConfigFsGadget::load(&entry)?;
+             if udc_name == entry.udc {
+                 if entry.enabled {
++                    let function = entry
++                        .configs
++                        .first()
++                        .and_then(|config| config.functions.first());
+                     /* USB Ethernet NCM gadget */
+-                    if entry.configs[0].functions[0].name.starts_with("ncm.") {
++                    if function.is_some_and(|f| f.name.starts_with("ncm.")) {
+                         /* Tethering mode allows IP forwarding such as using mobile data */
+                         if Self::detect_tethering_mode()? {
+                             mode = UDCMode::Tethering;
+@@ -469,26 +515,21 @@ impl UDC {
+                             mode = UDCMode::Developer;
+                         }
+                     /* USB FunctionFS MTP gadget */
+-                    } else if entry.configs[0].functions[0].name.starts_with("ffs.mtp") {
++                    } else if function.is_some_and(|f| f.name.starts_with("ffs.mtp")) {
+                         mode = UDCMode::MTP;
+                     /* USB FunctionFS Accessory gadget */
+-                    } else if entry.configs[0].functions[0]
+-                        .name
+-                        .starts_with("ffs.accessory")
+-                    {
++                    } else if function.is_some_and(|f| f.name.starts_with("ffs.accessory")) {
+                         mode = UDCMode::Accessory;
+                     /* USB mass-storage gadget: disk vs CD-ROM is told apart by
+                      * the LUN 'cdrom' flag, not by any kept state. */
+-                    } else if entry.configs[0].functions[0]
+-                        .name
+-                        .starts_with("mass_storage.")
+-                    {
++                    } else if function.is_some_and(|f| f.name.starts_with("mass_storage.")) {
++                        let function = function.expect("checked above");
+                         let cdrom = sysfs_read(
+                             PathBuf::from("/sys/kernel/config")
+                                 .join("usb_gadget")
+                                 .join(&entry.name)
+                                 .join("functions")
+-                                .join(&entry.configs[0].functions[0].name)
++                                .join(&function.name)
+                                 .join("lun.0")
+                                 .join("cdrom"),
+                         )
+@@ -500,10 +541,13 @@ impl UDC {
+                             UDCMode::MassStorage
+                         };
+                     } else {
++                        let function_name = function
++                            .map(|f| f.name.as_str())
++                            .unwrap_or("<no configuration function>");
+                         mode = UDCMode::Unknown;
+                         eprintln!(
+                             "❌ Cannot determine mode for gadget function {}",
+-                            entry.configs[0].functions[0].name
++                            function_name
+                         );
+                     }
+                 }
+diff --git a/distro/openrc/usb-signaller-developer-mode.initd b/distro/openrc/usb-signaller-developer-mode.initd
+index ea7633b..2b7b570 100644
+--- a/distro/openrc/usb-signaller-developer-mode.initd
++++ b/distro/openrc/usb-signaller-developer-mode.initd
+@@ -1,13 +1,19 @@
+ #!/sbin/openrc-run
+ 
+ description="USB Moded Developer Mode"
+-command="usb-signaller-developer-mode"
+-command_args="up"
+ 
+ depends() {
+     need net
+ }
+ 
++start() {
++    ebegin "Configuring USB developer mode"
++    /usr/bin/usb-signaller-developer-mode up
++    eend $?
++}
++
+ stop() {
+-    usb-signaller-developer-mode down
++    ebegin "Stopping USB developer mode"
++    /usr/bin/usb-signaller-developer-mode down
++    eend $?
+ }
+diff --git a/distro/openrc/usb-signaller-mtp-mode.initd b/distro/openrc/usb-signaller-mtp-mode.initd
+index 2c04865..a279d07 100644
+--- a/distro/openrc/usb-signaller-mtp-mode.initd
++++ b/distro/openrc/usb-signaller-mtp-mode.initd
+@@ -1,9 +1,15 @@
+ #!/sbin/openrc-run
+ 
+ description="USB Moded MTP Mode"
+-command="usb-signaller-mtp-mode"
+-command_args="up"
++
++start() {
++    ebegin "Configuring USB MTP mode"
++    /usr/bin/usb-signaller-mtp-mode up
++    eend $?
++}
+ 
+ stop() {
+-    usb-signaller-mtp-mode down
++    ebegin "Stopping USB MTP mode"
++    /usr/bin/usb-signaller-mtp-mode down
++    eend $?
+ }
+diff --git a/distro/openrc/usb-signaller-tethering-mode.initd b/distro/openrc/usb-signaller-tethering-mode.initd
+index 5484b46..d5a1510 100644
+--- a/distro/openrc/usb-signaller-tethering-mode.initd
++++ b/distro/openrc/usb-signaller-tethering-mode.initd
+@@ -1,13 +1,19 @@
+ #!/sbin/openrc-run
+ 
+ description="USB Moded Tethering Mode"
+-command="usb-signaller-tethering-mode"
+-command_args="up"
+ 
+ depends() {
+     need net
+ }
+ 
++start() {
++    ebegin "Configuring USB tethering mode"
++    /usr/bin/usb-signaller-tethering-mode up
++    eend $?
++}
++
+ stop() {
+-    usb-signaller-tethering-mode down
++    ebegin "Stopping USB tethering mode"
++    /usr/bin/usb-signaller-tethering-mode down
++    eend $?
+ }

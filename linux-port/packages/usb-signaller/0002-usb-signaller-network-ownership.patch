@@ -1,0 +1,42 @@
+From: Realme X2 Pro Linux port <hmhmdcy@users.noreply.github.com>
+Subject: [PATCH] scripts: use the standard DHCP config and restore NM ownership
+
+Read the standard /etc/unudhcpd.conf address pair so the generated
+NetworkManager profile and unudhcpd service cannot diverge. Also restore
+NetworkManager ownership of the NCM interface before creating the profile:
+a board migration may have left usb0 marked unmanaged at runtime.
+---
+diff --git a/distro/scripts/usb-signaller-developer-mode.sh b/distro/scripts/usb-signaller-developer-mode.sh
+index 995cbc7..745d8e7 100644
+--- a/distro/scripts/usb-signaller-developer-mode.sh
++++ b/distro/scripts/usb-signaller-developer-mode.sh
+@@ -6,8 +6,13 @@
+ CONFIGFS="/sys/kernel/config/usb_gadget"
+ IFACE=$(cat "$CONFIGFS"/usb-signaller-developer/functions/ncm.*/ifname 2>/dev/null)
+ IFACE=${IFACE:-"usb0"}
+-IP_ADDRESS_SERVER=172.16.42.1
+-IP_ADDRESS_CLIENT=172.16.42.2
++# A legacy board gadget may have left this interface unmanaged at runtime.
++# usb-signaller is the owner of the interface while this mode is active.
++nmcli device set "$IFACE" managed yes
++# The file unudhcpd's systemd unit takes its addresses from
++[ -r /etc/unudhcpd.conf ] && . /etc/unudhcpd.conf
++IP_ADDRESS_SERVER=${UNUDHCPD_SERVER:-172.16.42.1}
++IP_ADDRESS_CLIENT=${UNUDHCPD_CLIENT:-172.16.42.2}
+ CONNECTION_NAME=$(cat "$CONFIGFS"/usb-signaller-developer/configs/*/strings/0x409/configuration 2>/dev/null)
+ CONNECTION_NAME=${CONNECTION_NAME:-"Developer Mode"}
+ 
+diff --git a/distro/scripts/usb-signaller-tethering-mode.sh b/distro/scripts/usb-signaller-tethering-mode.sh
+index 16560ba..0d12158 100644
+--- a/distro/scripts/usb-signaller-tethering-mode.sh
++++ b/distro/scripts/usb-signaller-tethering-mode.sh
+@@ -6,6 +6,9 @@
+ CONFIGFS="/sys/kernel/config/usb_gadget"
+ IFACE=$(cat "$CONFIGFS"/usb-signaller-tethering/functions/ncm.*/ifname 2>/dev/null)
+ IFACE=${IFACE:-"usb0"}
++# A legacy board gadget may have left this interface unmanaged at runtime.
++# usb-signaller is the owner of the interface while this mode is active.
++nmcli device set "$IFACE" managed yes
+ CONNECTION_NAME=$(cat "$CONFIGFS"/usb-signaller-tethering/configs/*/strings/0x409/configuration 2>/dev/null)
+ CONNECTION_NAME=${CONNECTION_NAME:-"Tethering Mode"}
+ 

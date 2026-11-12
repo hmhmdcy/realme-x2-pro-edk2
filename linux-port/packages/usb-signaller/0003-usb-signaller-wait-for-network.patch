@@ -1,0 +1,111 @@
+From: Realme X2 Pro Linux port <hmhmdcy@users.noreply.github.com>
+Subject: [PATCH] scripts: wait for NCM interface before activating
+
+The host can create the NCM netdev and raise carrier a few seconds after
+usb-signaller enables a gadget. Retry the NetworkManager activation while
+the interface is materializing so a default-mode startup or a bounded DWC3
+rebind does not leave the gadget in charging-only state.
+---
+diff --git a/distro/scripts/usb-signaller-developer-mode.sh b/distro/scripts/usb-signaller-developer-mode.sh
+index 745d8e7..bf1d8ca 100644
+--- a/distro/scripts/usb-signaller-developer-mode.sh
++++ b/distro/scripts/usb-signaller-developer-mode.sh
+@@ -36,15 +36,44 @@ _stop_unudhcpd() {
+     fi
+ }
+ 
++wait_for_interface() {
++    count=0
++    while [ ! -e "/sys/class/net/$IFACE" ] && [ "$count" -lt 10 ]; do
++        count=$((count + 1))
++        sleep 1
++    done
++    [ -e "/sys/class/net/$IFACE" ]
++}
++
++activate_connection() {
++    count=0
++    while [ "$count" -lt 10 ]; do
++        if nmcli connection up "$CONNECTION_NAME" >/dev/null 2>&1; then
++            return 0
++        fi
++        count=$((count + 1))
++        sleep 1
++    done
++    return 1
++}
++
+ up() {
++    # The host can take a moment to create the NCM netdev and raise carrier
++    # after a gadget rebind. Do not make the mode service fail prematurely.
++    wait_for_interface || true
++    nmcli device set "$IFACE" managed yes >/dev/null 2>&1 || true
++
+     # Clean up possible left-over
+-    nmcli connection delete "$CONNECTION_NAME"
++    nmcli connection delete "$CONNECTION_NAME" >/dev/null 2>&1 || true
+ 
+     # Bring interface and NetworkManager connection up without saving connection
+     nmcli connection add con-name "$CONNECTION_NAME" type ethernet \
+         ifname "$IFACE" ipv4.method manual ipv4.addresses "$IP_ADDRESS_SERVER"/16 \
+-	save no
+-    nmcli connection up "$CONNECTION_NAME"
++	save no >/dev/null 2>&1 || true
++    if [ -e "/sys/class/net/$IFACE" ]; then
++        activate_connection ||
++            echo "NetworkManager will retry when $IFACE is ready"
++    fi
+ 
+     # Start DHCP server
+     _start_unudhcpd "$IFACE"
+diff --git a/distro/scripts/usb-signaller-tethering-mode.sh b/distro/scripts/usb-signaller-tethering-mode.sh
+index 0d12158..f1103f6 100644
+--- a/distro/scripts/usb-signaller-tethering-mode.sh
++++ b/distro/scripts/usb-signaller-tethering-mode.sh
+@@ -12,14 +12,43 @@ nmcli device set "$IFACE" managed yes
+ CONNECTION_NAME=$(cat "$CONFIGFS"/usb-signaller-tethering/configs/*/strings/0x409/configuration 2>/dev/null)
+ CONNECTION_NAME=${CONNECTION_NAME:-"Tethering Mode"}
+ 
++wait_for_interface() {
++    count=0
++    while [ ! -e "/sys/class/net/$IFACE" ] && [ "$count" -lt 10 ]; do
++        count=$((count + 1))
++        sleep 1
++    done
++    [ -e "/sys/class/net/$IFACE" ]
++}
++
++activate_connection() {
++    count=0
++    while [ "$count" -lt 10 ]; do
++        if nmcli connection up "$CONNECTION_NAME" >/dev/null 2>&1; then
++            return 0
++        fi
++        count=$((count + 1))
++        sleep 1
++    done
++    return 1
++}
++
+ up() {
++    # The host can take a moment to create the NCM netdev and raise carrier
++    # after a gadget rebind. Do not make the mode service fail prematurely.
++    wait_for_interface || true
++    nmcli device set "$IFACE" managed yes >/dev/null 2>&1 || true
++
+     # Clean up possible left-over
+-    nmcli connection delete "$CONNECTION_NAME"
++    nmcli connection delete "$CONNECTION_NAME" >/dev/null 2>&1 || true
+ 
+     # Bring interface and NetworkManager connection up without saving connection
+     nmcli connection add con-name "$CONNECTION_NAME" type ethernet \
+-        ifname "$IFACE" ipv4.method shared save no
+-    nmcli connection up "$CONNECTION_NAME"
++        ifname "$IFACE" ipv4.method shared save no >/dev/null 2>&1 || true
++    if [ -e "/sys/class/net/$IFACE" ]; then
++        activate_connection ||
++            echo "NetworkManager will retry when $IFACE is ready"
++    fi
+  
+     # NetworkManager does not always turn IP forwarding ON, set it manually to be sure
+     echo 1 > /proc/sys/net/ipv4/ip_forward

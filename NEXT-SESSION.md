@@ -1,6 +1,29 @@
-# 当前：标准 Type-C/TCPM 已部署；物理 USB 唤醒待验收
+# 当前：postmarketOS USB 栈已部署；物理插拔/同线 resume 待验收
 
-## 2026-11-12 当前 USB 状态
+## 2026-11-12 postmarketOS USB 当前状态
+
+- 普通 USB 运行时已从板级 `samurai-usb` 迁移到标准
+  `usb-signaller 0.4.3-r3` + `postmarketos-usb-moded` +
+  NetworkManager + `unudhcpd` + `umtprd`；`samurai-platform 6-r1`
+  已安装并完成普通重启。当前 boot ID
+  `80acc2bf-267a-4876-8241-a3552128fcb5`。
+- Developer 默认模式为 `0525:a4a1`、class `ef/02/01`、MaxPower 500、
+  NCM `qmult=20`、`usb0=172.16.42.1/16`；Windows UsbNcm Problem 0，
+  DHCP `172.16.42.2/24`，严格 host-key NCM SSH 通过。Tethering
+  `10.42.0.1/24`、MTP `0525:a4a2`/WPD、charging-only 均已实测。
+- `samurai-usb-recover` 已改为通过标准 DWC3 unbind/bind 和
+  usb-moded D-Bus 恢复当前模式；`ip link down` 注入在 boot ID 不变
+  下恢复到 UDC `configured`/carrier 1，标准模式服务自动重绑。
+- 一次 `rtcwake -m mem -s 15` 烟测后 NCM 先消失、约 20 秒内自动
+  重连；suspend 期间不保持同一条活动链路，不能写成 USB host-resume。
+  `dmesg` entry/exit 时差约 0.7 秒，睡眠时长仍需单独验收。
+- 未验收仍是物理插线/拔线、反插方向、长期插拔/suspend soak、
+  Windows 物理 replug 后 Code 43、同线 U3 host-resume；当前内核
+  仍无 `DWC3_DUAL_ROLE`/xHCI，不能声明 OTG host。
+- 详细证据、包哈希和板级分层见
+  [PMOS-USB-20261112](linux-port/docs/PMOS-USB-20261112.md)。
+
+## 历史：2026-11-12 Type-C 唤醒与验证
 
 - 标准 PM8150B Type-C/TCPM、`usb-c-connector`、500 mA PM8150B
   VBUS regulator、DWC3/NCM 已作为持久 DTB + Image 部署并冷启动运行。

@@ -158,6 +158,12 @@ if [ -z "$bound" ]; then echo "$udc" > "$g/UDC"; fi
 bound=$(cat "$g/UDC")
 test "$bound" = "$udc"
 interface=$(cat "$g/functions/ncm.usb0/ifname")
+if command -v nmcli >/dev/null 2>&1; then
+    # The legacy fallback owns usb0 directly. usb-signaller manages the same
+    # interface through NetworkManager, so only the explicitly selected
+    # backend is allowed to control it.
+    nmcli device set "$interface" managed no >/dev/null 2>&1 || true
+fi
 ip link set "$interface" up
 if ! ip -4 addr show dev "$interface" | grep -q "inet $address/16 "; then
     ip addr add "$address/16" dev "$interface"

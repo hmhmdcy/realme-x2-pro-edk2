@@ -26,6 +26,7 @@
 | [PLASMA-MOBILE.md](PLASMA-MOBILE.md) | Plasma Mobile 会话、D-Bus 门户、显示亮度、ModemManager、传感器与振动接口 |
 | [DESKTOP-PORTABILITY.md](DESKTOP-PORTABILITY.md) | 板级公共接口与桌面适配层边界、换桌面检查清单 |
 | [USB-NCM-SSH.md](USB-NCM-SSH.md) | USB网络、SSH/SCP与EUD共存路径 |
+| [PMOS-USB-20261112.md](PMOS-USB-20261112.md) | postmarketOS 标准 usb-signaller、模式矩阵、有界恢复和 suspend 边界 |
 | [USB-HOST-RESUME-20261110.md](USB-HOST-RESUME-20261110.md) | U3-only keep-connect、USBwake 调试锁、最终刷入与真机验收证据 |
 | [NFC-NEARD.md](NFC-NEARD.md) | 主线 nxp-nci-i2c、Alpine neard/OpenRC 边界和真实标签验收条件 |
 | [BLUETOOTH-HOST-MODULES.md](BLUETOOTH-HOST-MODULES.md) | 主线 BNEP/UHID/uinput 模块包、官方 BlueZ 加载边界、离线签名/隔离安装和设备验收条件 |

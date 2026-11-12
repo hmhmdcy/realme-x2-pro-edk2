@@ -167,7 +167,9 @@ platform_files = [
     ("etc_init.d_samurai-usb-recover", "etc/init.d/samurai-usb-recover", 0o755),
     ("etc_samurai_usb-dhcp.conf", "etc/samurai/usb-dhcp.conf", 0o644),
     ("etc_NetworkManager_conf.d_20-samurai-wlan.conf", "etc/NetworkManager/conf.d/20-samurai-wlan.conf", 0o644),
-    ("etc_NetworkManager_conf.d_90-samurai-usb.conf", "etc/NetworkManager/conf.d/90-samurai-usb.conf", 0o644),
+    ("etc_usb-signaller.d_90-samurai.toml", "etc/usb-signaller.d/90-samurai.toml", 0o644),
+    ("etc_unudhcpd.conf", "etc/unudhcpd.conf", 0o644),
+    ("etc_conf.d_unudhcpd", "etc/conf.d/unudhcpd", 0o644),
     ("usr_local_share_dbus-1_system-services_org.freedesktop.ModemManager1.service", "usr/local/share/dbus-1/system-services/org.freedesktop.ModemManager1.service", 0o644),
     ("99-realme-rmx1931-sensors.rules", "usr/lib/udev/rules.d/99-realme-rmx1931-sensors.rules", 0o644),
     ("99-realme-rmx1931-haptics.rules", "usr/lib/udev/rules.d/99-realme-rmx1931-haptics.rules", 0o644),
@@ -177,7 +179,7 @@ platform_files = [
 for source, target, mode in platform_files:
     copy_file(platform_source / source, platform / target, mode)
 make_package(
-    "samurai-platform", "5-r30", "noarch", platform,
+    "samurai-platform", "6-r1", "noarch", platform,
     {
         "description": "Realme X2 Pro board-level platform and services",
         "license": "LicenseRef-Local-Project",
@@ -187,7 +189,7 @@ make_package(
             "python3 openrc eudev iproute2 util-linux libqmi qmi-utils "
             "networkmanager bluez wpa_supplicant openssh-server-pam "
             "alsa-ucm-conf alsa-utils sleep-inhibitor dnsmasq "
-            "neard-openrc"),
+            "neard-openrc postmarketos-usb-moded usb-signaller>=0.4.3-r3"),
     },
     {
         "post-install": platform_source / "samurai-platform.post-install",

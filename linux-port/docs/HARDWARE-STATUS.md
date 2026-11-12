@@ -21,6 +21,21 @@ PM8150B 模式周期重新 attach 后，`port0-partner` 存在、non-PD、
 反插、长期插拔 soak 和同线 U3 host-resume 仍未验收。详见
 [`USB-TYPEC-WAKE-20261112`](USB-TYPEC-WAKE-20261112.md)。
 
+目标更新（2026-11-12，postmarketOS USB）：普通 USB 运行时已迁移到
+标准 `usb-signaller 0.4.3-r3` + `postmarketos-usb-moded` +
+NetworkManager + `unudhcpd` + `umtprd`，板级差异只保留描述符、
+DHCP 地址和有界 DWC3 恢复。`samurai-platform 6-r1` 已安装；普通
+重启后 Developer `0525:a4a1`、class `ef/02/01`、MaxPower 500、
+`qmult=20`、`usb0=172.16.42.1/16`，Windows NCM/Problem 0、
+DHCP `172.16.42.2` 和严格 host-key NCM SSH 均通过；Tethering
+`10.42.0.1/24`、MTP `0525:a4a2`/WPD 和 charging-only 也通过。
+`samurai-usb-recover` 用标准 DWC3 unbind/bind + usb-moded D-Bus
+恢复当前模式，`ip link down` 注入在 boot ID 不变下恢复到 configured/
+carrier 1。一次 RTC suspend 烟测后 NCM 会先消失、约 20 秒内自动
+重连，说明 suspend 期间不保持同一条活动链路，不能写成 USB
+host-resume。物理插拔/反插、长期 suspend soak 和同线 U3 仍未验收。
+详见 [`PMOS-USB-20261112`](PMOS-USB-20261112.md)。
+
 2026-11-10 电源键/显示最终结论：官方路径仍是 elogind
 `HandlePowerKey=ignore`、KWin `DpmsInputEventFilter` 和 PowerDevil
 移动端默认 `ToggleScreenOnOff`。实体键能到 KWin，DPMS wake trace 为

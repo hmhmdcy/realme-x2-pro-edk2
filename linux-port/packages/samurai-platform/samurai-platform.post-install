@@ -131,6 +131,48 @@ if command -v udevadm >/dev/null 2>&1; then
 fi
 
 if command -v rc-update >/dev/null 2>&1 &&
+	[ -x /etc/init.d/usb-signaller ]; then
+	# Migrate from the board-owned NCM gadget to the standard postmarketOS
+	# usb-signaller backend. A fresh install starts the distro service; an
+	# already-migrated system only refreshes the network profile.
+	migrating=0
+	rc-service usb-signaller status >/dev/null 2>&1 || migrating=1
+	rc-update add usb-signaller default >/dev/null 2>&1 || true
+	rc-update del samurai-usb boot >/dev/null 2>&1 || true
+	rc-update del samurai-usb default >/dev/null 2>&1 || true
+
+	# This old rule made usb0 permanently unmanaged by NetworkManager and
+	# conflicts with usb-signaller's developer/tethering services.
+	rm -f /etc/NetworkManager/conf.d/90-samurai-usb.conf \
+		/etc/NetworkManager/conf.d/90-samurai-usb.conf.apk-new
+	if command -v nmcli >/dev/null 2>&1; then
+		nmcli general reload >/dev/null 2>&1 || true
+		# Profiles created by pre-board-config usb-signaller releases.
+		nmcli connection delete "Developer mode" >/dev/null 2>&1 || true
+		nmcli connection delete "Developer Mode" >/dev/null 2>&1 || true
+	fi
+
+	if [ "$migrating" -eq 1 ]; then
+		rc-service samurai-usb stop >/dev/null 2>&1 || true
+		rc-service usb-signaller start >/dev/null 2>&1 || true
+	elif [ -d /sys/kernel/config/usb_gadget/usb-signaller-developer ]; then
+		rc-service usb-signaller-developer-mode restart >/dev/null 2>&1 || true
+	fi
+	# These were hand-copied during bring-up and must not shadow the real
+	# OpenRC service files.
+	rm -f /etc/init.d/usb-signaller-developer-mode.initd \
+		/etc/init.d/usb-signaller-tethering-mode.initd \
+		/etc/init.d/usb-signaller-mtp-mode.initd
+	# The old debug sleep guard is not part of the standard postmarketOS
+	# usb-signaller stack and can hold a sleep lock outside the official
+	# sleep-inhibitor policy.
+	if [ -x /etc/init.d/usbwake-debug ]; then
+		rc-service usbwake-debug stop >/dev/null 2>&1 || true
+		rc-update del usbwake-debug default >/dev/null 2>&1 || true
+	fi
+fi
+
+if command -v rc-update >/dev/null 2>&1 &&
 	[ -x /etc/init.d/samurai-usb-recover ]; then
 	rc-update add samurai-usb-recover default >/dev/null 2>&1 || true
 	rc-service samurai-usb-recover restart >/dev/null 2>&1 || true

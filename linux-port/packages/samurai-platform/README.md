@@ -1,4 +1,59 @@
-# samurai-platform 5-r30
+# samurai-platform 6-r1
+
+6-r1 is installed on the handset. It keeps the standard postmarketOS
+USB ownership model and adds the bounded `samurai-usb-recover` path:
+
+```text
+usb-signaller 0.4.3-r3
+postmarketos-usb-moded
+NetworkManager + unudhcpd.usb0 + umtprd
+Developer 172.16.42.1/16, 0525:a4a1, qmult=20
+Tethering 10.42.0.1/24
+MTP 0525:a4a2
+```
+
+The recovery service preserves the active usb-moded mode across a DWC3
+unbind/bind, restarts the matching standard mode service, and bounds
+`rc-service` calls so a stalled controller cannot hang the monitor.
+The ordinary reboot and `ip link down` recovery tests are recorded in
+`linux-port/docs/PMOS-USB-20261112.md`. Physical cable/orientation
+checks and same-cable U3 host-resume remain open.
+
+6-r1 moves the runtime USB gadget owner from the board script
+`samurai-usb` to the standard postmarketOS stack:
+
+- `usb-signaller` owns configfs modes, UDC binding and the usb-moded D-Bus API;
+- NetworkManager owns `usb0` for Developer and Tethering modes;
+- `unudhcpd` provides the standard `172.16.42.1` / `172.16.42.2` address pair;
+- `umtprd` owns FunctionFS MTP;
+- `samurai-usb-recover` remains the bounded SM8150 DWC3 controller recovery,
+  but restarts the active `usb-signaller` backend.
+
+Board USB descriptors live in
+`/etc/usb-signaller.d/90-samurai.toml`, not in a private gadget builder.
+The override uses an upstreamable `[gadget]` layer in
+`usb-signaller>=0.4.3-r3`: `0525:a4a1`, composite class `ef/02/01`,
+`MaxPower=500` and NCM `qmult=20`. MTP uses `0525:a4a2`.
+
+The legacy `/usr/sbin/samurai-usb` remains installed as an explicit
+fallback and now tells NetworkManager to release the interface when it is
+selected. It is removed from the boot runlevel by the package migration.
+The old static NetworkManager `usb0` unmanaged rule is retired.
+
+Runtime evidence on the handset:
+
+- configfs descriptor values match the board drop-in;
+- Developer, Tethering and MTP all reach UDC `configured`;
+- Windows reports `USB\VID_0525&PID_A4A1` Problem 0 for NCM and
+  `USB\VID_0525&PID_A4A2` Problem 0 for MTP;
+- Developer/Tethering service transitions now stop the previous OpenRC
+  mode service instead of leaving it `crashed`;
+- `samurai-usb-recover` reports `armed=1` with the usb-signaller backend.
+
+Still requiring physical cable/orientation checks, unplug/replug after a
+suspend, and long-time suspend/resume soak. The ordinary reboot path is
+recorded in `linux-port/docs/PMOS-USB-20261112.md`; it starts the
+standard usb-signaller Developer gadget without the legacy service.
 
 5-r30 extends `samurai-usb-recover` with a bounded VBUS-on reattach
 watchdog. It already recovers an established NCM link after 12 seconds

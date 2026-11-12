@@ -1,0 +1,57 @@
+maintainer="hmhmdcy <hmhmdcy@users.noreply.github.com>"
+pkgname=usb-signaller
+pkgver=0.4.3
+# Local board-descriptor backport; upstream 0.4.3-r0 remains the baseline.
+pkgrel=3
+pkgdesc="Switch between different USB gadgets"
+url="https://codeberg.org/DylanVanAssche/usb-signaller"
+arch="all"
+license="GPL-3.0-or-later"
+source="$pkgname-$pkgver.tar.gz::https://codeberg.org/DylanVanAssche/usb-signaller/archive/v$pkgver.tar.gz
+	usb-signaller.initd
+	0001-gadget-support-board-descriptor-overrides.patch
+	0002-usb-signaller-network-ownership.patch
+	0003-usb-signaller-wait-for-network.patch
+"
+makedepends="cargo-auditable eudev-dev"
+subpackages="$pkgname-systemd $pkgname-openrc"
+options="net"
+builddir="$srcdir/$pkgname"
+
+prepare() {
+	default_prepare
+	cargo fetch --target="$CHOST" --locked
+}
+
+build() {
+	cargo auditable build --release --frozen
+}
+
+check() {
+	cargo test --frozen
+}
+
+package() {
+	install -Dm755 target/release/usb-signaller "$pkgdir"/usr/bin/usb-signaller
+
+	for f in "$srcdir"/usb-signaller.initd distro/openrc/*.initd; do
+		install -Dm755 "$f" "$pkgdir"/etc/init.d/"$(basename "$f" .initd)"
+	done
+	for f in *.service distro/systemd/*.service; do
+		install -Dm644 "$f" "$pkgdir"/usr/lib/systemd/system/"$(basename "$f")"
+	done
+	for f in distro/scripts/*.sh; do
+		install -Dm755 "$f" "$pkgdir"/usr/bin/"$(basename "$f" .sh)"
+	done
+
+	install -Dm644 com.meego.usb_moded.conf \
+		-t "$pkgdir"/usr/share/dbus-1/system.d/
+}
+
+sha512sums="
+10be75cccb2fa02bb818c2d02e57067b4bb9405041b0989537e0ecc53b9917e7bdc5ada4666a1cff3fa8e3f3c4593535ecf5470db86c6822b9b049d871f539dd  usb-signaller-0.4.3.tar.gz
+39d604f91a8cb5bdb358fda05902a67de6403b99e5cba8d094b18f463cc1520cf80a43e2a60acf7fcfff85b9d4b0c57f64cedba8d080acd2f809b0c699683490  usb-signaller.initd
+02f3d2fd69c251cb497a603b492f7ffeb636a11ad4afc3327d3223dd8b37694d71a3be962a33bf79529a1e859eeb16bc53aa32372a7f72287b20ac46275acad1  0001-gadget-support-board-descriptor-overrides.patch
+59ba09ea5d66d24ff2c0804d254080cef3d40111f5e707474960afbbed7627fd5618dad97b2fcadc648f389702e07c1cda0abd1024f6001a9d4f493ec6dbcc2e  0002-usb-signaller-network-ownership.patch
+b1fa10ae964c206c85364b8368cf88e467a46e9851a1b6cabfce2f9f4656c50e4515446202d7ace5a1febb258701cef839caab1af9137d21b1b8f0450223d319  0003-usb-signaller-wait-for-network.patch
+"

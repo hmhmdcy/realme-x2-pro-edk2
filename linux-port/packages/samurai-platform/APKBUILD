@@ -1,16 +1,16 @@
 maintainer="hmhmdcy <hmhmdcy@users.noreply.github.com>"
 pkgname=samurai-platform
-pkgver=5
-pkgrel=30
+pkgver=6
+pkgrel=1
 pkgdesc="Realme X2 Pro platform"
 url="https://github.com/hmhmdcy/pmaports"
 arch="noarch"
 license="LicenseRef-Local-Project"
 options="!check"
-depends="python3 openrc eudev iproute2 util-linux libqmi qmi-utils networkmanager bluez wpa_supplicant openssh-server-pam alsa-ucm-conf alsa-utils sleep-inhibitor dnsmasq neard-openrc"
+depends="python3 openrc eudev iproute2 util-linux libqmi qmi-utils networkmanager bluez wpa_supplicant openssh-server-pam alsa-ucm-conf alsa-utils sleep-inhibitor dnsmasq neard-openrc postmarketos-usb-moded usb-signaller>=0.4.3-r3"
 subpackages="$pkgname-pulse"
 install="$pkgname.post-install"
-source="usr_libexec_samurai-audio-route etc_pulse_daemon.conf.d_90-samurai.conf usr_sbin_samurai-bluetooth usr_sbin_samurai-modem-configs usr_sbin_samurai-modem-remoteproc usr_sbin_samurai-radio-address usr_sbin_samurai-udhcpc-wlan usr_sbin_samurai-wifi usr_sbin_samurai-usb usr_sbin_samurai-usb-recover etc_init.d_samurai-loopback etc_init.d_samurai-radio etc_init.d_samurai-usb etc_init.d_samurai-usb-recover etc_NetworkManager_conf.d_20-samurai-wlan.conf etc_NetworkManager_conf.d_90-samurai-usb.conf usr_local_share_dbus-1_system-services_org.freedesktop.ModemManager1.service 99-realme-rmx1931-sensors.rules 99-realme-rmx1931-haptics.rules usr_share_alsa_ucm2_conf.d_Realme_X2_Pro_HiFi.conf usr_share_alsa_ucm2_conf.d_Realme_X2_Pro_Realme_X2_Pro.conf etc_samurai_usb-dhcp.conf"
+source="usr_libexec_samurai-audio-route etc_pulse_daemon.conf.d_90-samurai.conf usr_sbin_samurai-bluetooth usr_sbin_samurai-modem-configs usr_sbin_samurai-modem-remoteproc usr_sbin_samurai-radio-address usr_sbin_samurai-udhcpc-wlan usr_sbin_samurai-wifi usr_sbin_samurai-usb usr_sbin_samurai-usb-recover etc_init.d_samurai-loopback etc_init.d_samurai-radio etc_init.d_samurai-usb etc_init.d_samurai-usb-recover etc_NetworkManager_conf.d_20-samurai-wlan.conf etc_usb-signaller.d_90-samurai.toml etc_unudhcpd.conf etc_conf.d_unudhcpd usr_local_share_dbus-1_system-services_org.freedesktop.ModemManager1.service 99-realme-rmx1931-sensors.rules 99-realme-rmx1931-haptics.rules usr_share_alsa_ucm2_conf.d_Realme_X2_Pro_HiFi.conf usr_share_alsa_ucm2_conf.d_Realme_X2_Pro_Realme_X2_Pro.conf etc_samurai_usb-dhcp.conf"
 package() {
  install -Dm755 "$srcdir"/usr_libexec_samurai-audio-route "$pkgdir"/usr/libexec/samurai-audio-route
  install -Dm755 "$srcdir"/usr_sbin_samurai-bluetooth "$pkgdir"/usr/sbin/samurai-bluetooth
@@ -27,7 +27,9 @@ package() {
  install -Dm755 "$srcdir"/etc_init.d_samurai-usb-recover "$pkgdir"/etc/init.d/samurai-usb-recover
  install -Dm644 "$srcdir"/etc_samurai_usb-dhcp.conf "$pkgdir"/etc/samurai/usb-dhcp.conf
  install -Dm644 "$srcdir"/etc_NetworkManager_conf.d_20-samurai-wlan.conf "$pkgdir"/etc/NetworkManager/conf.d/20-samurai-wlan.conf
- install -Dm644 "$srcdir"/etc_NetworkManager_conf.d_90-samurai-usb.conf "$pkgdir"/etc/NetworkManager/conf.d/90-samurai-usb.conf
+ install -Dm644 "$srcdir"/etc_usb-signaller.d_90-samurai.toml "$pkgdir"/etc/usb-signaller.d/90-samurai.toml
+ install -Dm644 "$srcdir"/etc_unudhcpd.conf "$pkgdir"/etc/unudhcpd.conf
+ install -Dm644 "$srcdir"/etc_conf.d_unudhcpd "$pkgdir"/etc/conf.d/unudhcpd
  install -Dm644 "$srcdir"/usr_local_share_dbus-1_system-services_org.freedesktop.ModemManager1.service \
   "$pkgdir"/usr/local/share/dbus-1/system-services/org.freedesktop.ModemManager1.service
  install -Dm644 "$srcdir"/99-realme-rmx1931-sensors.rules "$pkgdir"/usr/lib/udev/rules.d/99-realme-rmx1931-sensors.rules
@@ -52,14 +54,16 @@ c095e06d252732afa60d0d303f502b80e40fc337513a2974fa9e8c50257238f26c9512569cd2877b
 6dc665811144147f81c70ad7477088be47f15d97f9db3a5e2de4c73855911bb717e0be5d5b433f588f4af55f57442febb3abbc763edbe2b9f1f94dd42de71609  usr_sbin_samurai-radio-address
 62414aa3e2087a97c71954a630070cf61d3873a1e825e33e58328edafe94193cdcde6258e09ad045700c9969325660a286e8448645df6f7da344e30644ecab65  usr_sbin_samurai-udhcpc-wlan
 06cff98056368a3f09951dc78a45c17842a4263ebe54628cb20cd8a308c577cbae36ea97806bab31810ad948795e40920fbef91b434f9829bcc6c26fec1e7061  usr_sbin_samurai-wifi
-9e6ffd5291cf17caeddd40b914da8cf05328cdaa5665535577a10715f40c4ea49de57f907bb64d3977a05555a7358379420939f7f31d88cd6d0f7b0e895af92b  usr_sbin_samurai-usb
-a3176855e5bd6e8b5d2ae3231b6c912d3a0d02860e26f54e887e7dcae031e3c210dfe1a069995d22576917f201b4d439f88388e5f7ed95a69c9997f9aa547b6f  usr_sbin_samurai-usb-recover
+bff54287726e6dc82c9f203d564a04c8744bc3e33c3004eaf313d49f2e523ab18c13cf50057227cad6d92faed41153b53735bc87958965f01c38f492855bd3a2  usr_sbin_samurai-usb
+e28c73db0046db273798c7ebb585903b080de9ad874a3983798a26495757e88a324e5635775029c72cb59c776daae9af9e07bf376aebf45a64c451a5702236c7  usr_sbin_samurai-usb-recover
 99766805c16cfdc8d280ab84d77dd8d98da85794c380ba62a67a20d56e7fed32c6c60ae22f8b782238d8685cf4c6cf1634e2e7c0585fccaaa3f64360fdf32137  etc_init.d_samurai-loopback
 14df52b1365b976a234e2cfa7fbaa6e2238d2a7e818fec1abe29419af98d4cde1e43b2040a4a7901f9731adbcb4e33c4204bf26db0d8b4ff773ad07fb89df1ef  etc_init.d_samurai-radio
 70d30e9411c3c7393747dacb4d724bfb130e31cff30f960fb330d1973bac1b0a3f934c0358e36f532de8e0f10bcbd16e03886c3ec6c831c2720cb01d307f0be2  etc_init.d_samurai-usb
-1fcee00cf90bb9d7efb97c5167ce9ccf84ec56fa9f3ff579fc960cce9511f448f58e19afddf7a9ded01386d728bca117de007c888c433ece1a961befe2266e86  etc_init.d_samurai-usb-recover
+6cfdc893a54eb8c9b35cc1efe461796a41d07d8f2f6eaad0eb8e7fa6e4a6ae328a9408298cd68c47b6607d148fcfd7181d788a8df89eb58f0dceceefba28868d  etc_init.d_samurai-usb-recover
 7d81890122f63c43c4c99062986818156ae091a05ffb8352c1f4c372b20a797efe4e901266f4222f61fea2e44d3711216fa58d3a014874de1cd3aaebd25276e8  etc_NetworkManager_conf.d_20-samurai-wlan.conf
-98357776e02b8aff3b585280bf9d4a3082ae8ad694ac880616ca66fec423ee2a645bf65840194e51d0345c6a60fa4c426f183a955ac0233e77c1fa476fb90499  etc_NetworkManager_conf.d_90-samurai-usb.conf
+15f60c7fff8eb38653802d1ed6ff5fe9d937fabc7a2a1d4f24cd9611bc4a67b2d7c916d60970314dba313131df2bd9b7ed3fb7265f4a5a539191f588258b152b  etc_usb-signaller.d_90-samurai.toml
+2fb032457b536d6205583a89f1f998a779bc627484e648ad968195467704b0d103c3885e3a8fe5c6a4f855d18f1b92cb8ef6b4caabe39dd9742f114bbd2b1a70  etc_unudhcpd.conf
+da40068fc0c3f84e983c4c92e490295a7a46530ff160d8b27c8f99a2cb15144c4efa1fd08329bedb76bfed79d9887ba51b442175b12ed3a9895cd3e09e0872d7  etc_conf.d_unudhcpd
 5aa260d1938d2aa099d01532d8bd1fda8b6b64b8240b8114f78adde2eb25b9f5844aa9bf43a4e165379860ba7e7fceae72545d1e4e5a0e15246a16f23b86c641  usr_local_share_dbus-1_system-services_org.freedesktop.ModemManager1.service
 7621e2d3eb93b331b7e9f8f764cf682ba876ce105b2afbda3313ccbb8e0e029a6dc9c0915a50275f307513224f745b00247935103706eef952c321d04aeb6ba9  99-realme-rmx1931-sensors.rules
 88f335440bf953f8f46e6d1d4ad69ec87f74baa8ac671d19cfc26038e844b982b52437cf917e408ed9cb79141af976e4d00e437bde53772ae517272f8124a1a3  99-realme-rmx1931-haptics.rules

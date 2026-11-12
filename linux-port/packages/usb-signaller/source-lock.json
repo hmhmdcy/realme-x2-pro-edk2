@@ -1,0 +1,66 @@
+{
+  "schema": "samurai-usb-signaller-source-v1",
+  "upstream": {
+    "url": "https://codeberg.org/DylanVanAssche/usb-signaller",
+    "tag": "v0.4.3",
+    "commit": "5938c077a41db5de1fcebcda1c42fff1c6bc6201",
+    "archive_sha256": "225c9615fad757f9d1938199d5ba99aec340442aa8df91903596d19451c1249d",
+    "archive_sha512": "10be75cccb2fa02bb818c2d02e57067b4bb9405041b0989537e0ecc53b9917e7bdc5ada4666a1cff3fa8e3f3c4593535ecf5470db86c6822b9b049d871f539dd"
+  },
+  "patch": {
+    "file": "0001-gadget-support-board-descriptor-overrides.patch",
+    "sha256": "fae37c3062144ae34309d0f90e48e6807c7bc9c73ec0ae64a959a92d3989b721",
+    "sha512": "02f3d2fd69c251cb497a603b492f7ffeb636a11ad4afc3327d3223dd8b37694d71a3be962a33bf79529a1e859eeb16bc53aa32372a7f72287b20ac46275acad1",
+    "applies_cleanly_to": "v0.4.3"
+  },
+  "patch_2": {
+    "file": "0002-usb-signaller-network-ownership.patch",
+    "sha256": "2c9e0484e0bbe2e13f8d57c1308a7734a1ce579b34d2170fd69aa2c854f08d53",
+    "sha512": "59ba09ea5d66d24ff2c0804d254080cef3d40111f5e707474960afbbed7627fd5618dad97b2fcadc648f389702e07c1cda0abd1024f6001a9d4f493ec6dbcc2e",
+    "applies_after": "0001-gadget-support-board-descriptor-overrides.patch",
+    "applies_cleanly_to": "v0.4.3"
+  },
+  "patch_3": {
+    "file": "0003-usb-signaller-wait-for-network.patch",
+    "sha256": "61fe6256c74ac3ef98361d3c5bd6ea42843b6c2b3e0df073593c40156f7ea312",
+    "sha512": "b1fa10ae964c206c85364b8368cf88e467a46e9851a1b6cabfce2f9f4656c50e4515446202d7ace5a1febb258701cef839caab1af9137d21b1b8f0450223d319",
+    "applies_after": "0002-usb-signaller-network-ownership.patch",
+    "applies_cleanly_to": "v0.4.3 with the preceding local patches"
+  },
+  "patched_sources": {
+    "Cargo.toml": "8d8555ef5ac99580e36efecb1a315c9058e09e6ab0bf26fd402ab81f9dc787c9",
+    "distro/scripts/usb-signaller-developer-mode.sh": "20bafc80e4aaab06dac3f20ffedb19238bcb5c2dcef95e5d692db6b9b5c20f99",
+    "distro/scripts/usb-signaller-tethering-mode.sh": "531cea10bd91b36a2b3388bd83f74630366275cba2567b8d0e5f5d961091f18b",
+    "src/configuration.rs": "f357509d9ac3c4910251dd0c1420bf9a8608101401b56495ce1a5116b47c35af",
+    "src/dbus.rs": "f6c37478356f5fa0d1e4260b919272693a261a7d0e99aaf80d2e695a48c7f0aa",
+    "src/gadget.rs": "c0bf3857647e02350ffed329c5b11c2bb198518b7bcafe8b78bd57d714e3f944",
+    "src/udc.rs": "cd50e78de61ea9fa824fa377099c614d01a2d7d3ebb49f6cbdfaae907eba1a88"
+  },
+  "runtime_candidate": {
+    "arch": "aarch64",
+    "libc": "musl",
+    "path": "/usr/bin/usb-signaller",
+    "sha256": "a661c138fc27ae4cc262d2ded40d12da61f2fb7cc104012a9b2ff656ae61075f",
+    "built_on": "RMX1931",
+    "command": "CARGO_NET_OFFLINE=true CARGO_TARGET_DIR=/tmp/usb-signaller-target-20261112 cargo build --release --offline",
+    "verified": [
+      "cargo test",
+      "application starts under OpenRC",
+      "board descriptor overrides applied",
+      "NCM developer/tethering and MTP modes reach UDC configured",
+      "ordinary reboot reaches Developer with usb0=172.16.42.1/16",
+      "Windows UsbNcm Problem 0, DHCP 172.16.42.2 and NCM SSH pass",
+      "automatic DWC3 recovery restores Developer carrier after ip link down"
+    ]
+  },
+  "package_artifacts": {
+    "usb-signaller": {
+      "version": "0.4.3-r3",
+      "sha256": "1851fedfa7e8853566d41f79a20449cdee426537c830e90572a488258e309a84"
+    },
+    "usb-signaller-openrc": {
+      "version": "0.4.3-r3",
+      "sha256": "67ec911a0757e1e7208478dd37916600712fcccc99460524310707c4a33c9129"
+    }
+  }
+}

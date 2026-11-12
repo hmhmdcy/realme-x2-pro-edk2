@@ -1,5 +1,12 @@
 # 普通USB网络与SSH（session72）
 
+> 2026-11-12 当前运行时已切换到 postmarketOS 标准 `usb-signaller` +
+> NetworkManager + `unudhcpd` + `umtprd` 栈：默认 Developer 地址是
+> `172.16.42.1/16`（DHCP 客户端 `172.16.42.2`），模式由
+> `com.meego.usb_moded` D-Bus 管理；历史 `samurai-usb` 的
+> `169.254.42.1` 和 `10.42.0.1` 内容仅用于理解旧路径。当前证据和
+> 未验收边界见 [PMOS-USB-20261112](PMOS-USB-20261112.md)。
+
 当前诊断initramfs自动提供CDC NCM和公钥SSH。手机169.254.42.1/16，Windows系统
 UsbNcm自动绑定并使用APIPA地址；无需改主机默认路由。独立重启后无需host com-up
 也能认证SSH。EUD仍可用于早期日志和F1，两条路径共存。

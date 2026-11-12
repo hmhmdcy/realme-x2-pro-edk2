@@ -4,12 +4,14 @@ set -eu
 
 root=${SAMURAI_USB_RECOVER_ROOT:-}
 udc_dir=${SAMURAI_UDC_DIR:-$root/sys/class/udc}
+configfs_dir=${SAMURAI_CONFIGFS_DIR:-$root/sys/kernel/config/usb_gadget}
 online_path=$root/sys/class/power_supply/mp2650-input/online
 carrier_path=$root/sys/class/net/usb0/carrier
 unbind_path=$root/sys/bus/platform/drivers/dwc3-qcom/unbind
 bind_path=$root/sys/bus/platform/drivers/dwc3-qcom/bind
 run_dir=${SAMURAI_USB_RECOVER_RUN_DIR:-$root/run/samurai-usb-recover}
 log_file=${SAMURAI_USB_RECOVER_LOG:-$root/var/log/samurai/usb-recover.log}
+dbus_enabled=${SAMURAI_USB_RECOVER_DBUS:-1}
 interval=${SAMURAI_USB_RECOVER_INTERVAL:-2}
 grace=${SAMURAI_USB_RECOVER_GRACE:-12}
 reattach_grace=${SAMURAI_USB_RECOVER_REATTACH_GRACE:-20}
@@ -61,6 +63,99 @@ read_state()
 	read_value "$run_dir/$1"
 }
 
+dbus_usb_mode()
+{
+	[ "$dbus_enabled" = 1 ] || return 1
+	command -v dbus-send >/dev/null 2>&1 || return 1
+	reply=$(dbus-send --system --type=method_call --print-reply \
+		--dest=com.meego.usb_moded /com/meego/usb_moded \
+		com.meego.usb_moded.mode_request 2>/dev/null) || return 1
+	mode=$(printf '%s\n' "$reply" |
+		sed -n 's/.*string "\(.*\)"/\1/p' | tail -n 1)
+	[ -n "$mode" ] || return 1
+	printf '%s\n' "$mode"
+}
+
+configfs_usb_mode()
+{
+	for gadget in "$configfs_dir"/*; do
+		[ -d "$gadget" ] || continue
+		case ${gadget##*/} in
+		usb-signaller-developer)
+			printf '%s\n' developer_mode
+			return 0
+			;;
+		usb-signaller-tethering)
+			printf '%s\n' tethering_mode
+			return 0
+			;;
+		usb-signaller-mtp)
+			printf '%s\n' mtp_ffs_mode
+			return 0
+			;;
+		esac
+	done
+	return 1
+}
+
+current_usb_mode()
+{
+	mode=$(dbus_usb_mode 2>/dev/null || true)
+	if [ -n "$mode" ]; then
+		printf '%s\n' "$mode"
+		return 0
+	fi
+	mode=$(configfs_usb_mode 2>/dev/null || true)
+	if [ -n "$mode" ]; then
+		printf '%s\n' "$mode"
+		return 0
+	fi
+	printf '%s\n' charging_only
+}
+
+wait_usb_dbus()
+{
+	limit=${1:-30}
+	count=0
+	[ "$dbus_enabled" = 1 ] || return 1
+	command -v dbus-send >/dev/null 2>&1 || return 1
+	while [ "$count" -lt "$limit" ]; do
+		if dbus-send --system --type=method_call --print-reply \
+			--dest=com.meego.usb_moded /com/meego/usb_moded \
+			com.meego.usb_moded.get_modes >/dev/null 2>&1; then
+			return 0
+		fi
+		count=$((count + 1))
+		sleep 1
+	done
+	return 1
+}
+
+request_usb_mode()
+{
+	wanted=$1
+	[ "$dbus_enabled" = 1 ] || return 1
+	command -v dbus-send >/dev/null 2>&1 || return 1
+	dbus-send --system --type=method_call --print-reply \
+		--dest=com.meego.usb_moded /com/meego/usb_moded \
+		com.meego.usb_moded.set_mode "string:$wanted" >/dev/null 2>&1
+}
+
+wait_usb_mode()
+{
+	wanted=$1
+	limit=${2:-30}
+	count=0
+	while [ "$count" -lt "$limit" ]; do
+		if [ "$(dbus_usb_mode 2>/dev/null || true)" = "$wanted" ]; then
+			return 0
+		fi
+		count=$((count + 1))
+		sleep 1
+	done
+	return 1
+}
+
 wait_udc_state()
 {
 	wanted=$1
@@ -68,19 +163,88 @@ wait_udc_state()
 	count=0
 	while [ "$count" -lt "$limit" ]; do
 		state=$(read_value "$udc_dir/$udc/state")
-		[ "$state" = "$wanted" ] && return 0
+		if [ "$state" = "$wanted" ]; then
+			return 0
+		fi
 		count=$((count + 1))
 		sleep 1
 	done
 	return 1
 }
 
+service_bounded()
+{
+	if command -v timeout >/dev/null 2>&1; then
+		timeout 30 rc-service "$@" >/dev/null 2>&1
+	else
+		rc-service "$@" >/dev/null 2>&1
+	fi
+}
+
 restart_gadget()
 {
+	# usb-signaller is the standard owner of configfs, UDC binding and the
+	# usb-moded D-Bus API. Preserve the active mode across a forced DWC3
+	# rebind; restarting usb-signaller alone would otherwise fall back to its
+	# configured default (developer) mode.
+	requested_mode=$(current_usb_mode 2>/dev/null || true)
+	case $requested_mode in
+	developer_mode|tethering_mode|mtp_ffs_mode|charging_only) ;;
+	*) requested_mode= ;;
+	esac
+
 	if [ -n "${SAMURAI_USB_RECOVER_RESTART_CMD:-}" ]; then
 		sh -c "$SAMURAI_USB_RECOVER_RESTART_CMD"
+	elif command -v rc-service >/dev/null 2>&1 &&
+		[ -x /etc/init.d/usb-signaller ]; then
+		service_bounded usb-signaller stop || true
+		service_bounded usb-signaller start || true
+		wait_usb_dbus 30 || true
+		if [ -n "$requested_mode" ]; then
+			request_usb_mode "$requested_mode" || true
+			wait_usb_mode "$requested_mode" 30 || true
+		fi
+		# If usb-signaller could not apply the preserved mode, start the
+		# matching standard mode service as a bounded fallback.
+		actual_mode=$(dbus_usb_mode 2>/dev/null || true)
+		if [ -n "$requested_mode" ] &&
+			[ "$actual_mode" != "$requested_mode" ]; then
+			case $requested_mode in
+			developer_mode)
+				service_bounded usb-signaller-developer-mode start || true
+				;;
+			tethering_mode)
+				service_bounded usb-signaller-tethering-mode start || true
+				;;
+			mtp_ffs_mode)
+				service_bounded usb-signaller-mtp-mode start || true
+				;;
+			esac
+		fi
+		# usb-signaller may have started the mode service before the host
+		# created usb0. Restart the standard userspace mode after the D-Bus
+		# mode is established so NetworkManager and FunctionFS are rebound.
+		if [ -n "$requested_mode" ]; then
+			case $requested_mode in
+			developer_mode)
+				service_bounded usb-signaller-developer-mode restart ||
+					service_bounded usb-signaller-developer-mode start ||
+					true
+				;;
+			tethering_mode)
+				service_bounded usb-signaller-tethering-mode restart ||
+					service_bounded usb-signaller-tethering-mode start ||
+					true
+				;;
+			mtp_ffs_mode)
+				service_bounded usb-signaller-mtp-mode restart ||
+					service_bounded usb-signaller-mtp-mode start ||
+					true
+				;;
+			esac
+		fi
 	elif command -v rc-service >/dev/null 2>&1; then
-		rc-service samurai-usb restart
+		service_bounded samurai-usb restart || true
 	else
 		/usr/sbin/samurai-usb start
 	fi
@@ -167,6 +331,23 @@ monitor()
 	stuck_since=0
 
 	while :; do
+		mode=$(current_usb_mode 2>/dev/null || true)
+		case $mode in
+		developer_mode|tethering_mode) ncm_mode=1 ;;
+		*) ncm_mode=0 ;;
+		esac
+		if [ "$ncm_mode" -ne 1 ]; then
+			if [ "$(read_state armed)" = 1 ]; then
+				log_event "DISARM reason=mode=$mode"
+			fi
+			write_state armed 0
+			write_state stable_since 0
+			write_state reattach_since 0
+			stuck_since=0
+			sleep "$interval"
+			continue
+		fi
+
 		online=$(read_value "$online_path")
 		previous_online=$(read_state online)
 		if [ "$online" = 1 ] && [ "$previous_online" != 1 ]; then
@@ -185,7 +366,9 @@ monitor()
 		write_state online "$online"
 
 		if [ "$online" != 1 ]; then
-			[ "$(read_state armed)" = 1 ] && log_event "DISARM reason=no_vbus"
+			if [ "$(read_state armed)" = 1 ]; then
+				log_event "DISARM reason=no_vbus"
+			fi
 			write_state armed 0
 			write_state stable_since 0
 			write_state reattach_since 0
@@ -205,7 +388,9 @@ monitor()
 			write_state stable_since "$stable_since"
 			write_state reattach_since 0
 			write_state seen_configured 1
-			[ "$(read_state armed)" != 1 ] && log_event "ARM state=configured carrier=1"
+			if [ "$(read_state armed)" != 1 ]; then
+				log_event "ARM state=configured carrier=1"
+			fi
 			write_state armed 1
 			stuck_since=0
 			attempts=$(read_state attempts)
