@@ -18,7 +18,9 @@ param(
     [string]$KnownHosts,
 
     [string]$WifiHost = "192.168.0.114",
-    [string]$NcmHost = "10.42.0.1",
+    [string]$NcmHost = "172.16.42.1",
+    [string]$NcmBindAddress = "172.16.42.2",
+    [string]$NcmKnownHosts,
     [string]$User = "root",
     [ValidateRange(60, 900)]
     [int]$TimeoutSeconds = 360,
@@ -29,28 +31,35 @@ param(
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
-$sshBase = @(
-    "-F", "none",
-    "-i", $Identity,
-    "-o", "IdentitiesOnly=yes",
-    "-o", "PasswordAuthentication=no",
-    "-o", "UserKnownHostsFile=$KnownHosts",
-    "-o", "GlobalKnownHostsFile=none",
-    "-o", "StrictHostKeyChecking=yes",
-    "-o", "BatchMode=yes",
-    "-o", "ConnectTimeout=$ConnectTimeoutSeconds",
-    "-o", "ServerAliveInterval=5",
-    "-o", "ServerAliveCountMax=2",
-    "-o", "LogLevel=ERROR"
-)
-
 function Invoke-DeviceSsh {
     param(
         [Parameter(Mandatory = $true)][string]$HostName,
-        [Parameter(Mandatory = $true)][string]$Command
+        [Parameter(Mandatory = $true)][string]$Command,
+        [string]$HostsFile = $KnownHosts,
+        [string[]]$ExtraArgs = @()
     )
 
-    $output = & ssh @sshBase "$User@$HostName" $Command 2>&1
+    $sshArgs = @(
+        "-F", "none",
+        "-i", $Identity,
+        "-o", "IdentitiesOnly=yes",
+        "-o", "PasswordAuthentication=no",
+        "-o", "UserKnownHostsFile=$HostsFile",
+        "-o", "GlobalKnownHostsFile=none",
+        "-o", "StrictHostKeyChecking=yes",
+        "-o", "BatchMode=yes",
+        "-o", "ConnectTimeout=$ConnectTimeoutSeconds",
+        "-o", "ServerAliveInterval=5",
+        "-o", "ServerAliveCountMax=2",
+        "-o", "LogLevel=ERROR"
+    )
+    if ($ExtraArgs.Count -ne 0) {
+        $sshArgs += $ExtraArgs
+    }
+    $sshArgs += "$User@$HostName"
+    $sshArgs += $Command
+
+    $output = & ssh @sshArgs 2>&1
     $exitCode = $LASTEXITCODE
     [pscustomobject]@{
         exit_code = $exitCode
@@ -78,9 +87,14 @@ function Test-Tcp22 {
 }
 
 function Get-DeviceIdentity {
-    param([Parameter(Mandatory = $true)][string]$HostName)
+    param(
+        [Parameter(Mandatory = $true)][string]$HostName,
+        [string]$HostsFile = $KnownHosts,
+        [string[]]$ExtraArgs = @()
+    )
 
-    $result = Invoke-DeviceSsh -HostName $HostName -Command @'
+    $result = Invoke-DeviceSsh -HostName $HostName -HostsFile $HostsFile `
+        -ExtraArgs $ExtraArgs -Command @'
 cat /proc/sys/kernel/random/boot_id
 grep '^btime ' /proc/stat
 date +%s
@@ -175,10 +189,20 @@ if (-not (Test-Path -LiteralPath $Identity -PathType Leaf)) {
 if (-not (Test-Path -LiteralPath $KnownHosts -PathType Leaf)) {
     throw "known_hosts not found: $KnownHosts"
 }
+$ncmHostsFile = if ($NcmKnownHosts) { $NcmKnownHosts } else { $KnownHosts }
+if (-not (Test-Path -LiteralPath $ncmHostsFile -PathType Leaf)) {
+    throw "NCM known_hosts not found: $ncmHostsFile"
+}
+$ncmSshArgs = @(
+    "-b", $NcmBindAddress,
+    "-o", "ProxyCommand=none",
+    "-o", "ProxyJump=none"
+)
 
 $oldIdentity = Get-DeviceIdentity -HostName $WifiHost
 if ($null -eq $oldIdentity) {
-    $oldIdentity = Get-DeviceIdentity -HostName $NcmHost
+    $oldIdentity = Get-DeviceIdentity -HostName $NcmHost `
+        -HostsFile $ncmHostsFile -ExtraArgs $ncmSshArgs
 }
 if ($null -eq $oldIdentity) {
     throw "Neither Wi-Fi nor USB NCM SSH is reachable before reboot"
@@ -190,6 +214,11 @@ $result = [ordered]@{
     started_local = [DateTimeOffset]::Now.ToString("o")
     old_device = $oldIdentity
     host_before = $hostBefore
+    addresses = [ordered]@{
+        wifi = $WifiHost
+        ncm = $NcmHost
+        ncm_bind = $NcmBindAddress
+    }
     wifi = [ordered]@{}
     ncm = [ordered]@{}
     new_device = $null
@@ -230,19 +259,7 @@ while ([DateTimeOffset]::Now -lt $deadline) {
     if (-not $wifiOpen) {
         $wifiDownSeen = $true
     }
-    elseif ($wifiDownSeen -and $null -eq $wifiTcpAt) {
-        $wifiTcpAt = $now
-    }
-
-    $ncmOpen = Test-Tcp22 -HostName $NcmHost
-    if (-not $ncmOpen) {
-        $ncmDownSeen = $true
-    }
-    elseif ($ncmDownSeen -and $null -eq $ncmTcpAt) {
-        $ncmTcpAt = $now
-    }
-
-    if ($null -eq $wifiIdentityAfter -and $null -ne $wifiTcpAt) {
+    elseif ($null -eq $wifiIdentityAfter) {
         $candidate = Get-DeviceIdentity -HostName $WifiHost
         if (
             $null -ne $candidate -and
@@ -254,13 +271,22 @@ while ([DateTimeOffset]::Now -lt $deadline) {
         ) {
             $wifiIdentityAfter = $candidate
             $wifiSshAt = $now
+            if ($null -eq $wifiTcpAt) {
+                $wifiTcpAt = $now
+            }
             if ($null -eq $newIdentity) {
                 $newIdentity = $candidate
             }
         }
     }
-    if ($null -eq $ncmIdentityAfter -and $null -ne $ncmTcpAt) {
-        $candidate = Get-DeviceIdentity -HostName $NcmHost
+
+    $ncmOpen = Test-Tcp22 -HostName $NcmHost
+    if (-not $ncmOpen) {
+        $ncmDownSeen = $true
+    }
+    elseif ($null -eq $ncmIdentityAfter) {
+        $candidate = Get-DeviceIdentity -HostName $NcmHost `
+            -HostsFile $ncmHostsFile -ExtraArgs $ncmSshArgs
         if (
             $null -ne $candidate -and
             $candidate.boot_id -ne $oldIdentity.boot_id -and
@@ -271,6 +297,9 @@ while ([DateTimeOffset]::Now -lt $deadline) {
         ) {
             $ncmIdentityAfter = $candidate
             $ncmSshAt = $now
+            if ($null -eq $ncmTcpAt) {
+                $ncmTcpAt = $now
+            }
             if ($null -eq $newIdentity) {
                 $newIdentity = $candidate
             }

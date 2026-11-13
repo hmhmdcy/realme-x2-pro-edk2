@@ -110,8 +110,9 @@ SM8150 DWC3 的有界恢复：
 打包后的三轮 standard host→device 测试恢复 `usb0 managed/connected`、
 carrier 1、`unudhcpd.usb0` 和 USB NCM SSH；单次 plain
 `rc-service usb-signaller restart` 观察 65 秒和连续 5 轮 soak 也通过。
-一次普通重启在约 66 秒内同时恢复 Wi‑Fi SSH 与 USB NCM SSH，
-两端报告同一新 boot ID，Windows UsbNcm/Composite 保持 Problem 0。详见
+一次普通重启在 62.298 秒恢复 Wi‑Fi 新 boot SSH、63.813 秒恢复
+USB NCM 新 boot SSH，两端报告同一新 boot ID，Windows
+UsbNcm/Composite 保持 Problem 0。详见
 [`USB-OTG-20261112.md`](USB-OTG-20261112.md)。
 
 日志：`/var/log/samurai/usb-recover.log`；状态：
