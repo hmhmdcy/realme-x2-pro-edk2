@@ -1,0 +1,55 @@
+From: Realme X2 Pro Linux port <hmhmdcy@users.noreply.github.com>
+Subject: [PATCH] scripts: tolerate missing NCM netdev during mode teardown
+
+usb-signaller tears down the current gadget before replacing it, including
+when the DWC3 role switch has already removed usb0. The Developer and
+Tethering mode stop scripts currently let nmcli and ifconfig failures escape
+as the service stop status. OpenRC then keeps the one-shot mode service marked
+as started, so the next mode switch calls `rc-service start` against an already
+started service. The new NCM interface is left unmanaged and DHCP keeps its
+stale socket.
+
+Treat the network teardown as best effort when the netdev or NetworkManager
+connection has already disappeared, so a gadget replacement can start the new
+mode service normally. The up path remains unchanged and still waits for the
+netdev and retries NetworkManager activation.
+
+--- a/distro/scripts/usb-signaller-developer-mode.sh
++++ b/distro/scripts/usb-signaller-developer-mode.sh
+@@ -97,12 +97,12 @@
+     _stop_unudhcpd "$IFACE"
+ 
+     # Bring NetworkManager connection down
+-    nmcli connection down "$CONNECTION_NAME"
+-    nmcli connection delete "$CONNECTION_NAME"
++    nmcli connection down "$CONNECTION_NAME" >/dev/null 2>&1 || true
++    nmcli connection delete "$CONNECTION_NAME" >/dev/null 2>&1 || true
+ 
+     # NetworkManager brings the interface up automatically,
+     # but doesn't remove it when bringing down.
+-    ifconfig "$IFACE" down
++    ifconfig "$IFACE" down >/dev/null 2>&1 || true
+ }
+ 
+ case $1 in
+--- a/distro/scripts/usb-signaller-tethering-mode.sh
++++ b/distro/scripts/usb-signaller-tethering-mode.sh
+@@ -69,15 +69,15 @@
+ 
+ down() {
+     # Bring NetworkManager connection down
+-    nmcli connection down "$CONNECTION_NAME"
+-    nmcli connection delete "$CONNECTION_NAME"
++    nmcli connection down "$CONNECTION_NAME" >/dev/null 2>&1 || true
++    nmcli connection delete "$CONNECTION_NAME" >/dev/null 2>&1 || true
+ 
+     # NetworkManager leaves IP forwarding ON, set it back to disabled
+     echo 0 > /proc/sys/net/ipv4/ip_forward
+ 
+     # NetworkManager brings the interface up automatically,
+     # but doesn't remove it when bringing down.
+-    ifconfig "$IFACE" down
++    ifconfig "$IFACE" down >/dev/null 2>&1 || true
+ }
+ 
+ case $1 in

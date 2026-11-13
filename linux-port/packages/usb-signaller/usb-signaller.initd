@@ -10,3 +10,15 @@ error_logger="logger -t usb-signaller -p daemon.warning"
 depend() {
 	need dbus
 }
+
+start_pre() {
+	# OpenRC one-shot mode services are separate services. On a
+	# usb-signaller restart the daemon applies its default mode, but an
+	# already-started Developer/Tethering/MTP service would make the
+	# mode start a no-op and leave usb0 unmanaged. Reset their state
+	# before the daemon recreates the configfs gadget.
+	for service in developer tethering mtp; do
+		/sbin/rc-service "usb-signaller-${service}-mode" stop \
+			>/dev/null 2>&1 || true
+	done
+}

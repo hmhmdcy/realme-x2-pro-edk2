@@ -1,0 +1,41 @@
+From: Realme X2 Pro Linux port <hmhmdcy@users.noreply.github.com>
+Subject: [PATCH] urs: stop mode services before switching to host role
+
+When usb-signaller switches from device to host role, it deletes the
+current configfs gadget. The matching OpenRC mode service (for example
+usb-signaller-developer-mode) was left marked as started. On the next
+host-to-device transition usb-signaller calls service_start() again, but
+OpenRC treats it as a no-op, so the new usb0 netdev is never handed to
+NetworkManager and unudhcpd keeps its stale socket.
+
+Stop the known mode services before deleting the gadget. Returning to
+device mode then starts them normally, letting the developer/tethering
+scripts mark usb0 managed, activate the NCM connection and recreate the
+DHCP server.
+
+This is a generic usb-signaller lifecycle fix, not a board-specific
+NetworkManager or configfs workaround.
+---
+diff --git a/src/urs.rs b/src/urs.rs
+--- a/src/urs.rs
++++ b/src/urs.rs
+@@ -17,6 +17,7 @@
+  */
+ 
+ use crate::gadget::{ConfigFsGadget, discover_gadgets};
++use crate::service::service_stop;
+ use crate::sysfs::{sysfs_read, sysfs_write};
+ use crate::udc::UDC;
+ use crate::utils::dir_entries;
+@@ -123,6 +124,11 @@
+                         )?;
+                         Self::wait_for_role(&switch_name, "host")?;
+ 
++                        println!("Stopping mode services before host role switch");
++                        let _ = service_stop("usb-signaller-developer-mode");
++                        let _ = service_stop("usb-signaller-tethering-mode");
++                        let _ = service_stop("usb-signaller-mtp-mode");
++
+                         println!("Cleaning up gadgets after switch to host role");
+                         for gadget_name in discover_gadgets() {
+                             ConfigFsGadget::delete(gadget_name.as_str())?;

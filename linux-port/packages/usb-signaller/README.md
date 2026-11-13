@@ -1,4 +1,4 @@
-# usb-signaller board descriptor overrides (0.4.3-r4)
+# usb-signaller board descriptor and lifecycle backports (0.4.3-r9)
 
 This package tracks Alpine's `usb-signaller` 0.4.3 and adds an upstreamable
 configuration layer for USB device descriptors. The standard postmarketOS
@@ -30,10 +30,26 @@ Patch contents:
 - preserve Developer/Tethering when the host has addressed the gadget but
   stopped before SET_CONFIGURATION, so the board recovery service can
   reconnect the public UDC interface instead of downgrading to Charging.
+- stop the Developer/Tethering/MTP mode service before switching to the
+  DWC3 host role. Without this, OpenRC keeps the old one-shot service
+  marked as started; returning to device mode calls `rc-service start`,
+  which is a no-op, leaving the new `usb0` unmanaged and `unudhcpd` on a
+  stale socket.
+- tolerate an already-removed `usb0` or NetworkManager connection during
+  mode teardown. The stop path is best effort when host/role teardown has
+  already removed the netdev; otherwise OpenRC retains the service as
+  started and the next gadget replacement cannot run its `up` path.
+- stop the mode services in the `usb-signaller` OpenRC `start_pre` hook,
+  so a fresh daemon starts the selected mode instead of inheriting a
+  stale one-shot service state.
+- retry the mode-service `start` operation a bounded number of times
+  when the preceding one-shot service is still settling. This avoids
+  deleting the new configfs gadget and falling back to Charging merely
+  because `rc-service start` returned a transient error.
 
 The patches are intended to be submitted upstream. Until accepted, they are
-version-pinned to upstream tag `v0.4.3`; the candidate package is
-`0.4.3-r5`.
+version-pinned to upstream tag `v0.4.3`; the current package is
+`0.4.3-r9`.
 
 With the deployed dual-role kernel, upstream usb-signaller also discovers
 the standard `a600000.usb-role-switch` provider. It advertises
@@ -41,3 +57,40 @@ the standard `a600000.usb-role-switch` provider. It advertises
 `host_mode` while the role is host, and restores Developer mode when the
 role returns to device. The board does not implement a private configfs
 or URS handler for this.
+
+On 2026-11-13 the packaged `0.4.3-r9` main and OpenRC APKs were installed
+with the 0006/0007/0008 lifecycle fixes:
+
+```text
+/usr/bin/usb-signaller
+SHA-256 5dfd694cf325cac36ab490cf27e95013a1029b0877f17902fdd1b4ab99bcba18
+
+usb-signaller-0.4.3-r9.apk
+SHA-256 fe4c960a22a92ef875fb2f5d9df5cf2880319bd281ed15fbadc18f62525c0c12
+
+usb-signaller-openrc-0.4.3-r9.apk
+SHA-256 4c87cec580658701234e957a85d8badeaa1babca3dfd904d6376097e9ef1a66b
+
+usb-signaller-systemd-0.4.3-r9.apk
+SHA-256 03954a4c5be9203488cd7b57f9bcf83556942905db5f9a5e111ef1e8676d806f
+```
+
+The standard host-mode test passes on the RMX1931 after the package
+install: host mode registers xHCI, and returning to device restores
+`usb0` managed, carrier 1, `unudhcpd.usb0` restarted, Windows DHCP
+`172.16.42.2/24` and USB NCM SSH. Three consecutive packaged host→device
+rounds passed at 12:20 CST. The full mode-cycle and four offline
+recovery regressions also pass with r9.
+
+The board config now also supplies
+`[main] default_mode = "developer_mode"`; a stopped usb-signaller can
+therefore recreate Developer after a clean start.
+
+Patch 0008 closes the OpenRC supervisor restart race by retrying only
+the mode-service `start` operation, up to eight times at five-second
+intervals. The first installed r9 check kept UDC `configured`, carrier
+1, NetworkManager `usb0:connected` and `unudhcpd.usb0` running for the
+full 65-second observation window. Five consecutive plain
+`rc-service usb-signaller restart` rounds then passed with zero
+failures. This does not retry or mask `stop` errors, and it remains
+disabled after the bounded budget is exhausted.

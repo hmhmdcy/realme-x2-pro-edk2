@@ -162,6 +162,24 @@ done
 [ "$typec_ports" -gt 0 ] ||
 	fail "no Type-C port is registered"
 
+typec_role_sw_supplier=0
+typec_vbus_supplier=0
+for link in /sys/class/typec/port0/supplier:*; do
+	[ -e "$link" ] || continue
+	target=$(readlink -f "$link" 2>/dev/null || echo missing)
+	echo "typec.port0.supplier.$(basename "$link")=$target"
+	case "$target" in
+	*a600000.usb*) typec_role_sw_supplier=1 ;;
+	*usb-vbus-regulator*) typec_vbus_supplier=1 ;;
+	esac
+done
+if [ "$typec_role_sw_supplier" -ne 1 ]; then
+	fail "TCPM has no device link to the DWC3 usb-role-switch"
+fi
+if [ "$typec_vbus_supplier" -ne 1 ]; then
+	fail "TCPM has no device link to the PM8150B usb_vbus regulator"
+fi
+
 case "$expected_role" in
 device)
 	if [ ! -e /sys/class/udc/a600000.usb ]; then

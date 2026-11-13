@@ -1,9 +1,10 @@
 maintainer="hmhmdcy <hmhmdcy@users.noreply.github.com>"
 pkgname=usb-signaller
 pkgver=0.4.3
-# Local board-descriptor, network-recovery and activation retry backport;
-# upstream 0.4.3-r0 remains the baseline.
-pkgrel=5
+# Local board-descriptor, network-recovery, activation-retry and
+# host-role service-lifecycle backport; upstream 0.4.3-r0 remains the
+# baseline.
+pkgrel=9
 pkgdesc="Switch between different USB gadgets"
 url="https://codeberg.org/DylanVanAssche/usb-signaller"
 arch="all"
@@ -15,6 +16,9 @@ source="$pkgname-$pkgver.tar.gz::https://codeberg.org/DylanVanAssche/usb-signall
 	0003-usb-signaller-wait-for-network.patch
 	0004-usb-signaller-retry-mode-activation.patch
 	0005-usb-signaller-preserve-mode-on-incomplete-enumeration.patch
+	0006-usb-signaller-stop-mode-services-before-host-role.patch
+	0007-usb-signaller-tolerate-missing-netdev-on-mode-stop.patch
+	0008-usb-signaller-retry-mode-service-start.patch
 "
 makedepends="cargo-auditable eudev-dev"
 subpackages="$pkgname-systemd $pkgname-openrc"
@@ -53,10 +57,13 @@ package() {
 
 sha512sums="
 10be75cccb2fa02bb818c2d02e57067b4bb9405041b0989537e0ecc53b9917e7bdc5ada4666a1cff3fa8e3f3c4593535ecf5470db86c6822b9b049d871f539dd  usb-signaller-0.4.3.tar.gz
-39d604f91a8cb5bdb358fda05902a67de6403b99e5cba8d094b18f463cc1520cf80a43e2a60acf7fcfff85b9d4b0c57f64cedba8d080acd2f809b0c699683490  usb-signaller.initd
+9697813fef0db219e501cdf97642a7030961bed362b22e405fea8f7f96346965af0f8ab5e207006a76eb374992c401a0862ab6881de66a19d8f9c871e8978764  usb-signaller.initd
 02f3d2fd69c251cb497a603b492f7ffeb636a11ad4afc3327d3223dd8b37694d71a3be962a33bf79529a1e859eeb16bc53aa32372a7f72287b20ac46275acad1  0001-gadget-support-board-descriptor-overrides.patch
 59ba09ea5d66d24ff2c0804d254080cef3d40111f5e707474960afbbed7627fd5618dad97b2fcadc648f389702e07c1cda0abd1024f6001a9d4f493ec6dbcc2e  0002-usb-signaller-network-ownership.patch
 b1fa10ae964c206c85364b8368cf88e467a46e9851a1b6cabfce2f9f4656c50e4515446202d7ace5a1febb258701cef839caab1af9137d21b1b8f0450223d319  0003-usb-signaller-wait-for-network.patch
 588605dea21292bdc91a62855f48391aaac880ed2a937e6b21cec977c307ef9b9ad98981e952155aa730ac54895ee33c6b4746f27a66bfd47052d58c67c69bcf  0004-usb-signaller-retry-mode-activation.patch
 bf43ed1624bde810e68f216802939c450f95cada58113489ff51fd24f0e5b12fb38a0fe418f305d1c8e29fbe1dc7b9321b0bafcf2707b95ec05c7d0df38d4aa2  0005-usb-signaller-preserve-mode-on-incomplete-enumeration.patch
+c88d84f0ea2e99151cbb36dc990ffc97a9bd6b6236d1d2eda08492c2285a39cd4f15052b355a4e5abd20583c7961a7cb8523c907834f8cf79b7a44de9c8a2863  0006-usb-signaller-stop-mode-services-before-host-role.patch
+85463f50f4ca03f8def04a9d8d93fd3efc4c06c05f48b6176e32e4265d1a8665ce9f0844618787dbb540ebec1bed82cce0d6db2badc5629f67c6831204961feb  0007-usb-signaller-tolerate-missing-netdev-on-mode-stop.patch
+9b3cedf3e5405a9db340e14075679a7aea6f1a7e7cb66723f0713c140d18ae36ae4ad6a41d34e12f851304fc4f1b462feda976296bd009148f6c55a81063876c  0008-usb-signaller-retry-mode-service-start.patch
 "

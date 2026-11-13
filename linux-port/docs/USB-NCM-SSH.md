@@ -82,7 +82,7 @@ controller 内部状态。USBIN 测试脚本已改成结束时强制重绑 DWC3 
 
 ## 2026-11-12 postmarketOS 自动恢复
 
-当前运行时由标准 `usb-signaller 0.4.3-r4` 管理 gadget 和模式，
+当前运行时由标准 `usb-signaller 0.4.3-r9` 管理 gadget 和模式，
 `unudhcpd 0.5.0-r2` 提供 DHCP，`samurai-platform` 6-r3 及之后的
 6-r5/6-r6 只保留
 SM8150 DWC3 的有界恢复：
@@ -102,6 +102,15 @@ SM8150 DWC3 的有界恢复：
   重新枚举并重新执行 DHCP；
 - 链路稳定 300 秒后刷新尝试预算；
 - 只插充电器、从未枚举的会话不会触发无意义重绑。
+
+2026-11-13 的 `0.4.3-r9` 还包含 host-role mode-service teardown
+修复（`0006`/`0007`）和 supervisor restart 的有界 `0008` 重试，
+以及板级 `[main] default_mode = "developer_mode"`；
+该 drop-in 已由安装的 `samurai-platform 6-r14` 管理；
+打包后的三轮 standard host→device 测试恢复 `usb0 managed/connected`、
+carrier 1、`unudhcpd.usb0` 和 USB NCM SSH；单次 plain
+`rc-service usb-signaller restart` 观察 65 秒和连续 5 轮 soak 也通过。详见
+[`USB-OTG-20261112.md`](USB-OTG-20261112.md)。
 
 日志：`/var/log/samurai/usb-recover.log`；状态：
 `/run/samurai-usb-recover/`。

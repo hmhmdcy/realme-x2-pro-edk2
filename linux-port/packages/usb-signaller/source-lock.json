@@ -41,14 +41,38 @@
     "applies_after": "0004-usb-signaller-retry-mode-activation.patch",
     "applies_cleanly_to": "v0.4.3 with the preceding local patches"
   },
+  "patch_6": {
+    "file": "0006-usb-signaller-stop-mode-services-before-host-role.patch",
+    "sha256": "c68683ec56de06e65eb904aa98d798dba320634100464e50bcc0acdb47b6a68b",
+    "sha512": "c88d84f0ea2e99151cbb36dc990ffc97a9bd6b6236d1d2eda08492c2285a39cd4f15052b355a4e5abd20583c7961a7cb8523c907834f8cf79b7a44de9c8a2863",
+    "applies_after": "0005-usb-signaller-preserve-mode-on-incomplete-enumeration.patch",
+    "applies_cleanly_to": "v0.4.3 with the preceding local patches"
+  },
+  "patch_7": {
+    "file": "0007-usb-signaller-tolerate-missing-netdev-on-mode-stop.patch",
+    "sha256": "fd22f85d93e9a504a31263e1497ca2f58e2d72a27999250ca0fa64174d33cfe7",
+    "sha512": "85463f50f4ca03f8def04a9d8d93fd3efc4c06c05f48b6176e32e4265d1a8665ce9f0844618787dbb540ebec1bed82cce0d6db2badc5629f67c6831204961feb",
+    "applies_after": "0006-usb-signaller-stop-mode-services-before-host-role.patch",
+    "applies_cleanly_to": "v0.4.3 with the preceding local patches"
+  },
+  "patch_8": {
+    "file": "0008-usb-signaller-retry-mode-service-start.patch",
+    "sha256": "0dc926fe245be25111fc01ef0d48b71d775b7a6ed331e9b27086b3468d3953f6",
+    "sha512": "9b3cedf3e5405a9db340e14075679a7aea6f1a7e7cb66723f0713c140d18ae36ae4ad6a41d34e12f851304fc4f1b462feda976296bd009148f6c55a81063876c",
+    "applies_after": "0007-usb-signaller-tolerate-missing-netdev-on-mode-stop.patch",
+    "applies_cleanly_to": "v0.4.3 with the preceding local patches"
+  },
   "patched_sources": {
     "Cargo.toml": "8d8555ef5ac99580e36efecb1a315c9058e09e6ab0bf26fd402ab81f9dc787c9",
-    "distro/scripts/usb-signaller-developer-mode.sh": "e985ce1955caad9d6dc88b72e6e829f33beb58202341c69c6758cfcc9c378042",
-    "distro/scripts/usb-signaller-tethering-mode.sh": "4239d162c4c6928f4a7357044050bd6dbcc1eb2eeb6ba65ee737b8e1fe6e7272",
+    "distro/scripts/usb-signaller-developer-mode.sh": "022e663718a69bad5dd8b1783148581c3605fcd5b172e6f9d2eb9a79694e236c",
+    "distro/scripts/usb-signaller-tethering-mode.sh": "083c4ce53a4e563a27020a6c3fb965d5be44e17461a59326ca91d6be0972491e",
+    "usb-signaller.initd": "29d6b35480e8a11bae5807da8c3a1f3e2de2a00e8307b1abf87a7e8a19012e6a",
     "src/configuration.rs": "f357509d9ac3c4910251dd0c1420bf9a8608101401b56495ce1a5116b47c35af",
     "src/dbus.rs": "f6c37478356f5fa0d1e4260b919272693a261a7d0e99aaf80d2e695a48c7f0aa",
     "src/gadget.rs": "cfc497cec054a490c9e43ee6e2042b28f79a8034268e9f5bf7da16479fe7e6e5",
-    "src/udc.rs": "cd50e78de61ea9fa824fa377099c614d01a2d7d3ebb49f6cbdfaae907eba1a88"
+    "src/udc.rs": "cd50e78de61ea9fa824fa377099c614d01a2d7d3ebb49f6cbdfaae907eba1a88",
+    "src/urs.rs": "07d40ca36df3ec3aed6529c5fc2cfaea6d5f76d7d04f11aa48b7520073c245bb",
+    "src/service.rs": "804f9f0603a418ebc527535dbbc44886174dd0773cf96c21f46f18351fb7f8d0"
   },
   "runtime_candidate": {
     "arch": "aarch64",
@@ -90,14 +114,100 @@
       "candidate APK is built and installed through the package manager"
     ]
   },
-  "package_artifacts": {
+  "runtime_candidate_host_role_fix": {
+    "arch": "aarch64",
+    "libc": "musl",
+    "path": "/usr/bin/usb-signaller",
+    "sha256": "c4a9cc026ee4c5165cbe2012efff1dabc7ad7b11b2010693b92335a533734cc2",
+    "built_on": "RMX1931",
+    "command": "abuild -F -s /tmp/usb-sign-src -P /tmp/usb-sign-pkgs build; abuild -F -s /tmp/usb-sign-src -P /tmp/usb-sign-pkgs rootpkg",
+    "verified": [
+      "release build succeeds with the v0.4.3 lockfile",
+      "patches 0001-0007 apply cleanly to the pristine v0.4.3 archive",
+      "cargo test: 6 passed, 0 failed, 6 hardware/root-only tests ignored",
+      "signed APK verifies with apk verify",
+      "0.4.3-r8 main and openrc APKs install through apk",
+      "host_mode -> developer_mode through standard usb-moded D-Bus",
+      "mode services are stopped before the host switch",
+      "returning to device starts the developer-mode service",
+      "usb0 is managed by NetworkManager and carrier is 1",
+      "unudhcpd.usb0 is restarted and Windows receives 172.16.42.2/24",
+      "USB NCM SSH succeeds with the refreshed NCM Ethernet MAC"
+    ],
+    "unverified": [
+      "physical Type-C OTG adapter and VBUS source",
+      "automatic physical TCPM host role without a user host_mode request",
+      "single `rc-service usb-signaller restart` without a preceding mode-service stop",
+      "full cold-boot acceptance with the packaged board config"
+    ]
+  },
+  "runtime_candidate_restart_fix": {
+    "arch": "aarch64",
+    "libc": "musl",
+    "path": "/usr/bin/usb-signaller",
+    "sha256": "5dfd694cf325cac36ab490cf27e95013a1029b0877f17902fdd1b4ab99bcba18",
+    "release_binary_sha256": "bb61a8f45ead19c5cf613c8f8161e266da45b92c1d3336bbd4e4c9333aefe1ac",
+    "release_binary_size": 1983808,
+    "built_on": "RMX1931",
+    "command": "abuild -F -s /tmp/usb-sign-src -P /tmp/usb-sign-pkgs check; abuild -F -s /tmp/usb-sign-src -P /tmp/usb-sign-pkgs rootpkg",
+    "verified": [
+      "patches 0001-0008 apply cleanly to the pristine v0.4.3 archive",
+      "cargo test: 6 passed, 0 failed, 6 hardware/root-only tests ignored",
+      "signed r9 main, OpenRC and systemd APKs verify with apk verify",
+      "0.4.3-r9 main and OpenRC APKs upgrade through apk",
+      "single `rc-service usb-signaller restart` returns Developer without Charging fallback",
+      "restart remains UDC configured, carrier 1, NetworkManager connected and unudhcpd running for 65 seconds",
+      "five consecutive plain supervisor restarts pass with zero failures",
+      "standard usb-moded host_mode -> developer_mode regression passes",
+      "tethering, MTP and charging-only -> Developer mode-cycle passes",
+      "all four offline samurai-usb-recover regressions return 0",
+      "Windows VID_0525:PID_A4A1 composite and UsbNcm report Problem 0",
+      "USB NCM SSH succeeds after the r9 upgrade and restart soak",
+      "samurai-platform 6-r14 requires usb-signaller>=0.4.3-r9 and upgrades without running post-install against the live USB state"
+    ],
+    "unverified": [
+      "physical Type-C OTG adapter, VBUS source and attached peripheral enumeration",
+      "physical reverse-orientation OTG insertion",
+      "automatic physical TCPM host role without a user host_mode request",
+      "full external-power-removed cold boot with the packaged board config",
+      "same-cable USB2 L2/U3 host-resume"
+    ]
+  },
+  "package_artifacts_r8": {
     "usb-signaller": {
-      "version": "0.4.3-r4",
-      "sha256": "b6563532bd884cd14b34b2dd283a1f7e179f2fd82cb1c3e4f36ca01221867e30"
+      "version": "0.4.3-r8",
+      "sha256": "83d200de91fb2ed1905136d7602fe96581cb32c72ef2b6f73bd17efda586577f"
     },
     "usb-signaller-openrc": {
-      "version": "0.4.3-r4",
-      "sha256": "34b84c0c7ea97b5c9b3057a3db58bf2fb5dfd2195a084933a1d12c2ab7620cb2"
+      "version": "0.4.3-r8",
+      "sha256": "880e89d3a0dec72b4287caeeeb1dcd6f9f428c51985ce2d194b6dd857b24ea6c"
+    },
+    "usb-signaller-systemd": {
+      "version": "0.4.3-r8",
+      "sha256": "1ccab2c07679a0494f79b916ca3be8a7b3f638f822dd53120357f510ede1b662"
+    }
+  },
+  "package_artifacts": {
+    "usb-signaller": {
+      "version": "0.4.3-r9",
+      "sha256": "fe4c960a22a92ef875fb2f5d9df5cf2880319bd281ed15fbadc18f62525c0c12"
+    },
+    "usb-signaller-openrc": {
+      "version": "0.4.3-r9",
+      "sha256": "4c87cec580658701234e957a85d8badeaa1babca3dfd904d6376097e9ef1a66b"
+    },
+    "usb-signaller-systemd": {
+      "version": "0.4.3-r9",
+      "sha256": "03954a4c5be9203488cd7b57f9bcf83556942905db5f9a5e111ef1e8676d806f"
+    },
+    "samurai-platform": {
+      "version": "6-r14",
+      "sha256": "d3903ce6981c474dcc1bca8b394388c16c74e1e950cb6e005151ce09b7b522df",
+      "usb_signer_dependency": "usb-signaller>=0.4.3-r9"
+    },
+    "samurai-platform-pulse": {
+      "version": "6-r14",
+      "sha256": "335161fbabd6e2e4528e4762d58c3ac405b35830875b2b2fd2937445675e2d9b"
     }
   }
 }

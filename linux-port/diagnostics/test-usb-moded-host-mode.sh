@@ -93,6 +93,17 @@ restore_developer()
 	snapshot restored
 	[ "$udc" = configured ] || fail "UDC is $udc after restore"
 	[ "$carrier" = 1 ] || fail "usb0 carrier is $carrier after restore"
+
+	nm_state=$(nmcli -t -f DEVICE,STATE device status 2>/dev/null |
+		awk -F: '$1 == "usb0" { print $2; exit }')
+	log_event "NETWORK usb0=$nm_state"
+	[ "$nm_state" = connected ] ||
+		fail "NetworkManager usb0 state is ${nm_state:-missing} after restore"
+	if ! pgrep -f '[u]nudhcpd.*-i usb0' >/dev/null 2>&1; then
+		fail "unudhcpd for usb0 is not running after restore"
+	else
+		log_event "NETWORK unudhcpd_usb0=running"
+	fi
 }
 
 cleanup()

@@ -1,10 +1,35 @@
-# samurai-platform 6-r9
+# samurai-platform 6-r14
 
-6-r9 is the current OTG recovery candidate. It keeps the standard postmarketOS
+> 2026-11-13 final: `6-r14` raises the package dependency to
+> `usb-signaller>=0.4.3-r9`, matching the packaged supervisor restart
+> fix. The board files are unchanged from r13. Signed APKs:
+> `samurai-platform-6-r14.apk` SHA-256
+> `d3903ce6981c474dcc1bca8b394388c16c74e1e950cb6e005151ce09b7b522df`;
+> `samurai-platform-pulse-6-r14.apk` SHA-256
+> `335161fbabd6e2e4528e4762d58c3ac405b35830875b2b2fd2937445675e2d9b`.
+> The main APK was upgraded with `--scripts=no` so the live USB state
+> was not torn down; `apk info -R samurai-platform` reports the r9
+> dependency.
+
+> 2026-11-13 后续：`6-r13` source adds
+> `[main] default_mode = "developer_mode"` to the board
+> `/etc/usb-signaller.d/90-samurai.toml` drop-in. This makes a clean
+> `usb-signaller` start return to Developer NCM after Charging-only.
+> The file was deployed directly on the handset and verified with
+> Developer/UDC/carrier/NetworkManager/unudhcpd. The signed
+> `samurai-platform-6-r13.apk` was then built with the intentional
+> `/usr/local` ModemManager D-Bus override and installed with
+> `--scripts=no`; three host→device rounds and USB NCM SSH passed.
+> APK SHA-256 `b8f7b11a88d702ab7b3fb9cf512e1207aa9456688bebb0b691e37fbe32062598`.
+> `APKBUILD` uses `options="!check !fhs"` solely because that
+> pre-existing distribution override lives under `/usr/local`; this is
+> not a general allowance for new board-private files.
+
+6-r9 began the current OTG recovery candidate line. It keeps the standard postmarketOS
 USB ownership model and adds the bounded `samurai-usb-recover` path:
 
 ```text
-usb-signaller 0.4.3-r4
+usb-signaller 0.4.3-r9
 unudhcpd 0.5.0-r2
 postmarketos-usb-moded
 NetworkManager + unudhcpd.usb0 + umtprd
@@ -101,7 +126,7 @@ script kills only that stuck KCM, clears the Wi-Fi rfkill block,
 enables the NetworkManager radio and brings `wlan0` up without
 restarting NetworkManager, so USB NCM SSH remains available.
 
-Signed candidate:
+Earlier signed candidate:
 
 ```text
 E:/edk2-samurai-out/standard-arm64-v731/
@@ -129,7 +154,7 @@ and package-level verification.
 Board USB descriptors live in
 `/etc/usb-signaller.d/90-samurai.toml`, not in a private gadget builder.
 The override uses an upstreamable `[gadget]` layer in
-`usb-signaller>=0.4.3-r4`: `0525:a4a1`, composite class `ef/02/01`,
+`usb-signaller>=0.4.3-r9`: `0525:a4a1`, composite class `ef/02/01`,
 `MaxPower=500` and NCM `qmult=20`. MTP uses `0525:a4a2`.
 
 The legacy `/usr/sbin/samurai-usb` remains installed as an explicit

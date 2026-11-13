@@ -1,0 +1,35 @@
+From: Realme X2 Pro Linux port <hmhmdcy@users.noreply.github.com>
+Subject: [PATCH] service: retry mode service start during OpenRC transitions
+
+usb-signaller starts an OpenRC one-shot mode service after it enables the
+new configfs gadget. During a supervisor restart, the preceding mode service
+teardown and the new gadget start can overlap. rc-service may return a
+transient failure while the one-shot service is still completing, and
+usb-signaller then deletes the just-created gadget and falls back to
+Charging.
+
+Retry only the start operation a bounded number of times, leaving stop
+best-effort and unchanged. Once the one-shot service settles, the retry
+returns success and the gadget remains available.
+
+--- a/src/service.rs
++++ b/src/service.rs
+@@ -46,7 +46,17 @@
+ }
+ 
+ pub fn service_start(service: &str) -> anyhow::Result<()> {
+-    return service_run(service, "start");
++    let mut last_error = None;
++    for attempt in 0..8 {
++        match service_run(service, "start") {
++            Ok(()) => return Ok(()),
++            Err(error) => last_error = Some(error),
++        }
++        if attempt < 7 {
++            std::thread::sleep(std::time::Duration::from_secs(5));
++        }
++    }
++    return Err(last_error.unwrap());
+ }
+ 
+ pub fn service_stop(service: &str) -> anyhow::Result<()> {

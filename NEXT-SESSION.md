@@ -1,6 +1,39 @@
 # 当前：OTG device/synthetic/恢复已验证；物理 OTG 外设待验收
 
-## 立即恢复步骤
+## 2026-11-13 13:45 当前状态
+
+- 当前 boot `709bd3bc-9684-471b-ab49-8fdf04eebc0d` 同时在线：
+  Wi‑Fi SSH `192.168.0.114`、USB NCM `172.16.42.1`，`usb0` 由
+  NetworkManager connected，carrier 1，Windows UsbNcm/Composite
+  均为 Problem 0。
+- `usb-signaller 0.4.3-r9` main/openrc APK 已通过 `apk verify` 和
+  `apk add` 安装；`samurai-platform 6-r14` 也已安装，并把
+  `/etc/usb-signaller.d/90-samurai.toml` 的
+  `[main] default_mode = "developer_mode"` 纳入包管理，同时强制
+  `usb-signaller>=0.4.3-r9`。
+- 打包后连续三轮 `test-usb-moded-host-mode.sh` 为
+  `RESULT=PASS failures=0`：host role 注册 xHCI，返回 device 后
+  UDC `configured`、carrier 1、`usb0 connected`、`unudhcpd` 运行。
+  `test-usb-mode-cycle.sh` 的 Tethering/MTP/charging 三段也通过。
+- 8 MiB host→device NCM 传输 0.666 秒，两端 SHA-256 一致；
+  USB NCM SSH 与 Wi‑Fi SSH 同时可用。
+- `0008` 修复 OpenRC supervisor restart 竞态后，单次
+  `rc-service usb-signaller restart` 连续观察 65 秒保持
+  UDC `configured`、carrier 1、`usb0 connected`、`unudhcpd` 运行；
+  连续 5 轮 restart soak 为 `failures=0`。
+- `check-usb-otg-baseline.sh any` 通过；离线
+  carrier-no-reset/generation/generation-no-success/enum-stuck
+  回归全部通过。证据目录：
+  `E:\edk2-samurai-out\standard-arm64-v731\otg-20261113-hostmode-fix\`。
+- 物理 Type-C OTG adapter、VBUS source、U 盘/键盘枚举、反插和
+  同线 U3 host-resume 仍需现场硬件验收，不能把 synthetic host
+  写成物理 OTG 已工作。
+- 仍需现场验证物理 OTG；无人值守时不要接未知耗电外设或改变 VBUS
+  供电策略。
+- suspend 仍不在无人值守验收范围；没有现场电源键/串口兜底时不要
+  再次执行 `rtcwake -m mem`。
+
+## 历史：2026-11-12 不可达窗口
 
 - 设备在 2026-11-12 约 21:18 后进入不可达状态，疑似卡在
   `rtcwake -m mem -s 30` 的 suspend。需要用户在现场按电源键恢复；
