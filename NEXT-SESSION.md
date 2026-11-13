@@ -39,6 +39,10 @@
   `--require-typec-data-role --require-vbus-source` probe 明确
   返回 3 个失败。物理 OTG 必须由 adapter 的 CC 状态驱动 TCPM
   进入活动 source/host 并启用标准 VBUS regulator。
+- 直接写标准 URS `role=host` 模拟 TCPM 的同一路径时，
+  `usb-moded.mode_request` 自动变为 `host_mode` 并注册 xHCI；
+  写回 `device` 后自动恢复 Developer、NCM、DHCP，说明物理
+  role-switch 事件的软件恢复链已成立，仍缺真实 CC/VBUS 验证。
 - 仍需现场验证物理 OTG；无人值守时不要接未知耗电外设或改变 VBUS
   供电策略。
 - suspend 仍不在无人值守验收范围；没有现场电源键/串口兜底时不要
