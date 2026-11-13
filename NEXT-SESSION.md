@@ -1,8 +1,9 @@
 # 当前：OTG device/synthetic/恢复已验证；物理 OTG 外设待验收
 
-## 2026-11-13 13:45 当前状态
+## 2026-11-13 14:08 当前状态
 
-- 当前 boot `709bd3bc-9684-471b-ab49-8fdf04eebc0d` 同时在线：
+- 普通重启后的当前 boot
+  `ff5ba41e-7efe-4e71-a89e-752b808324dc` 同时在线：
   Wi‑Fi SSH `192.168.0.114`、USB NCM `172.16.42.1`，`usb0` 由
   NetworkManager connected，carrier 1，Windows UsbNcm/Composite
   均为 Problem 0。
@@ -21,6 +22,11 @@
   `rc-service usb-signaller restart` 连续观察 65 秒保持
   UDC `configured`、carrier 1、`usb0 connected`、`unudhcpd` 运行；
   连续 5 轮 restart soak 为 `failures=0`。
+- 已执行一次普通重启，未改写 boot/logdump：约 66 秒内 Wi‑Fi SSH
+  与 USB NCM SSH 均取得同一新 boot ID；r9/r14 包保持安装，
+  自动回到 `developer_mode`、UDC `configured`、carrier 1、
+  `usb0 connected`，Windows UsbNcm/Composite 仍为 Problem 0。
+  重启后标准 host_mode 回归再次 `RESULT=PASS failures=0`。
 - `check-usb-otg-baseline.sh any` 通过；离线
   carrier-no-reset/generation/generation-no-success/enum-stuck
   回归全部通过。证据目录：
