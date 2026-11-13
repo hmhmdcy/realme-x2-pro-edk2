@@ -1,6 +1,6 @@
 # 当前：OTG device/synthetic/恢复已验证；物理 OTG 外设待验收
 
-## 2026-11-13 14:08 当前状态
+## 2026-11-13 14:44 当前状态
 
 - 连续普通重启后的当前 boot
   `ea8d672d-9e2e-4f44-8f23-e5739652a904` 同时在线：
@@ -16,7 +16,8 @@
   `RESULT=PASS failures=0`：host role 注册 xHCI，返回 device 后
   UDC `configured`、carrier 1、`usb0 connected`、`unudhcpd` 运行。
   `test-usb-mode-cycle.sh` 的 Tethering/MTP/charging 三段也通过。
-- 8 MiB host→device NCM 传输 0.666 秒，两端 SHA-256 一致；
+- 重启后当前 boot 的 8 MiB device→Windows NCM 传输 0.599 秒，
+  两端 SHA-256 `dc6fe845...d8da5a15` 一致；
   USB NCM SSH 与 Wi‑Fi SSH 同时可用。
 - `0008` 修复 OpenRC supervisor restart 竞态后，单次
   `rc-service usb-signaller restart` 连续观察 65 秒保持
