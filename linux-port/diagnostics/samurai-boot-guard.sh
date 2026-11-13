@@ -30,6 +30,11 @@ log_event()
 	printf '%s %s\n' "$(date -Is)" "$*" >>"$log_file"
 }
 
+monotonic_seconds()
+{
+	awk '{ print int($1) }' /proc/uptime
+}
+
 die()
 {
 	log_event "ERROR $*"
@@ -231,14 +236,14 @@ monitor()
 	verify_pair "$armed_boot_sha256" "$armed_logdump_sha256"
 	log_event "MONITOR start wait=${armed_wait_seconds}s"
 
-	start=$(date +%s)
+	start=$(monotonic_seconds)
 	while :; do
 		if [ -e "$confirm_file" ]; then
 			disarm
 			log_event "MONITOR confirmed; rollback disarmed"
 			return 0
 		fi
-		now=$(date +%s)
+		now=$(monotonic_seconds)
 		[ $((now - start)) -lt "$armed_wait_seconds" ] || break
 		sleep "$interval"
 	done

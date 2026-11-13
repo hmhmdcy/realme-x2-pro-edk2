@@ -1,4 +1,28 @@
-# samurai-platform 6-r14
+# samurai-platform 6-r15 (source candidate; live rootfs 6-r14)
+
+> 2026-11-13 22:40 source candidate: `6-r17` updates the read-only
+> `samurai-otg-capture` helper to recognize the board's MP2650
+> `mp2650-vbus` regulator as well as the older PM8150B `usb_vbus`
+> name.  This is source-only; the signed APK has not been rebuilt.
+> The current live rootfs still has the directly installed helper,
+> and the standard URS/VBUS behavior itself is unchanged.
+
+> 2026-11-13 candidate: `6-r15` adds the read-only
+> `/usr/sbin/samurai-otg-capture` udev helper and
+> `/usr/lib/udev/rules.d/90-samurai-otg-capture.rules`. It records
+> USB role transitions, Type-C/PM8150B VBUS state, xHCI/lsusb/lsblk,
+> usb-moded state and the read-only OTG probes into
+> `/var/log/samurai/otg-events.log`; it does not mount, change roles,
+> restart services or poll. The signed APKs verify:
+> `samurai-platform-6-r15.apk` SHA-256
+> `4f10f6e794ba54ce35bf05b688ad774b5ab26a4dfea4e7d71db1df54656f5205`;
+> `samurai-platform-pulse-6-r15.apk` SHA-256
+> `0a202e2ff692d519b5c93c10c6c3fd873b70e31507332b58ae7f04aa6429ead2`.
+> The live rootfs remains on `6-r14`: apk 3.0.8 could not solve the
+> upgrade against the existing `cmd:` provider versions and an
+> unrelated openssh version constraint. The helper and rule are
+> currently installed directly for physical-test capture; remove the
+> `/etc/udev/rules.d` copy before a future package-managed r15 upgrade.
 
 > 2026-11-13 final: `6-r14` raises the package dependency to
 > `usb-signaller>=0.4.3-r9`, matching the packaged supervisor restart

@@ -54,12 +54,25 @@ find_vbus_regulator()
 {
 	for regulator in "$root"/sys/class/regulator/regulator.*; do
 		[ -e "$regulator" ] || continue
-		[ "$(value "/sys/class/regulator/${regulator##*/}/name")" = usb_vbus ] ||
-			continue
-		printf '%s\n' "${regulator##*/}"
-		return 0
+		case $(value "/sys/class/regulator/${regulator##*/}/name") in
+		usb_vbus|mp2650-vbus)
+			printf '%s\n' "${regulator##*/}"
+			return 0
+			;;
+		esac
 	done
 	return 1
+}
+
+read_pmic_reg()
+{
+	register=$1
+	registers="$root/sys/kernel/debug/regmap/0-02/registers"
+	[ -r "$registers" ] || return 1
+	awk -v reg="$register" '
+		$1 == reg ":" { print $2; found = 1; exit }
+		END { if (!found) exit 1 }
+	' "$registers"
 }
 
 role_count=0
@@ -83,11 +96,13 @@ vbus_regulator=
 if find_vbus_regulator >/dev/null; then
 	vbus_regulator=$(find_vbus_regulator)
 	vbus_state=$(value "/sys/class/regulator/$vbus_regulator/state")
-	echo "regulator.$vbus_regulator.name=usb_vbus"
+	vbus_name=$(value "/sys/class/regulator/$vbus_regulator/name")
+	echo "regulator.$vbus_regulator.name=$vbus_name"
 	echo "regulator.$vbus_regulator.state=$vbus_state"
 else
 	vbus_state=missing
-	echo "regulator.usb_vbus=missing"
+	vbus_name=missing
+	echo "regulator.vbus=missing"
 fi
 if [ "$require_typec_data_role" -eq 1 ]; then
 	case $typec_data_role in
@@ -101,9 +116,48 @@ if [ "$require_vbus_source" -eq 1 ]; then
 	*) fail "Type-C port is not actively sourcing VBUS" ;;
 	esac
 	case $vbus_state in
-	enabled*) echo "regulator.usb_vbus_enabled=1" ;;
+	enabled*) echo "regulator.$vbus_name.enabled=1" ;;
 	*) fail "USB VBUS regulator is not enabled while Type-C is a source" ;;
 	esac
+
+	if read_pmic_reg 1140 >/dev/null 2>&1; then
+		cmd_otg=$(read_pmic_reg 1140)
+		otg_cfg=$(read_pmic_reg 1153)
+		otg_cl=$(read_pmic_reg 1152)
+		echo "pmic.8150b.cmd_otg_1140=$cmd_otg"
+		echo "pmic.8150b.otg_cfg_1153=$otg_cfg"
+		echo "pmic.8150b.otg_current_limit_1152=$otg_cl"
+		case $cmd_otg in
+		[0-9a-fA-F][0-9a-fA-F]) ;;
+		*)
+			fail "PM8150B CMD_OTG register is not readable"
+			cmd_otg=
+			;;
+		esac
+		case $otg_cfg in
+		[0-9a-fA-F][0-9a-fA-F]) ;;
+		*)
+			fail "PM8150B OTG_CFG register is not readable"
+			otg_cfg=
+			;;
+		esac
+		if [ "$vbus_name" = mp2650-vbus ]; then
+			if [ -n "$cmd_otg" ] && [ $((0x$cmd_otg & 1)) -ne 0 ]; then
+				fail "PM8150B OTG_EN must stay clear when MP2650 owns VBUS"
+			fi
+			echo "pmic.8150b.otg_en=clear"
+		else
+			if [ -n "$cmd_otg" ] && [ $((0x$cmd_otg & 1)) -ne 1 ]; then
+				fail "PM8150B OTG_EN bit is not set while TCPM is a source"
+			fi
+			if [ -n "$otg_cfg" ] && [ $((0x$otg_cfg & 2)) -ne 0 ]; then
+				fail "PM8150B OTG_EN_SRC_CFG must stay clear so software owns OTG enable"
+			fi
+		fi
+	else
+		[ "$vbus_name" = mp2650-vbus ] ||
+			fail "PM8150B SPMI regmap is unavailable; cannot verify hardware OTG enable"
+	fi
 fi
 
 if [ ! -e "$root/sys/bus/platform/drivers/xhci-hcd" ]; then
@@ -143,8 +197,10 @@ if [ "$external_devices" -eq 0 ] && [ "$allow_no_device" -ne 1 ]; then
 fi
 
 command -v lsusb >/dev/null 2>&1 && lsusb || true
-command -v lsblk >/dev/null 2>&1 &&
-	lsblk -o NAME,TRAN,RM,SIZE,MODEL,MOUNTPOINTS || true
+if command -v lsblk >/dev/null 2>&1; then
+	lsblk -o NAME,TRAN,RM,SIZE,MODEL,MOUNTPOINTS |
+		awk 'NR == 1 || $2 == "usb"'
+fi
 
 if [ "$require_storage" -eq 1 ]; then
 	if command -v lsblk >/dev/null 2>&1 &&

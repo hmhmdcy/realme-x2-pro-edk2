@@ -93,7 +93,9 @@ fi
 
 usb_dt=/soc@0/usb@a600000
 typec_dt=/soc@0/spmi@c440000/pmic@2/typec@1500
-vbus_dt=/soc@0/spmi@c440000/pmic@2/usb-vbus-regulator@1100
+pm_vbus_dt=/soc@0/spmi@c440000/pmic@2/usb-vbus-regulator@1100
+mp2650_dt=/soc@0/geniqup@8c0000/i2c@884000/charger@5c
+mp2650_vbus_dt=$mp2650_dt/usb-otg-vbus
 
 dr_mode=$(dt_value "$usb_dt" dr_mode)
 default_mode=$(dt_value "$usb_dt" role-switch-default-mode)
@@ -111,15 +113,30 @@ echo "dt.typec.status=$(dt_value "$typec_dt" status)"
 echo "dt.connector.power_role=$(dt_value "$typec_dt/connector" power-role)"
 echo "dt.connector.try_power_role=$(dt_value "$typec_dt/connector" try-power-role)"
 echo "dt.connector.data_role=$(dt_value "$typec_dt/connector" data-role)"
-echo "dt.usb_vbus.status=$(dt_value "$vbus_dt" status)"
+echo "dt.pm8150b_vbus.status=$(dt_value "$pm_vbus_dt" status)"
+if [ -e "/proc/device-tree$mp2650_dt/otg-gpios" ] &&
+	[ -d "/proc/device-tree$mp2650_vbus_dt" ]; then
+	mp2650_vbus_present=1
+	echo "dt.mp2650.otg_gpios=present"
+	echo "dt.mp2650.usb_otg_vbus=$(dt_value "$mp2650_vbus_dt" regulator-name)"
+else
+	mp2650_vbus_present=0
+	echo "dt.mp2650.usb_otg_vbus=absent"
+fi
 [ "$(dt_value "$typec_dt/connector" power-role)" = dual ] ||
 	fail "DT connector power-role is not dual"
 [ "$(dt_value "$typec_dt/connector" data-role)" = dual ] ||
 	fail "DT connector data-role is not dual"
 [ "$(dt_value "$typec_dt/connector" try-power-role)" = sink ] ||
 	fail "DT connector try-power-role is not sink"
-[ "$(dt_value "$vbus_dt" status)" = okay ] ||
-	fail "DT PM8150B USB VBUS regulator is not enabled"
+vbus_owner=missing
+if [ "$mp2650_vbus_present" -eq 1 ]; then
+	vbus_owner=mp2650
+elif [ "$(dt_value "$pm_vbus_dt" status)" = okay ]; then
+	vbus_owner=pm8150b
+else
+	fail "no enabled DT VBUS source (expected MP2650 usb-otg-vbus or PM8150B usb-vbus-regulator)"
+fi
 
 urss=0
 for role in /sys/class/usb_role/*; do
@@ -164,6 +181,7 @@ done
 
 typec_role_sw_supplier=0
 typec_vbus_supplier=0
+typec_vbus_supplier_mp2650=0
 for link in /sys/class/typec/port0/supplier:*; do
 	[ -e "$link" ] || continue
 	target=$(readlink -f "$link" 2>/dev/null || echo missing)
@@ -171,13 +189,36 @@ for link in /sys/class/typec/port0/supplier:*; do
 	case "$target" in
 	*a600000.usb*) typec_role_sw_supplier=1 ;;
 	*usb-vbus-regulator*) typec_vbus_supplier=1 ;;
+	*0-005c*|*mp2650*) typec_vbus_supplier_mp2650=1 ;;
 	esac
 done
 if [ "$typec_role_sw_supplier" -ne 1 ]; then
 	fail "TCPM has no device link to the DWC3 usb-role-switch"
 fi
-if [ "$typec_vbus_supplier" -ne 1 ]; then
+if [ "$vbus_owner" = mp2650 ] && [ "$typec_vbus_supplier_mp2650" -ne 1 ]; then
+	fail "TCPM has no device link to the MP2650 usb-otg-vbus regulator"
+fi
+if [ "$vbus_owner" = pm8150b ] && [ "$typec_vbus_supplier" -ne 1 ]; then
 	fail "TCPM has no device link to the PM8150B usb_vbus regulator"
+fi
+
+regulator_owner_state=missing
+for regulator in /sys/class/regulator/*; do
+	[ -r "$regulator/name" ] || continue
+	regulator_name=$(cat "$regulator/name")
+	case "$regulator_name" in
+	mp2650-vbus|usb_vbus)
+		echo "regulator.$(basename "$regulator").name=$regulator_name"
+		echo "regulator.$(basename "$regulator").state=$(value "$regulator/state")"
+		echo "regulator.$(basename "$regulator").num_users=$(value "$regulator/num_users")"
+		if [ "$vbus_owner" = mp2650 ] && [ "$regulator_name" = mp2650-vbus ]; then
+			regulator_owner_state=$(value "$regulator/state")
+		fi
+		;;
+	esac
+done
+if [ "$vbus_owner" = mp2650 ] && [ "$regulator_owner_state" = missing ]; then
+	fail "MP2650 usb-otg-vbus regulator is not registered"
 fi
 
 case "$expected_role" in

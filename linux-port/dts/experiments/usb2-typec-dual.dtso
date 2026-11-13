@@ -19,12 +19,6 @@
 
 #include <dt-bindings/usb/pd.h>
 
-&pm8150b_vbus {
-	regulator-min-microamp = <500000>;
-	regulator-max-microamp = <500000>;
-	status = "okay";
-};
-
 &pm8150b_typec {
 	status = "okay";
 	vdd-pdphy-supply = <&vreg_l2a_3p1>;
@@ -39,7 +33,7 @@
 		data-role = "dual";
 		self-powered;
 
-		vbus-supply = <&pm8150b_vbus>;
+		vbus-supply = <&mp2650_vbus>;
 		source-pdos = <PDO_FIXED(5000, 500,
 					 PDO_FIXED_DUAL_ROLE |
 					 PDO_FIXED_USB_COMM |

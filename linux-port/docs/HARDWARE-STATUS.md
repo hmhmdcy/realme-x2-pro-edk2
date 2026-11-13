@@ -50,10 +50,34 @@ UDC `configured`、`usb0` carrier 1。USB NCM SSH 和 Wi-Fi SSH
 可同时使用，8 MiB scp 经 USB NCM 传输后 SHA-256 完全一致。
 “Wi-Fi 关闭再打开打不开”已复现为 Plasma Mobile Wi-Fi KCM
 `plasma-settings -m kcm_mobile_wifi` 卡在 radio-control on/off
-反馈循环，不是 ath10k 固件故障；终止该 KCM并
-`rfkill unblock wifi` + `nmcli radio wifi on` + `ip link set wlan0 up`
-即可恢复，`nmcli radio wifi off/on` 本身也已验证正常。OTG host
-仍需物理 OTG adapter + U 盘/键盘验收。
+反馈循环，不是 ath10k 固件故障。根因是 `plasma-nm` 的
+`kcm_wifi_mobile` 用 `onCheckedChanged` 同时处理用户操作和程序化状态
+更新，并在 handler 内重绑 `checked`；已构建并安装改为
+`onToggled: handler.enableWireless(checked)` 的 6.8.2 测试插件，
+信号级复现和插件加载通过，详见
+[`WIFI-KCM-20261113`](WIFI-KCM-20261113.md)。`nmcli radio wifi off/on`
+本身也已验证正常；`/usr/sbin/samurai-wifi-recover` 仅保留为应急后端。
+OTG host 仍需物理 OTG adapter + U 盘/键盘验收。
+
+同日 OTG 回归发现并修复 host→device 生命周期缺口：标准
+`usb-moded` 从 `host_mode` 返回 `developer_mode` 后，旧的
+developer-mode one-shot service 仍标记为 started，导致新 `usb0`
+unmanaged、`unudhcpd` 绑定旧 socket。`usb-signaller 0.4.3-r9`
+（已通过 APK verify 和真机安装）现在在 device→host 切换删除
+gadget 前停止 Developer/Tethering/MTP services，并在 mode
+teardown 时容忍已经被摘除的 `usb0`/NetworkManager 连接；返回
+device 时脚本重新设置 NetworkManager、NCM 和 DHCP。板级
+`/etc/usb-signaller.d/90-samurai.toml` 同时增加
+`[main] default_mode = "developer_mode"`，保证 Charging-only 后
+干净 start 仍能进入 Developer。三轮打包后标准 host→device
+均为 `RESULT=PASS failures=0`，`usb0 carrier=1`，Windows 重新取得
+`172.16.42.2/24` 且 USB NCM SSH 恢复；另一次 synthetic
+`usb_role` host→device 也自动恢复 Windows。`0008` 修复 OpenRC
+supervisor restart 竞态后，单次 `rc-service usb-signaller restart`
+连续 65 秒保持 UDC `configured`、carrier 1、NetworkManager
+connected 和 `unudhcpd` 运行，随后 5 轮 restart soak 为
+`failures=0`；详见
+[`USB-OTG-20261112`](USB-OTG-20261112.md)。物理 OTG 仍未验收。
 
 目标更新（2026-11-12，postmarketOS USB）：普通 USB 运行时已迁移到
 标准 `usb-signaller 0.4.3-r4` + `postmarketos-usb-moded` +
@@ -113,6 +137,26 @@ synthetic host 只把 `usb_role` 写成 host，Type-C 仍是 data
 source。物理 USB-C OTG adapter、U 盘/HID、自动 TCPM host 选择、
 反插和 VBUS source 仍未验收。详见
 [`USB-OTG-20261112`](USB-OTG-20261112.md)。
+
+目标更新（2026-11-13，物理 OTG 鼠标）：板级 VBUS owner 已由
+PM8150B `usb-vbus-regulator@1100` 改为 MP2650 `usb-otg-vbus`
+（PM8150 GPIO4 `otg-gpios`），与 stock `qcom,mps_otg_en-gpio`
+一致。使用 kernel `#7` 与 DTB `9ca1d2f9...` 后，首次物理 OTG
+鼠标测试注册了 xHCI，并枚举 `Newmen Optical Gaming Mouse`
+（`12c9:1028`，input5/input6，hid-generic）；`mp2650-vbus` 为
+enabled、GPIO4 为 high、PM8150B `0x1140=0x00`。鼠标在 32.17 s
+被拔出后，xHCI 退出且 `usb-signaller` 回 Developer，说明“仅拔
+下游鼠标、adapter 仍插着”时 host-mode 持久性仍未闭环；adapter/
+mouse 重复插拔、U 盘/键盘、反插、长期 host soak 和 suspend 回归
+仍未验收。boot guard 的 wall-clock 超时已改为 `/proc/uptime`
+单调计时，避免 1970→2026 跳变导致提前回滚。详见
+[`USB-OTG-20261112`](USB-OTG-20261112.md)。
+后续用标准 URS `role=host` 重新进入 host，xHCI 与同一
+`12c9:1028` receiver 再次枚举，`usb-signaller` 报
+`mode_request=host_mode`；`evtest` 可看到 `BTN_*`/`REL_*`，但鼠标
+未移动时没有事件。若该 Newmen 是无线 receiver，鼠标自身电池/开关
+与手机 VBUS 是独立依赖；USB receiver 已供电并枚举，不能仅以 LED
+判断供电不足。
 
 目标更新（2026-11-13，USB 枚举恢复）：当前 OTG boot
 `755f152f...` 在 Wi‑Fi SSH 可达的情况下，主机只把 UDC 留在
@@ -364,6 +408,24 @@ vendor 根属性和 `samurai_diag` trace 依赖。它们不能以“能跑”为
 | Wi-Fi | 200新boot自动connected，早期管理端点超时保留；2.4/5GHz通信已有回归；189三轮传感器PM的第1/3轮观察约5.33/0.53秒关联5180，最终5180，未手工重绑驱动；2026-11-08 当前 boot 5GHz/VHT 866.7 Mbit/s 连续关联约79分钟，beacon loss 0，power save off；2026-11-09 r21 boot 完成 1810 个 SSH 样本/1820.51 秒、最大间隔 1.01 秒，DMS 地址 `PRIVATE_WIFI_MAC` 在多次启动一致；原厂 decompiled DTB 的 WiFi 节点与蓝牙共用四个 PMIC regulator，当前 DTB 已绑定；ath10k 只把原厂未使用的 `vdd-3.3-ch1` 退回 dummy | 第2轮35秒窗内仍未关联，之后又执行第3轮PM，不能称第2轮自行恢复；185立即醒后2秒检查失败仍保留。冷启动、完整休眠通信恢复及长期稳定性仍开放；不能把 dummy ch1 直接当成断连根因 |
 | 普通USB与OTG | USB 2.0 Type-C；2026-11-09 r21 boot 在主板直连口完成双向 `64K/256K/1M/4M` 各三轮 24/24、1798.828 秒 NCM 心跳；UDC `configured`、`usb0` carrier 1、`qmult=20`；严格 host-key Wi‑Fi/NCM SSH 和最终 runtime/Plasma 门禁通过。2026-11-12 标准 Type-C sink DTB/Image 已部署；普通 USB 已迁移到 `usb-signaller 0.4.3-r4` + `postmarketos-usb-moded` + NetworkManager/`unudhcpd 0.5.0-r2`/umtprd。`samurai-platform` 6-r3 的有界 DWC3 重绑、UDC `soft_connect` 和 MODE_REATTACH 已在 `ip link down`、host→device 注入后自动恢复；6-r5 已安装，6-r6 恢复脚本进一步按 configfs gadget generation 处理短 host 切换并避免恢复自身无限重置预算，连续三轮标准 host/device 测试通过，Windows 重新取得 DHCP `172.16.42.2/24`。OTG Image/DTB 已部署，device-mode、Tethering/MTP/charging、synthetic 与标准 usb-moded host/device 切换、8 MiB NCM 往返通过 | 旧 Genesys 扩展 Hub 端口仍会停在 `VID_0000&PID_0001`/Code 43；物理 USB-C OTG adapter、U 盘/键盘、自动 TCPM host、反插和 VBUS source 尚未验收；Windows 网卡复位权限、USB 归档尾部中断、IPv6、EUD 接收/退出、Linux 主机、更长时间空闲和多次冷启动待验收。DWC3 suspend 仍会 soft-disconnect；2026-11-12 晚一次 30 秒 RTC suspend 后设备在 Wi‑Fi/NCM 两条路径均不可达，当前 suspend 状态未解决。物理 Type-C 插拔唤醒、反插和同线 host-resume 尚未验收 |
 | 触摸 | 用户确认可解锁、操作应用，原生驱动工作 | 边缘/方向/多触点与休眠后恢复、长稳 |
+
+2026-11-13 当前普通 USB 运行状态覆盖上表中的旧版本号：
+`usb-signaller`/`usb-signaller-openrc` 已安装 `0.4.3-r9`（APK
+verify、三轮 packaged host→device、plain restart 65 秒和 5 轮
+restart soak、USB NCM SSH 通过），
+`samurai-platform` 已安装 `6-r14`，板级
+`/etc/usb-signaller.d/90-samurai.toml` 已部署
+`[main] default_mode = "developer_mode"`；6-r14 APK
+SHA-256 为 `d3903ce6981c474dcc1bca8b394388c16c74e1e950cb6e005151ce09b7b522df`，
+依赖 `usb-signaller>=0.4.3-r9`。
+连续普通重启后的 boot
+`ea8d672d-9e2e-4f44-8f23-e5739652a904` 在 62.298/63.813 秒恢复
+Wi‑Fi/USB NCM 新 boot SSH；两端报告同一 boot ID，自动进入
+Developer，Windows UsbNcm/Composite 保持 Problem 0，重启后的
+standard host_mode 回归也通过。boot/logdump 未改写；外部断电
+冷启动仍未验收。
+该包保留既有的 `/usr/local` ModemManager D-Bus service override，
+安装时使用 `apk --scripts=no`，避免在无人值守窗口重启已有服务。
 
 已有基础还包括UFS访问、CPU调频表、PMIC温度与按键/EUD。CPU高频压力、UFS持续负载、整机功耗、冷启动及系统休眠唤醒仍需跨功能验收；不能以驱动注册或短窗口健康代替日用完成。
 

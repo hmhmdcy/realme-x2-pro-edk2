@@ -71,6 +71,9 @@ printf 'orientation='; value /sys/class/typec/port0/orientation
 printf 'vconn_source='; value /sys/class/typec/port0/vconn_source
 printf 'partner_type='; value /sys/class/typec/port0-partner/type
 printf 'partner_pd_revision='; value /sys/class/typec/port0-partner/usb_power_delivery_revision
+printf 'connector_vbus_supply='; value /proc/device-tree/soc@0/spmi@c440000/pmic@2/typec@1500/connector/vbus-supply
+printf 'mp2650_otg_gpios='; value /proc/device-tree/soc@0/geniqup@8c0000/i2c@884000/charger@5c/otg-gpios
+printf 'mp2650_usb_otg_vbus='; value /proc/device-tree/soc@0/geniqup@8c0000/i2c@884000/charger@5c/usb-otg-vbus/regulator-name
 printf 'platform_wakeup='; value /sys/bus/platform/devices/c440000.spmi:pmic@2:typec@1500/power/wakeup
 printf 'platform_wakeup_count='; value /sys/bus/platform/devices/c440000.spmi:pmic@2:typec@1500/power/wakeup_count
 

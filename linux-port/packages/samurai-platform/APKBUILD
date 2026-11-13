@@ -1,7 +1,7 @@
 maintainer="hmhmdcy <hmhmdcy@users.noreply.github.com>"
 pkgname=samurai-platform
 pkgver=6
-pkgrel=14
+pkgrel=17
 pkgdesc="Realme X2 Pro platform"
 url="https://github.com/hmhmdcy/pmaports"
 arch="noarch"
@@ -12,7 +12,7 @@ options="!check !fhs"
 depends="python3 openrc eudev iproute2 util-linux libqmi qmi-utils networkmanager bluez wpa_supplicant openssh-server-pam alsa-ucm-conf alsa-utils sleep-inhibitor dnsmasq neard-openrc postmarketos-usb-moded usb-signaller>=0.4.3-r9 unudhcpd>=0.5.0-r2"
 subpackages="$pkgname-pulse"
 install="$pkgname.post-install"
-source="usr_libexec_samurai-audio-route etc_pulse_daemon.conf.d_90-samurai.conf usr_sbin_samurai-bluetooth usr_sbin_samurai-modem-configs usr_sbin_samurai-modem-remoteproc usr_sbin_samurai-radio-address usr_sbin_samurai-udhcpc-wlan usr_sbin_samurai-wifi usr_sbin_samurai-wifi-recover usr_sbin_samurai-usb usr_sbin_samurai-usb-recover etc_init.d_samurai-loopback etc_init.d_samurai-radio etc_init.d_samurai-usb etc_init.d_samurai-usb-recover etc_NetworkManager_conf.d_20-samurai-wlan.conf etc_usb-signaller.d_90-samurai.toml etc_unudhcpd.conf etc_conf.d_unudhcpd usr_local_share_dbus-1_system-services_org.freedesktop.ModemManager1.service 99-realme-rmx1931-sensors.rules 99-realme-rmx1931-haptics.rules usr_share_alsa_ucm2_conf.d_Realme_X2_Pro_HiFi.conf usr_share_alsa_ucm2_conf.d_Realme_X2_Pro_Realme_X2_Pro.conf etc_samurai_usb-dhcp.conf"
+source="usr_libexec_samurai-audio-route etc_pulse_daemon.conf.d_90-samurai.conf usr_sbin_samurai-bluetooth usr_sbin_samurai-modem-configs usr_sbin_samurai-modem-remoteproc usr_sbin_samurai-radio-address usr_sbin_samurai-udhcpc-wlan usr_sbin_samurai-wifi usr_sbin_samurai-wifi-recover usr_sbin_samurai-usb usr_sbin_samurai-usb-recover usr_sbin_samurai-otg-capture etc_init.d_samurai-loopback etc_init.d_samurai-radio etc_init.d_samurai-usb etc_init.d_samurai-usb-recover etc_NetworkManager_conf.d_20-samurai-wlan.conf etc_usb-signaller.d_90-samurai.toml etc_unudhcpd.conf etc_conf.d_unudhcpd usr_local_share_dbus-1_system-services_org.freedesktop.ModemManager1.service 99-realme-rmx1931-sensors.rules 99-realme-rmx1931-haptics.rules etc_udev_rules.d_90-samurai-otg-capture.rules usr_share_alsa_ucm2_conf.d_Realme_X2_Pro_HiFi.conf usr_share_alsa_ucm2_conf.d_Realme_X2_Pro_Realme_X2_Pro.conf etc_samurai_usb-dhcp.conf"
 package() {
  install -Dm755 "$srcdir"/usr_libexec_samurai-audio-route "$pkgdir"/usr/libexec/samurai-audio-route
  install -Dm755 "$srcdir"/usr_sbin_samurai-bluetooth "$pkgdir"/usr/sbin/samurai-bluetooth
@@ -24,6 +24,7 @@ package() {
  install -Dm755 "$srcdir"/usr_sbin_samurai-wifi-recover "$pkgdir"/usr/sbin/samurai-wifi-recover
  install -Dm755 "$srcdir"/usr_sbin_samurai-usb "$pkgdir"/usr/sbin/samurai-usb
  install -Dm755 "$srcdir"/usr_sbin_samurai-usb-recover "$pkgdir"/usr/sbin/samurai-usb-recover
+ install -Dm755 "$srcdir"/usr_sbin_samurai-otg-capture "$pkgdir"/usr/sbin/samurai-otg-capture
  install -Dm755 "$srcdir"/etc_init.d_samurai-loopback "$pkgdir"/etc/init.d/samurai-loopback
  install -Dm755 "$srcdir"/etc_init.d_samurai-radio "$pkgdir"/etc/init.d/samurai-radio
  install -Dm755 "$srcdir"/etc_init.d_samurai-usb "$pkgdir"/etc/init.d/samurai-usb
@@ -37,6 +38,7 @@ package() {
   "$pkgdir"/usr/local/share/dbus-1/system-services/org.freedesktop.ModemManager1.service
  install -Dm644 "$srcdir"/99-realme-rmx1931-sensors.rules "$pkgdir"/usr/lib/udev/rules.d/99-realme-rmx1931-sensors.rules
  install -Dm644 "$srcdir"/99-realme-rmx1931-haptics.rules "$pkgdir"/usr/lib/udev/rules.d/99-realme-rmx1931-haptics.rules
+ install -Dm644 "$srcdir"/etc_udev_rules.d_90-samurai-otg-capture.rules "$pkgdir"/usr/lib/udev/rules.d/90-samurai-otg-capture.rules
  install -Dm644 "$srcdir"/usr_share_alsa_ucm2_conf.d_Realme_X2_Pro_HiFi.conf "$pkgdir"/usr/share/alsa/ucm2/conf.d/Realme_X2_Pro/HiFi.conf
  install -Dm644 "$srcdir"/usr_share_alsa_ucm2_conf.d_Realme_X2_Pro_Realme_X2_Pro.conf "$pkgdir"/usr/share/alsa/ucm2/conf.d/Realme_X2_Pro/Realme_X2_Pro.conf
 }
@@ -74,4 +76,6 @@ da40068fc0c3f84e983c4c92e490295a7a46530ff160d8b27c8f99a2cb15144c4efa1fd08329bedb
 410defad388c39ba1b716d2152c3713f4db4437e5f778472e665536f6025861801fb9df626fab1b45f1b0ea546c12cc5c873ff63487736ba20a71bab59c85916  usr_share_alsa_ucm2_conf.d_Realme_X2_Pro_HiFi.conf
 efdfbc28b7df599202613648a782cd8b485c3f91f50f73dd092e500bce298c2a08dcf7dd5b72d823cf9a1761a40fc2af43165618dd4c6418abadf05296cfefa8  usr_share_alsa_ucm2_conf.d_Realme_X2_Pro_Realme_X2_Pro.conf
 871a014767d72702c7e48f34ed2deaf54c7a47193ff612e95ad47263f9ae27a1a3ad7b16ae4c622598e8ece18865ed45f31f6b8e3dc141091544845f4fd08421  etc_samurai_usb-dhcp.conf
+930426b55a001bd6e2124fa7909e98d605951f0e82de565fd23892e583d763ef2399118e81b8ab9d3530b43cb4f46f76874aef73a282f436ef007a05105a6e81  usr_sbin_samurai-otg-capture
+c506888e5bfab3026ac03a20320ce0f352a71f0889db7731c23b8ad8f81e601865e3e546d8bb57a949debf79898e61e85d69345e7f5163dba1e2844b2fa25e49  etc_udev_rules.d_90-samurai-otg-capture.rules
 "

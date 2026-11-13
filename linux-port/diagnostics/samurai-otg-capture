@@ -1,0 +1,139 @@
+#!/bin/sh
+# Read-only evidence capture for a USB role transition.
+#
+# This is installed as a udev RUN helper.  It never mounts disks, changes
+# roles, writes configfs or restarts a service.  The parent invocation
+# returns immediately; the detached child serializes itself with a lock,
+# waits briefly for xHCI enumeration and appends one snapshot to the log.
+
+set -u
+
+LOG=${SAMURAI_OTG_CAPTURE_LOG:-/var/log/samurai/otg-events.log}
+LOCK=${SAMURAI_OTG_CAPTURE_LOCK:-/run/samurai-otg-capture.lock}
+ROLE_PATH=/sys/class/usb_role/a600000.usb-role-switch/role
+TYPEC=/sys/class/typec/port0
+TYPEC_PARTNER=/sys/class/typec/port0-partner
+REGMAP=/sys/kernel/debug/regmap/0-02/registers
+PROBE=/root/samurai-tests/test-usb-otg-host.sh
+BASELINE=/root/samurai-tests/check-usb-otg-baseline.sh
+
+mkdir -p "${LOG%/*}"
+
+if [ "${SAMURAI_OTG_CAPTURE_DAEMON:-0}" != 1 ]; then
+	if command -v nohup >/dev/null 2>&1; then
+		SAMURAI_OTG_CAPTURE_DAEMON=1 nohup "$0" >>"$LOG" 2>&1 &
+	else
+		SAMURAI_OTG_CAPTURE_DAEMON=1 "$0" >>"$LOG" 2>&1 &
+	fi
+	exit 0
+fi
+
+exec >>"$LOG" 2>&1
+
+count=0
+while ! mkdir "$LOCK" 2>/dev/null; do
+	count=$((count + 1))
+	[ "$count" -ge 20 ] && exit 0
+	sleep 1
+done
+trap 'rmdir "$LOCK" 2>/dev/null || true' EXIT HUP INT TERM
+
+# Give the DWC3/xHCI side time to settle before reading the host stack.
+sleep 4
+
+[ -r "$ROLE_PATH" ] || exit 0
+role=$(cat "$ROLE_PATH" 2>/dev/null) || exit 0
+case $role in
+host|device) ;;
+*) exit 0 ;;
+esac
+
+echo
+echo "=== $(date -Is) role=$role boot_id=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null || echo missing) ==="
+echo "usb_role.a600000.usb-role-switch.role=$role"
+for field in power_role data_role orientation preferred_role port_type; do
+	printf 'typec.port0.%s=%s\n' "$field" \
+		"$(cat "$TYPEC/$field" 2>/dev/null || echo missing)"
+done
+if [ -e "$TYPEC_PARTNER" ]; then
+	for field in type accessory_mode supports_usb_power_delivery; do
+		printf 'typec.port0-partner.%s=%s\n' "$field" \
+			"$(cat "$TYPEC_PARTNER/$field" 2>/dev/null || echo missing)"
+	done
+else
+	echo "typec.port0-partner=missing"
+fi
+
+found_vbus=0
+for regulator in /sys/class/regulator/*; do
+	[ -e "$regulator" ] || continue
+	[ "$(cat "$regulator/name" 2>/dev/null)" = usb_vbus ] || continue
+	found_vbus=1
+	echo "regulator.${regulator##*/}.state=$(cat "$regulator/state" 2>/dev/null || echo missing)"
+done
+[ "$found_vbus" -eq 1 ] || echo "regulator.usb_vbus=missing"
+
+if [ -r "$REGMAP" ]; then
+	for register in 1100 1140 1152 1153; do
+		awk -v reg="$register" '
+			$1 == reg ":" { print "pmic.8150b." reg "=" $2; found = 1; exit }
+			END { if (!found) exit 1 }
+		' "$REGMAP" || true
+	done
+else
+	echo "pmic.8150b.regmap=missing"
+fi
+
+echo "udc.a600000.usb.state=$(cat /sys/class/udc/a600000.usb/state 2>/dev/null || echo missing)"
+echo "usb0.carrier=$(cat /sys/class/net/usb0/carrier 2>/dev/null || echo missing)"
+if command -v nmcli >/dev/null 2>&1; then
+	nmcli -t -f DEVICE,STATE device status 2>/dev/null |
+		grep -E '^(wlan0|usb0):' || true
+fi
+if command -v dbus-send >/dev/null 2>&1; then
+	modes=$(dbus-send --system --type=method_call --print-reply \
+		--reply-timeout=5000 --dest=com.meego.usb_moded \
+		/com/meego/usb_moded com.meego.usb_moded.get_modes 2>/dev/null |
+		sed -n 's/.*string "\(.*\)"/\1/p' | tail -n 1)
+	echo "usb_moded.get_modes=${modes:-missing}"
+	mode=$(dbus-send --system --type=method_call --print-reply \
+		--reply-timeout=5000 --dest=com.meego.usb_moded \
+		/com/meego/usb_moded com.meego.usb_moded.mode_request 2>/dev/null |
+		sed -n 's/.*string "\(.*\)"/\1/p' | tail -n 1)
+	echo "usb_moded.mode_request=${mode:-missing}"
+fi
+
+command -v lsusb >/dev/null 2>&1 && lsusb || true
+if command -v lsblk >/dev/null 2>&1; then
+	lsblk -o NAME,TRAN,RM,SIZE,MODEL,MOUNTPOINTS 2>/dev/null |
+		awk 'NR == 1 || $2 == "usb"' || true
+fi
+
+if [ "$role" = host ] && [ -x "$PROBE" ]; then
+	echo "--- probe host-data ---"
+	"$PROBE" --allow-no-device --require-typec-data-role 2>&1 || true
+	echo "--- probe host-source ---"
+	"$PROBE" --allow-no-device --require-typec-data-role \
+		--require-vbus-source 2>&1 || true
+fi
+
+if [ -x "$BASELINE" ]; then
+	echo "--- baseline any ---"
+	"$BASELINE" any 2>&1 || true
+fi
+
+if command -v dmesg >/dev/null 2>&1; then
+	echo "--- dmesg usb/typec tail ---"
+	dmesg 2>/dev/null |
+		grep -Ei 'usb|xhci|typec|dwc3|vbus' |
+		tail -n 60 || true
+fi
+
+for tcpm in /sys/kernel/debug/usb/tcpm-*; do
+	[ -r "$tcpm/log" ] || continue
+	echo "--- $(basename "$tcpm") log ---"
+	cat "$tcpm/log" 2>/dev/null || true
+done
+
+# Keep the lock until all of the above has been written to the log.
+exit 0

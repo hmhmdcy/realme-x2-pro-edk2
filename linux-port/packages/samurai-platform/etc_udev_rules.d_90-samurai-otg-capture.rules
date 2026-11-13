@@ -1,0 +1,7 @@
+# Read-only OTG evidence capture.  Capture both the DWC3 role-switch and
+# the Type-C attach/detach path so a failed role transition is still
+# observable instead of silently producing no log.
+ACTION=="change", SUBSYSTEM=="usb_role", KERNEL=="a600000.usb-role-switch", RUN+="/usr/sbin/samurai-otg-capture"
+ACTION=="change", SUBSYSTEM=="typec", KERNEL=="port0", RUN+="/usr/sbin/samurai-otg-capture"
+ACTION=="add", SUBSYSTEM=="typec", KERNEL=="port0-partner", RUN+="/usr/sbin/samurai-otg-capture"
+ACTION=="remove", SUBSYSTEM=="typec", KERNEL=="port0-partner", RUN+="/usr/sbin/samurai-otg-capture"
