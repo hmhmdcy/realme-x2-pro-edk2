@@ -1,4 +1,4 @@
-# usb-signaller board descriptor and lifecycle backports (0.4.3-r9)
+# usb-signaller board descriptor and lifecycle backports (0.4.3-r11)
 
 This package tracks Alpine's `usb-signaller` 0.4.3 and adds an upstreamable
 configuration layer for USB device descriptors. The standard postmarketOS
@@ -46,10 +46,21 @@ Patch contents:
   when the preceding one-shot service is still settling. This avoids
   deleting the new configfs gadget and falling back to Charging merely
   because `rc-service start` returned a transient error.
+- keep the NCM profile `autoconnect` enabled but only request an explicit
+  NetworkManager activation after `usb0` reports carrier 1.  A gadget
+  bound to a UDC exists before a host enumerates it; forcing `nmcli
+  connection up` at carrier 0 leaves a false wired-network indicator in
+  the Plasma status bar and deactivates only when the mode service is
+  stopped.
+- wait up to 10 seconds for the UDC to appear after a device-role switch.
+  `URS::set_role()` returns when the role sysfs value changes, but the
+  associated UDC can be registered asynchronously; the old immediate
+  `discover_udcs()` could return empty and report `UDC failed`.  Host
+  mode still returns immediately and no board-specific path is added.
 
 The patches are intended to be submitted upstream. Until accepted, they are
 version-pinned to upstream tag `v0.4.3`; the current package is
-`0.4.3-r9`.
+`0.4.3-r11`.
 
 With the deployed dual-role kernel, upstream usb-signaller also discovers
 the standard `a600000.usb-role-switch` provider. It advertises
@@ -94,3 +105,24 @@ full 65-second observation window. Five consecutive plain
 `rc-service usb-signaller restart` rounds then passed with zero
 failures. This does not retry or mask `stop` errors, and it remains
 disabled after the bounded budget is exhausted.
+
+On 2026-11-14 the r11 main/OpenRC/systemd APKs were built natively on
+RMX1931 and verified:
+
+```text
+usb-signaller-0.4.3-r11.apk
+SHA-256 c021d2d3d4f2c3fe32669f56e9c20d4cdbf55be9ed79fa0459d9baee39caa465
+
+usb-signaller-openrc-0.4.3-r11.apk
+SHA-256 543c0982a3e7bfb449b075376416a2d1995c0c8f20f2bb7f9b6bea2f86abb051
+
+usb-signaller-systemd-0.4.3-r11.apk
+SHA-256 9778856bc4ce8201f9ffb2a8e2878cd5e2f116609d644e44a3251d4b5a9e9359
+```
+
+`apk verify` passed, and `apk add --no-network --upgrade` installed
+main + OpenRC r11. Restarting the packaged binary applied Developer
+mode with `UDC=present`, kept `usb0` NetworkManager-`unavailable` at
+carrier 0, and did not activate `Samurai NCM`. `set_mode host_mode`
+restored URS/Type-C host and re-enumerated the mouse receiver. Old r9
+binary remains at `/root/usb-signaller-r9-20261114` for rollback.

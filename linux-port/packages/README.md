@@ -11,6 +11,7 @@
 | [libcamera](libcamera/) | 相机驱动、IPA、ISP 与颜色处理补丁 |
 | [modemmanager](modemmanager/) | 固定 ModemManager 版本及 GNSS 相关补丁 |
 | [pipewire-common](pipewire-common/) | PipeWire 与相机客户端生命周期修复 |
+| [plasma-nm](plasma-nm/) | 临时桌面层修复：移动 Wi-Fi KCM 的 radio-control 反馈循环；非板级包 |
 | [samurai-camera-config](samurai-camera-config/) | 四摄 libcamera 配置、调校与堆规则 |
 | [samurai-charging](samurai-charging/) | 旧 k363 充电实验包；标准 v7.3.1 不使用，默认不启用 |
 | [samurai-snapshot-preview](samurai-snapshot-preview/) | 四摄命名、默认主摄与 Snapshot 720p60 取景 caps 覆盖 |
@@ -20,6 +21,7 @@
 | [samurai-refresh](samurai-refresh/) | Phoc/wlr-output-management 历史工具；Plasma 使用 KScreen |
 | [phoc](phoc/) | 修复 Phoc 对非首选固定输出模式的处理 |
 | [unudhcpd](unudhcpd/) | 标准 unudhcpd 的 DHCP broadcast 回复修复；Developer/Tethering 共用 |
+| [usb-signaller](usb-signaller/) | USB gadget 模式栈补丁；含 host→device service 生命周期修复 |
 
 ## GNSS 软件包
 

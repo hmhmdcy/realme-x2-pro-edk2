@@ -1,0 +1,42 @@
+From: Realme X2 Pro Linux port <hmhmdcy@users.noreply.github.com>
+Subject: [PATCH] kcms/mobile: fix Wi-Fi radio feedback loop in the mobile Wi-Fi KCM
+References: https://invent.kde.org/plasma/plasma-nm/-/merge_requests/695
+
+The mobile Wi-Fi KCM wrote the NetworkManager radio state from
+`onCheckedChanged`. That signal also fires when `checked` changes
+programmatically, for example when `EnabledConnections` follows a
+NetworkManager or rfkill update. The explicit
+`checked = Qt.binding(...)` inside the same handler then made the
+switch and the radio-control write race each other, producing a
+`radio-control wireless-enabled:on/off` feedback loop and leaving
+phy0 soft-blocked.
+
+Handle only user-initiated toggles with `onToggled`, as the desktop
+Network Management applet already does, and keep `checked`
+declaratively bound to the current NetworkManager state. The
+`FormSwitchDelegate` implementation already propagates the user
+toggle; no manual rebinding is required.
+
+This is intentionally a desktop/UI-layer fix. It does not add a
+board-specific Wi-Fi workaround or change NetworkManager,
+wpa_supplicant, ath10k, or rfkill policy. Upstream MR !695 changes
+only the signal name; this local patch also drops the manual
+`Qt.binding()` reassignment, which produced a transient
+false/true/false switch sequence in the on-device harness.
+
+diff --git a/kcms/kcm_wifi_mobile/ui/main.qml b/kcms/kcm_wifi_mobile/ui/main.qml
+index 18b7de8..4a7c6f4 100644
+--- a/kcms/kcm_wifi_mobile/ui/main.qml
++++ b/kcms/kcm_wifi_mobile/ui/main.qml
+@@ -86,10 +86,7 @@
+                 id: wifiSwitch
+                 text: i18n("Wi-Fi")
+                 checked: enabledConnections.wirelessEnabled
+-                onCheckedChanged: {
+-                    handler.enableWireless(checked);
+-                    checked = Qt.binding(() => enabledConnections.wirelessEnabled);
+-                }
++                onToggled: handler.enableWireless(checked)
+             }
+ 
+             FormCard.FormDelegateSeparator {}

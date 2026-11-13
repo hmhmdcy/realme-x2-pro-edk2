@@ -62,13 +62,27 @@
     "applies_after": "0007-usb-signaller-tolerate-missing-netdev-on-mode-stop.patch",
     "applies_cleanly_to": "v0.4.3 with the preceding local patches"
   },
+  "patch_9": {
+    "file": "0009-usb-signaller-activate-only-with-carrier.patch",
+    "sha256": "612b370835823389c2f2488e5256c9cbc5210b17419ff2324e318a5d1134b13a",
+    "sha512": "0b93452942aaa2cc0abfae85a2675233ca0b3b5b0f3ab735f7ad66a770e443a6c8daf53836b6adc17a56affa3f81fee57652f2b195c09287adc4aa2d7480121e",
+    "applies_after": "0008-usb-signaller-retry-mode-service-start.patch",
+    "applies_cleanly_to": "v0.4.3 with the preceding local patches"
+  },
+  "patch_10": {
+    "file": "0010-usb-signaller-wait-for-udc-after-role-switch.patch",
+    "sha256": "877245def597c8fb0df5758accc69d2013807eb7f5a47e7e1e4cef3f6e70bd58",
+    "sha512": "e3ccfced95014ce84a71685424bc193bc47731adbf83dec5b561a9cd9713063d731b521d4d87c72a049430f2424dd51b8b5dd48bc504867f969a94b6f4504d70",
+    "applies_after": "0009-usb-signaller-activate-only-with-carrier.patch",
+    "applies_cleanly_to": "v0.4.3 with the preceding local patches"
+  },
   "patched_sources": {
     "Cargo.toml": "8d8555ef5ac99580e36efecb1a315c9058e09e6ab0bf26fd402ab81f9dc787c9",
-    "distro/scripts/usb-signaller-developer-mode.sh": "022e663718a69bad5dd8b1783148581c3605fcd5b172e6f9d2eb9a79694e236c",
-    "distro/scripts/usb-signaller-tethering-mode.sh": "083c4ce53a4e563a27020a6c3fb965d5be44e17461a59326ca91d6be0972491e",
+    "distro/scripts/usb-signaller-developer-mode.sh": "0b1bdce29b3c54f98f71ee318c3023671c4cf759410184fe14d1abe65db988a7",
+    "distro/scripts/usb-signaller-tethering-mode.sh": "9a85f2cce7bd2a2cf7c9e04a5701140795a751111837831993f4d791aa8501ef",
     "usb-signaller.initd": "29d6b35480e8a11bae5807da8c3a1f3e2de2a00e8307b1abf87a7e8a19012e6a",
     "src/configuration.rs": "f357509d9ac3c4910251dd0c1420bf9a8608101401b56495ce1a5116b47c35af",
-    "src/dbus.rs": "f6c37478356f5fa0d1e4260b919272693a261a7d0e99aaf80d2e695a48c7f0aa",
+    "src/dbus.rs": "410aa21235ef6356e3ad1c5c51b9066bf1b798fb3da2759def1a8ccc4d4d8177",
     "src/gadget.rs": "cfc497cec054a490c9e43ee6e2042b28f79a8034268e9f5bf7da16479fe7e6e5",
     "src/udc.rs": "cd50e78de61ea9fa824fa377099c614d01a2d7d3ebb49f6cbdfaae907eba1a88",
     "src/urs.rs": "07d40ca36df3ec3aed6529c5fc2cfaea6d5f76d7d04f11aa48b7520073c245bb",
@@ -180,6 +194,46 @@
       "full external-power-removed cold boot with the packaged board config",
       "same-cable USB2 L2/U3 host-resume"
     ]
+  },
+  "runtime_candidate_r11": {
+    "arch": "aarch64",
+    "libc": "musl",
+    "path": "/usr/bin/usb-signaller",
+    "sha256": "509090d709bcb318f1cd0e6410145eef89d415152800d4bc244602b3daed1164",
+    "manual_build_sha256": "a4f7b32e84e4ce1314be4f517a1dcc583a6178dd3f5684bb49c0689bf09b0b2e",
+    "built_on": "RMX1931",
+    "command": "cargo build --release --locked",
+    "verified": [
+      "patches 0001-0010 apply cleanly to the pristine v0.4.3 archive",
+      "native aarch64-musl build succeeds on RMX1931",
+      "default developer_mode after usb-signaller restart reaches UDC present without a manual URS device write",
+      "usb0 stays NetworkManager-unavailable at carrier 0; Samurai NCM is not activated",
+      "host_mode restore returns URS/Type-C host and re-enumerates 12c9:1028",
+      "signed r11 main, OpenRC and systemd APKs verify with apk verify",
+      "apk add --no-network --upgrade installs main and OpenRC r11",
+      "restart of the packaged r11 binary reaches Developer UDC and carrier-gated usb0",
+      "three consecutive packaged-r11 restarts keep usb0 NetworkManager-managed and inactive at carrier 0",
+      "Wired connection 1 priority -999 and Samurai NCM priority 0 select the NCM profile on carrier-up"
+    ],
+    "unverified": [
+      "physical adapter unplug/replug and reverse orientation",
+      "physical downstream unplug on the actual cable",
+      "same-line host-resume"
+    ]
+  },
+  "package_artifacts_r11": {
+    "usb-signaller": {
+      "version": "0.4.3-r11",
+      "sha256": "c021d2d3d4f2c3fe32669f56e9c20d4cdbf55be9ed79fa0459d9baee39caa465"
+    },
+    "usb-signaller-openrc": {
+      "version": "0.4.3-r11",
+      "sha256": "543c0982a3e7bfb449b075376416a2d1995c0c8f20f2bb7f9b6bea2f86abb051"
+    },
+    "usb-signaller-systemd": {
+      "version": "0.4.3-r11",
+      "sha256": "9778856bc4ce8201f9ffb2a8e2878cd5e2f116609d644e44a3251d4b5a9e9359"
+    }
   },
   "package_artifacts_r8": {
     "usb-signaller": {

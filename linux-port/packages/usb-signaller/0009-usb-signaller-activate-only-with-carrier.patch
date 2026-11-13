@@ -1,0 +1,74 @@
+From: Realme X2 Pro Linux port <hmhmdcy@users.noreply.github.com>
+Subject: [PATCH] scripts: activate NCM only when carrier is present
+
+usb-signaller creates the NCM profile as soon as the gadget is bound.  A
+gadget bound to a UDC exists before the USB host has enumerated it, so
+usb0 can exist with carrier 0.  Calling nmcli connection up at that point
+forces NetworkManager to report an active wired connection even though
+there is no USB link.  On Plasma Mobile this leaves a permanent wired
+network indicator in the status bar.
+
+Keep the profile's autoconnect enabled, but only request an explicit
+activation when the kernel reports carrier 1.  NetworkManager then
+activates the profile when a host actually raises carrier and deactivates
+it when the cable is removed.  The same rule applies to Developer and
+Tethering NCM modes.
+
+diff --git a/distro/scripts/usb-signaller-developer-mode.sh b/distro/scripts/usb-signaller-developer-mode.sh
+--- a/distro/scripts/usb-signaller-developer-mode.sh
++++ b/distro/scripts/usb-signaller-developer-mode.sh
+@@ -69,6 +69,10 @@ activate_connection() {
+     return 1
+ }
+ 
++carrier_is_up() {
++    [ "$(cat "/sys/class/net/$IFACE/carrier" 2>/dev/null)" = 1 ]
++}
++
+ up() {
+     # The host can take a moment to create the NCM netdev and raise carrier
+     # after a gadget rebind. Do not make the mode service fail prematurely.
+@@ -82,10 +86,12 @@ up() {
+     # Bring interface and NetworkManager connection up without saving connection
+     nmcli connection add con-name "$CONNECTION_NAME" type ethernet \
+         ifname "$IFACE" ipv4.method manual ipv4.addresses "$IP_ADDRESS_SERVER"/16 \
+-	save no >/dev/null 2>&1 || true
+-    if [ -e "/sys/class/net/$IFACE" ]; then
++	autoconnect yes save no >/dev/null 2>&1 || true
++    if carrier_is_up; then
+         activate_connection ||
+             echo "NetworkManager will retry when $IFACE is ready"
++    else
++        echo "NetworkManager will activate $IFACE when carrier appears"
+     fi
+ 
+     # Start DHCP server
+diff --git a/distro/scripts/usb-signaller-tethering-mode.sh b/distro/scripts/usb-signaller-tethering-mode.sh
+--- a/distro/scripts/usb-signaller-tethering-mode.sh
++++ b/distro/scripts/usb-signaller-tethering-mode.sh
+@@ -45,6 +45,10 @@ activate_connection() {
+     return 1
+ }
+ 
++carrier_is_up() {
++    [ "$(cat "/sys/class/net/$IFACE/carrier" 2>/dev/null)" = 1 ]
++}
++
+ up() {
+     # The host can take a moment to create the NCM netdev and raise carrier
+     # after a gadget rebind. Do not make the mode service fail prematurely.
+@@ -57,10 +61,12 @@ up() {
+ 
+     # Bring interface and NetworkManager connection up without saving connection
+     nmcli connection add con-name "$CONNECTION_NAME" type ethernet \
+-        ifname "$IFACE" ipv4.method shared save no >/dev/null 2>&1 || true
+-    if [ -e "/sys/class/net/$IFACE" ]; then
++        ifname "$IFACE" ipv4.method shared autoconnect yes save no >/dev/null 2>&1 || true
++    if carrier_is_up; then
+         activate_connection ||
+             echo "NetworkManager will retry when $IFACE is ready"
++    else
++        echo "NetworkManager will activate $IFACE when carrier appears"
+     fi
+  
+     # NetworkManager does not always turn IP forwarding ON, set it manually to be sure

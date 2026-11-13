@@ -145,12 +145,29 @@ PM8150B `usb-vbus-regulator@1100` 改为 MP2650 `usb-otg-vbus`
 鼠标测试注册了 xHCI，并枚举 `Newmen Optical Gaming Mouse`
 （`12c9:1028`，input5/input6，hid-generic）；`mp2650-vbus` 为
 enabled、GPIO4 为 high、PM8150B `0x1140=0x00`。鼠标在 32.17 s
-被拔出后，xHCI 退出且 `usb-signaller` 回 Developer，说明“仅拔
-下游鼠标、adapter 仍插着”时 host-mode 持久性仍未闭环；adapter/
-mouse 重复插拔、U 盘/键盘、反插、长期 host soak 和 suspend 回归
-仍未验收。boot guard 的 wall-clock 超时已改为 `/proc/uptime`
-单调计时，避免 1970→2026 跳变导致提前回滚。详见
+被拔出后，xHCI 退出且 `usb-signaller` 回 Developer。后续用标准
+xHCI port `disable` 保持 40 秒模拟下游
+拔出，`host_mode`、xHCI、`data_role=host` 均保持，receiver 重新
+枚举；因此该次 32 秒退出更可能是 adapter/TCPM 角色变化，而不是
+HID-only 下游拔出。剩余物理验收只保留有源 dock 的 HID+存储及
+正反插、无源 adapter 的手机 VBUS source、拔插后的 NCM 自动恢复和
+300 秒 host soak；suspend/host-resume 另归 USB 电源唤醒目标。
+boot guard 的 wall-clock 超时已改为 `/proc/uptime` 单调计时，
+避免 1970→2026 跳变导致提前回滚。详见
 [`USB-OTG-20261112`](USB-OTG-20261112.md)。
+2026-11-14 又部署了原生构建的 `usb-signaller 0.4.3-r11` 二进制
+（`a4f7b32e…`，旧 r9 备份为 `/root/usb-signaller-r9-20261114`），
+`0010` 的 10 秒 UDC 等待使 `set_mode developer_mode` 不再返回
+`UDC failed`；Developer 默认模式在 carrier 0 时使 `usb0` 保持
+NetworkManager-`unavailable`，没有激活 `Samurai NCM`。r11 APK
+main/OpenRC 随后在真机构建、`apk verify` 并通过
+`apk add --no-network --upgrade` 安装；重启打包二进制复现
+Developer UDC + carrier 门控并恢复 host。
+`samurai-platform 6-r18` main/pulse 也在真机构建并通过
+`apk verify`；为保留 Wi‑Fi SSH，安装时使用
+`--scripts=no`，只替换包文件，未运行会重启 ModemManager/
+usb-signaller 的 post-install。安装后 Wi‑Fi 仍连接，
+`samurai-wifi-recover` 已包含动态 profile discovery。
 后续用标准 URS `role=host` 重新进入 host，xHCI 与同一
 `12c9:1028` receiver 再次枚举，`usb-signaller` 报
 `mode_request=host_mode`；`evtest` 可看到 `BTN_*`/`REL_*`，但鼠标

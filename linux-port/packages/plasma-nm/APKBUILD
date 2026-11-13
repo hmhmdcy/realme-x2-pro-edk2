@@ -1,0 +1,68 @@
+# Forked from Alpine aports community/plasma-nm 6.8.2 while upstream
+# plasma-nm MR !695 is open.  No Realme-specific logic.
+maintainer="hmhmdcy <hmhmdcy@users.noreply.github.com>"
+pkgname=plasma-nm
+pkgver=6.8.2
+pkgrel=1
+pkgdesc="Plasma applet written in QML for managing network connections"
+# armhf blocked by qt6-qtdeclarative
+arch="all !armhf"
+url="https://kde.org/plasma-desktop/"
+license="(LGPL-2.1-only OR LGPL-3.0-only) AND LGPL-2.0-or-later"
+depends="
+	kirigami
+	kirigami-addons
+	networkmanager
+	"
+makedepends="
+	extra-cmake-modules
+	kcmutils-dev
+	kcompletion-dev
+	kconfigwidgets-dev
+	kcoreaddons-dev
+	kdbusaddons-dev
+	kdeclarative-dev
+	ki18n-dev
+	kiconthemes-dev
+	kio-dev
+	knotifications-dev
+	kservice-dev
+	ksvg-dev
+	kwallet-dev
+	kwidgetsaddons-dev
+	kwindowsystem-dev
+	libplasma-dev
+	mobile-broadband-provider-info
+	modemmanager-qt-dev
+	networkmanager-qt-dev
+	prison-dev
+	qca-qt6-dev
+	qcoro-dev
+	qt6-qtbase-dev
+	qt6-qtdeclarative-dev
+	qt6-qtdeclarative-private-dev
+	qtkeychain-dev
+	solid-dev
+	"
+subpackages="$pkgname-lang"
+
+source="https://download.kde.org/stable/plasma/$pkgver/plasma-nm-$pkgver.tar.xz
+	0001-kcm-mobile-wifi-use-onToggled.patch"
+
+build() {
+	cmake -B build -G Ninja \
+		-DCMAKE_BUILD_TYPE=RelWithDebInfo \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib \
+		-DBUILD_OPENCONNECT=OFF
+	cmake --build build
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+sha512sums="
+31651dd58250d425bb9847211f1aaf3f75a933f97d2063503ae4bd12d690a97ac856eef56e5338c651bc960e7137d18fb5840952bd6c866c06f3f5b28ad7e950  plasma-nm-6.8.2.tar.xz
+dcbe39d11861f7172095953e7c83b12646242e9d3251cbd0ff6a52fca709247e15b4ffd17bcee3e1e887e357fd24bd622b887dfcbb1dc2bbb0b0575e5aeb45c1  0001-kcm-mobile-wifi-use-onToggled.patch
+"

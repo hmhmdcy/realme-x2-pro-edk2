@@ -1,0 +1,39 @@
+From: Realme X2 Pro Linux port <hmhmdcy@users.noreply.github.com>
+Subject: [PATCH] dbus: wait for UDC after a device-role switch
+
+URS::set_role() only waits for the role sysfs value.  The UDC associated
+with the role switch can be registered asynchronously afterwards, so the
+immediate discover_udcs() scan can be empty and set_mode() returns
+"UDC failed" even though the controller appears a few seconds later.
+
+Retry UDC discovery for a bounded 10-second window before processing the
+requested device mode.  Host mode still returns immediately and no board
+path or private ioctl is introduced.  This matches the existing bounded
+UDC wait already used by mode_request().
+
+diff --git a/src/dbus.rs b/src/dbus.rs
+--- a/src/dbus.rs
++++ b/src/dbus.rs
+@@ -79,11 +79,21 @@
+         }
+ 
+         /* Role is device, process UDC */
++        /* UDC registration can lag the role switch.  Retry discovery for a
++         * bounded time instead of failing on the first empty scan. */
++        let mut udc_names = discover_udcs();
++        let mut udc_wait_ms = 0;
++        while udc_names.is_empty() && udc_wait_ms < 10_000 {
++            sleep(Duration::from_millis(250)).await;
++            udc_wait_ms += 250;
++            udc_names = discover_udcs();
++        }
++
+         /* Determine the target mode enum before moving 'mode' */
+         let target_mode = string_to_udcmode(mode);
+ 
+         /* Apply the mode to discovered UDCs */
+-        for name in &discover_udcs() {
++        for name in &udc_names {
+             match UDC::load(name) {
+                 Ok(udc) => {
+                     match UDC::set_mode(udc, target_mode.clone()) {

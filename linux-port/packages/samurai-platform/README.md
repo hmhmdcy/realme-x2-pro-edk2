@@ -1,11 +1,34 @@
-# samurai-platform 6-r15 (source candidate; live rootfs 6-r14)
+# samurai-platform 6-r18 (installed 2026-11-14)
+
+> 2026-11-14: the r18 main and pulse APKs were built natively on RMX1931,
+> passed `apk verify`, and were installed with
+> `apk add --no-network --scripts=no --upgrade`.  The scripts were
+> intentionally skipped because the live host-mode test had only Wi-Fi
+> SSH; the package post-install would restart ModemManager and
+> usb-signaller.  Wi-Fi stayed connected throughout the file upgrade.
+>
+> ```text
+> samurai-platform-6-r18.apk
+> SHA-256 02da6d9467c2547a67a280112b6558a1fe6426f91609632bdb9b4da5531e1c50
+>
+> samurai-platform-pulse-6-r18.apk
+> SHA-256 f06bd143b561d412872d89ebe3768e66a62dffe0895e14abb481d2f8543b6e2e
+> ```
+>
+> Installed `/usr/sbin/samurai-wifi-recover` SHA-256 is
+> `8d10d7f60c18acef879264fd074cc28f858ca57e4c78f4ba2a6cfe0487079ef7`.
+>
+> 2026-11-13 candidate: `6-r18` makes `samurai-wifi-recover` discover
+> the saved Wi-Fi connection instead of hard-coding `Samurai Wi-Fi`.
+> The NetworkManager connection id is user-defined and normally the
+> SSID; the current handset uses `TP-LINK_156D`. The signed APK was
+> subsequently rebuilt as the installed 6-r18 above.
 
 > 2026-11-13 22:40 source candidate: `6-r17` updates the read-only
 > `samurai-otg-capture` helper to recognize the board's MP2650
 > `mp2650-vbus` regulator as well as the older PM8150B `usb_vbus`
-> name.  This is source-only; the signed APK has not been rebuilt.
-> The current live rootfs still has the directly installed helper,
-> and the standard URS/VBUS behavior itself is unchanged.
+> name. This change is included in the installed 6-r18 APK above; the
+> standard URS/VBUS behavior itself is unchanged.
 
 > 2026-11-13 candidate: `6-r15` adds the read-only
 > `/usr/sbin/samurai-otg-capture` udev helper and
@@ -18,11 +41,12 @@
 > `4f10f6e794ba54ce35bf05b688ad774b5ab26a4dfea4e7d71db1df54656f5205`;
 > `samurai-platform-pulse-6-r15.apk` SHA-256
 > `0a202e2ff692d519b5c93c10c6c3fd873b70e31507332b58ae7f04aa6429ead2`.
-> The live rootfs remains on `6-r14`: apk 3.0.8 could not solve the
-> upgrade against the existing `cmd:` provider versions and an
-> unrelated openssh version constraint. The helper and rule are
-> currently installed directly for physical-test capture; remove the
-> `/etc/udev/rules.d` copy before a future package-managed r15 upgrade.
+> At that time the live rootfs remained on `6-r14`: apk 3.0.8 could not
+> solve the upgrade against the existing `cmd:` provider versions and an
+> unrelated openssh version constraint. The helper and rule were installed
+> directly for physical-test capture. The live rootfs is now on `6-r18`;
+> keep an eye on a directly installed `/etc/udev/rules.d` copy when doing
+> a clean package-managed rebuild.
 
 > 2026-11-13 final: `6-r14` raises the package dependency to
 > `usb-signaller>=0.4.3-r9`, matching the packaged supervisor restart
@@ -148,7 +172,10 @@ NetworkManager radio-control on/off requests; when that happens,
 `rfkill` may remain soft-blocked and `wlan0` stays down. The recovery
 script kills only that stuck KCM, clears the Wi-Fi rfkill block,
 enables the NetworkManager radio and brings `wlan0` up without
-restarting NetworkManager, so USB NCM SSH remains available.
+restarting NetworkManager, so USB NCM SSH remains available.  It
+discovers the saved Wi-Fi connection from NetworkManager instead of
+assuming a fixed connection id; the current handset uses the SSID
+`TP-LINK_156D`.
 
 Earlier signed candidate:
 

@@ -1,5 +1,17 @@
 # USB enumeration recovery after reboot (2026-11-13)
 
+> 2026-11-13 12:25 update: the temporary `0.4.3-r5` trial is superseded
+> by the packaged `usb-signaller 0.4.3-r9` main/openrc APKs. The package
+> was verified with `apk verify`, installed, and passed three standard
+> host→device cycles, plain supervisor restart, mode-cycle, four offline
+> recovery regressions, an ordinary reboot at 62.298/63.813 seconds with
+> both Wi-Fi and NCM SSH returning the same new boot ID, and USB NCM
+> SSH. See
+> [`USB-OTG-20261112`](USB-OTG-20261112.md) and
+> `E:/edk2-samurai-out/standard-arm64-v731/otg-20261113-hostmode-fix/`.
+> The enumeration-failure observations below remain historical evidence,
+> not the current recovery state.
+
 ## Scope
 
 This page records the post-reboot state of the RMX1931 USB2 OTG
@@ -51,7 +63,7 @@ treats `default` and `address` as valid gadget-enable states. Full
 existing offline-gadget path. The requested Developer/Tethering mode
 now remains active so recovery can reconnect the public UDC interface.
 
-The deployed trial binary is:
+The historical deployed trial binary is:
 
 ```text
 /usr/bin/usb-signaller
@@ -65,8 +77,10 @@ Rollback binary:
 SHA-256 a661c138fc27ae4cc262d2ded40d12da61f2fb7cc104012a9b2ff656ae61075f
 ```
 
-The package metadata is now `0.4.3-r5`, but the APK has not yet been
-built or installed through `apk`.
+The `0.4.3-r5` trial was later superseded by packaged `0.4.3-r9`
+(APK SHA-256
+`fe4c960a22a92ef875fb2f5d9df5cf2880319bd281ed15fbadc18f62525c0c12`),
+which includes patches 0001–0008 and was installed through `apk`.
 
 ### samurai-usb-recover: bounded enumeration recovery
 
@@ -363,7 +377,15 @@ many times per second. The process was:
 ```
 
 The Plasma Mobile Wi-Fi KCM was stuck in a radio-control feedback loop,
-not a ath10k firmware failure. Killing that settings process, then:
+not an ath10k firmware failure. The loop is a QML bug in
+`plasma-nm`'s `kcm_wifi_mobile`: `onCheckedChanged` handled both
+user and programmatic `checked` changes, and the explicit
+`Qt.binding()` re-armed the switch before NetworkManager applied the
+previous radio write. The standardized UI-layer fix is
+`onToggled: handler.enableWireless(checked)` with the declarative
+binding left in place; see
+[`WIFI-KCM-20261113`](WIFI-KCM-20261113.md) and
+`linux-port/packages/plasma-nm/`. Killing that settings process, then:
 
 ```sh
 rfkill unblock wifi
@@ -379,8 +401,12 @@ The repeatable recovery script is
 `linux-port/packages/samurai-platform/usr_sbin_samurai-wifi-recover`
 (installed as `/usr/sbin/samurai-wifi-recover`); it kills the stuck KCM,
 clears rfkill, enables the radio, brings `wlan0` up and waits for
-`Samurai Wi-Fi` to connect without restarting NetworkManager (so the
-USB NCM SSH session remains available).
+the saved Wi-Fi connection (discovered from NetworkManager, not a
+hard-coded profile name) to connect without restarting NetworkManager
+(so the USB NCM SSH session remains available).
+
+The recovery script is an emergency backend only. The normal fix belongs
+to the desktop UI layer, not to `samurai-platform`.
 
 ## Remaining blocker
 

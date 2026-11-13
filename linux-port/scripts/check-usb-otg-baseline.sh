@@ -234,6 +234,14 @@ host)
 	if [ ! -e /sys/bus/platform/drivers/xhci-hcd ]; then
 		fail "xHCI platform driver directory is absent"
 	fi
+	if [ -e /sys/class/net/usb0 ]; then
+		fail "stale usb0 NCM interface is still present in host role"
+	fi
+	if command -v nmcli >/dev/null 2>&1 &&
+		nmcli -t -f DEVICE,STATE,CONNECTION dev status 2>/dev/null |
+		grep -q '^usb0:.*Samurai NCM'; then
+		fail "stale Samurai NCM NetworkManager profile is active in host role"
+	fi
 	root_hubs=
 	for hub in /sys/bus/usb/devices/usb*; do
 		[ -e "$hub" ] || continue

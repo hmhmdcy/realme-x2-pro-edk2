@@ -4,7 +4,7 @@ pkgver=0.4.3
 # Local board-descriptor, network-recovery, activation-retry and
 # host-role service-lifecycle backport; upstream 0.4.3-r0 remains the
 # baseline.
-pkgrel=9
+pkgrel=11
 pkgdesc="Switch between different USB gadgets"
 url="https://codeberg.org/DylanVanAssche/usb-signaller"
 arch="all"
@@ -19,6 +19,8 @@ source="$pkgname-$pkgver.tar.gz::https://codeberg.org/DylanVanAssche/usb-signall
 	0006-usb-signaller-stop-mode-services-before-host-role.patch
 	0007-usb-signaller-tolerate-missing-netdev-on-mode-stop.patch
 	0008-usb-signaller-retry-mode-service-start.patch
+	0009-usb-signaller-activate-only-with-carrier.patch
+	0010-usb-signaller-wait-for-udc-after-role-switch.patch
 "
 makedepends="cargo-auditable eudev-dev"
 subpackages="$pkgname-systemd $pkgname-openrc"
@@ -66,4 +68,6 @@ bf43ed1624bde810e68f216802939c450f95cada58113489ff51fd24f0e5b12fb38a0fe418f305d1
 c88d84f0ea2e99151cbb36dc990ffc97a9bd6b6236d1d2eda08492c2285a39cd4f15052b355a4e5abd20583c7961a7cb8523c907834f8cf79b7a44de9c8a2863  0006-usb-signaller-stop-mode-services-before-host-role.patch
 85463f50f4ca03f8def04a9d8d93fd3efc4c06c05f48b6176e32e4265d1a8665ce9f0844618787dbb540ebec1bed82cce0d6db2badc5629f67c6831204961feb  0007-usb-signaller-tolerate-missing-netdev-on-mode-stop.patch
 9b3cedf3e5405a9db340e14075679a7aea6f1a7e7cb66723f0713c140d18ae36ae4ad6a41d34e12f851304fc4f1b462feda976296bd009148f6c55a81063876c  0008-usb-signaller-retry-mode-service-start.patch
+0b93452942aaa2cc0abfae85a2675233ca0b3b5b0f3ab735f7ad66a770e443a6c8daf53836b6adc17a56affa3f81fee57652f2b195c09287adc4aa2d7480121e  0009-usb-signaller-activate-only-with-carrier.patch
+e3ccfced95014ce84a71685424bc193bc47731adbf83dec5b561a9cd9713063d731b521d4d87c72a049430f2424dd51b8b5dd48bc504867f969a94b6f4504d70  0010-usb-signaller-wait-for-udc-after-role-switch.patch
 "

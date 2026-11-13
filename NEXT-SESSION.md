@@ -1,4 +1,33 @@
-# 当前：OTG device/synthetic/恢复已验证；物理 OTG 外设待验收
+# 当前：r11/r18 已安装；host mode、UDC 等待和 carrier 门控已验证
+
+## 2026-11-14 01:30 当前状态
+
+- `usb-signaller 0.4.3-r11` main/OpenRC/systemd、`samurai-platform
+  6-r18` main/pulse 已在 RMX1931 原生构建并通过 `apk verify`。
+  `usb-signaller` 用 `apk add --no-network --upgrade` 安装；
+  `samurai-platform` 因只有 Wi‑Fi SSH，用 `--scripts=no` 只替换文件，
+  避免 post-install 重启 ModemManager/usb-signaller。Wi‑Fi 全程保持
+  `TP-LINK_156D`。
+- `0010-usb-signaller-wait-for-udc-after-role-switch.patch` 修复
+  host→device 后 UDC 异步注册导致的 `UDC failed`；最多等待 10 秒。
+- 打包 r11 的默认 Developer 模式在 carrier 0 时使 `usb0` 保持
+  NetworkManager `unavailable`，不激活 `Samurai NCM`；`set_mode
+  host_mode` 恢复 Type-C/URS host 并重新枚举 `12c9:1028`。
+- 连续 3 轮 `test-usb-signaller-restart-host.sh` 通过；打包 r11
+  restart soak 每轮都是 Developer UDC + `usb0` managed/inactive。
+- `test-usb-otg-port-disable.sh 40` 通过：xHCI port `not attached`
+  保持 40 秒，`data_role=host`、xHCI 和 `host_mode` 均保持；
+  重新 enable 后 receiver 重新枚举。仅拔下游 HID 不是 32 秒回退的
+  原因。
+- 当前仍是 OTG host：`[host] device` / `[source] sink`，xHCI 和
+  鼠标正常，Wi‑Fi 正常，boot ID 未变。
+- 证据目录：
+  `E:\edk2-samurai-out\standard-arm64-v731\usb-signaller-r11-samurai-platform-r18-20261114\`。
+- 现场只保留三项物理验收：有源 dock 下正常/反插的 HID+存储；
+  无源 adapter 下手机 VBUS source；拔插后 device/NCM 自动恢复及
+  300 秒 host soak。suspend/host-resume 归 USB 电源唤醒目标，不混入
+  OTG 基本验收。r18 post-install 的服务重启步骤仍未运行。无人值守
+  时不要改变 VBUS 供电策略或执行 `rtcwake`/suspend。
 
 ## 2026-11-13 14:44 当前状态
 

@@ -12,17 +12,21 @@ prepare()
 	power_role=$2
 	data_role=$3
 	vbus_state=${4:-disabled}
+	otg_en=${5:-00}
 	mkdir -p "$root/sys/bus/platform/drivers/xhci-hcd"
 	mkdir -p "$root/sys/bus/usb/devices/usb1"
 	mkdir -p "$root/sys/class/usb_role/a600000.usb-role-switch"
 	mkdir -p "$root/sys/class/typec/port0"
 	mkdir -p "$root/sys/class/regulator/regulator.7"
+	mkdir -p "$root/sys/kernel/debug/regmap/0-02"
 	printf 'host\n' >"$root/sys/class/usb_role/a600000.usb-role-switch/role"
 	printf '%s\n' "$power_role" >"$root/sys/class/typec/port0/power_role"
 	printf '%s\n' "$data_role" >"$root/sys/class/typec/port0/data_role"
 	printf 'normal\n' >"$root/sys/class/typec/port0/orientation"
 	printf 'usb_vbus\n' >"$root/sys/class/regulator/regulator.7/name"
 	printf '%s\n' "$vbus_state" >"$root/sys/class/regulator/regulator.7/state"
+	printf '1100: 00\n1140: %s\n1152: 00\n1153: 20\n' "$otg_en" \
+		>"$root/sys/kernel/debug/regmap/0-02/registers"
 }
 
 runs()
@@ -54,7 +58,7 @@ grep -q 'FAIL: Type-C port is not actively in data host role' \
 	"$tmp/data-required.log"
 
 source_root=$tmp/source
-prepare "$source_root" '[source] sink' '[host] device' enabled
+prepare "$source_root" '[source] sink' '[host] device' enabled 01
 runs "$source_root" --allow-no-device \
 	--require-vbus-source --require-typec-data-role \
 	>"$tmp/source-required.log"
@@ -65,7 +69,8 @@ grep -q 'typec.port0.data_role=\[host\] device' \
 grep -q 'typec.vbus_source=active' "$tmp/source-required.log"
 grep -q 'typec.data_role_active=host' "$tmp/source-required.log"
 grep -q 'regulator.regulator.7.state=enabled' "$tmp/source-required.log"
-grep -q 'regulator.usb_vbus_enabled=1' "$tmp/source-required.log"
+grep -q 'regulator.usb_vbus.enabled=1' "$tmp/source-required.log"
+grep -q 'pmic.8150b.cmd_otg_1140=01' "$tmp/source-required.log"
 grep -q 'RESULT: USB2 OTG host probe passed' "$tmp/source-required.log"
 
 source_disabled=$tmp/source-disabled
