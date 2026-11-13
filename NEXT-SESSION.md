@@ -34,6 +34,11 @@
 - 物理 Type-C OTG adapter、VBUS source、U 盘/键盘枚举、反插和
   同线 U3 host-resume 仍需现场硬件验收，不能把 synthetic host
   写成物理 OTG 已工作。
+- 强制 `host_mode` 只切换 DWC3/xHCI；在仍接 PC 线缆时，TCPM
+  活动角色仍是 sink/device，`usb_vbus` 为 `disabled`，
+  `--require-typec-data-role --require-vbus-source` probe 明确
+  返回 3 个失败。物理 OTG 必须由 adapter 的 CC 状态驱动 TCPM
+  进入活动 source/host 并启用标准 VBUS regulator。
 - 仍需现场验证物理 OTG；无人值守时不要接未知耗电外设或改变 VBUS
   供电策略。
 - suspend 仍不在无人值守验收范围；没有现场电源键/串口兜底时不要
