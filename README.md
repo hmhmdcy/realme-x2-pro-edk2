@@ -1,8 +1,15 @@
-# EDK2 / UEFI firmware for the realme X2 Pro (RMX1931 · "samurai")
+# Realme X2 Pro (RMX1931 · "samurai") Linux port
 
 用途：项目介绍、构建入口与移植说明。文档整理：2026-11-06；部署与实机状态以[当前检查点](NEXT-SESSION.md)的最后核对记录为准。
 
 This fork brings EDK2/UEFI and mainline Linux to the realme X2 Pro. UEFI Boot Manager, EFI Shell, the framebuffer console, side buttons and UFS enumeration have historical hardware validation. Linux hardware acceptance and remaining work are maintained in the [hardware checklist](linux-port/docs/HARDWARE-STATUS.md).
+
+> **Repository layout:** the default `main` branch is the integration,
+> documentation, DTB, patch and script workspace.  It does **not** contain
+> the buildable EDK2 tree (`Platform/`, `Silicon/`, `build.sh`).  The
+> historical EDK2 build tree is on the `master` branch.  End users should
+> use the [releases channel](https://github.com/hmhmdcy/realme-x2-pro-releases)
+> rather than build from either branch.
 
 ## Start here
 
@@ -75,12 +82,13 @@ The port also changes the shared BDS boot manager and selected libraries. Source
 
 ### Device blobs
 
-The per-device DXE drivers are Qualcomm/realme firmware. They ship with this
-fork: the `Platform/EFI_Binaries` submodule points at
+The per-device DXE drivers are Qualcomm/realme firmware in the historical
+`master` build tree: the `Platform/EFI_Binaries` submodule points at
 `hmhmdcy/edk2-msm-binary` branch `samurai-blobs`, so a recursive clone is enough:
 
 ```bash
-git clone --recursive https://github.com/hmhmdcy/realme-x2-pro-edk2.git
+git clone --recursive --branch master \
+  https://github.com/hmhmdcy/realme-x2-pro-edk2.git
 ```
 
 They live in `Platform/EFI_Binaries/Drivers/Devices/samurai/`:
@@ -99,7 +107,8 @@ documents the sources and the required DEPEX patch.
 ## Building
 
 ```bash
-git clone --recursive https://github.com/hmhmdcy/realme-x2-pro-edk2.git
+git clone --recursive --branch master \
+  https://github.com/hmhmdcy/realme-x2-pro-edk2.git
 cd realme-x2-pro-edk2
 ./build.sh -d samurai --toolchain GCC5
 ```
