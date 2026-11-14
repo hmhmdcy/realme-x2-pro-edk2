@@ -2,9 +2,20 @@
 
 ## 2026-11-14 公共发布通道
 
+- 2026-11-14 完成仓库收尾：linux `stable` 为
+  `105a8091a56c35c425d694283567437106f8aed2`（含 `samurai.config.kernel8`
+  与复现说明），pmaports `stable` 为
+  `16b91a702712d22e4f4c1b2eb7a6102082fd8cb5`（6-r18/4-r16/r28 配方）。
+  系统 release 增加 772 模块归档
+  `5045c16b…`，文档增加 `ROOTFS.md`、模块配对和迁移步骤。
+- 实机当前 boot `6daf5b1a-6761-41c6-883d-a92a1611bebd` 运行 kernel `#8`，
+  `S3706A` 存在，GPI 分配错误 0；`/lib/modules/...-usbwake-otg` 有
+  772 个 `.ko`，`zsmalloc` 的 vermagic 与 `uname -r` 一致。这是单次
+  只读核对，不等于新的冷启动或长期稳定验收。
+
 - 用户系统发布：`hmhmdcy/realme-x2-pro-releases`（默认 `main`），
-  release `v2026.11.14-kernel8` 含 boot/logdump/Image、manifest、
-  SHA256SUMS、flash 脚本和 `samurai-identify.sh`；不含 rootfs。
+  release `v2026.11.14-kernel8` 含 boot/logdump/Image、772 模块归档、
+  manifest、SHA256SUMS、flash 脚本和 `samurai-identify.sh`；不含 rootfs。
 - 用户态 APK：`hmhmdcy/realme-x2-pro-apk`（默认 `main`），release
   `apk-2026.11.14` 含签名 `packages.adb`、13 个 APK 和四个验签公钥。
   手机已验证 `apk update` 和 `apk fetch samurai-platform`；GitHub 直连
@@ -12,7 +23,8 @@
 - 源码默认分支：edk2 `main`、linux `stable`、pmaports `stable`；
   `codex/*` 仅保留为开发/实验分支。`realme-x2-pro-edk2` 的 README
   和 PUBLICATION 已更新公开入口。
-- 用户更新边界：APK 只更新用户态；kernel/boot/DTB 走 releases。
+- 用户更新边界：APK 只更新用户态；kernel/boot/DTB 走 releases，
+  `/lib/modules` 必须用同一 release 的模块归档单独安装。
   其他已刷机用户需按 releases/SUPPORT 提供只读识别信息，不要用
   `--allow-untrusted` 或直接推不匹配 kernel 的包。
 
