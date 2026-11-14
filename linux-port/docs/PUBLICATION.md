@@ -15,6 +15,19 @@
 集成分支的 `af70975e…` 是标准层起点；后续文档修正会出现在同一分支的
 新提交中，以分支尖端为准。
 
+## 用户发布通道
+
+普通用户不应 clone 开发分支或直接构建 `reference/` 证据树：
+
+| 通道 | GitHub 仓库 | 内容 |
+| --- | --- | --- |
+| 系统发布 | `hmhmdcy/realme-x2-pro-releases` | boot/logdump/Image、安装/回滚说明、manifest、SHA256SUMS |
+| 用户态 APK | `hmhmdcy/realme-x2-pro-apk` | 签名的 `packages.adb`、aarch64 APK、公钥 |
+
+`realme-x2-pro-apk` 只更新用户态软件包，不更新 kernel、boot、DTB
+或 rootfs。系统 release 和 APK release 必须按 manifest 中的
+kernel release、module release 和索引哈希配对使用。
+
 ## 设置边界
 
 正式包只保留两类持久设置：

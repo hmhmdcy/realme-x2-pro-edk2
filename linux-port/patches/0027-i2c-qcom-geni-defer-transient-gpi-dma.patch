@@ -1,0 +1,80 @@
+From: Codex <codex@openai.com>
+Subject: [PATCH] i2c: qcom-geni: defer probe after transient GPI DMA failure
+
+The S3706 touch controller is attached to the GENI I2C bus on
+cc0000.geniqup / c80000.i2c.  On this board the GENI FIFO is disabled,
+so the bus can only work through the shared GPI DMA controller.
+
+During early boot the GPI controller can reject the first event-ring
+allocation with a command-completion timeout.  dmaengine converts that
+allocation failure into -ENODEV, and geni_i2c currently treats it as a
+permanent probe failure.  The result is a boot with no touch input until
+the next reboot:
+
+  gpi c00000.dma-controller: cmd: EV ALLOCATE completion timeout:2
+  gpi c00000.dma-controller: error alloc_ev_chan:-5
+  geni_i2c c80000.i2c: error -ENODEV: Failed to get rx DMA ch
+
+This is a probe-order/transient DMA resource failure, not a reason to
+mark the I2C adapter permanently unusable.  When the device tree does
+describe DMA channels, translate -ENODEV from dma_request_chan() into
+-EPROBE_DEFER so the adapter is retried after the GPI controller has
+finished initialising.  Devices without a DMA description keep the
+existing hard failure behaviour.
+
+Also release the transfer ring and reset the channel/GPII state when
+gpi_ch_init() fails, otherwise each deferred probe leaks a coherent
+transfer ring and leaves the GPII in a partially initialised state.
+
+Signed-off-by: Codex <codex@openai.com>
+
+diff --git a/drivers/i2c/busses/i2c-qcom-geni.c b/drivers/i2c/busses/i2c-qcom-geni.c
+--- a/drivers/i2c/busses/i2c-qcom-geni.c
++++ b/drivers/i2c/busses/i2c-qcom-geni.c
+@@ -1046,15 +1046,23 @@ static int setup_gpi_dma(struct geni_i2c_dev *gi2c)
+ 	geni_se_select_mode(&gi2c->se, GENI_GPI_DMA);
+ 	gi2c->tx_c = dma_request_chan(gi2c->se.dev, "tx");
+ 	if (IS_ERR(gi2c->tx_c)) {
+-		ret = dev_err_probe(gi2c->se.dev, PTR_ERR(gi2c->tx_c),
+-				    "Failed to get tx DMA ch\n");
++		ret = PTR_ERR(gi2c->tx_c);
++		if (ret == -ENODEV &&
++		    device_property_present(gi2c->se.dev, "dmas"))
++			ret = -EPROBE_DEFER;
++		ret = dev_err_probe(gi2c->se.dev, ret,
++				    "Failed to get tx DMA ch\n");
+ 		goto err_tx;
+ 	}
+ 
+ 	gi2c->rx_c = dma_request_chan(gi2c->se.dev, "rx");
+ 	if (IS_ERR(gi2c->rx_c)) {
+-		ret = dev_err_probe(gi2c->se.dev, PTR_ERR(gi2c->rx_c),
+-				    "Failed to get rx DMA ch\n");
++		ret = PTR_ERR(gi2c->rx_c);
++		if (ret == -ENODEV &&
++		    device_property_present(gi2c->se.dev, "dmas"))
++			ret = -EPROBE_DEFER;
++		ret = dev_err_probe(gi2c->se.dev, ret,
++				    "Failed to get rx DMA ch\n");
+ 		goto err_rx;
+ 	}
+ 
+diff --git a/drivers/dma/qcom/gpi.c b/drivers/dma/qcom/gpi.c
+--- a/drivers/dma/qcom/gpi.c
++++ b/drivers/dma/qcom/gpi.c
+@@ -2065,7 +2065,15 @@ static int gpi_alloc_chan_resources(struct dma_chan *chan)
+ 		goto xfer_alloc_err;
+ 
+ 	ret = gpi_ch_init(gchan);
++	if (ret) {
++		gpi_free_ring(&gchan->ch_ring, gpii);
++		write_lock_irq(&gpii->pm_lock);
++		gchan->pm_state = DISABLE_STATE;
++		if (gpii->pm_state == PREPARE_HARDWARE)
++			gpii->pm_state = DISABLE_STATE;
++		write_unlock_irq(&gpii->pm_lock);
++	}
+ 
+ 	mutex_unlock(&gpii->ctrl_lock);
+ 
+ 	return ret;

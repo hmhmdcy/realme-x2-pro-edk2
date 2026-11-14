@@ -56,9 +56,10 @@ to perform a small bounded retry after the GPI controller has finished
 initialising.  A permanent boot-time `echo ... > bind` workaround would
 mask the race and is not the production solution.
 
-The current image does not yet contain this generic fix.  Until it is
-implemented and tested over repeated cold boots, a touchless boot can be
-recovered by a normal reboot, but the random probe failure remains open.
+Before 2026-11-14 the deployed image did not contain this generic fix.
+Until it is tested over repeated cold boots, a touchless boot can still
+be recovered by a normal reboot; the 2026-11-14 deployment and its
+current evidence are recorded below.
 
 ## 2026-11-13 22:00 current status
 
@@ -70,7 +71,63 @@ input: Synaptics S3706A as /devices/platform/soc@0/cc0000.geniqup/c80000.i2c/i2c
 /dev/input/event3
 ```
 
-The touch hardware and DTS are therefore healthy on this boot, but the
-generic GPI-DMA retry/defer fix is still **not** deployed.  The failure
-can recur on a cold boot; a normal reboot is still the recovery.  This
-entry is not a permanent-fix claim.
+The touch hardware and DTS are therefore healthy on this boot.  The
+generic GPI-DMA retry/defer fix described above was deployed on
+2026-11-14; the 22:00 entry above is the pre-fix state and must not be
+read as the current deployment.
+
+## 2026-11-14 fix deployed
+
+`0027-i2c-qcom-geni-defer-transient-gpi-dma.patch` is applied to the
+`standard-arm64-v7.3.1` tree.  It changes two generic paths:
+
+- `i2c-qcom-geni`: when the DT has `dmas` and `dma_request_chan()`
+  returns the dmaengine-collapsed `-ENODEV`, return `-EPROBE_DEFER`
+  instead of failing the adapter probe permanently.
+- `gpi`: when `gpi_ch_init()` fails, free the just-allocated transfer
+  ring and reset the channel/GPII state so a later deferred probe does
+  not leak a coherent ring or reuse a half-initialised GPII.
+
+Deployed candidate:
+
+```text
+kernel release: 7.3.1-rmx1931-samurai-v731-usbwake-otg
+kernel build:   #8 Sat Nov 14 09:46:41 CST 2026
+Image sha256:   29c8d27c64b9f3bb11bbf6b94bcd211e88aa3ad4a8d31955b37b54d622d8a739
+logdump sha256: 125436109e7bb950bf608610ffc3dca656638764e695f52eda843eaf16d70dbb
+boot sha256:    4520915183bbdf91bf606c1f2c711097a7a686c5e4666298e8bd1665a44036f1
+```
+
+Only the kernel FAT (`logdump`) was written; the boot carrier and DTB
+inside it are byte-identical to the previous deployment.  Ten actual
+warm reboots each produced a new boot ID, retained `Synaptics S3706A`
+as `input4`/`event4`, and had zero `EV ALLOCATE` / `alloc_ev_chan` /
+`Failed to get rx DMA` messages.  `taint` remained 512
+(`0x200`), the same pre-existing warning state.
+
+Evidence:
+
+```text
+E:\edk2-samurai-out\standard-arm64-v731\touch-gpi-probe-20261114\
+  evidence\state-after.txt
+  evidence\reboot-soak.log
+  evidence\image-build.log
+  evidence\flash.log
+```
+
+Still open: a real cold boot with external power removed has not been
+performed on this candidate, and long-term/edge/multi-touch behaviour
+has not been re-accepted.  The 10 warm reboots do not replace that
+hardware acceptance.
+
+Rollback pair for this candidate:
+
+```text
+previous logdump: 98addba8b234936ab19802d62b5b60e0f9abf13a6453efbd14b79f52318ad4c0
+previous Image:   042ae1e2e9048e3d3f93f2b010721a284647bf35914804d6669e861df19cce22
+boot:             4520915183bbdf91bf606c1f2c711097a7a686c5e4666298e8bd1665a44036f1
+```
+
+The previous logdump image is
+`E:\edk2-samurai-out\standard-arm64-v731\otg-20261113-vbus-reg-r3\logdump-vbus-reg.img`;
+the boot carrier was not changed by this deployment.

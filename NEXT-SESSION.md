@@ -1,5 +1,24 @@
 # 当前：r11/r18 已安装；host mode、UDC 等待和 carrier 门控已验证
 
+## 2026-11-14 10:05 触摸
+
+- S3706 偶发无触摸启动已定位为 `c80000.i2c` 在首个 GPI DMA
+  `EV ALLOCATE` 超时后被 dmaengine 折叠成 `-ENODEV`，GENI I2C
+  探测因此永久失败；不是 S3706、RMI4 或板级 DTS 问题。
+- `0027-i2c-qcom-geni-defer-transient-gpi-dma.patch` 已应用并部署：
+  DT 有 `dmas` 时把该 `-ENODEV` 转成 `-EPROBE_DEFER`；GPI 初始化
+  失败时释放 transfer ring 并复位 channel/GPII 状态。
+- kernel `#8` Image
+  `29c8d27c64b9f3bb11bbf6b94bcd211e88aa3ad4a8d31955b37b54d622d8a739`，
+  logdump `125436109e7bb950bf608610ffc3dca656638764e695f52eda843eaf16d70dbb`；
+  boot `4520915183bbdf91bf606c1f2c711097a7a686c5e4666298e8bd1665a44036f1`
+  和 DTB `9ca1d2f9…` 未变。
+- 连续 10 次真实 warm reboot：每轮新 boot ID、`Synaptics S3706A`
+  存在、GPI allocate 错误 0，`taint=512` 保持不变。证据
+  `E:\edk2-samurai-out\standard-arm64-v731\touch-gpi-probe-20261114\`。
+- 拔电冷启动、长期稳定和边缘/多触点仍未验收；不要把 warm reboot
+  写成 cold boot 通过。
+
 ## 2026-11-14 01:30 当前状态
 
 - `usb-signaller 0.4.3-r11` main/OpenRC/systemd、`samurai-platform

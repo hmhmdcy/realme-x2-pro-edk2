@@ -1,5 +1,17 @@
 # RMX1931 Linux 硬件状态与未完成项目
 
+目标更新（2026-11-14，触摸）：S3706 偶发无触摸启动已定位为 GENI
+I2C 首个 GPI DMA event-ring allocate 超时，dmaengine 把该失败折叠成
+`-ENODEV`，`c80000.i2c` 因此永久放弃探测。已应用并部署
+`0027-i2c-qcom-geni-defer-transient-gpi-dma.patch`：DT 有 `dmas` 时把
+该 `-ENODEV` 转成 `-EPROBE_DEFER`，并在 GPI 初始化失败时释放
+transfer ring、复位 channel/GPII 状态。kernel `#8`、Image
+`29c8d27c…`、logdump `12543610…` 已写入；boot `45209151…` 和 DTB
+`9ca1d2f9…` 未变。连续 10 次真实 warm reboot 均为新 boot ID、
+`Synaptics S3706A` 存在、GPI allocate 错误 0，`taint=512` 保持；
+拔电冷启动、长期稳定和边缘/多触点仍未验收。详见
+[`TOUCH-GPI-PROBE-20261113`](TOUCH-GPI-PROBE-20261113.md)。
+
 目标更新（2026-11-09）：Wi‑Fi、CDC NCM 和 SSH 的持久化与最终验收已
 完成，现继续适配其他硬件；主线正式版模型/API、极薄私有层、安全刷写和
 不擦写 NV/persist/校准/userdata 的约束不变。
@@ -424,7 +436,7 @@ vendor 根属性和 `samurai_diag` trace 依赖。它们不能以“能跑”为
 | 蓝牙 | 234实际RTS模型三变体16/2、16/0、16/2及H4回放8例通过；暂时诊断取得2个完整phase5回包/UART对应/1301事件无丢失，未复现错误。扫描因预上电属性Not Powered未完成，已恢复原185模块/config/helper/keys/787文件、最终健康0；裸RTS模型不满足真实锁契约，未部署功能补丁。[234](../../reference/kernel234/README.md)。205两次普通启动/8轮上下电/4次重注册未复现phase5，206已恢复原185模块/helper/BlueZ并核对keys；这不是phase5修复。204 RX wake/sleep已部署；首轮前9/45.14秒RTC PM后13、错误增量0，第二boot启动重组0，外部BT事件唤醒未验；首轮phase5仍1。200新boot startup及8秒只扫描发现10设备、退出恢复、重组增量0；185功率脉冲前导NUL及短写/flow修复保持；当时原扫描错误1/候选0、3模式响应及开启状态s2idle/延后扫描通过；189三个传感器PM窗内重组增量0、密钥保持。2026-11-09 `samurai-bluetooth-host 0.1.0-r0` 已安装；boot `071abbb5…` 上 `bnep/uhid/uinput` 自动加载，`/dev/uhid`、`/dev/uinput`、BNEP socket、BlueZ `hci0` 和 777 模块完整 gate 通过 | 189旧boot出现phase5/3.2Mbps/chunk13/partial0/firstff重组1，区别于旧phase2前导00，需继续修复。外部 PAN/HID 对端、配对/连接/音频、冷启动和带业务 suspend 未验收；没有对端证据时不能声称 PAN/HID 业务通过 |
 | Wi-Fi | 200新boot自动connected，早期管理端点超时保留；2.4/5GHz通信已有回归；189三轮传感器PM的第1/3轮观察约5.33/0.53秒关联5180，最终5180，未手工重绑驱动；2026-11-08 当前 boot 5GHz/VHT 866.7 Mbit/s 连续关联约79分钟，beacon loss 0，power save off；2026-11-09 r21 boot 完成 1810 个 SSH 样本/1820.51 秒、最大间隔 1.01 秒，DMS 地址 `PRIVATE_WIFI_MAC` 在多次启动一致；原厂 decompiled DTB 的 WiFi 节点与蓝牙共用四个 PMIC regulator，当前 DTB 已绑定；ath10k 只把原厂未使用的 `vdd-3.3-ch1` 退回 dummy | 第2轮35秒窗内仍未关联，之后又执行第3轮PM，不能称第2轮自行恢复；185立即醒后2秒检查失败仍保留。冷启动、完整休眠通信恢复及长期稳定性仍开放；不能把 dummy ch1 直接当成断连根因 |
 | 普通USB与OTG | USB 2.0 Type-C；2026-11-09 r21 boot 在主板直连口完成双向 `64K/256K/1M/4M` 各三轮 24/24、1798.828 秒 NCM 心跳；UDC `configured`、`usb0` carrier 1、`qmult=20`；严格 host-key Wi‑Fi/NCM SSH 和最终 runtime/Plasma 门禁通过。2026-11-12 标准 Type-C sink DTB/Image 已部署；普通 USB 已迁移到 `usb-signaller 0.4.3-r4` + `postmarketos-usb-moded` + NetworkManager/`unudhcpd 0.5.0-r2`/umtprd。`samurai-platform` 6-r3 的有界 DWC3 重绑、UDC `soft_connect` 和 MODE_REATTACH 已在 `ip link down`、host→device 注入后自动恢复；6-r5 已安装，6-r6 恢复脚本进一步按 configfs gadget generation 处理短 host 切换并避免恢复自身无限重置预算，连续三轮标准 host/device 测试通过，Windows 重新取得 DHCP `172.16.42.2/24`。OTG Image/DTB 已部署，device-mode、Tethering/MTP/charging、synthetic 与标准 usb-moded host/device 切换、8 MiB NCM 往返通过 | 旧 Genesys 扩展 Hub 端口仍会停在 `VID_0000&PID_0001`/Code 43；物理 USB-C OTG adapter、U 盘/键盘、自动 TCPM host、反插和 VBUS source 尚未验收；Windows 网卡复位权限、USB 归档尾部中断、IPv6、EUD 接收/退出、Linux 主机、更长时间空闲和多次冷启动待验收。DWC3 suspend 仍会 soft-disconnect；2026-11-12 晚一次 30 秒 RTC suspend 后设备在 Wi‑Fi/NCM 两条路径均不可达，当前 suspend 状态未解决。物理 Type-C 插拔唤醒、反插和同线 host-resume 尚未验收 |
-| 触摸 | 用户确认可解锁、操作应用，原生驱动工作 | 边缘/方向/多触点与休眠后恢复、长稳 |
+| 触摸 | 用户确认可解锁、操作应用，原生驱动工作；2026-11-14 已部署 GENI I2C/GPI DMA 探测失败恢复，kernel `#8` 连续 10 次 warm reboot 均保留 `Synaptics S3706A`，无 `EV ALLOCATE`/`Failed to get rx DMA` 错误 | 拔电冷启动、长期稳定、边缘/方向/多触点与休眠后恢复仍未验收 |
 
 2026-11-13 当前普通 USB 运行状态覆盖上表中的旧版本号：
 `usb-signaller`/`usb-signaller-openrc` 已安装 `0.4.3-r9`（APK

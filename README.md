@@ -21,6 +21,20 @@ This fork brings EDK2/UEFI and mainline Linux to the realme X2 Pro. UEFI Boot Ma
 | Linux source, patches and rootfs references | [Linux workspace](linux-port/README.md) |
 | Experiments, rejected candidates and original evidence | [Session index](sessions/INDEX.md) |
 
+## Public downloads
+
+End users should not build from a moving development branch:
+
+| Need | Public channel |
+| --- | --- |
+| Install, kernel/boot update and recovery | [realme-x2-pro-releases](https://github.com/hmhmdcy/realme-x2-pro-releases) |
+| Signed userspace APK repository | [realme-x2-pro-apk](https://github.com/hmhmdcy/realme-x2-pro-apk) |
+| Kernel source | [realme-x2-pro-linux](https://github.com/hmhmdcy/realme-x2-pro-linux) |
+| Package recipes | [realme-x2-pro-pmaports](https://github.com/hmhmdcy/realme-x2-pro-pmaports) |
+
+The APK repository does not update the kernel, boot carrier, DTB or
+rootfs.  Use the release channel for those changes.
+
 ## Scope
 
 The Linux port has partial hardware acceptance. Passing a specific test does not establish complete daily-use reliability; cold boot, suspend/resume and remaining functional groups have their own acceptance gaps. Persistent UEFI variables and a board-specific Windows-on-ARM DSDT remain open work.
@@ -66,7 +80,7 @@ fork: the `Platform/EFI_Binaries` submodule points at
 `hmhmdcy/edk2-msm-binary` branch `samurai-blobs`, so a recursive clone is enough:
 
 ```bash
-git clone --recursive https://github.com/hmhmdcy/edk2-realme-x2-pro.git
+git clone --recursive https://github.com/hmhmdcy/realme-x2-pro-edk2.git
 ```
 
 They live in `Platform/EFI_Binaries/Drivers/Devices/samurai/`:
@@ -85,8 +99,8 @@ documents the sources and the required DEPEX patch.
 ## Building
 
 ```bash
-git clone --recursive https://github.com/hmhmdcy/edk2-realme-x2-pro.git
-cd edk2-realme-x2-pro
+git clone --recursive https://github.com/hmhmdcy/realme-x2-pro-edk2.git
+cd realme-x2-pro-edk2
 ./build.sh -d samurai --toolchain GCC5
 ```
 

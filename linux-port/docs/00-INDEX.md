@@ -22,6 +22,7 @@
 | [L4-UAPI-INVENTORY.md](L4-UAPI-INVENTORY.md) | 内核 UAPI、L5/L6 配置债、消费者和双栈迁移顺序 |
 | [samurai-dt-v1-contract.md](../dts/samurai-dt-v1-contract.md) | DTB 稳定/动态/vendor 字段、差异账本、兼容规则、源锁和验收矩阵 |
 | [HARDWARE-STATUS.md](HARDWARE-STATUS.md) | 各功能的已证明能力、缺陷和待验收范围 |
+| [TOUCH-GPI-PROBE-20261113.md](TOUCH-GPI-PROBE-20261113.md) | S3706 偶发无触摸启动：GENI I2C/GPI DMA 超时根因、通用探测恢复补丁、kernel #8 部署与 warm reboot 证据 |
 | [FIX-VALIDITY-20261111.md](FIX-VALIDITY-20261111.md) | 已验证修复、离线候选和无效/被取代尝试的有效性台账 |
 | [PLASMA-MOBILE.md](PLASMA-MOBILE.md) | Plasma Mobile 会话、D-Bus 门户、显示亮度、ModemManager、传感器与振动接口 |
 | [DESKTOP-PORTABILITY.md](DESKTOP-PORTABILITY.md) | 板级公共接口与桌面适配层边界、换桌面检查清单 |
