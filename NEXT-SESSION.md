@@ -1,5 +1,21 @@
 # 当前：r11/r18 已安装；host mode、UDC 等待和 carrier 门控已验证
 
+## 2026-11-14 公共发布通道
+
+- 用户系统发布：`hmhmdcy/realme-x2-pro-releases`（默认 `main`），
+  release `v2026.11.14-kernel8` 含 boot/logdump/Image、manifest、
+  SHA256SUMS、flash 脚本和 `samurai-identify.sh`；不含 rootfs。
+- 用户态 APK：`hmhmdcy/realme-x2-pro-apk`（默认 `main`），release
+  `apk-2026.11.14` 含签名 `packages.adb`、13 个 APK 和四个验签公钥。
+  手机已验证 `apk update` 和 `apk fetch samurai-platform`；GitHub 直连
+  不可达时使用 `ghfast.top` 镜像。
+- 源码默认分支：edk2 `main`、linux `stable`、pmaports `stable`；
+  `codex/*` 仅保留为开发/实验分支。`realme-x2-pro-edk2` 的 README
+  和 PUBLICATION 已更新公开入口。
+- 用户更新边界：APK 只更新用户态；kernel/boot/DTB 走 releases。
+  其他已刷机用户需按 releases/SUPPORT 提供只读识别信息，不要用
+  `--allow-untrusted` 或直接推不匹配 kernel 的包。
+
 ## 2026-11-14 10:05 触摸
 
 - S3706 偶发无触摸启动已定位为 `c80000.i2c` 在首个 GPI DMA
