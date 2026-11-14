@@ -8,12 +8,15 @@
 
 | 组件 | GitHub 仓库 | 分支 | 初始标准提交 | 内容 |
 | --- | --- | --- | --- | --- |
-| Linux 内核 | `hmhmdcy/realme-x2-pro-linux` | `codex/standard-arm64-v7.3.1` | `604f840ec52b24142aff59b5d1a77b6cecb58397` | Linux v7.3.1 上的 CAMSS/CCI/V4L2/PM8008 标准相机栈、四路 sensor 与镜头 glue |
-| 用户态/设备包 | `hmhmdcy/realme-x2-pro-pmaports` | `codex/standard-arm64-settings` | `1e011d61a2ecf5b0eb77a75df3c71fa81aee8998` | `samurai-platform 5-r23`、`samurai-desktop 4-r11`、`samurai-camera-config r29` |
-| 集成/文档/DTS/补丁 | `hmhmdcy/realme-x2-pro-edk2` | `codex/standard-arm64-v731` | `af70975e6974855a341d08c1f2bb4e3fb07265e2` | 标准 ARM64 文档、DTB 契约、内核补丁、构建/验证/刷写脚本和来源锁 |
+| Linux 内核 | `hmhmdcy/realme-x2-pro-linux` | `stable`（源 `codex/standard-arm64-v7.3.1`） | `604f840ec52b24142aff59b5d1a77b6cecb58397` | Linux v7.3.1 上的 CAMSS/CCI/V4L2/PM8008 标准相机栈、四路 sensor 与镜头 glue |
+| 用户态/设备包 | `hmhmdcy/realme-x2-pro-pmaports` | `stable`（源 `codex/standard-arm64-settings`） | `1e011d61a2ecf5b0eb77a75df3c71fa81aee8998` | `samurai-platform 5-r23`、`samurai-desktop 4-r11`、`samurai-camera-config r29` |
+| 集成/文档/DTS/补丁 | `hmhmdcy/realme-x2-pro-edk2` | `main`（标准起点 `codex/standard-arm64-v731`） | `af70975e6974855a341d08c1f2bb4e3fb07265e2` | 标准 ARM64 文档、DTB 契约、内核补丁、构建/验证/刷写脚本和来源锁 |
 
 集成分支的 `af70975e…` 是标准层起点；后续文档修正会出现在同一分支的
 新提交中，以分支尖端为准。
+
+公开默认分支固定为 `stable`/`main`。`codex/*` 分支保留为开发/实验
+分支，普通用户和发布 manifest 不应依赖移动的开发分支。
 
 ## 用户发布通道
 
