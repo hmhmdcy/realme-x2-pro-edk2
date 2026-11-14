@@ -3,8 +3,8 @@
 ## 2026-11-14 公共发布通道
 
 - 2026-11-14 完成仓库收尾：linux `stable` 为
-  `105a8091a56c35c425d694283567437106f8aed2`（含 `samurai.config.kernel8`
-  与复现说明），pmaports `stable` 为
+  `7fb2bdf254ba339cf5ce81fc2e316a6f8c8a5bba`（含 `samurai.config.kernel8`
+  与 `LOCALVERSION=-usbwake-otg` 复现说明），pmaports `stable` 为
   `16b91a702712d22e4f4c1b2eb7a6102082fd8cb5`（6-r18/4-r16/r28 配方）。
   系统 release 增加 772 模块归档
   `5045c16b…`，文档增加 `ROOTFS.md`、模块配对和迁移步骤。

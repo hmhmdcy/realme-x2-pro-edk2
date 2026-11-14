@@ -8,7 +8,7 @@
 
 | 组件 | GitHub 仓库 | 分支 | 初始标准提交 | 内容 |
 | --- | --- | --- | --- | --- |
-| Linux 内核 | `hmhmdcy/realme-x2-pro-linux` | `stable`（源 `codex/standard-arm64-v7.3.1`） | `105a8091a56c35c425d694283567437106f8aed2` | kernel #8 源码、完整 `samurai.config.kernel8`、复现说明；对应 Image `29c8d27c…` |
+| Linux 内核 | `hmhmdcy/realme-x2-pro-linux` | `stable`（源 `codex/standard-arm64-v7.3.1`） | `7fb2bdf254ba339cf5ce81fc2e316a6f8c8a5bba` | kernel #8 源码、完整 `samurai.config.kernel8`、`LOCALVERSION` 覆盖与复现说明；对应 Image `29c8d27c…` |
 | 用户态/设备包 | `hmhmdcy/realme-x2-pro-pmaports` | `stable`（源 `codex/standard-arm64-settings`） | `16b91a702712d22e4f4c1b2eb7a6102082fd8cb5` | `samurai-platform 6-r18`、`samurai-desktop 4-r16`、`samurai-camera-config r28`、usb-signaller/unudhcpd 配方 |
 | 集成/文档/DTS/补丁 | `hmhmdcy/realme-x2-pro-edk2` | `main`（标准起点 `codex/standard-arm64-v731`） | `af70975e6974855a341d08c1f2bb4e3fb07265e2` | 标准 ARM64 文档、DTB 契约、内核补丁、构建/验证/刷写脚本和来源锁 |
 
