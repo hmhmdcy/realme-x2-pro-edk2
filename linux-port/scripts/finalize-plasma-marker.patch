@@ -1,0 +1,17 @@
+--- a/finalize-plasma.py
++++ b/finalize-plasma.py
+@@ -66,6 +66,13 @@
+ toml = root / "etc/usb-signaller.d/90-samurai.toml"
+ assert 'default_mode = "developer_mode"' in toml.read_text()
+ 
++# The embedded initramfs (/usr/sbin/samurai-rootfs) only switch_roots when
++# this marker and /sbin/init exist.  finalize-rootfs.py writes it; this
++# Plasma path must too, otherwise every boot stays in the diagnostic ramdisk.
++release = root / "etc/samurai-rootfs-release"
++release.write_text("ROOTFS_ID=samurai-f2fs-rootfs01\n"
++                   "BUILD_PROFILE=github-pmaports-samurai-userspace\n")
++os.chmod(release, 0o644)
++
+ print(json.dumps({"configured": True, "user": a.user, "uid": uid,
+                   "autologin": "plasma-mobile",
+                   "ssh_key_installed": bool(a.authorized_key and a.authorized_key.is_file()),

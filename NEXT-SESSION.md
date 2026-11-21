@@ -1,4 +1,535 @@
-# 当前：r11/r18 已安装；host mode、UDC 等待和 carrier 门控已验证
+# 当前：boot 已还原并重新进入 Linux；NCM 上行停摆已恢复（冷启动待复测）
+
+## 2026-11-21 08:30–08:40：boot 还原与 NCM 恢复
+
+`boot` 已按原计划还原，未动 `logdump` 与 `userdata`：
+
+```text
+boot 坏版备份：/data/boot-broken-20261121.img
+             md5 c8088b065b59f29b84b816704ca61094
+boot 还原镜像：E:\wsl-recover\work\boot-cur.img
+             md5 84476cf0d61cdb7358064ab9d154ec07
+回读校验：   BOOT_READBACK_IDENTICAL
+```
+
+普通重启后 Linux 已正常进入，Wi‑Fi SSH（当时 `192.168.0.107`）
+可用；`logdump` 的 `Image`、DTB 未改。这确认了本轮“卡在 EDK2”
+的直接原因是 `boot` 内嵌 DTB 被整份重编译替换，而不是内核或 rootfs。
+
+### NCM SSH 不通的根因与恢复
+
+现象不是 sshd、IP 或代理问题：
+
+```text
+手机 usb0：RX 正常，TX 0 B / 47 包，qdisc backlog 70+ 包
+Windows NCM：ReceivedBytes 很少，ReceivedUnicastPackets 0，无 DHCP 租约
+unudhcpd：收到 DHCP DISCOVER，但 DHCP 回复发不出去
+```
+
+停掉当时仍在每 2 秒调用 `mode_request()` 的旧
+`samurai-usb-recover` 只消除了轮询，并未让 TX 自行恢复；一次
+标准 DWC3 `unbind/bind` 后恢复：
+
+```sh
+echo a600000.usb > /sys/bus/platform/drivers/dwc3-qcom/unbind
+sleep 1
+echo a600000.usb > /sys/bus/platform/drivers/dwc3-qcom/bind
+```
+
+恢复后的实测：
+
+```text
+Windows DHCP：172.16.42.2/24（PrefixOrigin=Dhcp）
+ping 172.16.42.1：3/3，0% 丢包
+NCM SSH：成功，boot ID 7d6ff727-0c74-4c09-8edf-ea707227d364
+usb0 TX：持续增长
+```
+
+设备已把 `/usr/sbin/samurai-usb-recover` 替换为仓库当前的自适应版本
+（sha256 `6ecedda4bdaf3ea84662afb0a4890c7bf4f55a78aac8d62a61b1ae8cde405dbc`）；
+启动后稳定期轮询退到 8 秒，NCM SSH 仍可用。该替换只是设备侧验证，
+不等同于已安装官方 `samurai-platform 6-r25`；正式修复仍应走签名 APK。
+旧版已备份为 `/root/samurai-usb-recover-6r22-20261121.sh`
+（sha256 `473442488a9f6cbba2b146b5a564cb60ab8796818f384036b4fc310a949ba8f8`），
+unit 备份为 `/root/samurai-usb-recover.service-6r22-20261121`。
+
+**边界**：以上是同一 boot 内的控制器恢复，不等于冷启动后 NCM 自动恢复。
+下次拔电冷启动后，必须重新确认 DHCP、NCM SSH 和 `usb0` TX 增长；若复现，
+应把 DWC3 重绑纳入有界恢复策略，而不是继续增加 DHCP/SSH 服务。当前
+`samurai-usb-recover` 只在枚举停滞时重绑，不会把“configured + carrier 1
+但 `usb0` TX 不增长”识别为故障，这是下一步要补的门槛。
+
+恢复期间已删除临时 `/tmp/samurai-usb-recover-r25.sh`；两个可供回归使用的
+命令分别是 Wi‑Fi 侧 `linux-port/scripts/verify-ncm-ssh-20261115.sh` 和
+USB 侧 `test-usb-ncm-stability.py`。前者默认使用 `root@`/`rc-service`，
+不适用于当前 systemd rootfs，只能作为主机侧 ping 门禁参考。
+
+仍未完成：标准 ESP/BDS 启动改造、`logdump` 长期驻留内核方案、冷启动和
+长期 NCM 稳定性。
+
+## 2026-11-21 深夜：卡在 EDK2 进不去 Linux —— 根因已坐实
+
+设备停在固件界面、无 SSH、无 NCM，**内核与 rootfs 都没坏**。真因是
+`boot` 分区（`/dev/block/sde11`）里的 DTB 被换成了另一份不完整的设备树。
+
+已取证（设备现处于 TWRP recovery，`adb` 可用）：
+
+| 分区 | md5 / sha256 | 结论 |
+|---|---|---|
+| `boot` 现状 | md5 `c8088b065b59f29b84b816704ca61094` | = 本地 `boot-fixed.img`（本轮误刷） |
+| `boot` 原版 | md5 `84476cf0d61cdb7358064ab9d154ec07` | = `boot-cur.img`，与公开 release 附件一致 |
+| `logdump` 现状 | sha256 `56c8379be00d5a1678f736a18af488a15b05bb3cc398120b2c1c34cb7949a0a0` | = `logdump-candidate-20261120.img`（11-20 已验证可启动） |
+
+逐文件比对两份 boot（`compare-fv-files.py`）：
+
+```
+外层 FV：  3 个文件  相同 2，不同 1（FVMAIN 容器）
+内层 FV：101 个文件 相同 100，不同 1（DTB 25462cda-…）
+```
+
+**固件、BootShim、BdsDxe、UiApp、SMBIOS 全都没变**，只有 DTB 变了。
+
+### 换错的 DTB 长什么样
+
+不“只是删了 flash-leds”，而是整份 DTB 来自另一棵缺 board overlay 的源码树：
+
+| 属性 | 原版 DTB | 手机当前 DTB |
+|---|---|---|
+| `typec@1500` | `status = "okay"` | **`status = "disabled"`** |
+| `typec@1500/connector` | 存在（`power-role=dual`、`data-role=dual`、`vbus-supply`） | **整个节点不存在** |
+| `usb@a600000` | `dr_mode="otg"` + `usb-role-switch` | `dr_mode="peripheral"`，无 role-switch |
+| `s5kgw1` 的 `flash-leds` | 有 | 无 |
+| `soc@0/ethernet@20000` | 无 | 多一个（disabled） |
+
+原因：内核树里 `pm8150b.dtsi` 的 `typec` 默认 `disabled`，而
+`sm8150-samurai-common.dtsi` **没有** typec / usb 的 overlay；用这棵源码树
+重编译整份 DTS，必然丢掉这些板级描述。原版可启动 DTB 是历史会话逐点打补丁
+生成的，不是源码树的直接产物。
+
+### logdump 与 rootfs 完好（排除根因）
+
+- `logdump/Image`：58,673,664 B，sha256 `7b98edbc…`，`image_size` 60,293,120
+  (< 64 MiB)，内嵌含 `regulatory.db` 的 15 MB gzip initramfs，
+  release `7.3.1-rmx1931-samurai-v731-usbwake-otg`。11-20 实机验证过
+  `country US`、`systemctl --failed` = 0。
+- `logdump/samurai.dtb`：114,928 B，sha256 `9ca1d2f9…`（原版）。
+- rootfs：`/data/sbin/init -> ../lib/systemd/systemd`、`/etc/os-release`、
+  `/etc/samurai-rootfs-release` 都在；journal 记录最后一次正常关机是
+  `Nov 21 03:02:43`（`systemd-shutdown` → `Journal stopped`），之后每次重启
+  都没再进系统，时间线正好对上 02:59 生成的 `boot-fixed.img` 被刷入。
+
+完整证据与还原步骤见
+[`linux-port/docs/BOOT-DTB-REGRESSION-20261121.md`](linux-port/docs/BOOT-DTB-REGRESSION-20261121.md)。
+以上 DTB 根因段落属于本轮之前的取证；本轮已完成还原并验证能进 Linux。
+
+### 下一步（按顺序）
+
+> 第 1–2 步已于 2026-11-21 08:30–08:40 完成；下面保留原始操作只为
+> 再次复现，不要再对已还原的 boot 重复写入。
+
+1. **先还原 boot**（不动 logdump / userdata）：
+
+   ```sh
+   # 设备 recovery（已有 root）
+   dd if=/dev/block/sde11 of=/data/boot-broken-20261121.img bs=1M   # 留证
+   # push 本地 boot-cur.img 到 /data，然后
+   dd if=/data/boot-cur.img of=/dev/block/sde11 bs=1M conv=fsync
+   sync
+   md5sum /dev/block/sde11      # 期望 84476cf0d61cdb7358064ab9d154ec07
+   ```
+
+   本地文件：`E:\wsl-recover\work\boot-cur.img`
+   （md5 `84476cf0…`，sha256 `4520915183bb…`，100,663,296 B）。
+
+2. 重启验证能进 Linux（Wi-Fi `192.168.0.x` 或 NCM `172.16.42.1` SSH）。
+   本轮已通过：Wi‑Fi SSH 恢复，随后以 DWC3 重绑恢复了 NCM。
+3. 若仍不行，用 `logdump-live-20261120.img`
+   （sha256 `125436109e7b950bf608610ffc3dca656638764e695f52eda843eaf16d70dbb`）
+   做对照 —— 那是换新内核之前的原版 FAT。
+4. 系统起来后，再刷本轮的配方对齐镜像
+   （`rootfs-stable-20261119-clean/samurai-stable-f2fs-partuuid.simg`，
+   sha256 `5e31a1da…`，3,390,645,388 B），并验证相机 flash 实体与
+   sensor `links` 由 0 变 1。
+
+⚠️ **不要再**用 `build-fixed-dtb.sh` 这类“拿当前源码树整份重编 DTB”的方式改
+boot。要改 DTB，必须从 `boot-cur.img` 里提取原版 DTB 做定点修改，并保留
+其余 100 个 FFS 文件逐字节不变。
+
+## 2026-11-21 交付镜像（配方与产物已对齐）
+
+镜像：`E:\edk2-samurai-out\standard-arm64-v731\rootfs-stable-20261119-clean\`
+`samurai-stable-f2fs-partuuid.simg` —— 3,390,645,388 B，
+sha256 `5e31a1da85cfe8339ba971906bc3fc3956f212e3e86117c6ac6a37484dd3a76a`。
+
+本轮修掉四个真实缺陷，全部有门禁：
+
+1. **板级包版本落后于配方**：镜像里 `samurai-platform 6-r22`、
+   `samurai-ssc 1-r2`、`samurai-systemd 1-r4`，配方已到 `6-r25` / `1-r3` /
+   `1-r5`。旧的重建脚本只 `install -m` 覆盖文件、不更新 `lib/apk/db/installed`，
+   导致 `apk upgrade` 永远无事可做，而且真升级时还会按旧文件清单删掉新文件。
+   新增 `boardrepo-sync.sh` + `build-board-packages.sh`（从 APKBUILD 的
+   `package()` 推导文件清单、带 post-install、带子包），重建后版本逐项核对。
+2. **`apk --root` 解析不到本地仓库**：它把仓库路径当宿主机路径，
+   镜像内 `/usr/share/samurai/packages` 在宿主机根下不存在，于是永远打印
+   `No such file or directory`。设备侧不受影响，但**离线验收必须用 chroot**。
+3. **`noarch` 包放进 `aarch64/` 目录会“索引里有、文件找不到”**：
+   `ERROR: package mentioned in index not found`。现在统一记为 `aarch64`。
+4. **`/etc/unudhcpd.conf` 与 `postmarketos-initramfs` 冲突**：
+   `trying to overwrite ... owned by postmarketos-initramfs`。该文件是 initramfs 用的，
+   已从 `samurai-platform` 移除；地址由 `10-samurai-unudhcpd.conf` drop-in
+   和 `/etc/conf.d/unudhcpd` 覆盖。
+
+同时清掉交付污染：`/home/user/plasma-apps-20261117`（180 个 .apk / 242 MiB）、
+含家庭 Wi-Fi PSK 的 NM profile、无属主的 `99-samurai.conf`；
+`home`/`tmp`/`root` 下出现任何 `.apk` 即中止重建。
+
+相机 flash 模块也已重新植入运行内核目录（`leds-qcom-flash.ko` 104,824 B、
+`led-class-flash.ko` 69,736 B、`v4l2-flash-led-class.ko` 90,824 B），
+vermagic 与运行内核一致，`nm -u` 有 `v4l2_flash_init`/`v4l2_flash_release`。
+
+独立验收：`fsck [FIX] 0`、`1254` 包、`db broken 0`、`world 57 项 / pins 0`、
+22 个板级 APK 验签 0 失败、chroot 内 `apk --no-network upgrade --simulate`
+→ `OK: 2950.3 MiB in 1254 packages`（`rc=0`）、依赖闭包
+`unresolved_deps=0`。详见 `linux-port/docs/DELIVERY-20261121.md`。
+
+**设备仍不可达**：`192.168.0.105` / `172.16.42.1` / `169.254.42.1` 无响应，
+`adb devices` / `fastboot devices` 为空，主机 PnP 无手机设备。设备恢复后：
+
+1. 恢复 boot：`dd if=/root/boot-backup-20261121.img of=/dev/sde11 bs=1M conv=fsync`
+   （md5 `84476cf0d61cdb7358064ab9d154ec07`；早前“删 flash-leds”的 DTB 是误判）。
+2. 刷入上述镜像到 `userdata`。
+3. `python3 linux-port/scripts/media-links.py /dev/media0` 验证相机 flash 实体与
+   sensor `links` 由 0 变 1。
+4. 复验其余硬件接口。
+
+## 2026-11-20 镜像已重建（含“永不休眠”默认）
+
+### 2026-11-20 追加：5 GHz 高延迟的根因找到了（regdb 从未加载）
+
+`dmesg` 里一直有这条，之前没人把它和 5 GHz 联系起来：
+
+```text
+[    0.507939] faux_driver regulatory: Direct firmware load for regulatory.db failed with error -2
+[    0.516325] cfg80211: failed to load regulatory.db
+[   22.078148] wlan0: regulatory prevented using AP config, downgraded
+```
+
+后果是 `iw reg get` 永远停在 `country 99`，而世界域里 **整个 5 GHz 段是
+`PASSIVE-SCAN`**（不能主动发射 → 不能开 AP，且手机自己的 5 GHz 流量
+运行在没有正确规则的世界域下）。
+
+**私有层缺陷**：`samurai-wifi.sh` 把 `firmware_class/path` 指到
+`/run/samurai-wifi/firmware`，却只 `cp -a /lib/firmware/ath10k`，
+regdb 没拷过去。已在 `samurai-platform` 6-r23 补上
+`regulatory.db(.p7s)`（脚本 SHA-512 已刷新，`check-sources.py` 23 配方全过）。
+
+⚠️ **尚未重启验证**（重启会断掉唯一远程通道）。下次重启后第一件事：
+
+```sh
+dmesg | grep -i regulatory     # 不应再有 "failed to load"
+iw reg get                     # 应是 country CN/US，5 GHz 不是 PASSIVE-SCAN
+```
+
+在那之前，`HARDWARE-STATUS.md` 里 5 GHz 仍记为**未修复**。
+完整证据链（含两次错误推断的撤回）见
+`linux-port/docs/WIFI-BAND-LATENCY-20261120.md`。
+
+同一轮还修了 `samurai-usb-recover`：它每 2.07 s 用
+`com.meego.usb_moded.mode_request` 去“读当前模式”，而该调用每次都会
+重装 URS/UDC。改为自适应轮询（`configured+carrier` 稳定 30 s 后退到 8 s），
+实测 5 GHz 丢包 20-40% → 0-4%。
+
+### 2026-11-20 追加：默认值与“文件归属”是两件事
+
+运行时已复核（`kreadconfig6`，非只看文件）：
+
+```text
+/etc/xdg/powerdevilrc   AutoSuspendIdleTimeoutSec  0 / 0 / 0   (AC/Battery/LowBattery)
+AutoSuspendAction       (未设置 = 没使用已禁用的 debug 覆盖)
+/home/user/.config/powerdevilrc  0 / 0 / 0
+```
+
+同时发现：设备装的是 `samurai-desktop 4-r16`，而该文件不在任何包的文件
+清单里 —— 是重打包阶段直接写进镜像的“无主文件”。值是对的，但 `apk`
+无法替换它。apk-tools 3.x 源码确认这种文件在升级时会走 `COMMIT` 并被
+新包接管（`apk_db_migrate_files_for_priority()`，`ofile == NULL` 分支），
+所以补上真实 r17 包即可自愈。
+
+已改：归属断言先写成 `grep '^R:powerdevilrc$'`，但 apk 的 installed 库
+把嵌套文件存成 `F:etc/xdg` + `R:powerdevilrc`，这条正则在任何情况下都
+匹配不到，会永久假 FAIL。已改为解析 `apk info -W`。真正的根因是
+`build-board-packages.py` 把 desktop 包钉在 `4-r16` 且不打包
+`powerdevilrc`；现已改为从 APKBUILD 读版本，并含该文件（当前 4-r19）。
+
+2026-11-20 已在设备上完成收口：`samurai-desktop 4-r16 -> 4-r17 -> 4-r19`
+（用镜像自带的 `pmos@local-6aeaf066` 私钥重新签名，APKv3 格式；
+`--sign-key` 必须写在 applet 名之前，否则被静默忽略），
+`apk info -W /etc/xdg/powerdevilrc` → `owned by samurai-desktop-4-r19`。
+4-r19 在这份文件里同时写 `AutoSuspendAction=0` 与
+`AutoSuspendIdleTimeoutSec=0`：KDE 桌面 KCM 的“Never”是前者，Plasma
+Mobile KCM 的“Never”是后者，只写后者会让桌面设置页显示
+`Sleep / 0 秒`。`check-settings-provenance.sh` 与
+`check-powerdevil-effective.sh` 已改为同时校验两个键，全系统
+`apk --no-network upgrade --simulate` 仍 rc=0。
+
+### 2026-11-20 追加：`apk upgrade` 的两个真实根因 + SSH 门禁
+
+1. **world 里的 `<Q…=` 校验和钉**（13 条，来自 `apk add <文件>`）会把
+   包永久钉死。实测：`samurai-desktop><Q1NLf…=` 时，板级仓库发布了
+   4-r20，`apk upgrade` 仍然什么都不升；把钉去掉后立刻
+   `4-r19 -> 4-r20`。`repack-embeddings.sh` 现在在**所有** `apk add`
+   之后统一清理（必须放最后，因为每步 `apk add` 都会重新写一条钉）。
+   同时把 `gnutls`/`libssl3`/`libcrypto3` 移出 world——它们是被
+   `so:` 依赖拉进来的库，不是用户选择。结果：钉 13 → 0，world 57 条，
+   `unresolved_deps=0`。
+2. **镜像缓存索引比镜像源旧**：Alpine 后来发了
+   `gnutls 3.8.14-r0` / `libssl3`+`libcrypto3 3.5.9-r1`，镜像的
+   `/var/cache/apk` 还是构建当天的快照。现在这三个官方 APK 已直接装进
+   镜像，四个缓存索引也换成当前官方版本。
+
+按镜像真实的四个仓库（pmOS systemd → pmOS v26.06 → Alpine v3.24
+main/community）对比，只剩 **7 个 drifted**（98.2% 完全匹配）：
+5 个 `libcamera`（51 条相机补丁）和 2 个 `unudhcpd`（DHCP broadcast
+修复）。`tinydm-systemd 122-r0` 经核实是 pmOS 官方版本，早期“错误打包”
+的结论已撤回。
+
+SSH 已新增离线门禁 `check-ssh-image.py`，当前镜像结果
+`RESULT: ssh image check passed`：sshd 已启用、`0.0.0.0:22` 监听所有
+网卡、`PasswordAuthentication yes`、`user(10000)` 密码已设置且有
+authorized_keys。注意镜像**没有预生成 host key**，首次开机靠
+`sshdgenkeys.service` 的 `ssh-keygen -A`；失败时 `Restart=always`
+会让 sshd 一直重启，日志只有 `sshd: no hostkeys available -- exiting`。
+
+### 2026-11-20 追加：交付镜像曾携带家里的 Wi-Fi 密码（已修）
+
+镜像里有一份 `/etc/NetworkManager/system-connections/TP-LINK_156D.nmconnection`，
+`root:root 0600`，第 14 行就是**明文 11 位 WPA PSK**，且 `apk info -W`
+查不到属主。它是早期为了“刷完自动连 Wi‑Fi”直接写进 rootfs 的，代价是
+任何拿到镜像的人都能连进这个网络。现已：
+
+- `repack-embeddings.sh` 新增 3c 步，删除任何带 `psk=`/`password=`/
+  `private-key=` 的连接配置（实测 `removed: 1`）；
+- 新增门禁 `check-secrets.py`：扫 NetworkManager 配置、wpa_supplicant/
+  hostapd/dnsmasq、`/etc` 与 `/home` 下的私钥文件。当前镜像
+  `RESULT: no private credentials in the image`。
+
+同轮还修掉两个**我自己引入**的探针缺陷：
+
+1. `sshd -T` 在 chroot 外跑时，`Include /etc/ssh/sshd_config.d/*.conf`
+   是绝对路径，会解析到宿主机而不是镜像 —— 所以“有/无 99-samurai.conf
+   结果相同”一开始是假结论。改为 chroot 内探测后确认那份 drop-in 确实
+   多余（删掉后 `PasswordAuthentication` 仍是 `yes`，因为 openssh 默认如此）。
+2. SSH 探针会用 `ssh-keygen -A` 生成临时 host key，若不清理就会把**固定
+   主机密钥**打进镜像。现在探针结束一定删除它，门禁也会因此直接失败。
+
+顺带删掉另一个无主私有文件：`/etc/ssh/sshd_config.d/99-samurai.conf`
+（`finalize-plasma-rootfs.py` 直写、`apk info -W` 无属主）。它在 chroot 里
+实测与不存在的有效配置逐项相同，只是重复 openssh 默认值；现在生成脚本
+会主动删除它，`check-plasma-rootfs.py` 反向断言“不得存在”。
+
+仍未解决、但已记录在案的两类无主文件：
+
+- `/usr/lib/modules` 下 1566 个内核模块（`device-realme-samurai-kernel-none`
+  是**故意**的外部内核标记包，不装内核，模块由镜像组装直写）。
+  `apk` 因此无法管理模块版本；换内核必须整体重刷，见
+  [WIFI-BAND-LATENCY-20261120](linux-port/docs/WIFI-BAND-LATENCY-20261120.md) 9.3。
+- `/usr/lib/firmware` 下 160 个固件（ath10k/WCN3990、qca 蓝牙、SM8150
+  SLPI/ICP），同样由组装直写。
+
+- **新的交付镜像**（取代 `538c851e…`、`0877a273…`、`54d9768a…`、
+  `ae3a27fc…`、`e28f60be…`、`095a44e4…` 与 `076b30e8…`）：
+  `rootfs-stable-20261119-clean\samurai-stable-f2fs-partuuid.simg`
+  （3,644,249,048 B，SHA256
+  `5e69d0ae199dc75626ad73fbc5b08d8bf54791a50b193b8c033b381d07b51f4a`）。
+  两个刷写脚本的默认镜像/哈希/字节数都已指向它。
+- 重打包结果：`fix_count=0`、`postmarketOS v26.06`、**1254 包**、板级仓库
+  **23 个文件**、`/etc/xdg/powerdevilrc` 属主 `samurai-desktop-4-r19`，
+  三档 `AutoSuspendAction=0` + `AutoSuspendIdleTimeoutSec=0`。
+- **镜像级独立复核**（解包镜像后直接读文件，不依赖构建日志）：
+  镜像内 `/etc/xdg/powerdevilrc` 的 sha256 与仓库同名文件完全一致
+  （`cd63f388f666bb1a7ce6a0293fa9c695c94b94ede5a64b74274cf4ac90b71777`），
+  1347 字节、`644 root:root`；DB 里记录的 `Z:` 摘要也与之相符。
+  `nftables` 仍无 wants 链接且 preset 里
+  `disable nftables.service`；`/var/lib/samurai/gnss-assist` 仍 `700 root:root`。
+- **2b 步骤已修好**：不再用 `chroot`（WSL 没有 aarch64 binfmt，会
+  `Exec format error`），改为宿主 `apk --root <image> --arch aarch64
+  --scripts=no` 逐文件装入。7 个官方推荐包现在真正在镜像里：
+  `hkdm`、`ttyescape`、`plasma-mobile-sounds`、`vvmd`、`vvmplayer`、
+  `gst-libav`、`gst-plugins-ugly`。
+- **`ttyescape` 的真实根因**：官方 v26.06 的 APK 由
+  `pmos@local-6a19ae2a` 签名，而 `postmarketos-keys` 只发布
+  `build.postmarketos.org`，所以官方包在任何 pmOS 装机上都是 UNTRUSTED。
+  已用官方上游 tarball（sha512 与配方一致）重建，两个装入文件与官方
+  APK 逐字节相同（`togglevt.sh` `729280a4…`、`ttyescape-hkdm.toml`
+   `88034b54…`），再用板级密钥重签。
+- **不要**把官方同名包复制进板级仓库：会产生两条同版本条目，apk 可能
+  选到远端那条，离线镜像就会报 `package mentioned in index not found`。
+  板级仓库因此**只放自建包**（23 个文件，含 ttyescape）。
+- 镜像 DB 里 `f:S` 两行不是损坏，是 `sha256_160` 标记
+  （apk-tools `database.c` 中 `ipkg->sha256_160`），属 v2 索引来源的包。
+- **尚未刷入**：新镜像的实机复验还没做。刷入后应重跑
+  `check-settings-provenance.sh` 与 `check-powerdevil-effective.sh`。
+
+## 2026-11-19 TWRP 直刷与实机验收结果
+
+- **已刷入并通过实机验收**：`rootfs-stable-20261119-clean\samurai-stable-f2fs-partuuid.simg`
+  （3,631,923,092 B，SHA256
+  `538c851e1b5d74d09757e64c526e83c88c2e31fbbb7dd8b679f5c03d88c5a594`），
+  只写 `userdata`（`/dev/block/sda16`），boot/logdump/DTB 未动。
+- **刷写方式改为 recovery**：`linux-port/scripts/flash-from-recovery.ps1`。
+  比 fastboot 快且不会楔死命令通道：TWRP 里 `adb push` 到 `/tmp` → 设备侧
+  `sha256sum` 校验 → `umount /sdcard /data` → `simg2img` 展开直写
+  `/dev/block/sda16`（110.86 GiB，约 7 分钟）→ `ro,norecovery` 回挂复核
+  （`postmarketOS v26.06`、1245 包、板级仓库 23 个文件）→ `adb reboot`。
+  以后刷机直接进 TWRP，不用再走 fastboot。
+- **实机结果**（WiFi `192.168.0.106`，SSH 正常）：
+  `systemctl --failed` = 0；`samurai-ssc`、`samurai-radio`、
+  `samurai-usb-network`、`samurai-usb-recover`、`samurai-gnss-assist`、
+  `bluetooth`、`iio-sensor-proxy`、`NetworkManager`、`ModemManager` 全
+  active；`nftables` disabled+inactive；`apk update` 正常、`apk upgrade
+  --simulate` = `OK: 2938.6 MiB in 1245 packages`；22 个板级 APK 全部验签
+  通过；Plasma Mobile 已起（`kwin_wayland` OpenGL 合成成功，DSI-1
+  1080x2400），`plasmashell`/`kded6` 在跑，Firefox ESR 153.7.0esr 与
+  Discover 均可用。
+- **两个遗留问题**（均不影响首次使用）：
+  1. ~~主机侧 NCM 停在 `169.254`~~（已解决，根因见下）：现在主机
+     `以太网 10` 稳定拿到 `172.16.42.2/24`，路由
+     `172.16.42.0/24 via 0.0.0.0 on 以太网 10`，`ping 172.16.42.1` 通，
+     `ssh user@172.16.42.1` 可用。早期的 169.254 是手机休眠期间 USB
+     gadget 掉线、Windows 回落到 link-local 造成的，不是 DHCP 配置错误。
+  2. `discover-backend-fwupd` 未安装（`samurai-apps` 元包不在 world 里），
+     Discover 只有 APK 后端；6 个官方推荐包（`ttyescape`、`vvmplayer`、
+     `plasma-mobile-sounds` 等）仍未进镜像，原因见
+     `linux-port/docs/BOARD-RECIPES-20261119.md` 的待办项。
+
+## 2026-11-19 休眠根因与“永不休眠”默认
+
+- **连接中断的根因（已取证）**：不是 WiFi 弱信号，也不是 sshd 限速，而是
+  KDE PowerDevil 主动请求了 `s2idle`：
+  `systemd-logind: suspend requested from client PID 2947
+  ('org_kde_powerde')` → `PM: suspend entry (s2idle)`，13 分钟后按电源键
+  才 `PM: suspend exit`。`s2idle` 会同时拆掉 USB/NCM 和 WiFi，而这两条
+  正是唯一的远程通道，所以表现为“两条链路一起消失”。
+- **已改为板级默认**：`linux-port/packages/samurai-desktop/powerdevilrc`
+  安装到 `/etc/xdg/powerdevilrc`，AC/电池/低电量三档都写
+  `AutoSuspendIdleTimeoutSec=0`（就是 KDE 设置里选“永不”写下的值）。
+  用户的 `~/.config/powerdevilrc` 仍可覆盖。
+- **刻意不用** `AutoSuspendAction=0`：那会把“休眠”这个动作直接禁用，
+  属于调试期的过度覆盖；只用面向用户的空闲超时。
+- **门禁**：`check-settings-provenance.sh` 新增三档断言，并修掉了
+  systemd 镜像误判 `/etc/conf.d/tinydm` 缺失的问题；实机
+  `RESULT: settings provenance check passed (0 note(s))`。
+  `check-sources.py`：23 配方 / 164 哈希 / 220 文件全过。
+- **运行时实证**：`check-powerdevil-effective.sh`（新增）在实机通过。
+  本次开机只有 **1 次** `suspend requested`，时间 `22:17:45`；
+  `22:36:51` 改成“永不”后到 `23:36:58`（60 分钟）零次。说明默认确实生效，
+  不是只改了文件。PowerDevil 不暴露 idle timeout 的 D-Bus 属性，所以用
+  “会话总线可达 + 请求时间线”两层证据，而不是猜属性名。
+- **镜像侧已同步**：`repack-embeddings.sh` 在打包阶段写入同一个
+  `/etc/xdg/powerdevilrc`，并在验收步骤检查三档与“无 AutoSuspendAction”。
+  下次重建的镜像会自带该默认。
+
+## 2026-11-19 稳定版镜像（最新，apps2）
+
+- **当前交付镜像**：`rootfs-stable-20261119-apps2\samurai-stable-f2fs-partuuid.simg`
+  （3,628,478,076 B，SHA256
+  `b4f712b4f58a1346d6f2722f55f5de6129faed001bb40c8c7c40d36fadc17ac3`）。
+  随附 `samurai-stable-f2fs-partuuid.simg.pre-fix`（旧哈希 `f2683cab…`）用于回滚。
+  本次重打包修掉了 `apk upgrade` 固定报 `1 error` 的根因：`kernel=none`
+  设备没有 `/usr/share/kernel/<flavor>/kernel.release`，打包的 mkinitfs
+  触发器退出 1，apk 把 `postmarketos-mkinitfs` 记成 `f:s`（broken_script），
+  之后每次事务都加 1 error。修法沿用本移植既有设计（通用 mkinitfs 步跳过、
+  引导链直接挂 F2FS rootfs）：把触发器末尾改为 mkinitfs 自带的
+  `KERNEL_INSTALL_BYPASS=1 /usr/sbin/mkinitfs`，并以板级包自己的
+  `/usr/share/samurai/external-kernel.txt` 作为守卫；同时清掉旧的 `f:s`。
+  没有伪造 `kernel.release`，也没有生成用不到的 initramfs。
+  触发器单独执行时：带守卫 rc=0，去掉守卫仍 rc=1（`found: []`），
+  说明效果来自守卫而非清标志。镜像自带的 aarch64 apk 已验证
+  `apk upgrade --simulate`、`apk fix --simulate` 均输出
+  `OK: 2938.6 MiB in 1245 packages`，退出码 0。
+  相比 `apps` 版（`93e23bc2…`）只多了一个板级包升级：
+  `samurai-platform 6-r21 -> 6-r22`，其它 1244 个包完全不变。
+  两个刷写脚本的默认镜像/哈希/字节数都已指向 apps2。
+- **apps2 修的两个真实缺陷**（都属于“OpenRC 硬编码进了 systemd 镜像”）：
+  1. `samurai-usb-network-watchdog` 用 `rc-service unudhcpd.usb0 restart`
+     重启 DHCP；systemd 镜像没有 OpenRC，这一步静默失败，usb0 会出现
+     “有地址、有 DHCP 服务、但 socket 绑在旧 netdev”的僵死状态。
+     新增 `restart_dhcpd()`：OpenRC 走 `rc-service`，systemd 映射到
+     `unudhcpd@usb0.service`。
+  2. `samurai-usb-recover` 的重绑 usb-signaller 分支只在
+     `command -v rc-service` 成立时进入；systemd 下整段 DWC3 恢复逻辑是
+     死代码。`service_bounded()` 现在同时支持 `systemctl <action> <unit>`，
+     并在 systemd 下也能进入该分支。
+  校验：`check-rootfs.py` 仍报 1245 包 / 374 文件 / 140 ELF / GI-QMI 通过；
+  `app` 里 `world` 的 `<Q1…=` 钉已清除，`check-sources.py` 134 SHA512 全过。
+
+- 构建基线是 pmaports `v26.06`（`b72b1699328f7ecb9aa171e29b755d5f02875e76`）
+  + Alpine `v3.24` + **systemd**（`extra-repos/systemd/v26.06`）。
+  `plasma-mobile` 在 pmaports 只声明 `pmb:support-systemd`，因此 systemd
+  是这套 UI 的唯一官方方案；工作区 cfg 此前残留的 `openrc` 已改为
+  `systemd`，`pmbootstrap status` 显示
+  `Channel: systemd-v26.06`、`systemd: yes`。
+- 上一版 `rootfs-stable-20261119-apps`（3,628,436,896 B，SHA256
+  `93e23bc2c30de36d98797942b7317a38a8c19c330de8699938ed9df7dfffd02e`）
+  已被 apps2 取代；它的仓库副本 `linux-port/artifacts/` 内容已过时，
+  不要再作为刷写来源。
+- **应用齐全修正**：20261118/20261119 构建都用了 `--no-recommends`，
+  导致 `postmarketos-ui-plasma-mobile` 的 `_pmb_recommends` 被跳过，应用
+  网格几乎是空的。现在 README 已去掉该参数，`check-rootfs.py` 缺任一
+  推荐应用即失败；本镜像已从官方 v26.06 仓库离线补装 34 个包
+  （Dolphin/Konsole/Kate/KClock/KWeather/KRecorder/Plasma Camera/Dialer/
+  Phonebook/qmlkonsole/Spacebar 等），外加 `plasma-mobile-extras` 自己的
+  9 个推荐（alligator/audiotube/elisa/itinerary/kalgebra/kalk/kasts/
+  kdeconnect/keysmith）；`libcamera` 未被替换，最终 1245 包。
+  `plasma-camera 2.1.1-r2` 依赖 `so:libcamera.so.0.7`，板级
+  `99990.7.2-r33` 正好提供 0.7.2，ABI 一致，不是 0.8 冲突。
+  补装后 world 为 47 条纯包名，升级求解仍返回 0。
+镜像内容：`postmarketOS v26.06`、Alpine `3.24.4`、`apk-tools 3.0.9-r0`、
+  1245 个包、Plasma Mobile `6.6.6-r0`、Firefox ESR `153.7.0-r0`、
+  Discover `6.6.6-r0`、完整上游推荐应用集、
+  bluez/NetworkManager/ModemManager/iio-sensor-proxy units、
+  19 个公钥、1538 个 `.ko`、双内核模块树。
+- 离线验收：`check-rootfs.py` 374 文件 / 140 ARM64 ELF / GI-QMI 通过；
+  `check-sources.py` 14 配方 / 134 SHA512 / 163 文件 / 50 补丁通过。
+- `world` 的 12 条 `<Q1...=` 校验钉已清除；补装应用后为 47 条纯包名；
+  `apk-tools 3.0.9` 下带钉/去钉的 `apk update` 与
+  `apk upgrade --simulate` 都返回 0，所以这是镜像整洁性修复，不是升级
+  失败的唯一原因。
+- 20261118 镜像已实机启动过：NCM/SSH 与 Wi‑Fi 都可用，但完整验收未做完；
+  当前 1245 包的 20261119-apps 镜像尚未刷入。
+
+## 2026-11-17 Plasma 完整应用集
+
+- 实机 1088 包；Firefox、Discover、Dolphin、Konsole、Kate 等均未安装。
+  aarch64 的 `postmarketos-ui-plasma-mobile` 默认浏览器是 Angelfish，
+  Firefox 只在 armv7 分支；`_pmb_recommends` 与 Discover 未进入本轮
+  rootfs，不是菜单隐藏。
+- 新增 `samurai-apps` 元包和离线应用包：180 个 APK、约 241 MiB、
+  181 项事务，无降级/冲突。`plasma-camera` 已排除，因为 Alpine 版
+  依赖 libcamera 0.8，会破坏板级 0.7 ABI 相机栈。
+- 180 个 APK 已从 `/home/user/plasma-apps-20261117` 离线安装，包数
+  1088 → 1269，`check-plasma-apps.sh` 为 `RESULT: PASS`；Firefox ESR、
+  Discover、Dolphin、Konsole、Kate 等入口已存在。`libcamera`
+  `99990.7.2-r33`、`usb-signaller-openrc 0.4.3-r11` 和
+  `modemmanager-openrc 1.25.95_git20261005-r4` 未被降级。
+- `@samurai` 索引公钥 `pmos@local-6af86f33.rsa.pub` 已加入
+  `/etc/apk/keys`，`apk verify` 返回 `OK`；Discover 的 apk 后端可用。
+- 实机时间原为 1970 年，已校到 2026-11-17 09:06 CST；无可用
+  `/dev/rtc`，`hwclock -w` 失败。重启后需 Wi‑Fi/chronyd 或手动校时，
+  否则 Discover 的 HTTPS 软件源证书校验会失败。
+- Wi‑Fi 已连接 `TP-LINK_156D` 的 5GHz BSSID，实机
+  `192.168.0.100/24`，网关 `192.168.0.1`；Alpine/HTTPS 与
+  postmarketOS 镜像访问均通过。
+- 官方 Alpine/postmarketOS 公钥已从 `/usr/share/apk/keys` 复制到
+  `/etc/apk/keys`，`apk update` 返回 `OK: 37430 distinct packages`。
+  `usb-signaller(-openrc)` 与 `modemmanager(-openrc)` 已固定为
+  `@samurai` 当前版本，Discover 安装新包不再降级它们；包数 1274。
+- KDE 设置 Wi‑Fi 失败的根因仍是 plasma-nm `kcm_wifi_mobile` 的
+  `onCheckedChanged` 反馈循环；6.8.3-r0 仍含旧逻辑。已用补丁插件
+  （`ed60135e…`）覆盖 stock 6.8.3 插件，stock 备份在
+  `/root/kcm_mobile_wifi.so.orig-6.8.3-20261117`（`1265101f…`），
+  并把 `plasma-nm=6.8.3-r0` 固定到 world。KCM 加载测试通过；物理
+  开关验收和正式 6.8.3-r1 包尚未完成。
 
 ## 2026-11-14 公共发布通道
 

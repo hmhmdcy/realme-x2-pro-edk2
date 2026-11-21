@@ -1,0 +1,48 @@
+name: Samurai Integration CI
+
+on:
+  push:
+    branches: [main, "codex/**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-scripts-and-packages:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout integration repository
+        uses: actions/checkout@v4
+
+      - name: Install verification tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3 python3-yaml device-tree-compiler
+
+      - name: Check APKBUILD checksum ordering and local sources
+        run: |
+          for apk in linux-port/packages/samurai-*/APKBUILD; do
+            python3 linux-port/scripts/check-sum-order.py "$apk"
+          done
+          for pkg in samurai-camera-config samurai-desktop samurai-gnss-assist samurai-platform samurai-refresh samurai-snapshot-preview; do
+            python3 linux-port/scripts/verify-apkbuild-sources.py "linux-port/packages/$pkg/APKBUILD"
+          done
+
+      - name: Syntax-check Python and shell scripts
+        run: |
+          python3 -m py_compile \
+            linux-port/scripts/finalize-plasma-rootfs.py \
+            linux-port/scripts/inspect-rootfs.py \
+            linux-port/scripts/check-sum-order.py \
+            linux-port/scripts/verify-apkbuild-sources.py \
+            linux-port/ssc/samurai-ssc.py
+          sh -n linux-port/radio/samurai-wifi.sh
+          sh -n linux-port/scripts/samurai-ncm-watchdog.sh
+          sh -n linux-port/scripts/samurai-ncm-fallback.initd
+
+      - name: Run NCM watchdog and mode-switch tests
+        run: |
+          bash linux-port/scripts/test-ncm-mode-logic.sh linux-port/scripts/samurai-ncm-watchdog.sh
+          bash linux-port/scripts/verify-mode-switch-keeps-access.sh linux-port/scripts/samurai-ncm-watchdog.sh
