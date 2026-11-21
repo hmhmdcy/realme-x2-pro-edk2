@@ -62,8 +62,9 @@
 sudo bash /mnt/e/RealmeX2Pro\ edk2/linux-port/scripts/wsl-recover-access.sh
 ```
 
-导出脚本是 `wsl-recover-export.sh`。不要运行 `wsl --unregister Ubuntu`，
-也不要在原 VHDX 上直接运行 `e2fsck -fy`：会改写唯一副本且无法回退。
+导出脚本是 `wsl-recover-export.sh`。不要运行 `wsl --unregister Ubuntu`。
+也不要在唯一的原 VHDX 上执行任何写入型修复：既包括 `e2fsck -fy`，也包括
+会把它重新挂载为可写的 WSL 启动。请先复制，或使用经验证的只读/覆盖层路径。
 
 ## 未承诺的修复
 
