@@ -1,0 +1,16 @@
+[Unit]
+Description=Samurai radio firmware and RAM COW services
+Documentation=https://github.com/hmhmdcy/realme-x2-pro-pmaports
+ConditionPathExists=/usr/sbin/samurai-wifi
+After=local-fs.target systemd-udevd.service
+Before=NetworkManager.service bluetooth.service
+Wants=modprobe@libcomposite.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/samurai/samurai-radio-start
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target

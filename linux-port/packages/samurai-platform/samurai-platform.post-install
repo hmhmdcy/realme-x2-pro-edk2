@@ -153,11 +153,18 @@ if command -v rc-update >/dev/null 2>&1 &&
 	fi
 
 	if [ "$migrating" -eq 1 ]; then
-		rc-service samurai-usb stop >/dev/null 2>&1 || true
+		[ -x /etc/init.d/samurai-usb ] && rc-service samurai-usb stop >/dev/null 2>&1 || true
 		rc-service usb-signaller start >/dev/null 2>&1 || true
 	elif [ -d /sys/kernel/config/usb_gadget/usb-signaller-developer ]; then
 		rc-service usb-signaller-developer-mode restart >/dev/null 2>&1 || true
 	fi
+	# Retire dead/legacy board glue and diagnostic helpers replaced by
+	# standard declarative UCM2, OpenRC loopback, NetworkManager, and usb-signaller.
+	rm -f /usr/libexec/samurai-audio-route \
+		/etc/init.d/samurai-loopback /etc/runlevels/*/samurai-loopback \
+		/etc/init.d/samurai-usb /usr/sbin/samurai-usb \
+		/usr/sbin/samurai-udhcpc-wlan /usr/sbin/samurai-wifi-recover \
+		/usr/sbin/samurai-otg-capture /usr/lib/udev/rules.d/90-samurai-otg-capture.rules
 	# These were hand-copied during bring-up and must not shadow the real
 	# OpenRC service files.
 	rm -f /etc/init.d/usb-signaller-developer-mode.initd \
@@ -184,6 +191,47 @@ fi
 # explicitly when the handset is online.
 if [ -x /etc/init.d/neard ] && command -v rc-update >/dev/null 2>&1; then
 	rc-update add neard default >/dev/null 2>&1 || true
+fi
+
+# This handset reports WLAN/BT/NFC killswitches through the kernel rfkill
+# class, and its GPIO key device is consumed by the Wayland compositor.
+# urfkilld defaults to key_control=true, which grabs /dev/input/event* with
+# EVIOCGRAB; that grab fails while KWin holds the device, so urfkilld exits 1
+# immediately and OpenRC reports the service as failed. The upstream guidance
+# for machines with hardware-controlled rfkill keys is key_control=false, and
+# the live device keeps running with it.
+urfkill_conf=/etc/urfkill/urfkill.conf
+if [ -f "$urfkill_conf" ] &&
+	! grep -qx 'key_control=false' "$urfkill_conf"; then
+	if grep -qx '# key_control=true' "$urfkill_conf"; then
+		sed -i 's|^# key_control=true$|key_control=false|' "$urfkill_conf"
+	elif grep -qx 'key_control=true' "$urfkill_conf"; then
+		sed -i 's|^key_control=true$|key_control=false|' "$urfkill_conf"
+	else
+		printf '\nkey_control=false\n' >>"$urfkill_conf"
+	fi
+fi
+# urfkilld writes this profile file itself; drop a stale copy so the next
+# start derives it from the configuration above.
+rm -f /etc/urfkill/hardware.conf
+if command -v rc-service >/dev/null 2>&1; then
+	rc-service urfkill zap >/dev/null 2>&1 || true
+	rc-service urfkill restart >/dev/null 2>&1 || true
+fi
+
+# post-install: rootfs NCM link glue
+# usb-signaller owns the configfs gadget, but nothing
+# brings usb0 UP.  u_ether only fills its RX queue and raises carrier after
+# eth_open(), so a carrier-gated NetworkManager profile can never start the
+# link.  Keep the board glue as the single owner of link state while the
+# gadget-generation is alive, and retire the old one-shot boot service.
+rm -f /etc/runlevels/boot/samurai-ncm-fallback \
+	/etc/runlevels/default/samurai-ncm-fallback \
+	/etc/init.d/samurai-ncm-fallback \
+	/usr/sbin/samurai-ncm-watchdog
+if [ -x /etc/init.d/samurai-usb-network ] && command -v rc-update >/dev/null 2>&1; then
+	rc-update add samurai-usb-network default >/dev/null 2>&1 || true
+	rc-service samurai-usb-network restart >/dev/null 2>&1 || true
 fi
 
 exit 0

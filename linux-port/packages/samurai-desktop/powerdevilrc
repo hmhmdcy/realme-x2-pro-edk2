@@ -6,18 +6,28 @@
 # only remote access path.  The board default is therefore "never
 # auto-suspend", exactly the value the KDE Energy Saving page writes when
 # the user selects "Never":
-#   AutoSuspendIdleTimeoutSec=0
 #
-# Deliberately NOT set: AutoSuspendAction.  The debug-era override
-# AutoSuspendAction=0 is still rejected by
-# linux-port/scripts/check-settings-provenance.sh.  Only the idle timeout,
-# a normal user-facing setting, is pinned here.
+#   AutoSuspendAction=0           (PowerDevil::PowerButtonAction::NoAction)
+#   AutoSuspendIdleTimeoutSec=0   (the Plasma Mobile KCM's "Never" value)
+#
+# Both keys are set because the two KDE frontends represent "Never"
+# differently: the desktop KCM writes AutoSuspendAction=0, while the
+# Plasma Mobile KCM writes AutoSuspendIdleTimeoutSec=0.  Either key alone
+# already prevents the idle timer from being registered, but setting both
+# keeps the default unambiguous in either UI.
+#
+# These are normal user-facing KDE keys, not a private debug override.
+# A user's ~/.config/powerdevilrc still wins, and an explicit
+# `systemctl suspend` still works.
 
 [AC][SuspendAndShutdown]
+AutoSuspendAction=0
 AutoSuspendIdleTimeoutSec=0
 
 [Battery][SuspendAndShutdown]
+AutoSuspendAction=0
 AutoSuspendIdleTimeoutSec=0
 
 [LowBattery][SuspendAndShutdown]
+AutoSuspendAction=0
 AutoSuspendIdleTimeoutSec=0

@@ -1,0 +1,15 @@
+# Realme X2 Pro board units that must be part of the default boot set.
+enable samurai-radio.service
+enable samurai-ssc.service
+enable samurai-gnss-assist.service
+enable samurai-usb-network.service
+enable samurai-usb-recover.service
+enable usb-signaller.service
+enable usb-signaller-developer-mode.service
+enable unudhcpd@usb0.service
+
+# The 7.3.1 kernel config sets # CONFIG_NF_TABLES is not set, so nft has no
+# netlink family to open.  Alpine's 90-base.preset enables nftables.service
+# unconditionally; left enabled it fails on every boot and would apply a
+# default-deny ruleset if the kernel ever gained netfilter tables.
+disable nftables.service

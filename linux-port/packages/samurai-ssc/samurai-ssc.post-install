@@ -1,0 +1,7 @@
+#!/bin/sh
+if command -v rc-update >/dev/null 2>&1; then
+	for service in samurai-ssc iio-sensor-proxy; do
+		[ -x "/etc/init.d/$service" ] && rc-update add "$service" default >/dev/null 2>&1 || true
+	done
+fi
+exit 0

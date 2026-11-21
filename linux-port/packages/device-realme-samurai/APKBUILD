@@ -1,0 +1,40 @@
+maintainer="hmhmdcy <hmhmdcy@users.noreply.github.com>"
+pkgname=device-realme-samurai
+pkgver=2
+pkgrel=1
+pkgdesc="Realme X2 Pro userspace for the external EDK2/native Linux boot chain"
+url="https://github.com/hmhmdcy/realme-x2-pro-pmaports"
+arch="aarch64"
+license="MIT"
+depends="device-realme-samurai-kernel-none postmarketos-base samurai-systemd
+	samurai-platform samurai-radio-tools samurai-desktop samurai-camera-stack
+	samurai-gnss-assist samurai-ssc"
+source="
+	machine-info
+	device-realme-samurai
+	external-kernel.txt
+	"
+
+subpackages="$pkgname-kernel-none"
+
+package() {
+	install -Dm644 "$srcdir"/machine-info "$pkgdir"/etc/machine-info
+	install -Dm644 "$srcdir"/device-realme-samurai \
+		"$pkgdir"/usr/share/deviceinfo/device-realme-samurai
+	ln -sf device-realme-samurai "$pkgdir"/usr/share/deviceinfo/deviceinfo
+}
+
+# The EDK2 boot chain supplies its own kernel and modules, so this device
+# must not depend on a linux-* flavour.  The marker below is also what the
+# packaged mkinitfs trigger checks before skipping kernel-image actions.
+kernel_none() {
+	pkgdesc="External EDK2/kernel boot chain (no kernel installed by apk)"
+	install -Dm644 "$srcdir"/external-kernel.txt \
+		"$subpkgdir"/usr/share/samurai/external-kernel.txt
+}
+
+sha512sums="
+e0025d62405f921747d6fa37b4a38529667eddeb3e1469c2c5bbe5e6cea791ad48f0d6fba379684f2d181a57392ca17557c02e17a6a65dc7a0aba6b1c3377d7a  machine-info
+f7e1fa4f1c9aae05b31a47241125b669064ae859521e737e502f3701dcf38ae95faab5930849acdd63f8dd4c46abbfd5151d4f3263a8df0de5234f6930036251  device-realme-samurai
+1d04ef8da7f7df00d5735c34f682b91cb4616c114b1717ded2161c0f0f134897df759c2f3445948014c9262d4dbb59c5f43d603a2c07a623eea3dd611b148a1f  external-kernel.txt
+"

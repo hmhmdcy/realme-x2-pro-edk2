@@ -1,0 +1,19 @@
+[Unit]
+Description=Samurai GNSS time and assistance refresher
+After=dbus.service NetworkManager.service chronyd.service
+
+[Service]
+Type=simple
+# systemd opens StandardOutput/StandardError before ExecStartPre runs, so the
+# append: paths below must already exist. The package ships an empty
+# /var/lib/samurai/gnss-assist with mode 0700 and a .gitkeep-style placeholder;
+# creating the directory from ExecStartPre made the unit fail with
+# status=209/STDOUT and restart forever.
+ExecStart=/usr/sbin/samurai-gnss-assist --watch
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/lib/samurai/gnss-assist/watch-stdout-private.log
+StandardError=append:/var/lib/samurai/gnss-assist/watch-stderr-private.log
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,23 @@
+# Ship the signed wireless regulatory database into the initramfs.
+#
+# cfg80211 requests regulatory.db during kernel_init (before rootfs is
+# mounted).  On this device the rootfs is f2fs on sda16, mounted by the
+# initramfs at ~1.77 s, while cfg80211 asks at ~0.50 s -- so /lib/firmware
+# does not exist yet and the request fails with ENOENT:
+#
+#   [0.499820] cfg80211: Loading compiled-in X.509 certificates ...
+#   [0.507939] faux_driver regulatory: Direct firmware load for
+#              regulatory.db failed with error -2
+#   [0.516325] cfg80211: failed to load regulatory.db
+#
+# Without it cfg80211 stays in the world domain (country 99), where the whole
+# 5 GHz band is PASSIVE-SCAN: 5 GHz AP mode is refused
+# ("regulatory prevented using AP config, downgraded") and the handset's own
+# 5 GHz traffic runs under a domain that only permits passive reception.
+#
+# The db is small (6 KB) and signed, so adding it to the initramfs is cheap.
+#
+# Format: one absolute path per line (mkinitfs files-extra syntax).
+
+/lib/firmware/regulatory.db
+/lib/firmware/regulatory.db.p7s

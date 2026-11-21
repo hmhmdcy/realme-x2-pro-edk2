@@ -14,6 +14,15 @@ run_dir=${SAMURAI_USB_RECOVER_RUN_DIR:-$root/run/samurai-usb-recover}
 log_file=${SAMURAI_USB_RECOVER_LOG:-$root/var/log/samurai/usb-recover.log}
 dbus_enabled=${SAMURAI_USB_RECOVER_DBUS:-1}
 interval=${SAMURAI_USB_RECOVER_INTERVAL:-2}
+# usb-signaller implements mode_request as "report the current mode and
+# re-apply the URS", so every poll costs a URS/UDC round trip.  Polling every
+# 2 s for the whole boot is 22k calls and buys nothing once the NCM session is
+# stable, which is the normal case.  Use the fast interval only while a
+# recovery is in flight (enumeration stalled, no carrier yet, or a mode
+# transition was just seen) and back off to idle_interval when configured+carrier
+# has stayed good for idle_after seconds.
+idle_interval=${SAMURAI_USB_RECOVER_IDLE_INTERVAL:-8}
+idle_after=${SAMURAI_USB_RECOVER_IDLE_AFTER:-30}
 grace=${SAMURAI_USB_RECOVER_GRACE:-12}
 reattach_grace=${SAMURAI_USB_RECOVER_REATTACH_GRACE:-20}
 mode_grace=${SAMURAI_USB_RECOVER_MODE_GRACE:-10}
@@ -315,11 +324,26 @@ soft_recover_enumeration()
 
 service_bounded()
 {
-	if command -v timeout >/dev/null 2>&1; then
-		timeout 30 rc-service "$@" >/dev/null 2>&1
-	else
-		rc-service "$@" >/dev/null 2>&1
+	# OpenRC init names use "service" while the same units are
+	# "<service>.service" in systemd; systemctl also needs the action first.
+	if command -v rc-service >/dev/null 2>&1 && [ -d /etc/runlevels ]; then
+		if command -v timeout >/dev/null 2>&1; then
+			timeout 30 rc-service "$@" >/dev/null 2>&1
+		else
+			rc-service "$@" >/dev/null 2>&1
+		fi
+		return $?
 	fi
+	action=$1
+	shift
+	for service in "$@"; do
+		case $service in *.service) unit=$service ;; *) unit=$service.service ;; esac
+		if command -v timeout >/dev/null 2>&1; then
+			timeout 30 systemctl "$action" "$unit" >/dev/null 2>&1
+		else
+			systemctl "$action" "$unit" >/dev/null 2>&1
+		fi
+	done
 }
 
 restart_gadget()
@@ -336,8 +360,11 @@ restart_gadget()
 
 	if [ -n "${SAMURAI_USB_RECOVER_RESTART_CMD:-}" ]; then
 		sh -c "$SAMURAI_USB_RECOVER_RESTART_CMD"
-	elif command -v rc-service >/dev/null 2>&1 &&
-		[ -x /etc/init.d/usb-signaller ]; then
+	elif { command -v rc-service >/dev/null 2>&1 &&
+		[ -x /etc/init.d/usb-signaller ]; } ||
+		command -v systemctl >/dev/null 2>&1; then
+		# The rebind path below is shared: service_bounded maps to
+		# systemctl when this image runs systemd.
 		service_bounded usb-signaller stop || true
 		service_bounded usb-signaller start || true
 		wait_usb_dbus 30 || true
@@ -384,10 +411,6 @@ restart_gadget()
 				;;
 			esac
 		fi
-	elif command -v rc-service >/dev/null 2>&1; then
-		service_bounded samurai-usb restart || true
-	else
-		/usr/sbin/samurai-usb start
 	fi
 }
 
@@ -477,6 +500,14 @@ status()
 monitor()
 {
 	mkdir -p "$run_dir"
+	# Poll at the fast interval until the session has been stable long enough;
+	# any recovery attempt or mode change re-arms the fast path.
+	current_interval=$interval
+	set_interval()
+	{
+		[ "$current_interval" = "$1" ] && return 0
+		current_interval=$1
+	}
 	[ -e "$run_dir/attempts" ] || write_state attempts 0
 	[ -e "$run_dir/armed" ] || write_state armed 0
 	[ -e "$run_dir/online" ] || write_state online 0
@@ -497,7 +528,8 @@ monitor()
 			fi
 			previous_ncm_mode=unknown
 			stuck_since=0
-			sleep "$interval"
+			set_interval "$interval"
+			sleep "$current_interval"
 			continue
 		fi
 		case $mode in
@@ -552,7 +584,8 @@ monitor()
 			write_state mode_reattach_since 0
 			write_state enum_since 0
 			stuck_since=0
-			sleep "$interval"
+			set_interval "$interval"
+			sleep "$current_interval"
 			continue
 		fi
 
@@ -584,7 +617,8 @@ monitor()
 			write_state reattach_since 0
 			write_state enum_since 0
 			stuck_since=0
-			sleep "$interval"
+			set_interval "$interval"
+			sleep "$current_interval"
 			continue
 		fi
 
@@ -606,6 +640,13 @@ monitor()
 			fi
 			write_state armed 1
 			stuck_since=0
+			# Stable session: back off only after it has held long enough, so
+			# a short host_mode flip is still caught at the fast interval.
+			if [ $((now - stable_since)) -ge "$idle_after" ]; then
+				set_interval "$idle_interval"
+			else
+				set_interval "$interval"
+			fi
 			attempts=$(read_state attempts)
 			case $attempts in
 			''|*[!0-9]*) attempts=0 ;;
@@ -664,7 +705,7 @@ monitor()
 			write_state mode_reattach_since 0
 			stuck_since=0
 		fi
-		sleep "$interval"
+		sleep "$current_interval"
 	done
 }
 

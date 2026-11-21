@@ -1,0 +1,27 @@
+#!/sbin/openrc-run
+# Board glue for the rootfs NCM netdev (L6).
+#
+# usb-signaller owns the configfs gadget.  This service owns only what neither
+# the gadget nor the distro profile can do on this port: bring usb0 UP
+# (u_ether only fills the RX queue and raises carrier after eth_open()),
+# publish the deterministic addresses, and restart unudhcpd.usb0 once the
+# netdev that it could not bind at boot actually exists.
+#
+# NetworkManager is explicitly told to ignore usb0: its developer profile
+# only activates when carrier is already 1, which cannot happen before the
+# interface is UP, and a managed device may also clear the addresses below.
+
+description="Samurai USB network link glue"
+
+supervisor=supervise-daemon
+command="/usr/sbin/samurai-usb-network-watchdog"
+command_args_foreground=""
+respawn_delay=5
+respawn_max=0
+
+depend()
+{
+	need localmount
+	after usb-signaller networkmanager udev
+	provide samurai-usb-network
+}

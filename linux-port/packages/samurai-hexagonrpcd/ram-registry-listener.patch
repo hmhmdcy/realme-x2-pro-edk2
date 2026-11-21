@@ -1,0 +1,355 @@
+Subject: [PATCH] hexagonrpcd: serve bounded sensor registry writes from RAM
+
+Add the OEM metadata mapping, extended method dispatch and bounded large
+input retrieval required by the sensor service. Registry writes never reach
+persistent storage. Preserve upstream verbosity defaults.
+
+--- a/hexagonrpcd/apps_std.c
++++ b/hexagonrpcd/apps_std.c
+@@ -57,11 +57,13 @@
+ #ifdef HEXAGONRPC_VERBOSE
+ 	uint32_t *fd = inbufs[0].p;
+ 
+-	printf("ignore fflush(%u)\n", *fd);
+-#endif
+-
+-	memset(outbufs[0].p, 0, outbufs[0].s);
+-
++	printf("fflush(%u)\n", *fd);
++#endif
++
++	struct apps_std_ctx *ctx = data;
++	const uint32_t *fdnum = inbufs[0].p;
++	if (inbufs[0].s < sizeof(*fdnum) || hexagonfs_ram_flush(ctx->fds, *fdnum))
++		return AEE_EFAILED;
+ 	return 0;
+ }
+ 
+@@ -120,6 +122,26 @@
+ 	return 0;
+ }
+ 
++static uint32_t apps_std_fwrite(void *data,
++                               const struct fastrpc_io_buffer *inbufs,
++                               struct fastrpc_io_buffer *outbufs)
++{
++	struct apps_std_ctx *ctx = data;
++	const struct { uint32_t fd, buf_size; } *in = inbufs[0].p;
++	struct { uint32_t written, is_eof; } *out = outbufs[0].p;
++	ssize_t n;
++	if (inbufs[0].s < sizeof(*in) || outbufs[0].s < sizeof(*out) ||
++	    in->buf_size > inbufs[1].s)
++		return AEE_EBADPARM;
++	n = hexagonfs_ram_write(ctx->fds, in->fd, in->buf_size, inbufs[1].p);
++	if (n < 0) {
++		fprintf(stderr, "RAM registry write failed: %s\n", strerror(-n));
++		return AEE_EFAILED;
++	}
++	out->written = n; out->is_eof = n < in->buf_size;
++	return 0;
++}
++
+ static uint32_t apps_std_fseek(void *data,
+ 			       const struct fastrpc_io_buffer *inbufs,
+ 			       struct fastrpc_io_buffer *outbufs)
+@@ -156,20 +178,26 @@
+ {
+ 	struct apps_std_ctx *ctx = data;
+ 	uint32_t *out = outbufs[0].p;
+-	char rw_mode;
++	const char *rw_mode;
+ 	int dirfd, fd;
+ 
+ 	// The name and environment variable must also be NULL-terminated
+-	if (((const char *) inbufs[1].p)[inbufs[1].s - 1] != 0
++	if (!inbufs[1].s || !inbufs[3].s || !inbufs[4].s
++	 || ((const char *) inbufs[1].p)[inbufs[1].s - 1] != 0
+ 	 || ((const char *) inbufs[3].p)[inbufs[3].s - 1] != 0
+ 	 || ((const char *) inbufs[4].p)[inbufs[4].s - 1] != 0)
+ 		return AEE_EBADPARM;
+ 
+-	rw_mode = ((const char *) inbufs[4].p)[0];
+-	if (rw_mode == 'w' || rw_mode == 'a') {
+-		fprintf(stderr, "Tried to open %s for writing\n",
+-				(const char *) inbufs[3].p);
+-		return AEE_EUNSUPPORTED;
++	rw_mode = inbufs[4].p;
++	if (*rw_mode == 'w' || *rw_mode == 'a' || strchr(rw_mode, '+')) {
++		fd = hexagonfs_ram_open(ctx->fds, inbufs[3].p, rw_mode);
++		if (fd < 0) {
++			fprintf(stderr, "RAM registry open failed %s: %s\n",
++				(const char *)inbufs[3].p, strerror(-fd));
++			return AEE_EFAILED;
++		}
++		*out = fd;
++		return 0;
+ 	}
+ 
+ 	if (!strcmp(inbufs[1].p, "ADSP_LIBRARY_PATH")) {
+@@ -282,6 +310,23 @@
+ 	first_out->inode = 0;
+ 	first_out->is_eof = (*first_out->name == '\0');
+ 
++	return 0;
++}
++
++static uint32_t apps_std_frename(void *data,
++                                const struct fastrpc_io_buffer *inbufs,
++                                struct fastrpc_io_buffer *outbufs)
++{
++	int ret;
++	if (!inbufs[1].s || !inbufs[2].s || !inbufs[1].p || !inbufs[2].p ||
++	    memchr(inbufs[1].p, 0, inbufs[1].s) != (char *)inbufs[1].p + inbufs[1].s - 1 ||
++	    memchr(inbufs[2].p, 0, inbufs[2].s) != (char *)inbufs[2].p + inbufs[2].s - 1)
++		return AEE_EBADPARM;
++	ret = hexagonfs_ram_rename(inbufs[1].p, inbufs[2].p);
++	if (ret) {
++		fprintf(stderr, "RAM registry rename failed: %s\n", strerror(-ret));
++		return AEE_EFAILED;
++	}
+ 	return 0;
+ }
+ 
+@@ -419,7 +464,7 @@
+ 		.def = &apps_std_fread_def,
+ 		.impl = apps_std_fread,
+ 	},
+-	{ .def = NULL, .impl = NULL, },
++	{ .def = &apps_std_fwrite_def, .impl = apps_std_fwrite, },
+ 	{ .def = NULL, .impl = NULL, },
+ 	{ .def = NULL, .impl = NULL, },
+ 	{ .def = NULL, .impl = NULL, },
+@@ -464,10 +509,12 @@
+ 		.def = &apps_std_stat_def,
+ 		.impl = apps_std_stat,
+ 	},
++	{ .def = NULL, .impl = NULL, },
++	{ .def = &apps_std_frename_def, .impl = apps_std_frename, },
+ };
+ 
+ const struct fastrpc_interface apps_std_interface = {
+ 	.name = "apps_std",
+-	.n_procs = 32,
++	.n_procs = 34,
+ 	.procs = apps_std_procs,
+ };
+--- a/hexagonrpcd/hexagonfs.c
++++ b/hexagonrpcd/hexagonfs.c
+@@ -180,7 +180,7 @@
+ 		goto err;
+ 
+ 	ret = allocate_file_number(fds, fd);
+-	if (ret)
++	if (ret < 0)
+ 		goto err;
+ 
+ 	return ret;
+--- a/hexagonrpcd/hexagonfs.h
++++ b/hexagonrpcd/hexagonfs.h
+@@ -78,4 +78,11 @@
+ int hexagonfs_readdir(struct hexagonfs_fd **fds, int fileno, size_t size, char *name);
+ ssize_t hexagonfs_read(struct hexagonfs_fd **fds, int fileno, size_t size, void *ptr);
+ 
++int hexagonfs_enable_ram_registry(const char *path);
++int hexagonfs_ram_open(struct hexagonfs_fd **fds, const char *path, const char *mode);
++ssize_t hexagonfs_ram_write(struct hexagonfs_fd **fds, int fd, size_t size, const void *ptr);
++int hexagonfs_ram_flush(struct hexagonfs_fd **fds, int fd);
++
++int hexagonfs_ram_rename(const char *oldpath, const char *newpath);
++
+ #endif
+--- a/hexagonrpcd/interfaces/adsp_listener.def
++++ b/hexagonrpcd/interfaces/adsp_listener.def
+@@ -28,5 +28,6 @@
+ 
+ HEXAGONRPC_DEFINE_REMOTE_METHOD(3, adsp_listener_init2, 0, 0, 0, 0)
+ HEXAGONRPC_DEFINE_REMOTE_METHOD(4, adsp_listener_next2, 2, 1, 4, 1)
++HEXAGONRPC_DEFINE_REMOTE_METHOD(5, adsp_listener_get_in_bufs2, 2, 0, 1, 1)
+ 
+ #endif /* INTERFACE_ADSP_LISTENER_DEF */
+--- a/hexagonrpcd/interfaces/apps_std.def
++++ b/hexagonrpcd/interfaces/apps_std.def
+@@ -28,6 +28,7 @@
+ HEXAGONRPC_DEFINE_REMOTE_METHOD(2, apps_std_fflush, 8, 0, 0, 0)
+ HEXAGONRPC_DEFINE_REMOTE_METHOD(3, apps_std_fclose, 1, 0, 0, 0)
+ HEXAGONRPC_DEFINE_REMOTE_METHOD(4, apps_std_fread, 1, 0, 2, 1)
++HEXAGONRPC_DEFINE_REMOTE_METHOD(5, apps_std_fwrite, 1, 1, 2, 0)
+ HEXAGONRPC_DEFINE_REMOTE_METHOD(9, apps_std_fseek, 3, 0, 0, 0)
+ HEXAGONRPC_DEFINE_REMOTE_METHOD(19, apps_std_fopen_with_env, 0, 4, 1, 0)
+ HEXAGONRPC_DEFINE_REMOTE_METHOD(26, apps_std_opendir, 0, 1, 2, 0)
+@@ -35,4 +36,6 @@
+ HEXAGONRPC_DEFINE_REMOTE_METHOD(28, apps_std_readdir, 2, 0, 66, 0)
+ HEXAGONRPC_DEFINE_REMOTE_METHOD(31, apps_std_stat, 1, 1, 24, 0)
+ 
++HEXAGONRPC_DEFINE_REMOTE_METHOD(33, apps_std_frename, 1, 2, 0, 0)
++
+ #endif /* INTERFACE_APPS_STD_DEF */
+--- a/hexagonrpcd/listener.c
++++ b/hexagonrpcd/listener.c
+@@ -24,6 +24,7 @@
+ #include <libhexagonrpc/interfaces/remotectl.def>
+ #include <stddef.h>
+ #include <stdio.h>
++#include <string.h>
+ 
+ #include "aee_error.h"
+ #include "interfaces/adsp_listener.def"
+@@ -143,6 +144,8 @@
+ {
+ 	struct fastrpc_decoder_context *ctx;
+ 	char inbufs[256];
++	char *large_inbufs = NULL;
++	const char *input = inbufs;
+ 	char *outbufs = NULL;
+ 	uint32_t inbufs_len;
+ 	uint32_t outbufs_len;
+@@ -174,10 +177,31 @@
+ 		goto err_free_outbufs;
+ 	}
+ 
+-	if (inbufs_len > 256) {
+-		fprintf(stderr, "Large (>256B) input buffers aren't implemented\n");
+-		ret = -1;
+-		goto err_free_outbufs;
++	if (inbufs_len > sizeof(inbufs)) {
++		uint32_t required = 0;
++		/* Bound allocations before accepting a DSP-supplied length. */
++		if (inbufs_len > 4U * 1024 * 1024) {
++			fprintf(stderr, "Large input exceeds 4 MiB bound\n");
++			ret = -1;
++			goto err_free_outbufs;
++		}
++		large_inbufs = malloc(inbufs_len);
++		if (!large_inbufs) {
++			ret = -1;
++			goto err_free_outbufs;
++		}
++		memcpy(large_inbufs, inbufs, sizeof(inbufs));
++		ret = fastrpc2(&adsp_listener_get_in_bufs2_def, fd,
++				ADSP_LISTENER_HANDLE, *rctx, (uint32_t)sizeof(inbufs),
++				&required, inbufs_len - (uint32_t)sizeof(inbufs),
++				large_inbufs + sizeof(inbufs));
++		if (ret || required != inbufs_len) {
++			fprintf(stderr, "Large input retrieval failed: ret=%d required=%u expected=%u\n",
++				ret, required, inbufs_len);
++			ret = -1;
++			goto err_free_outbufs;
++		}
++		input = large_inbufs;
+ 	}
+ 
+ 	ctx = inbuf_decode_start(*sc);
+@@ -187,7 +211,7 @@
+ 		goto err_free_outbufs;
+ 	}
+ 
+-	ret = inbuf_decode(ctx, inbufs_len, inbufs);
++	ret = inbuf_decode(ctx, inbufs_len, input);
+ 	if (ret) {
+ 		perror("Could not decode");
+ 		goto err_free_outbufs;
+@@ -202,6 +226,7 @@
+ 	*decoded = inbuf_decode_finish(ctx);
+ 
+ err_free_outbufs:
++	free(large_inbufs);
+ 	free(outbufs);
+ 	return ret;
+ }
+@@ -233,6 +258,20 @@
+ 		return 1;
+ 	}
+ 
++	/* Public QAIC extended methods use wire method 31 plus a leading MID. */
++	if (method == 31) {
++		if (REMOTE_SCALARS_INBUFS(sc) < 1 || !decoded ||
++		    decoded[0].s < sizeof(uint32_t) || !decoded[0].p) {
++			*result = AEE_EBADPARM;
++			return 1;
++		}
++		memcpy(&method, decoded[0].p, sizeof(method));
++		if (method < 31) {
++			*result = AEE_EBADPARM;
++			return 1;
++		}
++	}
++
+ 	if (method >= ifaces[handle]->n_procs) {
+ 		fprintf(stderr, "Unsupported method: %u (%08x)\n", method, sc);
+ 		*result = AEE_EUNSUPPORTED;
+@@ -284,7 +323,7 @@
+ 	struct fastrpc_io_buffer *decoded = NULL,
+ 				 *returned = NULL;
+ 	uint32_t result = 0xffffffff;
+-	uint32_t handle;
++	uint32_t handle = 0;
+ 	uint32_t rctx = 0;
+ 	uint32_t sc = REMOTE_SCALARS_MAKE(0, 0, 0);
+ 	uint32_t n_outbufs = 0;
+--- a/hexagonrpcd/rpcd.c
++++ b/hexagonrpcd/rpcd.c
+@@ -262,6 +262,8 @@
+ 		return NULL;
+ 
+ 	root_dir = construct_root_dir(device_dir, dsp);
++	if (!root_dir)
++		goto err;
+ 
+ 	/*
+ 	 * The apps_remotectl interface patiently waits for this function to
+--- a/hexagonrpcd/rpcd_builder.c
++++ b/hexagonrpcd/rpcd_builder.c
+@@ -22,6 +22,7 @@
+ #include <stdarg.h>
+ #include <stdlib.h>
+ #include <string.h>
++#include <stdio.h>
+ 
+ #include "hexagonfs.h"
+ 
+@@ -31,6 +32,7 @@
+ #define SENSORS_CONFIG		"/sensors/config/"
+ #define SENSORS_REGISTRY	"/sensors/registry/"
+ #define SNS_REG_CONFIG		"/sensors/sns_reg.conf"
++#define OPPO_VERSION "/oppoVersion/"
+ #define SYSFS_SOCINFO		"/socinfo/"
+ 
+ static struct hexagonfs_dirent *hfs_mkdir(const char *name, size_t n_ents, ...)
+@@ -114,8 +116,12 @@
+ 	char *acdbdata, *dsp_libs, *sns_cfg, *sns_reg, *sns_reg_config, *socinfo;
+ 	size_t n_prefix;
+ 	struct hexagonfs_dirent *persist_dir, *vendor_dir;
++	char *oppo;
+ 
+ 	n_prefix = strlen(prefix);
++	oppo = malloc(n_prefix + strlen(OPPO_VERSION) + 1);
++	if (!oppo) return NULL;
++	strcpy(oppo, prefix); strcat(oppo, OPPO_VERSION);
+ 
+ 	acdbdata = malloc(n_prefix + strlen(ACDBDATA) + 1);
+ 	sns_cfg = malloc(n_prefix + strlen(SENSORS_CONFIG) + 1);
+@@ -162,9 +168,7 @@
+ 	 */
+ 	persist_dir = hfs_mkdir("persist", 1,
+ 				hfs_mkdir("sensors", 1,
+-					hfs_mkdir("registry", 1,
+-						hfs_map("registry", sns_reg)
+-					)
++					hfs_map("registry", sns_reg)
+ 				)
+ 		      );
+ 
+@@ -182,7 +186,12 @@
+ 				)
+ 			);
+ 
+-	return hfs_mkdir("/", 6,
++	if (hexagonfs_enable_ram_registry(sns_reg)) {
++		fprintf(stderr, "Refusing registry root: requires private tmpfs directory\n");
++		return NULL;
++	}
++	return hfs_mkdir("/", 7,
++			hfs_mkdir("proc", 1, hfs_map("oppoVersion", oppo)),
+ 			hfs_mkdir("mnt", 1,
+ 				hfs_mkdir("vendor", 1,
+ 					persist_dir

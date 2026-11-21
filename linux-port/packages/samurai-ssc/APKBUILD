@@ -1,0 +1,29 @@
+maintainer="hmhmdcy <hmhmdcy@users.noreply.github.com>"
+pkgname=samurai-ssc
+pkgver=1
+pkgrel=2
+pkgdesc="Realme X2 Pro SLPI/file-service lifetime and private sensor registry"
+url="https://github.com/hmhmdcy/realme-x2-pro-pmaports"
+arch="noarch"
+license="LicenseRef-Local-Project"
+options="!check"
+install="$pkgname.post-install"
+depends="python3 samurai-hexagonrpcd samurai-libssc libssc iio-sensor-proxy
+	coreutils kmod"
+source="
+	samurai-ssc.py
+	samurai-ssc.initd
+	samurai-ssc.post-install
+	"
+
+package() {
+	install -Dm755 "$srcdir"/samurai-ssc.py "$pkgdir"/usr/sbin/samurai-ssc
+	install -Dm755 "$srcdir"/samurai-ssc.initd \
+		"$pkgdir"/etc/init.d/samurai-ssc
+}
+
+sha512sums="
+8d4362ee5546842031af2515abae2acd2f56d6c87d99206d71612c0ce18fd8201d3528514293cdb3a84c2e0b045b9799d28be75406c0766fc783e1631712ee6e  samurai-ssc.py
+a82b18d213c7dc898c22803634029c326c43fc4836f51b2c62fc7bbd44268fc76b9de9362755e0241cc4603d113a24de2fe098a013c40e766cecf4ae72f5bce1  samurai-ssc.initd
+ac419b434a19d4df885ab8d0be1754b9a5eea8285e8bd7e7c42df368c41415ce7e36d2aca5054bb098c88c23d7332278b8b6fc57f593ef87d4c7537baf2ee6b2  samurai-ssc.post-install
+"

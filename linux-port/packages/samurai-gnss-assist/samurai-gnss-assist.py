@@ -255,12 +255,12 @@ def run_once(directory, active_only=False, prepare_only=False):
         obj = bus.get_object(service, candidates[0])
         props = dbus.Interface(obj, 'org.freedesktop.DBus.Properties')
         api = dbus.Interface(obj, interface)
-    
+
         def allowed():
             return (str(daemon.GetNameOwner(service)) == owner
                     and (not bool(int(props.Get(interface, 'Enabled')) & 6) if prepare_only
                          else not active_only or bool(int(props.Get(interface, 'Enabled')) & 6)))
-    
+
         if not allowed():
             return {'status': 'inactive'}
         tracking = subprocess.run(['/usr/bin/chronyc', '-n', 'tracking'],
@@ -291,7 +291,7 @@ def run_once(directory, active_only=False, prepare_only=False):
         rejected_file = directory / 'rejected-payloads.json'
         rejected = json.loads(rejected_file.read_text()) if rejected_file.exists() else {}
         last_injected = None
-    
+
         def download(url, index):
             request = urllib.request.Request(url, headers={'Cache-Control': 'no-cache',
                                                            'Pragma': 'no-cache'})
@@ -313,7 +313,7 @@ def run_once(directory, active_only=False, prepare_only=False):
         def query_after_injection():
             time.sleep(1)
             return loc_exchange('validity')
-    
+
         result = refresh_data(before, servers, query_after_injection, download, inject,
                               allowed, time.time)
         if result['status'] == 'not-current-after-injection' and last_injected:

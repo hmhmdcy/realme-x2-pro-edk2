@@ -1,0 +1,17 @@
+#!/bin/sh
+# Package transactions inside a chroot cannot talk to a running systemd;
+# enabling is done offline through symlinks, which works in both cases.
+for unit in samurai-radio.service samurai-ssc.service samurai-gnss-assist.service \
+	samurai-usb-network.service samurai-usb-recover.service \
+	usb-signaller.service usb-signaller-developer-mode.service unudhcpd@usb0.service; do
+	[ -e "/usr/lib/systemd/system/$unit" ] || continue
+	systemctl enable "$unit" >/dev/null 2>&1 || true
+done
+# iio-sensor-proxy ships a static unit with no [Install] section.
+link=/etc/systemd/system/multi-user.target.wants/iio-sensor-proxy.service
+if [ -e /usr/lib/systemd/system/iio-sensor-proxy.service ] && [ ! -e "$link" ]; then
+	mkdir -p "${link%/*}"
+	ln -s /usr/lib/systemd/system/iio-sensor-proxy.service "$link"
+fi
+systemctl daemon-reload >/dev/null 2>&1 || true
+exit 0

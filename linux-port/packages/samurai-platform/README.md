@@ -264,8 +264,13 @@ package in `linux-port/debug/sleep-policy/`; it is never registered in a
 runlevel.
 
 This is a settings-provenance cleanup, not a new suspend policy. KDE
-PowerDevil keeps its upstream defaults; the package does not ship a
-`powerdevilrc`. The per-test `elogind-inhibit` lock remains in
+PowerDevil keeps its upstream defaults; this package does not ship a
+`powerdevilrc`. The board-wide "never auto-suspend" default lives in
+`samurai-desktop` as `/etc/xdg/powerdevilrc` (4-r19, see that README).
+Both keys are ordinary KDE profile settings: `AutoSuspendAction=0` is
+`PowerButtonAction::NoAction` (what the desktop KCM writes for "Never"),
+and `AutoSuspendIdleTimeoutSec=0` is the Plasma Mobile KCM's "Never".
+The per-test `elogind-inhibit` lock remains in
 `linux-port/scripts/test-usb-ncm-stability.py` and is released when the
 test exits.
 

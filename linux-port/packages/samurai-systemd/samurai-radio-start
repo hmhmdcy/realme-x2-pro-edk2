@@ -1,0 +1,28 @@
+#!/bin/sh
+# Boot-time radio bring-up: same-handset firmware into private RAM plus the
+# RAM COW remote filesystem services.
+#
+# samurai-wifi has no stop path: prepare() asserts the MPSS is offline and
+# the firmware tree does not exist yet.  Once boot has brought the modem up,
+# re-running this unit cannot succeed, and stopping MPSS to satisfy the
+# assertion tears down Wi-Fi and the USB gadget.  Treat the unit as a boot
+# step: the first run does the work, later runs only re-assert readiness.
+set -u
+
+base=/run/samurai-wifi
+
+if [ -f "$base/ready" ]; then
+	echo "radio already running"
+	exit 0
+fi
+
+mkdir -p "$base"
+: >"$base/boot-started"
+SAMURAI_WIFI_MANAGED=1 /usr/sbin/samurai-wifi start >"$base/boot.log" 2>&1
+result=$?
+echo "$result" >"$base/boot-finished"
+if [ "$result" -ne 0 ]; then
+	mkdir -p /var/log/samurai
+	cp "$base/boot.log" /var/log/samurai/wifi-boot-failure.log 2>/dev/null || true
+fi
+exit "$result"

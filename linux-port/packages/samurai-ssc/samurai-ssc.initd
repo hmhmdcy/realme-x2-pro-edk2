@@ -1,0 +1,20 @@
+#!/sbin/openrc-run
+description="Samurai SLPI and private RAM sensor registry"
+depend() {
+    need localmount
+    after udev dbus samurai-radio
+    before iio-sensor-proxy
+}
+start() {
+    ebegin "Starting Samurai SSC"
+    /usr/sbin/samurai-ssc start
+    eend $?
+}
+stop() {
+    ebegin "Stopping Samurai SSC"
+    /usr/sbin/samurai-ssc stop
+    eend $?
+}
+status() {
+    /usr/sbin/samurai-ssc status
+}

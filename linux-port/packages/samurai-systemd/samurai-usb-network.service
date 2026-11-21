@@ -1,0 +1,13 @@
+[Unit]
+Description=Samurai USB network link glue (usb0 up, DHCP, watchdog)
+After=usb-signaller.service NetworkManager.service systemd-udevd.service
+Wants=usb-signaller.service
+
+[Service]
+Type=simple
+ExecStart=/usr/sbin/samurai-usb-network-watchdog
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

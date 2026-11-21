@@ -1,0 +1,54 @@
+maintainer="hmhmdcy <hmhmdcy@users.noreply.github.com>"
+pkgname=samurai-radio-tools
+pkgver=1
+pkgrel=0
+pkgdesc="Realme X2 Pro radio-tools"
+url="https://github.com/hmhmdcy/realme-x2-pro-pmaports"
+arch="aarch64"
+license="BSD-3-Clause AND MIT"
+options="!check"
+makedepends="linux-headers"
+source="qrtr-29e36ae.tar.gz::https://codeload.github.com/linux-msm/qrtr/tar.gz/29e36ae164389580a0f8ea7a7fdb728140ae978d
+ tqftpserv-128cd6e.tar.gz::https://codeload.github.com/linux-msm/tqftpserv/tar.gz/128cd6e0a39734fefd0f0bf0aad5e997c29e2445
+ rmtfs-b30a3eb.tar.gz::https://api.github.com/repos/linux-msm/rmtfs/tarball/b30a3eb
+ tqftpserv-work-files.patch rmtfs-cow-handler.patch rmtfs-runtime-root.patch
+ storage-cow.c sharedmem-bounded.c samurai-tftp-ram.c ro-firmware.c
+ dms-mac-read.c samurai-bt-address.c"
+builddir="$srcdir"
+prepare() {
+ patch --fuzz=0 -d tqftpserv-128cd6e0a39734fefd0f0bf0aad5e997c29e2445 -p1 < tqftpserv-work-files.patch
+ patch --fuzz=0 -d linux-msm-rmtfs-b30a3eb -p1 < rmtfs-cow-handler.patch
+ patch --fuzz=0 -d linux-msm-rmtfs-b30a3eb -p1 < rmtfs-runtime-root.patch
+ cp storage-cow.c linux-msm-rmtfs-b30a3eb/storage.c
+ cp sharedmem-bounded.c linux-msm-rmtfs-b30a3eb/sharedmem.c
+ printf '#include <errno.h>\nint rproc_start(void){return -EPERM;}\nint rproc_stop(void){return -EPERM;}\n' > rproc-disabled.c
+}
+build() {
+ local q=qrtr-29e36ae164389580a0f8ea7a7fdb728140ae978d
+ local t=tqftpserv-128cd6e0a39734fefd0f0bf0aad5e997c29e2445
+ local r=linux-msm-rmtfs-b30a3eb
+ $CC $CFLAGS -D_GNU_SOURCE -O2 -static -I$q/include -I$t $t/tqftpserv.c samurai-tftp-ram.c $q/lib/qrtr.c $q/lib/logging.c ro-firmware.c $LDFLAGS -o samurai-tqftpserv
+ $CC $CFLAGS -O2 -static -I$q/include -I$q/lib -I$r $r/rmtfs.c $r/qmi_rmtfs.c rproc-disabled.c $r/storage.c $r/sharedmem.c $q/lib/qrtr.c $q/lib/qmi.c $q/lib/logging.c $LDFLAGS -o samurai-rmtfs-cow
+ $CC $CFLAGS -O2 -static -I$q/include dms-mac-read.c $q/lib/qrtr.c $q/lib/logging.c $LDFLAGS -o samurai-dms-mac-read
+ $CC $CFLAGS -O2 -static samurai-bt-address.c $LDFLAGS -o samurai-bt-address
+}
+package() {
+ for tool in samurai-tqftpserv samurai-rmtfs-cow samurai-dms-mac-read samurai-bt-address; do
+  install -Dm755 "$tool" "$pkgdir"/usr/sbin/"$tool"
+ done
+}
+
+sha512sums="
+aa5a5eb672fc32ce9e7612f6763d3e4988be8178218d64655cd3713070f145bfc664e2b122fdd4573e271e36c24422a62bc81501574aed0190929cae19e10862  qrtr-29e36ae.tar.gz
+ca402c48a091e5b886f43cca400ea2b24362a6187f75800a697c8c055479153aca5bf492c10e1ddebd50f835a3416a077d4cea056e35f3f2df7dde73e877cf84  tqftpserv-128cd6e.tar.gz
+e385ea9c9b0fc242c4cde1f97ddbae7c1a27fc0a630a91b2959c1e128a3ef4d68947c8db27cf29fd529a8ebdea42b15bd29a4030c2e672058f7678332099c6a8  rmtfs-b30a3eb.tar.gz
+098945d2fcb79d03db17cca09e0b2820b3f74bbea5535cd672f36d823228aae6bc3045f211f03f8b18f0a40f913919a00fdb2c5075a33d82915c4b7fab82f6b3  tqftpserv-work-files.patch
+b95add962d4a33470951766787bf47cf4eeba12af6ea26fb9bfda612738cb12e845c36bb278c401202b73f69fbea05655e572e254ebed3368fb9a165bcf1677b  rmtfs-cow-handler.patch
+a5ecb9e46c20f4136bb6905849b37b1029e8e2ab7235dedd375472cf4e4c44a1063f91d5abc80a15c661404c4fe21e6b8c063e6c307cdb42a801ff6a14263383  rmtfs-runtime-root.patch
+cf0b2d4a696d92329390027ebf72a36ec5a0d25e39ff2d1de5baba9e7215449f89f02da7fa2e89c2072cac1fcb446aabc53f60c479e562e12cfc7ad28b24f320  storage-cow.c
+77c2138dfda5d0684a4abb22d7f3afcf809993fa1cf9ad96557dd10b2026a97f281c0d4cf4d293632d0b93187197fcda29fd28a95d5b1915e5d58c0e105963d8  sharedmem-bounded.c
+bf965daaed0dbbb4c9cadb2c719952959f69a1c193f0a69e72883889b94467e2c32487ae09e7ed9b7d5f89c25549e9309e2c85844abe05157197ff4ad38603bb  samurai-tftp-ram.c
+b11c1d6a848ff9572e67fff578353ae5cc2252464cebee79389a7559abf10f443835549260a7d1cb9383e00981fdbc96bf6d25b09788375a0f1b3dbd591f39c1  ro-firmware.c
+1b32086b0299af90ff0965c752766b2fc4081ea02470d1bb6d38b12957e267f92c90868658a8863e12e8d509e08452909ed772985b6739dc1b2e3e0917438665  dms-mac-read.c
+4da373c81d26fab2e8c6a93e0ce1e3d4d685ac51de924c4bb4df2d3254767921748dffd27c9cf3a0e393847c3955c1a60f04275b151f22ca5e280c82bfca1698  samurai-bt-address.c
+"

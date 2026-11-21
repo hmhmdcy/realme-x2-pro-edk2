@@ -1,7 +1,7 @@
 maintainer="hmhmdcy <hmhmdcy@users.noreply.github.com>"
 pkgname=samurai-desktop
 pkgver=4
-pkgrel=16
+pkgrel=19
 pkgdesc="Realme X2 Pro Plasma Mobile defaults"
 url="https://github.com/hmhmdcy/realme-x2-pro-pmaports"
 arch="noarch"
@@ -12,7 +12,10 @@ depends="postmarketos-ui-plasma-mobile tinydm samurai-platform
 	samurai-platform-pulse calls chatty
 	mmsd-tng callaudiod xdg-desktop-portal-kde elogind"
 install="$pkgname.post-install"
-source="samurai-tinydm-stop"
+source="
+	samurai-tinydm-stop
+	powerdevilrc
+	"
 
 package() {
 	install -d "$pkgdir"/usr/share/samurai
@@ -23,8 +26,16 @@ package() {
 	EOF
 	install -Dm755 "$srcdir"/samurai-tinydm-stop \
 		"$pkgdir"/usr/libexec/samurai-tinydm-stop
+
+	# Board-wide default: never auto-suspend.  s2idle drops the USB/NCM and
+	# Wi-Fi links on this kernel, so an unattended suspend removes the only
+	# remote access path.  /etc/xdg is overridable by the user's own
+	# ~/.config/powerdevilrc, so this pins the default and not the policy.
+	install -Dm644 "$srcdir"/powerdevilrc \
+		"$pkgdir"/etc/xdg/powerdevilrc
 }
 
 sha512sums="
 f109cc175ab59782815588ce9f47f05b32a8716633ce87d4ccce76d4211a993e88ff2934e3f5314980b241ed2a54b31c7165d2d1b453c70aeca5d5854280b184  samurai-tinydm-stop
+49ebb695af0381321f2dd2568743c8ebe5d7d1b2710314b5ea8855e4202dda2d6063356779c74e55aa32f439f7abffe51346ef2932de3fea83da6561f8c37acb  powerdevilrc
 "

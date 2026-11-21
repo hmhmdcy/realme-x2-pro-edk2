@@ -1,0 +1,37 @@
+maintainer="hmhmdcy <hmhmdcy@users.noreply.github.com>"
+pkgname=samurai-hexagonrpcd
+pkgver=1
+pkgrel=0
+pkgdesc="Realme X2 Pro hexagonrpcd"
+url="https://github.com/hmhmdcy/realme-x2-pro-pmaports"
+arch="aarch64"
+license="GPL-3.0-or-later"
+options="!check !strip"
+makedepends="linux-headers"
+source="hexagonrpc-v0.4.0.tar.gz::https://codeload.github.com/linux-msm/hexagonrpc/tar.gz/23a69640bf10dc498226c602c5b5db11d8cb3d8e
+ ram-registry-listener.patch hexagonfs_ram_registry.c"
+builddir="$srcdir/hexagonrpc-23a69640bf10dc498226c602c5b5db11d8cb3d8e"
+prepare() {
+ default_prepare
+ cp "$srcdir"/hexagonfs_ram_registry.c hexagonrpcd/
+}
+build() {
+ $CC $CFLAGS -static -O2 -Wall -Wextra -Wno-unused-parameter -Iinclude \
+ libhexagonrpc/context.c libhexagonrpc/fastrpc.c libhexagonrpc/interfaces.c libhexagonrpc/session.c \
+ hexagonrpcd/aee_error.c hexagonrpcd/apps_mem.c hexagonrpcd/apps_std.c hexagonrpcd/interfaces.c hexagonrpcd/hexagonfs.c \
+ hexagonrpcd/hexagonfs_mapped.c hexagonrpcd/hexagonfs_plat_subtype_name.c hexagonrpcd/hexagonfs_virt_dir.c \
+ hexagonrpcd/hexagonfs_ram_registry.c hexagonrpcd/iobuffer.c hexagonrpcd/listener.c hexagonrpcd/localctl.c \
+ hexagonrpcd/rpcd.c hexagonrpcd/rpcd_builder.c -pthread $LDFLAGS -o samurai-hexagonrpcd
+}
+package() {
+ install -Dm755 samurai-hexagonrpcd "$pkgdir"/usr/libexec/samurai-hexagonrpcd
+ mkdir -p "$pkgdir"/usr/share/samurai
+ (cd "$pkgdir" && sha256sum usr/libexec/samurai-hexagonrpcd) > "$pkgdir"/usr/share/samurai/ssc-daemon.sha256
+ sed -i 's@  usr/@  /usr/@' "$pkgdir"/usr/share/samurai/ssc-daemon.sha256
+}
+
+sha512sums="
+7584f2e22187f9e7f8fd92e9550be07d6e2b6c396d7bc1a73fa10dd0b743afbab22e0184ede9329dded6c77280947fb7ff8f3968b907223ca0b8503ca8c6e0c8  hexagonrpc-v0.4.0.tar.gz
+0a668869133729a733dd74417f5de462534d652197334e60c5e30a641811112ff92768004673bf0f3221642049a64a5d0a9e6759bb4ff79007b19749613a7430  ram-registry-listener.patch
+03d774abfdc22054b09f9bf0b9c72f64533835a82a9c785a9749ff14b218bb7f50d4a561d4a7929042c34a28063cc92341e843ec4d61fed13dad8fbaae8b9336  hexagonfs_ram_registry.c
+"

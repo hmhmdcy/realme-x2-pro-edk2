@@ -1,0 +1,28 @@
+maintainer="hmhmdcy <hmhmdcy@users.noreply.github.com>"
+pkgname=samurai-libssc
+pkgver=1
+pkgrel=0
+pkgdesc="Realme X2 Pro libssc"
+url="https://github.com/hmhmdcy/realme-x2-pro-pmaports"
+arch="aarch64"
+license="GPL-3.0-or-later"
+options="!check !strip"
+depends="libssc"
+makedepends="eudev-dev glib-dev libgudev-dev linux-headers libqmi-dev meson protobuf-c-dev protobuf-dev python3-dev py3-gobject3 py3-protobuf qrtr-libs"
+source="https://deb.debian.org/debian/pool/main/libs/libssc/libssc_0.4.4.orig.tar.gz libssc-wise-light.patch"
+builddir="$srcdir/libssc"
+build() {
+ abuild-meson -Db_lto=true . output
+ meson compile -C output
+}
+package() {
+ install -Dm755 output/src/libssc.so.2 "$pkgdir"/usr/lib/samurai/ssc/libssc.so.2
+ mkdir -p "$pkgdir"/usr/share/samurai
+ (cd "$pkgdir" && sha256sum usr/lib/samurai/ssc/libssc.so.2) > "$pkgdir"/usr/share/samurai/ssc-library.sha256
+ sed -i 's@  usr/@  /usr/@' "$pkgdir"/usr/share/samurai/ssc-library.sha256
+}
+
+sha512sums="
+9240970f6a70f4900ef2d8fad337dac815ea2602b3b395943326fb086f59d24dcf59b76bdbc6014ebd3c450eaad5393465ca038c165845ffe99bf8e282a5c170  libssc_0.4.4.orig.tar.gz
+bbda4794520bc8c27afdf6611297c54335c3e89c9ed5bb2281330732259df07b838f29eaf9bc983e1198319cf00c962d5957af2fabcf30408d4da0ab036bb333  libssc-wise-light.patch
+"

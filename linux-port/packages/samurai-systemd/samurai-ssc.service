@@ -1,0 +1,15 @@
+[Unit]
+Description=Samurai SLPI and private RAM sensor registry
+After=local-fs.target dbus.service samurai-radio.service
+Before=iio-sensor-proxy.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/samurai-ssc start
+ExecStop=/usr/sbin/samurai-ssc stop
+TimeoutStartSec=120
+TimeoutStopSec=60
+
+[Install]
+WantedBy=multi-user.target
