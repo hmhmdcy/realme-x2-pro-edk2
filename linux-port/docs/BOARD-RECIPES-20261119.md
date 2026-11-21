@@ -197,16 +197,19 @@ DTB 侧是完整的：`camss@acb3000/ports/port@N` 有 `remote-endpoint`，
 
 ## 7. 板级默认“永不休眠”与文件归属（2026-11-20）
 
-`samurai-desktop 4-r17` 把 `/etc/xdg/powerdevilrc` 作为**系统默认**安装，
-AC/电池/低电量三档都是 `AutoSuspendIdleTimeoutSec=0`（等价于 KDE
-“永不休眠”），用户的 `~/.config/powerdevilrc` 仍然优先。刻意不写
-已被禁用的调试键 `AutoSuspendAction=0`。
+`samurai-desktop 4-r17` 把 `/etc/xdg/powerdevilrc` 作为**系统默认**安装；
+`4-r19` 起 AC/电池/低电量三档同时写 `AutoSuspendAction=0` +
+`AutoSuspendIdleTimeoutSec=0`（等价于 KDE 两个前端各自的“永不休眠”），
+用户的 `~/.config/powerdevilrc` 仍然优先。两个键的语义不同：
+桌面 KCM 把“Never”写成 `AutoSuspendAction=0`，
+Plasma Mobile KCM 写成 `AutoSuspendIdleTimeoutSec=0`；只写后者时，
+桌面设置页仍会显示 `Sleep` + `0 秒`。
 
 运行时复核不看文件、直接读生效值：
 
 ```text
 kreadconfig6 AC=0  Battery=0  LowBattery=0
-kreadconfig6 AutoSuspendAction=<未设置>
+kreadconfig6 AutoSuspendAction=0（4-r19 起）
 全新 HOME（无用户配置）同样 0/0/0，说明系统默认会被新账户继承
 ```
 
@@ -226,17 +229,18 @@ kreadconfig6 AutoSuspendAction=<未设置>
 因此做了两件事（2026-11-20 收口）：
 
 - `build-board-packages.py` 原来把 desktop 包钉在 `4-r16` 并**不打包**
-  `powerdevilrc`，这才是“文件无主”的根因；现已改为 `4-r17` 并把
-  `etc/xdg/powerdevilrc` 放进包清单。设备已从板级仓库升级，`apk info -W`
-  返回 `owned by samurai-desktop-4-r17`。
+  `powerdevilrc`，这才是“文件无主”的根因；现已改成从 APKBUILD 读取
+  `pkgver`/`pkgrel`（不再硬编码），并把 `etc/xdg/powerdevilrc` 放进包清单。
+  4-r19 起该文件同时写 `AutoSuspendAction=0` 与
+  `AutoSuspendIdleTimeoutSec=0`，覆盖桌面与 Plasma Mobile 两个 KCM。
 - `check-settings-provenance.sh` 的归属断言原先写的是
   `grep '^R:powerdevilrc$'`；apk 的 installed 库把嵌套文件存成
   `F:<dir>` + `R:<name>`，这条正则在任何情况下都匹配不到，会永久假 FAIL。
   现改为解析 `apk info -W` 的输出。
 - 文档与 `settings-provenance.json` 里“包不发 powerdevilrc”“待移除
-  powerdevil_auto_suspend_zero”的旧描述已收敛，区分
-  `AutoSuspendIdleTimeoutSec=0`（用户可见设置）与
-  `AutoSuspendAction=0`（已禁用的调试覆盖）。
+  powerdevil_auto_suspend_zero”的旧描述已收敛：两个键都是用户可见的
+  KDE 设置（`PowerButtonAction::NoAction` 与“Never”），4-r19 起成对写入，
+  并且校验脚本拒绝任何非 0 的 `AutoSuspendAction`。
 
 ```sh
 # 板级仓库（设备侧，需 root；索引由本机私钥签名）
@@ -279,3 +283,143 @@ $ sha512sum ttyescape 装入的文件（与官方 APK 内文件一致）
 镜像数据库里的 `f:S` 不是文件损坏：apk-tools 用它记录
 `sha256_160`（来自 v2 索引的包），源码位置
 `apk-tools database.c` 的 `ipkg->sha256_160`。
+
+## 9. `apk upgrade`“总是没事可做”的两个真实根因（2026-11-20 实测）
+
+### 9.1 world 里的 `<Q…=` 校验和钉
+
+离线构建用 `apk add <文件路径>` 安装时，apk 会往 `/etc/apk/world` 写一行
+`samurai-desktop><Q1NLf…=`。本轮镜像里共有 **13** 条这种钉。
+
+决定性对照实验（只换板级仓库版本，其它不变）：
+
+```text
+world: samurai-desktop><Q1NLfMnETXMEM3JpO1hZ8npOrrw+g=   →  OK: ... 1254 packages   （不升级）
+world: samurai-desktop                                      →  (1/1) Upgrading samurai-desktop (4-r19 -> 4-r20)
+```
+
+也就是说：**钉在 world 里的包，即使仓库发布了新版本，`apk upgrade` 也
+不会动它。** 这不是“官方没发新版”，而是本地构建自己钉死的。
+
+`repack-embeddings.sh` 现在在所有 `apk add` 之后统一执行一次清理
+（必须放最后，因为每一步 `apk add` 都会重新写回一条钉）：
+
+```text
+checksum pins: 13 -> 0
+```
+
+同时把 `gnutls` / `libssl3` / `libcrypto3` 从 world 移出——它们是被
+`so:` 依赖拉进来的库，不是用户选择；移出后依赖闭包仍为
+`unresolved_deps=0`、`world_unresolved=0`。
+
+### 9.2 镜像里缓存的索引比镜像源旧
+
+镜像自带的 `/var/cache/apk/APKINDEX.*` 是构建当天的快照。Alpine 之后又
+发了三个补丁版，不在快照里，所以设备上的 `apk upgrade` 看不到它们：
+
+```text
+镜像是   gnutls 3.8.13-r0 / libssl3 3.5.9-r0 / libcrypto3 3.5.9-r0
+官方是   gnutls 3.8.14-r0 / libssl3 3.5.9-r1 / libcrypto3 3.5.9-r1
+```
+
+现在镜像同时做两件事：把三个官方 APK 直接装进去（都是 Alpine 签名、
+无 trigger、无本地精确钉），并把四个仓库的缓存索引换成当前官方版本。
+重打包时缓存文件名沿用 apk 自己已生成的
+`APKINDEX.{4aa4fd32,6015956e,5773bea6,3cace40b}.tar.gz`（这些名字不是
+URL 的简单哈希，实测用 sha1 前 8 位算不出来，所以只能覆盖既有名字）。
+
+### 9.3 复测结果（按镜像真实的四个仓库比对）
+
+```text
+match     1232 (98.2%)     drifted 7 (0.6%)     absent 15 (1.2%，全是板级包)
+```
+
+7 个 drifted 全部是有意适配：5 个 `libcamera`（51 条相机补丁）、
+2 个 `unudhcpd`（DHCP broadcast 修复）。`tinydm-systemd 122-r0` 是
+`extra-repos/systemd` 官方版本，不需要动。
+
+## 10. SSH 在 Wi‑Fi 与 NCM 上都能连（2026-11-20 镜像内实测）
+
+“刷完连不上”最容易误判成网络问题，但 SSH 本身有三条独立的失败点。
+现在三条都在镜像里离线验证过：
+
+```text
+sshd.service                      → multi-user.target.wants 中已启用
+                                   （90-base.preset 也有 enable sshd.service）
+sshdgenkeys.service               → sshd.service 的 Wants/After 都会拉起它
+                                   ConditionPathExists=|! 三个 host key
+                                   ExecStart=/usr/bin/ssh-keygen -A（存在）
+/run/sshd                        → 由 systemd 的 tmpfiles（ssh generator）创建
+sshd -T（在镜像里用 qemu 跑）      → port 22
+                                   listenaddress 0.0.0.0:22 和 [::]:22
+                                   PasswordAuthentication yes, UsePAM yes
+                                   PermitRootLogin prohibit-password
+用户                              → user(10000)、/bin/ash、密码已设置、
+                                   1 行 authorized_keys
+```
+
+关键点：**22 端口监听所有网卡**，所以 Wi‑Fi（`192.168.0.106`）和
+USB NCM（`172.16.42.1`）走的是同一套 sshd，不存在“只绑 USB”的限制。
+那个限制是早期 initramfs 诊断 SSH 的历史描述，已在
+[USB-NCM-SSH.md](USB-NCM-SSH.md) 中标注清楚。
+
+一个容易踩的坑：镜像里**没有预生成 host key**。若首次开机
+`sshdgenkeys` 失败，`sshd.service` 的 `Restart=always` 会让它一直重启，
+而日志只有一行 `sshd: no hostkeys available -- exiting`。因此门禁现在
+会实际调用 `ssh-keygen -A` 再跑 `sshd -T`，而不是只看文件是否存在：
+
+```sh
+python3 linux-port/scripts/_wsl-samurai/check-ssh-image.py \
+    --image .../samurai-stable-f2fs-partuuid.simg
+```
+
+该脚本已接进 `repack-embeddings.sh` 和最终镜像验收，两处都会在失败时
+直接中止。
+
+## 11. 交付镜像不得携带私有凭据（2026-11-20）
+
+上一版镜像里有
+`/etc/NetworkManager/system-connections/TP-LINK_156D.nmconnection`，
+`root:root 0600`，第 14 行是**明文 11 位 WPA PSK**，`apk info -W`
+查不到属主。它是早期为了“刷完自动连 Wi‑Fi”直接写进 rootfs 的，
+副作用是任何拿到镜像的人都能连进这个网络。
+
+现在两层防护：
+
+- `repack-embeddings.sh` 的 3c 步删除任何含
+  `psk=` / `password=` / `private-key=` 的连接配置；
+- `check-secrets.py` 扫描 NetworkManager 配置、wpa_supplicant/hostapd/
+  dnsmasq、以及 `/etc` 与 `/home` 下的私钥文件。
+
+```text
+$ python3 linux-port/scripts/_wsl-samurai/check-secrets.py --root <image>
+RESULT: no private credentials in the image
+```
+
+代价：刷完不再自动连 Wi‑Fi，首次开机要在 Plasma 里选一次网络
+（与官方 pmOS 行为一致）。
+
+同一轮还发现并修正两个**探针自身的缺陷**，这类错误会把“没检查”伪装成
+“检查通过”，值得单独记：
+
+1. `sshd -T` 若在 chroot 外执行，配置里的
+   `Include /etc/ssh/sshd_config.d/*.conf` 是绝对路径，会去读**宿主机**
+   的同名目录。因此一开始“有/无 `99-samurai.conf` 结果完全一致”是假结论。
+   改成在镜像内 `chroot` 执行后，才得到可信的 87 行有效配置。
+2. SSH 探针要生成临时 host key 才能跑 `sshd -T`。若探针不清理，就会把
+   **固定的主机密钥**打进交付镜像——比没有密钥更糟（所有设备共用同一
+   私钥）。现在探针结束必定删除，且 `check-secrets.py` 会因此报失败。
+
+## 12. 仍是“无主文件”的两类内容（已知、有意）
+
+用 `check-unowned.py` 扫全镜像，`/etc` + `/usr` 里仍有 2818 个文件不在
+任何 apk 包清单中，主要两类：
+
+| 位置 | 数量 | 原因 | 影响 |
+| --- | --- | --- | --- |
+| `/usr/lib/modules/*` | 1566 | `device-realme-samurai-kernel-none` 是**外部内核**标记包，内核由 UEFI/boot 提供，模块由镜像组装直写 | `apk` 看不到模块里版本；换内核要整体重刷。也让 mkinitfs 枚举 flavor 得到空集 |
+| `/usr/lib/firmware/*` | 160 | ath10k/WCN3990、qca 蓝牙、SM8150 SLPI/ICP 固件由组装直写 | 同上；`apk upgrade` 无法替换这些固件 |
+| `/usr/share/mime` | 992 | shared-mime-info 的缓存，首次登录由 update-mime-database 生成 | 无害 |
+
+这两类是“外部内核”设计的直接后果，不是打包疏忽；要彻底消除必须给出
+一个 kernel/firmware 的 APKBUILD，属于后续工作。

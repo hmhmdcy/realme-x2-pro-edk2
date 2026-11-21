@@ -55,6 +55,19 @@ def copy_file(source, target, mode, text=True):
     target.chmod(mode)
 
 
+def read_apkbuild_version(path):
+    """Read pkgver/pkgrel from an APKBUILD instead of duplicating the number."""
+    fields = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        for key in ("pkgver", "pkgrel"):
+            prefix = key + "="
+            if line.startswith(prefix):
+                fields[key] = line[len(prefix):].strip()
+    missing = {"pkgver", "pkgrel"} - fields.keys()
+    assert not missing, f"{path}: missing {', '.join(sorted(missing))}"
+    return f"{fields['pkgver']}-r{fields['pkgrel']}"
+
+
 def normalize(root):
     for path in [*root.rglob("*"), root]:
         if not path.is_symlink():
@@ -212,10 +225,19 @@ make_package(
 
 desktop = args.build_root / "samurai-desktop"
 desktop_source = PACKAGES / "samurai-desktop"
+desktop_version = read_apkbuild_version(desktop_source / "APKBUILD")
 copy_file(desktop_source / "samurai-tinydm-stop",
           desktop / "usr/libexec/samurai-tinydm-stop", 0o755)
+# Board-wide KDE default: never auto-suspend.  On this kernel s2idle drops
+# both the USB/NCM and the Wi-Fi link, i.e. the only remote access paths.
+# /etc/xdg is the system layer, so the user's ~/.config/powerdevilrc still
+# wins; this installs both values the KDE power frontends write for "Never":
+# AutoSuspendAction=0 (desktop KCM) and AutoSuspendIdleTimeoutSec=0 (the
+# Plasma Mobile KCM).
+copy_file(desktop_source / "powerdevilrc",
+          desktop / "etc/xdg/powerdevilrc", 0o644)
 make_package(
-    "samurai-desktop", "4-r16", "noarch", desktop,
+    "samurai-desktop", desktop_version, "noarch", desktop,
     {
         "description": "Realme X2 Pro Plasma Mobile defaults",
         "license": "LicenseRef-Local-Project",

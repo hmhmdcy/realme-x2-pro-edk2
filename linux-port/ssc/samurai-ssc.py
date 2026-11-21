@@ -18,8 +18,12 @@ BOOT = Path('/proc/sys/kernel/random/boot_id')
 DAEMON = Path('/usr/libexec/samurai-hexagonrpcd')
 LIBRARY = Path('/usr/lib/samurai/ssc/libssc.so.2')
 FW = 'qcom/sm8150/realme/samurai-a11-r187/slpi.mdt'
-DAEMON_HASH = '1902f1b62aea2d0038a9138ae1cd996941f0d0deaa3804d9317ebdc69836e270'
-LIBRARY_HASH = '45570ea41d07fd4300069b5e3ed254f5dfc0c9b660a269d293943a9834566006'
+# The shipped /usr/share/samurai/{ssc-daemon,ssc-library}.sha256 manifests are
+# generated from the installed binaries, so they cannot drift from what the
+# package actually delivered.  Hard-coded digests here went stale once the
+# packaged hexagonrpcd/libssc were rebuilt and made every start fail.
+DAEMON_MANIFEST = Path('/usr/share/samurai/ssc-daemon.sha256')
+LIBRARY_MANIFEST = Path('/usr/share/samurai/ssc-library.sha256')
 
 
 def require(condition, message):
@@ -102,8 +106,13 @@ def wait_qrtr_service(service, timeout):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         try:
+            qrtr_lookup = '/usr/bin/qrtr-lookup'
+            for candidate in ('/usr/bin/qrtr-lookup', '/usr/sbin/qrtr-lookup'):
+                if Path(candidate).is_file():
+                    qrtr_lookup = candidate
+                    break
             result = subprocess.run(
-                ['/usr/sbin/qrtr-lookup'],
+                [qrtr_lookup],
                 capture_output=True,
                 text=True,
                 timeout=2,
@@ -221,8 +230,8 @@ def start(config, record, node):
     debug = Path('/sys/kernel/debug/qcom_socinfo')
     require([text(debug / p) for p in ['hardware_platform', 'hardware_platform_subtype',
             'platform_version']] == ['8', '0', '65536'], 'Unexpected hardware platform')
-    check_hash(DAEMON, DAEMON_HASH)
-    check_hash(LIBRARY, LIBRARY_HASH)
+    run(['sha256sum', '-c', str(DAEMON_MANIFEST)], 'daemon-check-private.log')
+    run(['sha256sum', '-c', str(LIBRARY_MANIFEST)], 'library-check-private.log')
     run(['sha256sum', '-c', config['firmware_manifest']], 'firmware-check-private.log')
     prepare_root(config)
     record = {'boot_id': text(BOOT), 'started': False, 'attempted': True,

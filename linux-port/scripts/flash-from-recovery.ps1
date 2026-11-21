@@ -3,8 +3,8 @@ param(
     [string]$Serial = "62bc28a1",
     [string]$Image = "E:\edk2-samurai-out\standard-arm64-v731\rootfs-stable-20261119-clean\samurai-stable-f2fs-partuuid.simg",
     [string]$Adb = "E:\edk2-samurai-out\standard-arm64-v731\platform-tools\platform-tools\adb.exe",
-    [string]$ExpectedHash = "54d9768acedaccd4245960ff13558c03c5b750214b151c5c05847bfce71e0fc3",
-    [int64]$ExpectedBytes = 3644199308,
+    [string]$ExpectedHash = "5e69d0ae199dc75626ad73fbc5b08d8bf54791a50b193b8c033b381d07b51f4a",
+    [int64]$ExpectedBytes = 3644249048,
     [switch]$Confirm,
     [switch]$Reboot
 )
@@ -56,8 +56,16 @@ Write-Host "target: $Serial (recovery)"
 
 # TWRP keeps /data mounted.  A df check refuses early if /tmp cannot hold the
 # sparse image, which is the only failure mode that needs planning.
+# df columns are: Filesystem 1K-blocks Used Available Use% Mounted-on.  Only
+# the first three fields are pure numbers; "Use%" contains a digit as well, so
+# pick the numeric fields by position instead of filtering every token that
+# looks numeric.
 $df = Invoke-Adb -Arguments @("shell", "df -k /tmp | tail -1")
-$freeKb = [int64]($df -split "\s+" | Where-Object { $_ -match '^\d+$' } | Select-Object -Index 3)
+$dfFields = ($df.Trim() -split "\s+")
+if ($dfFields.Count -lt 4 -or $dfFields[3] -notmatch '^\d+$') {
+    throw "could not parse df output: $($df.Trim())"
+}
+$freeKb = [int64]$dfFields[3]
 if ($freeKb -lt ($item.Length / 1024)) {
     throw "/tmp has $([math]::Round($freeKb/1048576,2)) GiB free; the image needs $([math]::Round($item.Length/1GB,2)) GiB"
 }
@@ -81,7 +89,16 @@ if ($deviceHash -notmatch $ExpectedHash.ToLowerInvariant()) {
 Write-Host "device copy verified" -ForegroundColor Green
 
 Write-Host "unmounting /data and expanding the sparse image onto sda16"
-Invoke-Adb -Arguments @("shell", "umount /sdcard 2>/dev/null; umount /data 2>/dev/null; mount | grep -c sda16") | Out-Null
+# `grep -c` exits 1 when the count is zero, which made an unmounted sda16 look
+# like a failure.  Assert the required end state instead of a match count.
+$mounted = Invoke-Adb -Arguments @(
+    "shell",
+    "umount /sdcard 2>/dev/null; umount /data 2>/dev/null; " +
+    "if mount | grep -q sda16; then echo STILL_MOUNTED; else echo UNMOUNTED; fi"
+)
+if ($mounted.Trim() -notmatch 'UNMOUNTED') {
+    throw "sda16 is still mounted: $($mounted.Trim())"
+}
 Invoke-Adb -Arguments @(
     "shell",
     "simg2img /tmp/flash/rootfs.simg /dev/block/sda16 && sync && echo EXPAND_OK"

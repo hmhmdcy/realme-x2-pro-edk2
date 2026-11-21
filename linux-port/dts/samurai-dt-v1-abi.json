@@ -2,7 +2,7 @@
   "schema": "samurai-platform-contract-v1",
   "contract": "samurai-dt-v1",
   "status": "thin_private_deployed_two_ordinary_reboots_passed_suspend_pending_cold_boot_pending",
-  "updated": "2026-11-09",
+  "updated": "2026-11-21",
   "source_lock": "linux-port/dts/v731/source-lock.json",
   "source_commit": "824dc0a56143d8bf1cc1d20adb877abced48b336",
   "scope": {
@@ -140,7 +140,7 @@
       },
       "property": "flash-leds",
       "expected_phandle_count": 1,
-      "reason": "standard camera-sensor phandle to the registered LED-flash class device; lets V4L2 link the flash subdevice into the CAMSS media graph"
+      "reason": "standard camera-sensor phandle to the PM8150L flash LED.  The LED driver registers a MEDIA_ENT_F_FLASH sub-device through v4l2_flash_init(), which is what lets the sensor sub-notifier complete so CAMSS can link every sensor to its CSIPHY.  This requires CONFIG_V4L2_FLASH_LED_CLASS=m/y in the kernel."
     }
   ],
   "allowed_removed_properties": [

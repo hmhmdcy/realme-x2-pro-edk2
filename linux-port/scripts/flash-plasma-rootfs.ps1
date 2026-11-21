@@ -3,8 +3,8 @@ param(
     [string]$Serial = "62bc28a1",
     [string]$Image = "E:\edk2-samurai-out\standard-arm64-v731\rootfs-stable-20261119-clean\samurai-stable-f2fs-partuuid.simg",
     [string]$Fastboot = "E:\edk2-samurai-out\standard-arm64-v731\platform-tools\!tmp\fastboot.exe",
-    [string]$ExpectedHash = "54d9768acedaccd4245960ff13558c03c5b750214b151c5c05847bfce71e0fc3",
-    [int64]$ExpectedBytes = 3644199308,
+    [string]$ExpectedHash = "5e69d0ae199dc75626ad73fbc5b08d8bf54791a50b193b8c033b381d07b51f4a",
+    [int64]$ExpectedBytes = 3644249048,
     [switch]$Confirm,
     [int]$ChunkMb = 64,
     [switch]$Reboot

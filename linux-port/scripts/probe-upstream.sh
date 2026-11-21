@@ -1,6 +1,7 @@
 #!/bin/bash
 D=/home/cy122/x2pro-linux/upstream
-TOKEN=$(grep -o 'ghp_[A-Za-z0-9]*' /home/cy122/.git-credentials | head -1)
+: "${GITHUB_TOKEN:?GITHUB_TOKEN must be supplied by the caller}"
+TOKEN=$GITHUB_TOKEN
 cd "$D" 2>/dev/null || exit 1
 
 echo "=== A) ?????? ==="

@@ -22,6 +22,12 @@
 | [L4-UAPI-INVENTORY.md](L4-UAPI-INVENTORY.md) | 内核 UAPI、L5/L6 配置债、消费者和双栈迁移顺序 |
 | [samurai-dt-v1-contract.md](../dts/samurai-dt-v1-contract.md) | DTB 稳定/动态/vendor 字段、差异账本、兼容规则、源锁和验收矩阵 |
 | [HARDWARE-STATUS.md](HARDWARE-STATUS.md) | 各功能的已证明能力、缺陷和待验收范围 |
+| [HARDWARE-ACCEPTANCE-20261120.md](HARDWARE-ACCEPTANCE-20261120.md) | 官方稳定版镜像实机验收：服务/传感器/WiFi/USB/音频逐项证据，相机与 GNSS 缺口的层 |
+| [SSH-ROOT-CAUSE-20261120.md](SSH-ROOT-CAUSE-20261120.md) | SSH 连不上的两层根因：真实 IP 是 `.105`，以及 mihomo fake-IP 劫持 |
+| [CAMERA-ASYNC-ROOT-CAUSE-20261121.md](CAMERA-ASYNC-ROOT-CAUSE-20261121.md) | 相机 media graph 无链接的真因：sensor 的 `flash-leds` 指向另一个 v4l2_device，卡死 camss notifier |
+| [DELIVERY-20261121.md](DELIVERY-20261121.md) | 本轮交付镜像哈希：配方与产物对齐（板级包版本、noarch 索引、initramfs 文件冲突）、清除 APK 缓存与私钥、相机 flash 模块、独立验收 |
+| [BOOT-DTB-REGRESSION-20261121.md](BOOT-DTB-REGRESSION-20261121.md) | 卡在 EDK2 的真因：boot 分区 DTB 被换成缺 `typec connector`/`usb-role-switch` 的版本；逐文件比对证据、logdump/rootfs 完好证明、还原命令 |
+| [HANDOVER-20261121.md](HANDOVER-20261121.md) | 本轮交接：配方对齐镜像、四个缺陷、交付哈希、设备卡 EDK2 的定位结论、下次接手第一步与环境备忘 |
 | [TOUCH-GPI-PROBE-20261113.md](TOUCH-GPI-PROBE-20261113.md) | S3706 偶发无触摸启动：GENI I2C/GPI DMA 超时根因、通用探测恢复补丁、kernel #8 部署与 warm reboot 证据 |
 | [FIX-VALIDITY-20261111.md](FIX-VALIDITY-20261111.md) | 已验证修复、离线候选和无效/被取代尝试的有效性台账 |
 | [PLASMA-MOBILE.md](PLASMA-MOBILE.md) | Plasma Mobile 会话、D-Bus 门户、显示亮度、ModemManager、传感器与振动接口 |
@@ -37,6 +43,7 @@
 | [ROOTFS-PRESERVE-ANDROID.md](ROOTFS-PRESERVE-ANDROID.md) | 保留Android与数据的早期研究 |
 | [ANDROID-DT-REFERENCE.md](ANDROID-DT-REFERENCE.md) | 本机Android下游DTS参考来源 |
 | [EDK2-KERNEL-EMBED.md](EDK2-KERNEL-EMBED.md) | 早期内核嵌入固件和引导路径 |
+| [KERNEL-REGDB-REBUILD-20261120.md](KERNEL-REGDB-REBUILD-20261120.md) | 7.3.1 内核重建（regdb 进 initramfs、`ld.lld`+RELR、Image 必须 <64 MiB、整块刷 `logdump`） |
 | [EUD-TERMINAL.md](EUD-TERMINAL.md) | 早期主机交互终端与收发方案 |
 | [OLD-PROJECT-VERIFICATION.md](OLD-PROJECT-VERIFICATION.md) | 旧项目复用与错误核查 |
 | [DISPLAY-90HZ.md](DISPLAY-90HZ.md) | 90Hz/双模式、Phoc 历史、Plasma Mobile/KWin、电源键与 Phosh 清理 |

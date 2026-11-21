@@ -1,0 +1,23 @@
+From: Realme X2 Pro Linux port
+Subject: [PATCH] output: apply every fixed mode from output-management
+
+wlr-output-management clients may select any fixed mode, not only the
+connector's preferred mode. Converting a non-preferred fixed mode through
+the zeroed custom_mode fields makes Phoc fall back to the preferred mode,
+so runtime 60/90 Hz switching appears to succeed but does not change the
+actual CRTC timing.
+
+Use head->state.mode whenever a fixed mode is present. custom_mode remains
+the fallback for clients that explicitly request a custom timing.
+---
+--- a/src/output.c
++++ b/src/output.c
+@@ -1943,7 +1943,7 @@ phoc_output_config_head_to_output_config
+   PhocOutputConfig *oc = phoc_output_config_new (phoc_output_get_identifier (self));
+ 
+   oc->enable = TRUE;
+-  if (head->state.mode && head->state.mode->preferred) {
++  if (head->state.mode) {
+     oc->mode.width = head->state.mode->width;
+     oc->mode.height = head->state.mode->height;
+     oc->mode.refresh_rate = head->state.mode->refresh / 1000.0;

@@ -1,0 +1,79 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * RMX1931 camera ICP experiment.
+ *
+ * This is the source-level counterpart of the ICP node and five IOVA
+ * reservations observed in the deployed integration DTB. It is optional
+ * camera work, not a stable hardware ABI, and is not included by the
+ * production OS wrapper.
+ */
+
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+
+/ {
+	reserved-memory {
+		icp_firmware_resv: reservation-icp-firmware {
+			iommu-addresses = <&samurai_icp 0 0 0 0x500000>;
+		};
+
+		icp_shared_resv: reservation-icp-shared {
+			iommu-addresses = <&samurai_icp 0 0x7400000 0 0x9600000>;
+		};
+
+		icp_heap_resv: reservation-icp-heap {
+			iommu-addresses = <&samurai_icp 0 0x10a00000 0 0x100000>;
+		};
+
+		icp_trace_resv: reservation-icp-trace {
+			iommu-addresses = <&samurai_icp 0 0x10b00000 0 0x100000>;
+		};
+
+		icp_images_resv: reservation-icp-images {
+			iommu-addresses = <&samurai_icp 0 0x20000000 0 0x8000000>;
+		};
+	};
+};
+
+&soc {
+	samurai_icp: icp@ac10000 {
+		compatible = "qcom,sm8150-camss-icp";
+		reg = <0 0xac10000 0 0x8000>,
+		      <0 0xac6f000 0 0x3000>,
+		      <0 0xac87000 0 0x3000>,
+		      <0 0xac91000 0 0x3000>;
+		reg-names = "sierra", "bps", "ipe0", "ipe1";
+		interrupts = <GIC_SPI 463 IRQ_TYPE_EDGE_RISING>;
+		qcom,camss = <&camss>;
+		iommus = <&apps_smmu 0x2222 0x00>,
+			 <&apps_smmu 0x2080 0x20>,
+			 <&apps_smmu 0x20a0 0x20>,
+			 <&apps_smmu 0x2100 0x20>,
+			 <&apps_smmu 0x2120 0x20>,
+			 <&apps_smmu 0x20c0 0x00>,
+			 <&apps_smmu 0x2140 0x00>;
+		clocks = <&camcc 0x26>, <&camcc 0x2b>, <&camcc 0x2d>,
+			 <&camcc 0x2c>, <&camcc 0x0b>, <&camcc 0x0c>,
+			 <&camcc 0x0d>, <&camcc 0x0f>, <&camcc 0x0e>,
+			 <&camcc 0x46>, <&camcc 0x47>, <&camcc 0x48>,
+			 <&camcc 0x4a>, <&camcc 0x49>, <&camcc 0x4b>,
+			 <&camcc 0x4c>, <&camcc 0x4d>, <&camcc 0x4a>,
+			 <&camcc 0x4e>;
+		clock-names = "fast_ahb_src", "icp_ahb", "icp_src", "icp",
+			      "bps_ahb", "bps_areg", "bps_axi", "bps_src", "bps",
+			      "ipe0_ahb", "ipe0_areg", "ipe0_axi", "ipe_src", "ipe0",
+			      "ipe1_ahb", "ipe1_areg", "ipe1_axi", "ipe1_src", "ipe1";
+		power-domains = <&camcc 0x01>, <&camcc 0x04>, <&camcc 0x05>;
+		power-domain-names = "bps", "ipe0", "ipe1";
+		resets = <&camcc 0x09>;
+		reset-names = "icp";
+		#address-cells = <2>;
+		#size-cells = <2>;
+		status = "okay";
+		firmware-name = "qcom/sm8150/camera-icp.elf";
+		memory-region = <&camera_mem &icp_firmware_resv &icp_shared_resv
+				 &icp_heap_resv &icp_trace_resv &icp_images_resv>;
+		memory-region-names = "firmware", "firmware-iova", "shared",
+				      "heap", "trace", "images";
+	};
+};

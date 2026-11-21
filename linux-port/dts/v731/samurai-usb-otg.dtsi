@@ -1,0 +1,64 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * RMX1931 USB2 OTG board fragment.
+ *
+ * This is the board-level, source-level description of the standard
+ * PM8150B Type-C/TCPM, DWC3 usb-role-switch and PM8150B VBUS source
+ * path.  It deliberately does not use GPIO10 extcon, FSA4480/SBU mux,
+ * the DWC3 keep-connect RFC or any private USB ioctl/transport layer.
+ */
+
+#include <dt-bindings/usb/pd.h>
+
+/* SM8150 Ethernet is not populated on RMX1931. */
+/delete-node/ &ethernet;
+
+&pm8150b_typec {
+	status = "okay";
+	vdd-pdphy-supply = <&vreg_l2a_3p1>;
+	wakeup-source;
+
+	connector {
+		compatible = "usb-c-connector";
+		label = "USB-C";
+
+		power-role = "dual";
+		try-power-role = "sink";
+		data-role = "dual";
+		self-powered;
+
+		vbus-supply = <&mp2650_vbus>;
+		source-pdos = <PDO_FIXED(5000, 500,
+					 PDO_FIXED_DUAL_ROLE |
+					 PDO_FIXED_USB_COMM |
+					 PDO_FIXED_DATA_SWAP)>;
+		sink-pdos = <PDO_FIXED(5000, 500,
+				       PDO_FIXED_DUAL_ROLE |
+				       PDO_FIXED_USB_COMM |
+				       PDO_FIXED_DATA_SWAP)>;
+		op-sink-microwatt = <2500000>;
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+
+				pm8150b_hs_in: endpoint {
+					remote-endpoint = <&usb_1_dwc3_hs>;
+				};
+			};
+		};
+	};
+};
+
+&usb_1_dwc3 {
+	dr_mode = "otg";
+	usb-role-switch;
+	role-switch-default-mode = "peripheral";
+};
+
+&usb_1_dwc3_hs {
+	remote-endpoint = <&pm8150b_hs_in>;
+};

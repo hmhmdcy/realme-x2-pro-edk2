@@ -56,6 +56,15 @@ prepare()
     /usr/sbin/samurai-modem-configs "$base/stock-modem/image" "$base/firmware/$firmware" "$base/mcfg-state/source-manifest-private.json" > "$base/mcfg-prepare.log"
     umount "$base/stock-modem"
     cp -a /lib/firmware/ath10k "$base/firmware/"
+    # firmware_class/path is switched to this directory, so every firmware the
+    # kernel asks for after that must be reachable here.  cfg80211 loads
+    # regulatory.db at boot; without it the domain falls back to "country 99",
+    # where the whole 5 GHz band is PASSIVE-SCAN only -- no AP mode, and the
+    # phone's own 5 GHz traffic runs under a world domain.
+    for reg in regulatory.db regulatory.db.p7s; do
+        test -f "/lib/firmware/$reg" || continue
+        cp -a "/lib/firmware/$reg" "$base/firmware/$reg"
+    done
     : > "$base/nv-source-hashes.txt"
     for spec in modemst1:4096:modem_fs1 modemst2:4096:modem_fs2 fsg:4096:modem_fsg fsc:256:modem_fsc oppostanvbk:20480:oem_stanvbk oppodycnvbk:20480:oem_dycnvbk; do
         label=${spec%%:*}; rest=${spec#*:}; sectors=${rest%%:*}; name=${rest#*:}
@@ -96,7 +105,8 @@ start()
     sleep 1
     kill -0 "$(cat "$base/tftp.pid")" "$(cat "$base/rmtfs.pid")"
     grep -q 'RMTFS RAM COW ready' "$base/rmtfs.log"
-    /usr/sbin/qrtr-lookup > "$base/qrtr-before.txt"
+    qrtr_lookup=$(command -v qrtr-lookup || printf "%s" /usr/bin/qrtr-lookup)
+    "$qrtr_lookup" > "$base/qrtr-before.txt"
     grep -qE '^ *14 ' "$base/qrtr-before.txt"
     grep -qE '^ *4096 ' "$base/qrtr-before.txt"
     echo disabled > $mpss/recovery
@@ -115,6 +125,10 @@ start()
     sleep 1
     /usr/sbin/wpa_cli -p"$base/wpa-control" -iwlan0 ping | grep -qx PONG
     fi
+    # Do not hold NetworkManager behind a fixed 45-second soak.  Poll the
+    # standard remoteproc state instead: it normally reaches running while
+    # the WLAN device is being brought up, and the bounded wait still catches
+    # a firmware start failure before the service reports ready.
     state_wait=0
     while [ "$(cat "$mpss/state")" != running ]; do
         state_wait=$((state_wait + 1))

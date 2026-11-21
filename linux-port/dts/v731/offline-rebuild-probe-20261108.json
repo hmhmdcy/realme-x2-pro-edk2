@@ -1,0 +1,94 @@
+{
+  "schema": "samurai-offline-rebuild-probe-v1",
+  "date": "2026-11-08",
+  "source": {
+    "repository": "/home/cy122/standard-arm64-v7.3.1",
+    "head": "824dc0a56143d8bf1cc1d20adb877abced48b336",
+    "camera_patch_tree": "0347b4f91fa16695864406480ea41849b7d7b3c5",
+    "camera_patch_sha256": "d528b7c95e693c2aef16bab1d963e209ae5979f35c4a9f80933a5d08e52a542f",
+    "config_sha256": "35b71dd2125b2cd4489d9e80fbba6d1a4bede9f16c4d19634421f41bb3577dc7",
+    "clk_debugfs_clean": true
+  },
+  "deployed": {
+    "path": "E:/edk2-samurai-out/standard-arm64-v731/camera-final-boot/Image-v731-camera",
+    "bytes": 59308544,
+    "sha256": "aa6c4b6b43ec45f4c41d3d420b980e35876860537cb6f2cb96ec5063aab8432a",
+    "release": "7.3.1-rmx1931-samurai-v731",
+    "build_stamp": "#4 SMP PREEMPT Fri Nov  6 17:14:18 CST 2026"
+  },
+  "clean_build": {
+    "output_tree": "/home/cy122/samurai-v731-clean",
+    "command": "make O=/home/cy122/samurai-v731-clean ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- KBUILD_BUILD_VERSION=4 KBUILD_BUILD_TIMESTAMP='Fri Nov  6 17:14:18 CST 2026' -j8 Image",
+    "localversion_env": "",
+    "bytes": 59308544,
+    "sha256": "f25488d7b831e5777c6240b7ff9993a637eaf420c4fe18afbd1541361656f7e4",
+    "release": "7.3.1-rmx1931-samurai-v731",
+    "build_stamp": "#4 SMP PREEMPT Fri Nov  6 17:14:18 CST 2026",
+    "second_make_clean_rebuild_sha256": "f25488d7b831e5777c6240b7ff9993a637eaf420c4fe18afbd1541361656f7e4",
+    "second_make_clean_rebuild_identical": true,
+    "valid_reproduction": false,
+    "invalid_reason": "The build-tree autoconf.h was stale: it contained CONFIG_VIDEO_QCOM_CAMSS but not the camera CCI/V4L2/sensor symbols from the recorded .config. The f254 image therefore did not reproduce the full recorded build input."
+  },
+  "corrected_full_config_probe": {
+    "output_tree": "/home/cy122/samurai-v731-build",
+    "command": "login shell; make O=/home/cy122/samurai-v731-build ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -j8 KBUILD_BUILD_VERSION=4 KBUILD_BUILD_TIMESTAMP='Fri Nov  6 17:14:18 CST 2026' LOCALVERSION= Image",
+    "localversion_env": "",
+    "rustc": "rustc 1.99.0-nightly (73dc9167f 2026-08-01)",
+    "config_sha256": "35b71dd2125b2cd4489d9e80fbba6d1a4bede9f16c4d19634421f41bb3577dc7",
+    "autoconf_sha256": "d716390322a1886bef153abfdd1d4f0964c4b64d9646822705fd682063fad122",
+    "bytes": 59308544,
+    "sha256": "6b0580c1dbe814414370099f4c8efb5bb8fdecd905d33ca50656a9db04e53eba",
+    "release": "7.3.1-rmx1931-samurai-v731",
+    "build_stamp": "#4 SMP PREEMPT Fri Nov  6 17:14:18 CST 2026",
+    "valid_reproduction": true,
+    "not_deployed": true,
+    "modules": {
+      "count": 773,
+      "deployed_tree_sha256": "17b085b5f9204d481e28c4fd41d3aa57a7078ee7e1783832d52904254260f92d",
+      "repro_tree_sha256": "a619f99338f9eb51ac7c9f9f93247cdf8703d4a3ce85359837dc4fa64f4f2fc7",
+      "identical_modules": 772,
+      "different_module": {
+        "path": "kernel/drivers/media/i2c/imx319.ko",
+        "bytes": 33792,
+        "deployed_sha256": "a7bd760ec6a8c7e98cf7cbaab447ea9c613b805b423aba4efbc141f7073ab569",
+        "repro_sha256": "e321c8fdc7469b6fa7a0f639501472cf3650642559da862447520ec691cffbd7",
+        "difference_scope": "GNU build-id note only; code and size are identical"
+      },
+      "key_modules_byte_identical": [
+        "kernel/drivers/media/platform/qcom/camss/qcom-camss.ko",
+        "kernel/drivers/media/i2c/imx471.ko",
+        "kernel/drivers/media/i2c/s5k3m5.ko",
+        "kernel/drivers/media/i2c/s5kgw1.ko"
+      ]
+    }
+  },
+  "build_id_path_probe": {
+    "output_tree": "/home/cy122/repro-samurai/samurai-v731-build",
+    "config_sha256": "35b71dd2125b2cd4489d9e80fbba6d1a4bede9f16c4d19634421f41bb3577dc7",
+    "autoconf_sha256": "d716390322a1886bef153abfdd1d4f0964c4b64d9646822705fd682063fad122",
+    "bytes": 59308544,
+    "sha256": "d943be512bfb66b531855751af7abb392022141edd3f37d48f9dfa4bbe4355c0",
+    "difference_from_corrected_full_config": {
+      "changed_bytes": 39,
+      "scope": "GNU build-id note only; the kernel payload and symbol layout are otherwise identical"
+    },
+    "conclusion": "The Image hash includes a link-time GNU build-id derived from path-sensitive debug inputs. A fixed build directory is part of the reproduction recipe, or the build-id must be normalized."
+  },
+  "config_probe": {
+    "alternate_config": "E:/edk2-samurai-out/standard-arm64-v731/config-v731",
+    "alternate_config_sha256": "5c7ea3eec1bb0efca473f3032390fff0368fc8dbc4f826c4b614863300004ffc",
+    "alternate_olddefconfig_sha256": "5f5e97995f9012a1dc82d3a3b83102b69c3b548b15139fb7795b3bf01734f608",
+    "alternate_image_sha256": "86d24c29070d2325a314c5803c43c317b615e6064a7d79fc23813557588d2bb2",
+    "matches_deployed": false,
+    "difference": "alternate config disables the camera CCI/V4L2/sensor module options present in samurai.config"
+  },
+  "result": {
+    "bit_identical": false,
+    "status": "open",
+    "deployed_remains_runtime_authority": true,
+    "corrected_clean_source_image": "6b0580c1dbe814414370099f4c8efb5bb8fdecd905d33ca50656a9db04e53eba",
+    "build_is_deterministic_with_fixed_path_and_toolchain": true,
+    "mismatch_scope": "The deployed aa6c image still has a different input/toolchain provenance. The earlier f254 result was invalidated by stale generated autoconf state; a corrected full-config build produces 6b0580.",
+    "note": "Use the login shell so rustc is detected, verify the camera symbols in include/generated/autoconf.h, and keep the output path fixed. The alternate output path produced d943be51 with only a 39-byte GNU build-id difference. Do not treat the deployed image as bit-reproducible until its original toolchain/path provenance is recovered."
+  }
+}

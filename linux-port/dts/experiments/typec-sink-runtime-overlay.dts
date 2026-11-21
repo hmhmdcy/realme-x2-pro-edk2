@@ -1,0 +1,34 @@
+// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
+/*
+ * Self-contained runtime overlay for the RMX1931 PM8150B Type-C sink test.
+ *
+ * The deployed compact DTB does not carry __symbols__, so this overlay uses
+ * target-path fragments and the live RPMh LDO2 phandle (0xbf).  It is
+ * intentionally limited to the standard TCPM/usb-c-connector probe.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/usb/pd.h>
+
+/ {
+	fragment@0 {
+		target-path = "/soc@0/spmi@c440000/pmic@2/typec@1500";
+
+		__overlay__ {
+			status = "okay";
+			vdd-pdphy-supply = <0xbf>;
+			wakeup-source;
+
+			connector {
+				compatible = "usb-c-connector";
+
+				power-role = "sink";
+				data-role = "device";
+				sink-pdos = <PDO_FIXED(5000, 500, PDO_FIXED_USB_COMM)>;
+				op-sink-microwatt = <2500000>;
+			};
+		};
+	};
+};

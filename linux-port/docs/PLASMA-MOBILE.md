@@ -31,9 +31,12 @@ calls 50.0 / chatty 0.8.9 / mmsd-tng 2.6.4
   /usr/share/wayland-sessions/plasma-mobile.desktop
 ```
 
-当前已安装 `samurai-platform` 5-r24 / `samurai-desktop` 4-r15；
-4-r16 候选删除 `samurai-powerkey` 桥，只
-保留官方 `postmarketos-base-ui`/tinydm/PowerDevil 配置。设置来源分层见
+当前交付镜像已安装 `samurai-platform` 6-r22 / `samurai-desktop` 4-r19；
+4-r16 删除 `samurai-powerkey` 桥，只保留官方
+`postmarketos-base-ui`/tinydm 路径；4-r17 增加，4-r19 补齐
+`/etc/xdg/powerdevilrc`（三档 `AutoSuspendAction=0` +
+`AutoSuspendIdleTimeoutSec=0`，即 KDE
+“永不休眠”）。设置来源分层见
 [SETTINGS-PROVENANCE.md](SETTINGS-PROVENANCE.md)。
 
 `samurai-desktop` 安装 `/usr/libexec/samurai-tinydm-stop`，并在
@@ -303,7 +306,16 @@ Plasma Mobile 的 KWin DPMS 关屏不等于系统 suspend。设备侧 DWC3 在
 “仅插着 USB 充电线”不持有唤醒锁；carrier-only guard 已移到
 `linux-port/debug/sleep-policy/`，只允许手动调试，不再安装
 `/usr/libexec/samurai-usb-sleep-guard` 或 `samurai-sleep-inhibitor`。
-正式包不写 `powerdevilrc`，PowerDevil 使用上游 KDE 默认。
+`samurai-desktop` 4-r17 起把 `/etc/xdg/powerdevilrc` 作为**系统默认**
+安装，4-r19 起 AC/电池/低电量三档都是 `AutoSuspendAction=0` +
+`AutoSuspendIdleTimeoutSec=0`（KDE
+“永不”）。它是**仓库里随包发布的默认值**，不是给某台机器临时改的
+文件：`check-rootfs.py` 断言三档为 0、属主是 `samurai-desktop`，镜像
+组装时缺这个包会直接失败，而不是静默退化成上游的 15/5/5 分钟。它是
+板级默认值，不是防休眠守护进程：用户自己的
+`~/.config/powerdevilrc` 仍然优先，显式 `systemctl suspend` 也仍然有效。
+原因是实测的：本机只有 `s2idle`，进入后 USB/NCM 与 Wi‑Fi 同时掉线，
+而这正是唯一的远程通道。
 `samurai-platform` 5-r20 起还移除了 `sshd -> samurai-usb` 和
 `NetworkManager -> samurai-radio` 顺序，使通用 SSH/网络守护进程不再
 等待 NCM 或 radio 准备；安装后必须用时间线确认 Wi‑Fi 首连仍正常。
@@ -335,10 +347,14 @@ Plasma/PowerDevil 不理解“USB NCM 连接”这个板级事实，它只根据
 自动 suspend；显示关闭时间分别是 10、2、1 分钟。`AutoSuspendAction`
 的 `NoAction` 值确实是 `0`。
 
-调试期写入的 `AutoSuspendAction=0` 覆盖已删除，当前使用 PowerDevil
-官方移动默认：AC 空闲 15 分钟、Battery/LowBattery 空闲 5 分钟后自动
-suspend。屏幕可以由 KWin/DPMS 单独关闭；活跃 SSH 会话由上游
-`ssh-session-open` 保持系统在线，不应为了保持 SSH 而常亮屏幕。
+`samurai-desktop` 4-r17 起把 `/etc/xdg/powerdevilrc` 作为系统默认安装，
+4-r19 起 AC/Battery/LowBattery 三档同时写 `AutoSuspendAction=0` 和
+`AutoSuspendIdleTimeoutSec=0`（KDE“永不休眠”），所以上面那组上游移动
+默认值在本机已经不生效；用户的
+`~/.config/powerdevilrc` 仍然优先，显式 `systemctl suspend` 也仍然有效。
+屏幕关闭时间（`TurnOffDisplayIdleTimeoutSec`）保持上游默认，屏幕仍可
+由 KWin/DPMS 单独关闭；活跃 SSH 会话由上游 `ssh-session-open` 保持
+系统在线，不应为了保持 SSH 而常亮屏幕。
 `samurai-platform` 5-r24 已安装并
 通过普通重启验收，默认关闭 USB carrier-only guard。主板直连口的 USB
 NCM 已恢复并通过长测；旧 Genesys Hub 的枚举失败仍属独立物理路径问题。
@@ -360,15 +376,18 @@ boot `2b17a67a…` 上，脚本用直接 `/sys/class/rtc/rtc0/wakealarm`
 - GNOME/Phosh、Plasma Mobile、Sway 等 Linux 手机发行版通常用
   `systemd-inhibit`、`elogind-inhibit` 或设备专用服务来阻止 suspend；
   没有跨 SoC 的“NCM 连接自动阻止休眠”属性。普通桌面插着 Ethernet
-  线、甚至有人通过 SSH 登录，也不会因此阻止默认自动 suspend。
+  线、甚至有人通过 SSH 登录，也不会因此阻止默认自动 suspend；本板
+  的 `AutoSuspendIdleTimeoutSec=0` 是板级默认值，不属于这类通用机制。
 - USB NCM 是标准 CDC Ethernet gadget，链路本身不是 wakelock。DWC3
   在系统 suspend 时会 soft-disconnect，不能依赖主机发包把已经休眠的
   gadget 唤醒；远程唤醒需要控制器、PHY、host 和 class 同时支持，
   不能当作通用 NCM 能力。
 
-因此合理的目标不是常亮屏，而是“DPMS 关屏 + 在确实需要远程访问时持有
-标准 logind/elogind `sleep` 锁”。官方 postmarketOS/Nura 默认只启用
-`ssh-session-open`；本板默认也应如此。若长期接 USB 只充电，应允许
-休眠；只有确实需要无 SSH 活动的 USB 维护时，才显式启用板级 carrier
-guard。Windows 主机在 NCM 刚枚举后的数十秒内还可能没有完成 ARP，当前
-实测需要等待或重试，不能把这段主机侧窗口误判为 KDE 断开连接。
+因此本板的做法是两层：默认不自动挂起（`powerdevilrc`，用户可见、可
+覆盖），同时不追求常亮屏，屏幕关闭仍交给 KWin/DPMS；确实需要远程访问
+时再叠加标准 logind/elogind `sleep` 锁。官方 postmarketOS/Nura 默认只
+启用 `ssh-session-open`，本板保持同一配置。carrier-only guard 仍然是
+调试项，不默认安装；若要主动测试休眠后的 USB 恢复，用
+`linux-port/debug/sleep-policy/` 里的脚本显式启用。Windows 主机在 NCM
+刚枚举后的数十秒内还可能没有完成 ARP，当前实测需要等待或重试，不能把
+这段主机侧窗口误判为 KDE 断开连接。

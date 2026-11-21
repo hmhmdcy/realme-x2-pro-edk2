@@ -1,0 +1,18 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Fixed 5 V / 1.5 A experiment policy.
+ *
+ * This is a policy layer, not a hardware ABI. Apply it after
+ * samurai-charging-usb-input.dtsi, which creates the Type-C connector node.
+ * The values are the two properties whose change was isolated between the
+ * d7d8a7da... and 9736b861... DTB stages.
+ */
+
+#include <dt-bindings/usb/pd.h>
+
+&pm8150b_typec {
+	connector {
+		sink-pdos = <PDO_FIXED(5000, 1500, PDO_FIXED_USB_COMM)>;
+		op-sink-microwatt = <7500000>;
+	};
+};

@@ -1,0 +1,22 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * RMX1931 EUD debug route experiment.
+ *
+ * The canonical board source exposes eud_com but leaves it enabled. This
+ * fragment models the deployed debug policy: disable the EUD COM console and
+ * enable the explicit route that hands EUD control to the USB/eUD helper.
+ * Never include it in a production OS DTB.
+ */
+
+&soc {
+	eud-off-route {
+		compatible = "realme,rmx1931-eud-off-route";
+		status = "okay";
+		realme,usb-controller = <&usb_1_dwc3>;
+		realme,eud-hardware = <&eud_com>;
+	};
+};
+
+&eud_com {
+	status = "disabled";
+};

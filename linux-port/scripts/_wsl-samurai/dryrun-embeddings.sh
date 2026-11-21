@@ -9,6 +9,8 @@ WORK=/root/dryrun
 APK=/root/apkstatic/sbin/apk.static
 REPO_SRC=/root/boardrepo-r17
 EXTRA=/root/recommends-repo
+PKG_SRC=/mnt/e/RealmeX2Pro\ edk2/linux-port/packages/samurai-desktop
+DESKTOP_VERSION=$(sed -n 's/^pkgver=//p' "$PKG_SRC/APKBUILD")-r$(sed -n 's/^pkgrel=//p' "$PKG_SRC/APKBUILD")
 
 rm -rf "$WORK"
 mkdir -p "$WORK/root"
@@ -37,10 +39,10 @@ cp /root/installed_keys/pmos@local-6aeaf066.rsa.pub \
 cp /root/akeys/alpine-devel@lists.alpinelinux.org-616ae350.rsa.pub \
     "$WORK/root/etc/apk/keys/"
 
-echo '=== simulate: install samurai-desktop 4-r17 ==='
+echo "=== simulate: install samurai-desktop $DESKTOP_VERSION ==="
 "$APK" --root "$WORK/root" --arch aarch64 --scripts=no \
     --keys-dir etc/apk/keys --repositories-file /dev/null --no-network \
-    add --simulate "$REPO_SRC/samurai-desktop-4-r17.apk" 2>&1 | tail -6
+    add --simulate "$REPO_SRC/samurai-desktop-$DESKTOP_VERSION.apk" 2>&1 | tail -6
 
 echo '=== simulate: install the six official recommends ==='
 "$APK" --root "$WORK/root" --arch aarch64 --scripts=no \

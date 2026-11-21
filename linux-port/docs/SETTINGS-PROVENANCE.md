@@ -30,7 +30,7 @@ PowerDevil/tinydm/sleep-inhibitor 的官方文件。
 | `sleep-inhibitor` OpenRC 服务 | 由 `postmarketos-base-ui` 的 elogind 安装钩子加入 `default` | 原样保留 |
 | `/etc/conf.d/tinydm` | 只有 `rc_cgroup_cleanup="yes"` 和 `AUTOLOGIN_UID=10000`，没有可选硬件的 `rc_need`/`rc_after` | 原样保留 |
 | NetworkManager / sshd / ModemManager | 各自独立启动，通过 udev/QRTR 发现硬件；不由板级 radio/USB 硬门控 | 板级包只做必要的软排序 |
-| Plasma Mobile | postmarketOS 不额外安装 `powerdevilrc`；PowerDevil 使用上游 KDE 默认 | 正式包不写 `powerdevilrc` |
+| Plasma Mobile | postmarketOS 不额外安装 `powerdevilrc`；PowerDevil 使用上游 KDE 默认 | 板级 `samurai-desktop` 4-r19 加一份 `/etc/xdg/powerdevilrc`，三档 `AutoSuspendAction=0` + `AutoSuspendIdleTimeoutSec=0`（KDE“永不”），用户 `~/.config` 仍优先 |
 
 PowerDevil 的上游移动端默认（KDE PowerDevil
 `daemon/powerdevilsettingsdefaults.cpp`）是：
@@ -39,10 +39,22 @@ PowerDevil 的上游移动端默认（KDE PowerDevil
 - AC 空闲 900 秒、Battery 空闲 300 秒、LowBattery 空闲 300 秒；
 - 关屏：AC 600 秒、Battery 120 秒、LowBattery 60 秒。
 
-这是 KDE 的默认，不是 RMX1931 的自定义策略。活跃 SSH 会话由
-postmarketOS 的 `ssh-session-open` 插件持有 sleep 锁；屏幕仍可由
-KWin 单独 DPMS 关闭。手动 `loginctl suspend` 或直接写 RTC 不属于
-官方策略，也不应在无人值守时运行。
+官方默认会让设备在 AC 15 分钟、电池 5 分钟后自动 `s2idle`。本机实测
+`s2idle` 会同时断开 USB/NCM 和 Wi‑Fi，也就是断开所有远程通道，因此
+板级把三档都写成 `AutoSuspendAction=0` + `AutoSuspendIdleTimeoutSec=0`。
+这不是调试覆盖，而是 KDE 两个电源前端“永不”写下的同一组值：
+桌面 KCM 写 `AutoSuspendAction=0`（`PowerButtonAction::NoAction`），
+Plasma Mobile KCM 写 `AutoSuspendIdleTimeoutSec=0`。`suspendsession.cpp`
+在 `m_idleTime != 0s` 时才注册空闲计时器，而 `loadAction()` 在
+`NoAction` 时直接返回；两键同时为 0，任一 UI 打开都显示“永不”，
+`check-settings-provenance.sh` 会同时校验这两个键。
+
+低电量保护不在此列：`[BatteryManagement] BatteryCriticalAction` 保持
+上游默认（可挂起时为 `Sleep`），5% 时仍会告警并休眠，防止过放。
+
+活跃 SSH 会话由 postmarketOS 的 `ssh-session-open` 插件持有 sleep 锁；
+屏幕仍可由 KWin 单独 DPMS 关闭。手动 `loginctl suspend` 或直接写
+RTC 不属于官方策略，也不应在无人值守时运行。
 
 ## 3. 板级必需薄层（可以持久，但必须是硬件事实）
 
@@ -89,7 +101,8 @@ KWin 单独 DPMS 关闭。手动 `loginctl suspend` 或直接写 RTC 不属于
 | `/etc/samurai/sleep-inhibitor.conf` | 上述服务的板级配置 | 不再安装；debug 示例移到 `linux-port/debug/sleep-policy/` |
 | `/usr/libexec/samurai-usb-sleep-guard` | 早期默认开启的 carrier-only 防休眠 | 移出正式包；仅保留为手动 debug helper |
 | `tinydm` 的 `rc_need="dbus elogind"` 和 `rc_use="iio-sensor-proxy samurai-sleep-inhibitor"` | 早期启动顺序实验 | 从 `samurai-desktop` 安装钩子移除，恢复官方 tinydm 配置 |
-| `powerdevilrc` 中 `AutoSuspendAction=0` | 设备上的手动调试覆盖 | 正式验收前恢复 KDE 默认；包内不得再写 |
+| `powerdevilrc` 中 `AutoSuspendAction=0` | 早期作为“调试关闭”写入；KDE 桌面 KCM 的“永不”也是这个值 | 保留为正式系统默认（4-r19 起），但必须与 `AutoSuspendIdleTimeoutSec=0` 成对出现；任何非 0 的 action 一律拒绝 |
+| `/etc/xdg/powerdevilrc` 由镜像直写而未被任何包记录 | 镜像组装脚本直接拷贝文件，绕过了 `samurai-desktop` | 已由 `samurai-desktop` 4-r17 接管；`check-settings-provenance.sh` 断言 `apk info -W` 能找到属主 |
 | `sshd` 放在 `boot` runlevel | 早期为了更早获得 SSH 的本地排序 | 标为调试期便利；正式版应另立候选恢复官方 `default` |
 
 ## 6. 验收检查
@@ -102,7 +115,8 @@ rc-service sleep-inhibitor status  -> started
 rc-service samurai-sleep-inhibitor -> 不存在
 /etc/samurai/sleep-inhibitor.conf  -> 不存在
 /etc/conf.d/tinydm                 -> 无本地 rc_need/rc_use 覆盖
-~/.config/powerdevilrc             -> 无 AutoSuspendAction=0 调试覆盖
+/etc/xdg/powerdevilrc              -> 三档 AutoSuspendAction=0 + AutoSuspendIdleTimeoutSec=0，属主 samurai-desktop
+~/.config/powerdevilrc             -> 若存在，同样不得启用自动挂起
 ```
 
 检查脚本：
@@ -111,7 +125,8 @@ rc-service samurai-sleep-inhibitor -> 不存在
 sh linux-port/scripts/check-settings-provenance.sh
 ```
 
-PowerDevil 的调试覆盖只在用户级 `powerdevilrc` 中，可用
-`linux-port/scripts/clear-powerdevil-debug-override.py` 先 dry-run，
-确认后加 `--apply`；它只删除 `AutoSuspendAction=0`，不碰其它 KDE
-设置。之后重启 Plasma 会话，让 PowerDevil 重新计算官方默认。
+4-r19 起 `AutoSuspendAction=0` 是正式默认值，不再是需要清理的调试覆盖。
+用户级 `~/.config/powerdevilrc` 仍优先；如果它残留旧值，
+`linux-port/scripts/check-settings-provenance.sh` 会指出具体文件。
+`clear-powerdevil-debug-override.py` 已标记为过时，仅保留用于审查历史
+镜像里的旧调试文件，正式系统不要再运行它。

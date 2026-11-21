@@ -1,6 +1,6 @@
 # Temporary plasma-nm mobile Wi-Fi KCM fix
 
-This directory is a temporary downstream package for Plasma 6.8.2. It
+This directory is a temporary downstream package for Plasma 6.8.3. It
 contains one desktop/UI-layer fix and no Realme-specific logic. The
 fix corresponds to upstream merge request
 [!695](https://invent.kde.org/plasma/plasma-nm/-/merge_requests/695),
@@ -71,8 +71,9 @@ A standalone QML harness on the RMX1931 used the same
   subsequent programmatic `enableWireless(true)` restored the switch
   and the radio, with no extra toggle and no rfkill block.
 
-The patched `kcm_mobile_wifi.so` was built from the 6.8.2 tarball and
-installed for loading tests. `kcmshell6 --list` lists
+The patched `kcm_mobile_wifi.so` was first built from the 6.8.2 tarball
+and installed for loading tests; the 6.8.3 stock plugin was then
+replaced with that compatibility build on the device. `kcmshell6 --list` lists
 `kcm_mobile_wifi`, and `kcmshell6 kcm_mobile_wifi` opens without QML
 errors. A physical touch/click acceptance test on the panel and a
 repeated quick-settings toggle test remain user-visible acceptance
@@ -88,14 +89,14 @@ SHA-256 ed60135ebe9cbc064df19cf146337238512891401a21b7099234f5337052b1f1
 Rollback copy on the device:
 
 ```text
-/root/kcm_mobile_wifi.so.orig-20261113
-SHA-256 8041319a20aa38c7f084ca65932918eb676ac5eca68d5e5a4055be61592164c7
+/root/kcm_mobile_wifi.so.orig-6.8.3-20261117
+SHA-256 1265101f47bce7fd0e645094f9aa0f580592e23e10fbba6623285f2b742774e1
 ```
 
 ## Build
 
 The package is forked from Alpine aports `community/plasma-nm` at
-6.8.2. Build it explicitly for aarch64; the package declares
+6.8.3. Build it explicitly for aarch64; the package declares
 `arch=all`, so an unpinned build on an x86_64 host is not valid:
 
 ```sh

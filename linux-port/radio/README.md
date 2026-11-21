@@ -10,6 +10,16 @@ python3 linux-port/radio/build-tftp.py --work-dir /tmp/samurai-tftp-build
 
 The output directory must be new. The script verifies every downloaded file, applies the patch without fuzz, and builds a static `samurai-tqftpserv` with warnings treated as errors. The two upstream LICENSE files remain in the build directory. `samurai-wifi.sh` is the matching startup source; deployment and rollback require the current handset state and service environment.
 
+`samurai-wifi.sh` here is a **mirror**, not the source of truth.  The
+installed copy is `linux-port/packages/samurai-platform/usr_sbin_samurai-wifi`
+and is shipped by the `samurai-platform` APK.  Keeping a second, hand-edited
+copy in this directory caused the two to drift three ways (6006, 6298 and
+6831 bytes) and left `own_sources["samurai-wifi.sh"]` in `source-lock.json`
+pointing at a revision that no longer existed, which made `build-tftp.py`
+abort before compiling anything.  Copy the packaged file over and refresh
+the hash whenever the startup helper changes; `build-tftp.py` now asserts
+that the two copies are byte-identical.
+
 For a previously downloaded source set, add `--source-cache /path/to/cache`. Each cached input must still match its pinned hash; the build directory must still be new.
 
 The stage207 server keeps absolute block counters internally and truncates only the on-wire block number to 16 bits. Native QRTR tests reproduced failures in the previous reader and writer, then verified a 1,048,603-byte write/read across two counter rollovers. Duplicate packets and window acknowledgments are also covered by the bounded regression set.

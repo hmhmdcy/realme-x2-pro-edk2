@@ -5,10 +5,12 @@ set -eu
 
 REPO=/root/boardrepo-installed
 OUT=/root/desktop-r17-out
+PKG_SRC=/mnt/e/RealmeX2Pro\ edk2/linux-port/packages/samurai-desktop
 SIGN_KEY=/mnt/e/edk2-samurai-out/standard-arm64-v731/wifi-fast-ready-20261108/signing-key-private.rsa
 KEYS=/root/installed_keys
 APK=/root/apkstatic/sbin/apk.static
 STAGE=/root/boardrepo-r17
+VERSION=$(sed -n 's/^pkgver=//p' "$PKG_SRC/APKBUILD")-r$(sed -n 's/^pkgrel=//p' "$PKG_SRC/APKBUILD")
 
 rm -rf "$STAGE"
 mkdir -p "$STAGE"
@@ -16,10 +18,12 @@ mkdir -p "$STAGE"
 echo '=== copy current board repo, replace samurai-desktop ==='
 for f in "$REPO"/*.apk; do
 	base=$(basename "$f")
-	[ "$base" = samurai-desktop-4-r16.apk ] && continue
+	case "$base" in
+	samurai-desktop-*.apk) continue ;;
+	esac
 	cp "$f" "$STAGE/$base"
 done
-cp "$OUT/samurai-desktop-4-r17.apk" "$STAGE/"
+cp "$OUT/samurai-desktop-$VERSION.apk" "$STAGE/"
 
 # --sign-key is a *global* apk option and must precede the applet name;
 # putting it after "mkndx" is silently ignored and yields an unsigned index.
@@ -35,4 +39,4 @@ rm -f "$STAGE/APKINDEX.tar.gz"
 "$APK" --keys-dir "$KEYS" adbdump "$STAGE/APKINDEX.tar.gz" 2>/dev/null |
 	grep -e 'name:' -e 'version:' | grep -A1 -F 'samurai-desktop'
 ls -l "$STAGE" | tail -4
-sha256sum "$STAGE/APKINDEX.tar.gz" "$STAGE/samurai-desktop-4-r17.apk"
+sha256sum "$STAGE/APKINDEX.tar.gz" "$STAGE/samurai-desktop-$VERSION.apk"

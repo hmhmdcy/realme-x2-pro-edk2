@@ -1,0 +1,64 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * RMX1931 charging / USB-input experiment.
+ *
+ * Include only after sm8150-samurai-common.dtsi. This fragment reproduces
+ * the minimal charging wiring observed in the deployed integration DTB:
+ * PM8150B Type-C, APSD handoff, USB-input IRQ provider, ADC5 VBUS channel,
+ * connector policy, and MP2650's typec-supply link.
+ *
+ * It does not change the production OS DTB and does not install the full
+ * charging policy stack from samurai-measured-vbus.dtsi.
+ */
+
+#include <dt-bindings/iio/qcom,spmi-vadc.h>
+#include <dt-bindings/usb/pd.h>
+
+&pm8150b_adc {
+	channel@8 {
+		reg = <ADC5_USB_IN_V_16>;
+		qcom,pre-scaling = <1 16>;
+		label = "usb_in_v_div_16";
+	};
+};
+
+&spmi_bus {
+	pmic@2 {
+		samurai_usb_input: usb-input@1300 {
+			compatible = "realme,rmx1931-usb-input";
+			reg = <0x1300>;
+			interrupts = <2 0x13 4 IRQ_TYPE_EDGE_BOTH>,
+				     <2 0x13 6 IRQ_TYPE_EDGE_RISING>;
+			interrupt-names = "usbin-plugin", "usbin-src-change";
+			status = "okay";
+		};
+	};
+};
+
+&pm8150b_typec {
+	status = "okay";
+	vdd-pdphy-supply = <&vreg_l2a_3p1>;
+	power-supplies = <&samurai_usb_input>;
+	io-channels = <&pm8150b_adc ADC5_USB_IN_V_16>;
+	io-channel-names = "vbus";
+	realme,apsd-handoff-trial = <1>;
+
+	connector {
+		compatible = "usb-c-connector";
+		power-role = "sink";
+		data-role = "device";
+		self-powered;
+		sink-pdos = <PDO_FIXED(5000, 500, PDO_FIXED_USB_COMM)>;
+		op-sink-microwatt = <2500000>;
+	};
+};
+
+&i2c1 {
+	charger@5c {
+		typec-supply = <&pm8150b_typec>;
+	};
+};
+
+&usb_1_dwc3 {
+	usb-psy-name = "samurai-usb-input";
+};

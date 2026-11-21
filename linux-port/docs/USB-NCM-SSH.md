@@ -21,8 +21,22 @@ UsbNcm自动绑定并使用APIPA地址；无需改主机默认路由。独立重
 
 本机专用密钥/known_hosts在E:\edk2-samurai-out\kernel72。使用
 reference/kernel72/usb-ssh.ps1执行命令、scp-usb.ps1传文件（显式-O）。
-SSH端口22只绑定USB地址，密码认证已在编译和运行时禁用。主机密钥是手机唯一密钥，
-仅保留在本地实际initramfs/构建产物，客户端私钥只留主机；两者不进入Git。
+上面这段描述的是**早期 initramfs 内的诊断 SSH**（dropbear/受限 sshd，
+只绑定 USB 地址、只允许公钥）。正式系统镜像走的是另一套：
+
+```text
+/usr/lib/systemd/system/multi-user.target.wants/sshd.service  → 启用
+/usr/lib/systemd/system/sshd.service   Wants=sshdgenkeys.service
+sshd -T: port 22, listenaddress 0.0.0.0:22 和 [::]:22
+         PasswordAuthentication yes, UsePAM yes
+         PermitRootLogin prohibit-password（root 仍只能公钥）
+```
+
+也就是说正式镜像的 22 端口监听**所有**网卡（Wi‑Fi 和 USB NCM 都能连），
+不是只绑 USB。已用 qemu 在镜像内实测：`ssh-keygen -A` 生成
+RSA/ECDSA/ED25519 后 `sshd -t` 返回 0。`test-usb-ncm-stability.py`
+里的 `PasswordAuthentication=no` 只是那条长测脚本的**客户端**选项，
+用于强制走密钥，不是服务端策略。
 
 ## 2026-11-09 当前结论（直连 USB）
 
@@ -395,7 +409,7 @@ dual config   524cc7e476b2c7ad1e35dd1fb339d95f60f0cb29f4e1f3b44d105180d30ec3e6
 设备本轮在 SSH 握手前即关闭连接，不能把离线构建当作运行时通过。
 
 rootfs 源码脚本为
-[`samurai-platform/usr_sbin_samurai-usb`](../packages/samurai-platform/usr_sbin_samurai-usb)；
+[`samurai-platform/usr_sbin_samurai-usb-recover`](../packages/samurai-platform/usr_sbin_samurai-usb-recover)；
 历史 initramfs 脚本为 `linux-port/scripts/samurai-usb.sh` 与
 `build-dropbear-usb.sh`。
 构建Dropbear用固定2026.94官方tar和SHA，输出静态ARM64 multicall，包含

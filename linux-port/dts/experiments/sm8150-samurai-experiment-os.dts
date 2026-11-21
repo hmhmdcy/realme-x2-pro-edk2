@@ -1,0 +1,28 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Offline reconstruction profile for the deployed 9736b861... experiment.
+ *
+ * This wrapper is not a production DTS. It combines the classified source
+ * fragments so the result can be compared with the locked canonical DTB and
+ * the deployed experiment ledger without touching the phone.
+ */
+
+/dts-v1/;
+
+#include "../split-ba61/sm8150-samurai-common.dtsi"
+#include "samurai-camera-icp.dtsi"
+#include "samurai-charging-usb-input.dtsi"
+#include "samurai-eud-off-route.dtsi"
+#include "samurai-5v1500-policy.dtsi"
+#include "samurai-debug-bootargs.dtsi"
+
+/*
+ * The deployed 9736b861... carrier still contains the stock ABL/DTBO match
+ * fields. Keep them only in this reconstruction profile; the production
+ * OS-facing wrapper deliberately omits them.
+ */
+/ {
+	qcom,msm-id = <339 0x20000>;
+	qcom,board-id = <0 0>;
+	oppo,dtsi_no = <19781>;
+};

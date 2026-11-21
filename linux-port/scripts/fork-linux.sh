@@ -5,9 +5,8 @@ timeout 90 git ls-remote --tags https://github.com/torvalds/linux.git 'v7.3-rc6*
 echo "=== ?? commit ??? a90ee4305c4a ==="
 timeout 90 git ls-remote https://github.com/torvalds/linux.git a90ee4305c4a5df72c11b31dacfdc76e00fcf78a 2>&1 | head -3
 
-TOKEN=$(grep -o 'ghp_[A-Za-z0-9]*' /home/cy122/.git-credentials | head -1)
-if [ -z "$TOKEN" ]; then echo "!! ??? token"; exit 1; fi
-echo "=== token: ${TOKEN:0:4}... (len ${#TOKEN}) ==="
+: "${GITHUB_TOKEN:?GITHUB_TOKEN must be supplied by the caller}"
+TOKEN=$GITHUB_TOKEN
 
 echo "=== ???? fork ==="
 curl -s -o /tmp/f.json -w "http=%{http_code}\n" -H "Authorization: token $TOKEN" \

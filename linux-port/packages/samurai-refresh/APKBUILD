@@ -1,0 +1,20 @@
+maintainer="hmhmdcy <hmhmdcy@users.noreply.github.com>"
+pkgname=samurai-refresh
+pkgver=1
+pkgrel=1
+pkgdesc="Switch Realme X2 Pro panel between stock 60 and 90 Hz modes"
+url="https://github.com/hmhmdcy/realme-x2-pro-pmaports"
+arch="aarch64"
+license="LicenseRef-Local-Project"
+options="!check"
+depends="wlr-randr"
+source="usr_sbin_samurai-refresh"
+
+package() {
+	install -Dm755 "$srcdir"/usr_sbin_samurai-refresh \
+		"$pkgdir"/usr/sbin/samurai-refresh
+}
+
+sha512sums="
+71145916ab0064b816606e648064deaf24d65796ed476a75ce3d0d02076cc03618e665c254285f8ec7e30738d92fb2c7fdbfd080e40a70a080268a616a23dd1a  usr_sbin_samurai-refresh
+"

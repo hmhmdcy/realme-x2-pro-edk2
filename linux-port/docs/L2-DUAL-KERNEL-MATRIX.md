@@ -77,7 +77,7 @@ SKU 矩阵独立于内核矩阵：DTB 不写死 RAM 大小；UFS 容量由运行
 静态审计已经确认候选 DTB 的 `/memory@80000000` 是
 `reg = <0 0x80000000 0 0>` 的零大小占位，RAM 由 EFI memory map 提供；
 没有 `userdata`、`storage-size` 或类似容量属性。审计脚本为
-[`audit-dtb-sku.py`](../../scripts/audit-dtb-sku.py)（在 WSL 的
+[`audit-dtb-sku.py`](../scripts/audit-dtb-sku.py)（在 WSL 的
 `python3` + `libfdt` 下运行），结果 `passed: true`。这只排除 DTB
 写死容量，不替代不同 SKU 的实际启动。
 

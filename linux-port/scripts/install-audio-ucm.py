@@ -13,8 +13,7 @@ def main():
     root = Path(args.root).resolve(strict=True)
     if not root.is_dir(): parser.error('Rootfs directory required')
     source = Path(__file__).resolve().parent.parent
-    files = [('scripts/samurai-audio-route.py','usr/libexec/samurai-audio-route',0o755),
-             ('ucm2/conf.d/Realme_X2_Pro/Realme_X2_Pro.conf','usr/share/alsa/ucm2/conf.d/Realme_X2_Pro/Realme_X2_Pro.conf',0o644),
+    files = [('ucm2/conf.d/Realme_X2_Pro/Realme_X2_Pro.conf','usr/share/alsa/ucm2/conf.d/Realme_X2_Pro/Realme_X2_Pro.conf',0o644),
              ('ucm2/conf.d/Realme_X2_Pro/HiFi.conf','usr/share/alsa/ucm2/conf.d/Realme_X2_Pro/HiFi.conf',0o644)]
     for src, name, mode in files:
         dest = root / name

@@ -39,7 +39,18 @@
           "LowBattery": 60
         }
       },
-      "pmos_overrides_powerdevilrc": false
+      "pmos_overrides_powerdevilrc": false,
+      "board_default_powerdevilrc": {
+        "path": "/etc/xdg/powerdevilrc",
+        "owner": "samurai-desktop",
+        "since": "samurai-desktop 4-r17 (AutoSuspendAction since 4-r19)",
+        "profiles": ["AC", "Battery", "LowBattery"],
+        "auto_suspend_action": 0,
+        "auto_suspend_idle_timeout_seconds": 0,
+        "upstream_key_semantics": "PowerDevilProfileSettings.kcfg defines AutoSuspendAction (UInt, NoAction=0) and AutoSuspendIdleTimeoutSec (Int, seconds). KDE's desktop KCM writes AutoSuspendAction=0 for 'Never'; the Plasma Mobile KCM (kcm_mobile/mobilepower.cpp) writes AutoSuspendIdleTimeoutSec=0. suspendsession.cpp loadAction() returns early when the action is NoAction and only registers the idle timer when m_idleTime != 0s, so 0/0 means never from either UI. Both names and meanings are unchanged between powerdevil 6.6.6 and master.",
+        "reason": "s2idle on the 7.3.1 kernel takes down both USB/NCM and Wi-Fi, the only remote access paths; both values are what the two KDE power frontends write for Never, and either is overridable by ~/.config/powerdevilrc",
+        "critical_battery": "left at the upstream default: [BatteryManagement] BatteryCriticalAction is Sleep when the system can suspend, which protects the pack at 5% and is independent of idle auto-suspend"
+      }
     }
   },
   "classes": {
@@ -76,14 +87,14 @@
     "/etc/samurai/sleep-inhibitor.conf",
     "/usr/libexec/samurai-usb-sleep-guard",
     "tinydm rc_need/rc_use overrides",
-    "powerdevilrc AutoSuspendAction=0",
+    "powerdevilrc AutoSuspendAction set to anything other than 0",
     "debug sleep guard installed as an OpenRC service"
   ],
   "current_overrides_to_remove": {
     "samurai-sleep-inhibitor": "replace with upstream sleep-inhibitor in samurai-platform",
     "usb_sleep_guard": "move to linux-port/debug/sleep-policy",
     "tinydm_dependencies": "remove from samurai-desktop post-install",
-    "powerdevil_auto_suspend_zero": "restore KDE default on the device",
+    "powerdevil_auto_suspend_zero": "resolved: AutoSuspendAction=0 is the desktop KCM's user-facing Never (PowerButtonAction::NoAction), shipped together with AutoSuspendIdleTimeoutSec=0 since 4-r19; nothing to remove",
     "sshd_boot_runlevel": "debug convenience; restore official default in a separate candidate"
   }
 }

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Remove only the debug-era PowerDevil AutoSuspendAction=0 overrides.
+"""OBSOLETE: remove AutoSuspendAction=0 lines left by the Plasma 5 debug era.
 
-Dry-run by default. This never rewrites other PowerDevil settings and is
-not installed by a package. Run it as the desktop user, then restart the
-Plasma session so PowerDevil recomputes its upstream defaults.
+Do NOT run this on a 4-r19+ system: AutoSuspendAction=0 is now the board's
+official "Never" default (the same value KDE's desktop KCM writes), so this
+would re-enable auto-suspend. It is kept only to audit historical images
+that still carry the old debug write. Dry-run by default.
 """
 
 from __future__ import annotations
@@ -32,7 +33,19 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--file", type=Path, default=default_path())
     parser.add_argument("--apply", action="store_true")
+    parser.add_argument(
+        "--obsolete",
+        action="store_true",
+        help="confirm this historical cleanup; required with --apply",
+    )
     args = parser.parse_args()
+
+    if args.apply and not args.obsolete:
+        parser.error(
+            "--apply refuses to run: AutoSuspendAction=0 is the official "
+            "Never default since samurai-desktop 4-r19; pass --obsolete "
+            "only when auditing an image that predates it",
+        )
 
     path = args.file
     if not path.is_file():

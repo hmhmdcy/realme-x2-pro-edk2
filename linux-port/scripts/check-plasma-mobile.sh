@@ -244,15 +244,23 @@ if pgrep -f '/iio-sensor-proxy' >/dev/null 2>&1; then
 else
 	bad "iio-sensor-proxy not running"
 fi
-if gdbus call --system \
+# The board publishes all three: HasAccelerometer, HasAmbientLight and
+# HasProximity (kernel/193/198/200 all reported true).  Asserting only the
+# accelerometer lets a regression in the light or proximity path go
+# unnoticed, which is exactly what the desktop auto-brightness and the
+# proximity-on-call behaviour depend on.
+proxy_props=$(gdbus call --system \
 	--dest net.hadess.SensorProxy \
 	--object-path /net/hadess/SensorProxy \
 	--method org.freedesktop.DBus.Properties.GetAll \
-	net.hadess.SensorProxy 2>/dev/null | grep -q "'HasAccelerometer': <true>"; then
-	ok "sensor proxy accelerometer interface"
-else
-	bad "sensor proxy accelerometer interface missing"
-fi
+	net.hadess.SensorProxy 2>/dev/null)
+for prop in HasAccelerometer HasAmbientLight HasProximity; do
+	if printf '%s\n' "$proxy_props" | grep -q "'$prop': <true>"; then
+		ok "sensor proxy $prop"
+	else
+		bad "sensor proxy $prop missing"
+	fi
+done
 if command -v feedbackd >/dev/null 2>&1; then
 	pgrep -f '/feedbackd' >/dev/null 2>&1 &&
 		ok "feedbackd running" || bad "feedbackd not running"

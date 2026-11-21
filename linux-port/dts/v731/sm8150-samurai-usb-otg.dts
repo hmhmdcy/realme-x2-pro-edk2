@@ -1,0 +1,12 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Production-style USB2 OTG wrapper for the RMX1931 board.
+ *
+ * The base wrapper remains the board description; this wrapper adds only
+ * the standard PM8150B Type-C/TCPM, DWC3 usb-role-switch and VBUS-source
+ * fragment.  Build it with the enlarged DTB-FFS boot carrier used by the
+ * deployed OTG candidate.
+ */
+
+#include "sm8150-samurai.dts"
+#include "samurai-usb-otg.dtsi"
