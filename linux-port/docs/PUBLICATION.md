@@ -18,7 +18,7 @@
 
 | 仓库 | 分支 | 尖端 | 内容 |
 | --- | --- | --- | --- |
-| 集成/文档 | `hmhmdcy/realme-x2-pro-edk2` | `main` / `codex/board-packages-20261121` = `a2d4ae0aa20de1975927d4e5ac4f56bfad525907` | 公开 `linux-port/packages` 的板级配方、安装钩子与可复现来源补丁；不包含预编译 ELF |
+| 集成/文档 | `hmhmdcy/realme-x2-pro-edk2` | `main` / `codex/board-packages-20261121` = `7f29b5839b814a04d6a61ab09a5d6889167bcaa3` | 公开 `linux-port/packages` 的板级配方、安装钩子与可复现来源补丁；不包含预编译 ELF |
 | 用户态配方 | `hmhmdcy/realme-x2-pro-pmaports` | `codex/standard-arm64-settings` = `a9809cf4fc6f889a06fa741bae6a2b07f91de5f7` | `samurai-platform 6-r25`、`samurai-desktop 4-r19`、`samurai-camera-config 0.1.0-r30`、`samurai-ssc 1-r2` 与 `samurai-systemd 1-r5` |
 | 内核 | `hmhmdcy/realme-x2-pro-linux` | `codex/standard-arm64-v7.3.1` = `codex/standard-arm64-usbwake-20261121` = `2b9ef80ba835861de72df39a230dd86fcb62563c` | 8 个 USB/PMIC wake 实验提交，**未合入 `stable`** |
 
