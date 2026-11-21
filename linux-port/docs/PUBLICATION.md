@@ -1,6 +1,6 @@
 # 标准 ARM64 适配发布对照
 
-更新日期：2026-11-14。本文只记录公开分支和它们的边界；真机状态以
+更新日期：2026-11-21。本文只记录公开分支和它们的边界；真机状态以
 [NEXT-SESSION](../../NEXT-SESSION.md) 和 [HARDWARE-STATUS](HARDWARE-STATUS.md)
 为准。
 
@@ -11,6 +11,20 @@
 | Linux 内核 | `hmhmdcy/realme-x2-pro-linux` | `stable`（源 `codex/standard-arm64-v7.3.1`） | `7fb2bdf254ba339cf5ce81fc2e316a6f8c8a5bba` | kernel #8 源码、完整 `samurai.config.kernel8`、`LOCALVERSION` 覆盖与复现说明；对应 Image `29c8d27c…` |
 | 用户态/设备包 | `hmhmdcy/realme-x2-pro-pmaports` | `stable`（源 `codex/standard-arm64-settings`） | `0a02ba24c921e151e2edfc509c438382f4e4e574` | `samurai-platform 6-r18`、`samurai-desktop 4-r16`、`samurai-camera-config r28`、usb-signaller/unudhcpd 配方 |
 | 集成/文档/DTS/补丁 | `hmhmdcy/realme-x2-pro-edk2` | `main`（标准起点 `codex/standard-arm64-v731`） | `af70975e6974855a341d08c1f2bb4e3fb07265e2` | 标准 ARM64 文档、DTB 契约、内核补丁、构建/验证/刷写脚本和来源锁 |
+
+### 2026-11-21 源码同步
+
+以下提交只同步**板级源码**，不是重新构建的 rootfs、release 或硬件验收：
+
+| 仓库 | 分支 | 尖端 | 内容 |
+| --- | --- | --- | --- |
+| 集成/文档 | `hmhmdcy/realme-x2-pro-edk2` | `main` / `codex/board-packages-20261121` = `28b23fc630fe8246375e40748f09dae6356fc331` | 公开 `linux-port/packages` 的板级配方、安装钩子与可复现来源补丁；不包含预编译 ELF |
+| 用户态配方 | `hmhmdcy/realme-x2-pro-pmaports` | `codex/standard-arm64-settings` = `a9809cf4fc6f889a06fa741bae6a2b07f91de5f7` | `samurai-platform 6-r25`、`samurai-desktop 4-r19`、`samurai-camera-config 0.1.0-r30`、`samurai-ssc 1-r3` 与 `samurai-systemd 1-r5` |
+| 内核 | `hmhmdcy/realme-x2-pro-linux` | `codex/standard-arm64-v7.3.1` = `codex/standard-arm64-usbwake-20261121` = `2b9ef80ba835861de72df39a230dd86fcb62563c` | 8 个 USB/PMIC wake 实验提交，**未合入 `stable`** |
+
+`hmhmdcy/realme-x2-pro-pmaports` 的公开 `stable` 仍为
+`0a02ba24c921e151e2edfc509c438382f4e4e574`；本次板级配方同步只在
+`codex/standard-arm64-settings` 开发分支，没有改动 `stable` 或发布二进制。
 
 集成分支的 `af70975e…` 是标准层起点；后续文档修正会出现在同一分支的
 新提交中，以分支尖端为准。
