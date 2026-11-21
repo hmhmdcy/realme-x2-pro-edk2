@@ -2,12 +2,17 @@
 from pathlib import Path
 import hashlib,importlib.util,json,os,re,subprocess,sys,time
 sys.dont_write_bytecode=True
-HERE=Path(__file__).resolve().parent;OLD=HERE.parent;ROOT=HERE.parents[3]
-spec=importlib.util.spec_from_file_location('frozen_handoff_objects',OLD/'build-objects.py')
-previous=importlib.util.module_from_spec(spec);spec.loader.exec_module(previous)
-base,p=previous.base,previous.p
-BASE=previous.m.m.BASE
-LAYERS=[previous.OUT]+previous.LAYERS
+HERE=Path(__file__).resolve().parent;OLD=HERE.parent;ROOT=Path('/mnt/e/RealmeX2Pro edk2')
+REFERENCE=Path('/mnt/e/RealmeX2Pro edk2/reference/charging-oem-audit-20261023')
+PARENT_BUILD_SCRIPT=REFERENCE/'tcpm-usb-budget-candidate/build-image.py'
+assert PARENT_BUILD_SCRIPT.is_file()
+spec=importlib.util.spec_from_file_location('frozen_budget_build',PARENT_BUILD_SCRIPT)
+budget=importlib.util.module_from_spec(spec);spec.loader.exec_module(budget)
+base,p=budget.base,budget.p
+BASE=budget.m.BASE
+APSD_LAYER=Path('/home/cy122/charging-management-20261023/tcpm-apsd-handoff-objects-02')
+assert APSD_LAYER.is_dir()
+LAYERS=[APSD_LAYER,budget.OUT]+budget.LAYERS
 OUT=Path('/home/cy122/charging-management-20261023/tcpm-apsd-measured-start-objects-01')
 ROWS=json.loads((HERE/'source.json').read_bytes())['sources']
 PREFIX='drivers/usb/typec/tcpm/qcom/'
@@ -45,7 +50,8 @@ def child(parent,ns,mounts):
         path.write_bytes((HERE/row['file']).read_bytes())
     env=base.build_environment()
     argv=['make','-C',str(base.SOURCE),'O='+str(base.BUILD),'ARCH=arm64',
-          'CROSS_COMPILE=aarch64-linux-gnu-','LOCALVERSION=+','W=1','-j2']+OBJECTS
+          'CROSS_COMPILE=aarch64-linux-gnu-','LOCALVERSION=+','W=1',
+          'KCFLAGS=-Werror','-j2']+OBJECTS
     started=time.monotonic()
     with (OUT/'objects.log').open('xb') as log:
         proc=subprocess.Popen(argv,env=env,stdout=log,stderr=subprocess.STDOUT)
@@ -59,6 +65,7 @@ def child(parent,ns,mounts):
         assert re.search(r'\bT '+name+r'\b',nm),name
     assert re.search(r'\bU regulator_enable\b',nm) and re.search(r'\bU regulator_disable\b',nm)
     result={'passed':True,'returncode':code,'seconds':time.monotonic()-started,
+        'warnings_as_errors':True,
         'objects':{n:sha(base.BUILD/n) for n in OBJECTS},'diagnostics':diagnostics,
         'real_supply_symbols':[s.strip() for s in nm.splitlines() if re.search(r'(pdphy_apsd_|regulator_(enable|disable))',s)],
         'unchanged_build_inputs':EXACT,'full_probe_integration':False}

@@ -11,7 +11,7 @@ off 路径继续只用原四个物理 off 位与实际 vSafe0V/vSafe5V 状态，
 connected 路径要求：
 
 - 两次相隔 20ms 的实际物理 sink 样本：四个存在位全 on、合法 Rp、sink/去抖完成、无 water/error/noncompliant；Type-C comparator 不处于 vSafe0V。
-- 每次调用真实 ADC5 channel 8 回调取得新转换值，以 shutdown 相同的 **4,750,000–5,500,000µV** 工程验收窗核对。该单位直接使用 processed µV，不乘 1000；不取 TCPM `supply_voltage`、ONLINE、缓存 power_supply 电压或最大 PDO。ADC 前后的全部物理/角色字段必须一致，每组读取/回调总时限 250ms。
+- 每次调用真实 ADC5 channel 8 回调取得新转换值，以板级实测修订后的 **4,400,000–5,500,000µV** 工程验收窗核对。实测 SDP 在 PM8150B ADC 上为 4,511,408–4,672,304µV；4.40V 下限保留实际 5V 源余量，同时继续拒绝窗口外输入。该单位直接使用 processed µV，不乘 1000；不取 TCPM `supply_voltage`、ONLINE、缓存 power_supply 电压或最大 PDO。ADC 前后的全部物理/角色字段必须一致，每组读取/回调总时限 250ms。
 - 无 QC_DONE、QC 结果 mask0x60，且 `0x1362` 的 HVDCP AUTH/AUTONOMOUS/ENABLE mask0x64 本来已清零。当前处于 QC/高压或仍开着 QC 自动状态的源被拒绝，不通过“降到 5V”或重放旧值来接管。
 - 在上述新鲜 5V/sink 检查成功以后，才调用真实 `quiet_begin`。随后每次隔离写前后都再次取得 ADC/角色样本和真实 quiet 验证；连接模式与物理字段必须保持一致。APSD DONE/普通结果可以自然进展，不把它当成掉线；不改现有 native ONLINE。
 
@@ -33,8 +33,10 @@ connected 路径要求：
 
 ## 新验证与范围
 
-`test-result.json`：**3708 条断言，156 个实际 PMIC 调用故障点**。直接编译本目录生产 helper，提取执行 8 个实际 PHY 生命周期函数，包括真实 begin/verify/release、start、quiesce、finish；ASan/UBSan 通过，编译零诊断。覆盖 ADC 上下边界/错误/过期、每个阶段 QC/角色变化、缺失回调、混合状态、每个 PD 控制非零、供电引用获取/释放/转交、启动失败 join/finish、无供电不读模拟块及 disable 失败保留实际所有权。未重跑未改的 owner/ADC/DTB 测试。
+测试直接引用 helper 的 `HANDOFF_MIN_UV/MAX_UV`，不再复制第二套电压常量。正例包括下边界 4,400,000µV、实测 4,511,408/4,672,304µV、旧 4.75V 门限两侧 4,749,999/4,750,000µV、5,000,000µV 和上边界 5,500,000µV；拒绝例包括 4,399,999、5,500,001、9,000,000、0、-1 和 5,000µV。
 
-`build-result.json`：只在 `/home/cy122/charging-management-20261023/tcpm-apsd-measured-start-objects-01` 私有 mount namespace/overlay 编译新 helper 和 PHY **两个 ARM64 对象**，W=1 零诊断；nm 实证供应者三个函数定义以及 `regulator_enable/disable` 的实际外部引用。编译前余量约 WSL768GiB/E142GiB；共享 lower、完整 Image、配置、initramfs、gauge、builtin 元数据和父挂载不变。
+`test-result.json`：**4042 条断言，156 个实际 PMIC 调用故障点**。直接编译本目录生产 helper，提取执行 8 个实际 PHY 生命周期函数，包括真实 begin/verify/release、start、quiesce、finish；ASan/UBSan 通过，编译零诊断。覆盖 ADC 上下边界/错误/过期、每个阶段 QC/角色变化、缺失回调、混合状态、每个 PD 控制非零、供电引用获取/释放/转交、启动失败 join/finish、无供电不读模拟块及 disable 失败保留实际所有权。未重跑未改的 owner/ADC/DTB 测试。
+
+`build-result.json`：只在 `/home/cy122/charging-management-20261023/tcpm-apsd-measured-start-objects-01` 私有 mount namespace/overlay 编译新 helper 和 PHY **两个 ARM64 对象**，`W=1 KCFLAGS=-Werror` 零诊断；nm 实证供应者三个函数定义以及 `regulator_enable/disable` 的实际外部引用。共享 lower、完整 Image、配置、initramfs、gauge、builtin 元数据和父挂载不变。
 
 仍未完成：主任务的最终 probe/ADC reader 联编、真实源电压精度/状态观察、Request/Accept/PS_RDY 合同证据，以及真实物理 detach 后的 APSD 新周期归还。本修订继续保留上一阶段单向 fence，不把永久关闭 APSD 作为最终共存设计。全过程未访问手机、SSH、刷写、重启、切 USB、链接完整 Image 或部署。

@@ -551,6 +551,33 @@ class GuardStageTests(unittest.TestCase):
                 fixture["original_main_manifest_sha256"],
             )
 
+    def test_guard_restores_through_by_partlabel_symlink(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = make_fixture(Path(temporary))
+            stage_fixture(fixture)
+            new_boot(fixture)
+            runtime = guard_runtime(fixture)
+            link = fixture["base"] / "devices/by-partlabel-boot"
+            try:
+                link.symlink_to(fixture["devices"]["boot"])
+            except OSError as error:
+                if os.name == "nt" and getattr(error, "winerror", None) == 1314:
+                    self.skipTest("Windows symlink privilege is unavailable")
+                raise
+            runtime.devices["boot"] = link
+            stage = json.loads((fixture["root"] / "stage.json").read_text())
+            trial_guard.write_carrier_from_backup(
+                runtime,
+                stage,
+                "boot",
+                fixture["manifest"]["carriers"]["boot"]["old"],
+            )
+            self.assertTrue(link.is_symlink())
+            self.assertEqual(
+                fixture["devices"]["boot"].read_bytes(),
+                fixture["old_paths"]["boot"].read_bytes(),
+            )
+
     def test_stage_explicit_serial_is_operator_assertion(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             fixture = make_fixture(Path(temporary))

@@ -6,7 +6,7 @@ after a verified real timeout. A subsequent normal reboot recovers the volatile
 period; this worker never clears an expired period or reboots by itself.
 """
 from pathlib import Path
-import fcntl,hashlib,importlib.util,json,os,re,runpy,signal,stat,subprocess,sys,time,traceback
+import errno,fcntl,hashlib,importlib.util,json,os,re,runpy,signal,stat,subprocess,sys,time,traceback
 HERE=Path(__file__).resolve().parent
 shutdown_spec=importlib.util.spec_from_file_location('timer_shutdown_observer',HERE/'shutdown-observer.py')
 shutdown=importlib.util.module_from_spec(shutdown_spec);shutdown_spec.loader.exec_module(shutdown)
@@ -17,6 +17,10 @@ MANIFEST_SHA='8b402e1c37ca390ec2be4949738badb670e9b5c54cbcf6941c895935ed90bc0a'
 NOTES={'samurai_mp2650':'1df00d554b85aa45d4bbbc0d1a6a7a4cbd56ba4da45ae48d54bb8ae1f3434d08',
  'samurai_usb_input':'3c6247f14ff9f2ab23c149de814a66980dcc6d91c03c396f0101cb56781ee0fa',
  'samurai_gauge_protection':'bf148be50cb3a4c30bf3ab194f90163fbd47ce5dcbcaf1adb7d84392d242ecdd'}
+TRANSIENT_RETRY_SECONDS=300
+TRANSIENT_RETRY_INTERVAL_SECONDS=10
+TRANSIENT_ERRNOS=frozenset(getattr(errno,name) for name in
+    ('ENODATA','EAGAIN','ESTALE','ENOLINK','ETIMEDOUT') if hasattr(errno,name))
 sha=lambda p:hashlib.sha256(Path(p).read_bytes()).hexdigest()
 text=lambda p:Path(p).read_text().strip()
 CANCELLED=False
@@ -37,6 +41,21 @@ class IO:
         target=HERE/name;temp=HERE/('.'+name+'.next')
         with temp.open('x') as stream:json.dump(value,stream,indent=2);stream.write('\n');stream.flush();os.fsync(stream.fileno())
         temp.replace(target)
+    def retryable_error(self,error):
+        return (isinstance(error,OSError) and
+            getattr(error,'errno',None) in TRANSIENT_ERRNOS)
+    def retry(self,phase,error,event=None):
+        # Keep the supervisor's 90-second liveness gate fresh while the
+        # observer is waiting for a bounded transient-error recovery.
+        self.save('heartbeat.json',dict(boottime=self.now(),pid=os.getpid()))
+        payload=dict(stage='retry:'+phase,type=type(error).__name__,error=repr(error),
+            errno=getattr(error,'errno',None),boottime=self.now(),realtime=time.time(),
+            event=event)
+        self.save('transient-private.json',payload)
+        return payload
+    def retry_exhausted(self,phase,error,events):
+        return self.fail('retry_exhausted:'+phase,error,
+            extra=dict(transient_events=events))
     def attempt(self,phase,value):
         self.last_attempt=dict(phase=phase,value=value)
         self.save('attempt-private.json',self.last_attempt)
@@ -103,7 +122,10 @@ class IO:
             out['current_avg_ua']=int(text(p/'bq28z610-0/current_avg'))
             self.identity();return out
         except BaseException as error:
-            self.fail('observe',error,partial=out)
+            # A known transient is expected to be retried by the observer.
+            # Do not overwrite the terminal failure evidence before exhaustion.
+            if not self.retryable_error(error):
+                self.fail('observe',error,partial=out)
             raise
     def validate(self,value):
         try:
@@ -231,10 +253,29 @@ class IO:
         self.load_closed=True
         if self.parts:self.save('cpu-load-terminal.json',dict(parts=rows,all_joined=True))
     def request_auto(self):
-        self.identity();v=self.observe();self.validate(v)
-        assert v['sample']['cycle_timeout']==1 and v['sample']['session_seconds']==36000
-        assert v['sample']['error']==-62 and v['register08']&0x18==8
-        assert self.manager['verify']()==self.meta
+        retry_started=None;events=[]
+        while True:
+            try:
+                self.identity();v=self.observe();self.validate(v)
+                assert v['sample']['cycle_timeout']==1 and v['sample']['session_seconds']==36000
+                assert v['sample']['error']==-62 and v['register08']&0x18==8
+                assert self.manager['verify']()==self.meta
+                break
+            except OSError as error:
+                if not self.retryable_error(error):raise
+                now=self.now()
+                if retry_started is None:retry_started=now
+                code=getattr(error,'errno',None)
+                event=dict(phase='request_auto',boottime=now,error=repr(error),
+                    error_type=type(error).__name__,errno=code,
+                    errno_name=errno.errorcode.get(code),traceback=traceback.format_exc())
+                events.append(event);self.retry('request_auto',error,event)
+                remaining=TRANSIENT_RETRY_SECONDS-(now-retry_started)
+                if remaining<=0:
+                    self.fail('retry_exhausted:request_auto',error,
+                        extra=dict(transient_events=events))
+                    raise
+                self.sleep(min(TRANSIENT_RETRY_INTERVAL_SECONDS,remaining))
         self.save('AUTO-after-timeout-request.json',dict(boottime=self.now(),before=v))
         # Existing kernel operator interface; never use the service's healthy-
         # resume command for an intentionally expired period.

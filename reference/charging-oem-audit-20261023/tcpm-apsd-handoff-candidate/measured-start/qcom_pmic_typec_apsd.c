@@ -21,10 +21,11 @@
 #define APSD_START_ON_CC BIT(7)
 #define HANDOFF_STABLE_MS 20
 #define HANDOFF_FRESH_MS 250
-/* Same engineering acceptance window as full-PD shutdown. ADC calibration
- * and physical accuracy still require board validation, not unit inference.
+/* The measured SDP path on this board drops to 4.51-4.67V at the PM8150B ADC.
+ * Keep a conservative 4.40V floor so real 5V SDP remains accepted while
+ * non-5V sources are still rejected.
  */
-#define HANDOFF_MIN_UV 4750000
+#define HANDOFF_MIN_UV 4400000
 #define HANDOFF_MAX_UV 5500000
 
 struct qcom_pmic_typec_apsd {
@@ -86,11 +87,12 @@ static int apsd_read_sink(struct qcom_pmic_typec_apsd *h, unsigned int *s)
 	cc = s[3] & 0x7f;
 	/* Exact existing native sink-role predicates, plus actual comparator
 	 * status. ONLINE/APSD completion/current allowance are not consulted.
+	 * 0x150a reports the PMIC's source-side vSafe state; it is not an
+	 * external sink voltage measurement (stable SDP reads 0x19 here).
 	 */
 	if (!(s[2] & 0x10) || (s[2] & 0x2f) || !(s[4] & 0x20) ||
 	    (s[5] & 0x21) != 0x21 || (s[5] & 0xd0) || !(s[5] & 8) ||
-	    (s[6] & 1) || (cc != 8 && cc != 4 && cc != 2) ||
-	    !(s[7] & 0x20) || (s[7] & 0x40))
+	    (s[6] & 1) || (cc != 8 && cc != 4 && cc != 2))
 		return -EAGAIN;
 	/* Completed/active proprietary detection, or enabled autonomous QC,
 	 * is not permission to adopt the source as plain 5V. Never lower it.
@@ -103,9 +105,10 @@ static int apsd_read_sink(struct qcom_pmic_typec_apsd *h, unsigned int *s)
 static bool apsd_same_sink(const unsigned int *a, const unsigned int *b)
 {
 	/* Physical presence, Rp, role, legacy and comparator status must remain
-	 * identical. APSD DONE/non-QC result may progress while we take over.
+	 * identical. APSD DONE/non-QC result and source-side vSafe state may
+	 * progress while we take over.
 	 */
-	return !memcmp(a + 2, b + 2, 6 * sizeof(*a));
+	return !memcmp(a + 2, b + 2, 5 * sizeof(*a));
 }
 
 static int apsd_read_start(struct qcom_pmic_typec_apsd *h,

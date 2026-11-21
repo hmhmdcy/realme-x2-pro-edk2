@@ -4,20 +4,30 @@
  */
 #include <linux/delay.h>
 #include <linux/i2c.h>
+#include <linux/kconfig.h>
 #include <linux/ktime.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
 #include <linux/of.h>
 #include <linux/pm.h>
 #include <linux/power_supply.h>
+#include <linux/power/bq27xxx_battery.h>
 #include <linux/property.h>
 #include <linux/workqueue.h>
 
 #include "mp2650-core.h"
 #include "charge-cycle.h"
+#include "charge-cycle-hold.h"
+#include "negotiated-input.h"
 #include "oem-full-cycle.h"
 #include "gauge-i2c.h"
 #include "charging-notify.h"
+#include "reattach-observation.h"
+#include "samurai-status.h"
+
+#if !IS_REACHABLE(CONFIG_BATTERY_BQ27XXX)
+#error "samurai Full-status bridge requires reachable CONFIG_BATTERY_BQ27XXX"
+#endif
 
 static bool control;
 module_param(control, bool, 0444);
@@ -29,15 +39,19 @@ MODULE_PARM_DESC(runtime_board, "Use the observed RMX1931 board wiring without c
 struct sm_charger {
 	struct i2c_client *client, *gauge;
 	struct power_supply *input, *protection, *psy, *battery;
+	struct power_supply *typec;
 	char *battery_name;
 	struct mutex lock;
 	struct delayed_work work;
+	struct sm_reattach_observation reattach;
 	struct sm_io io;
 	struct sm_sample sample;
 	struct sm_target target;
 	int cell_ceiling_uv, current_cap_ua, input_cap_ua;
 	int last_error, stop_error;
 	bool auto_requested, latched, paused, sample_full;
+	bool timer_hold_confirmed;
+	u64 timer_hold_since_ns;
 	bool source_inhibit;
 	ktime_t sampled_at;
 	struct sm_charge_cycle cycle;
@@ -50,7 +64,59 @@ struct sm_charger {
 	bool notifier_registered;
 	struct sm_notify_state notified;
 	bool notified_valid;
+	bool battery_status_bridge;
 };
+
+static void sm_status_evidence(const struct sm_charger *c,
+			       struct sm_full_status_evidence *e)
+{
+	*e = (struct sm_full_status_evidence){
+		.control = control,
+		.auto_requested = c->auto_requested,
+		.online = c->sample.online,
+		.sample_valid = c->sample.valid,
+		.protection_ok = c->sample.protection_ok,
+		.cycle_timeout = c->cycle.timed_out,
+		.latched = c->latched,
+		.last_error = c->last_error,
+		.stop_error = c->stop_error,
+		.source_inhibit = c->source_inhibit,
+		.gauge_charge_stop = c->gauge_charge_stop,
+		.logical_full = c->full_state.full,
+		.hold_requested = c->hold_requested,
+		.full_holding = c->full_holding,
+	};
+}
+
+/* Keep UPower's Battery state coherent with the charger-owned Full hold.
+ * The exported bq27xxx API is part of the kernel Image ABI. This driver is not
+ * deployable as a module-only update against an Image without that symbol.
+ * The bq27xxx opt-in rejects non-samurai gauges; failure only disables this
+ * presentation bridge and never changes charging safety or control flow.
+ */
+static void sm_battery_status_locked(struct sm_charger *c)
+{
+	struct sm_full_status_evidence e;
+	int ret;
+
+	if (!c->battery_status_bridge || !c->battery)
+		return;
+	sm_status_evidence(c, &e);
+	/* bq27xxx preserves raw CHARGING and applies its own short lease. */
+	ret = bq27xxx_battery_set_status_override(
+		c->battery, sm_gauge_full_override(false, &e));
+	if (ret && ret != -EOPNOTSUPP)
+		dev_warn_ratelimited(&c->client->dev,
+			"battery Full-status bridge failed: %d\n", ret);
+}
+
+static void sm_clear_full_status_locked(struct sm_charger *c)
+{
+	c->full_holding = false;
+	c->hold_requested = false;
+	c->notified_valid = false;
+	sm_battery_status_locked(c);
+}
 
 static int sm_read(void *ctx, unsigned int reg)
 {
@@ -109,9 +175,50 @@ static int sm_psy_int(struct power_supply *psy,
 	return ret;
 }
 
+/* There is no native->TCPM->native cycle: native supplies the default-Rp
+ * allowance; TCPM supplies the committed operating allowance to this charger.
+ * An opted-in but unavailable/transitioning supplier never falls back to a
+ * stale BC1.2 result. Physical online remains the independent native input.
+ */
+static int sm_read_typec_allowance(struct power_supply *psy,
+				 struct sm_input_allowance *a)
+{
+	int ret;
+
+	*a = (struct sm_input_allowance){ 0 };
+	ret = sm_psy_int(psy, POWER_SUPPLY_PROP_ONLINE, &a->online);
+	if (ret) return ret;
+	if (!a->online) return -ENODATA;
+	ret = sm_psy_int(psy, POWER_SUPPLY_PROP_USB_TYPE, &a->usb_type);
+	if (ret) return ret;
+	ret = sm_psy_int(psy, POWER_SUPPLY_PROP_CURRENT_NOW, &a->operating_ua);
+	if (ret) return ret;
+	ret = sm_psy_int(psy, POWER_SUPPLY_PROP_CURRENT_MAX, &a->maximum_ua);
+	if (ret) return ret;
+	return sm_psy_int(psy, POWER_SUPPLY_PROP_VOLTAGE_NOW, &a->voltage_uv);
+}
+
+static int sm_input_budget(struct sm_charger *c, struct sm_input_allowance *a)
+{
+	struct sm_input_allowance after;
+	int ret;
+
+	*a = (struct sm_input_allowance){ 0 };
+	if (!c->typec)
+		return sm_psy_int(c->input, POWER_SUPPLY_PROP_CURRENT_MAX, &a->operating_ua);
+	ret = sm_read_typec_allowance(c->typec, a);
+	if (ret) return ret;
+	ret = sm_read_typec_allowance(c->typec, &after);
+	if (ret) return ret;
+	if (!sm_input_allowance_equal(a, &after)) return -EAGAIN;
+	ret = sm_typec_allowance_current(a);
+	return ret < 0 ? ret : 0;
+}
+
 static int sm_collect(struct sm_charger *c, struct sm_sample *s)
 {
-	int online, status, present, health, ret, budget_after, online_after;
+	int online, status, present, health, ret, online_after;
+	struct sm_input_allowance budget, budget_after;
 
 	*s = (struct sm_sample){ 0 };
 	c->source_inhibit = false;
@@ -131,7 +238,8 @@ static int sm_collect(struct sm_charger *c, struct sm_sample *s)
 		s->valid = s->protection_ok = 1;
 		return 0;
 	}
-	ret = sm_psy_int(c->input, POWER_SUPPLY_PROP_CURRENT_MAX, &s->budget_ua);
+	ret = sm_input_budget(c, &budget);
+	s->budget_ua = budget.operating_ua;
 	if (ret) { c->source_inhibit = true; return ret; }
 	if (s->budget_ua < 50000) { c->source_inhibit = true; return -ENODATA; }
 	if (c->protection) {
@@ -150,15 +258,16 @@ static int sm_collect(struct sm_charger *c, struct sm_sample *s)
 	/* A changing source budget/attachment cannot authorize this sample. */
 	ret = sm_psy_int(c->input, POWER_SUPPLY_PROP_ONLINE, &online_after);
 	if (ret) { c->source_inhibit = true; return ret; }
-	ret = sm_psy_int(c->input, POWER_SUPPLY_PROP_CURRENT_MAX, &budget_after);
+	ret = sm_input_budget(c, &budget_after);
 	if (ret) { c->source_inhibit = true; return ret; }
 	status = sm_read(c, 0x13);
 	if (status < 0) return status;
-	if (!online_after || !(status & 2) || budget_after != s->budget_ua) {
+	if (!online_after || !(status & 2) || !sm_input_allowance_equal(&budget, &budget_after)) {
 		c->source_inhibit = true;
 		return -EAGAIN;
 	}
-	c->sample_full = (status & 0x0c) == 0x0c;
+	c->sample_full = (status & 0x0c) == 0x0c &&
+		sm_oem_full_current_qualifies(s->gauge_current_ua);
 	s->valid = 1;
 	return 0;
 }
@@ -168,9 +277,11 @@ static int sm_step_locked(struct sm_charger *c)
 {
 	struct sm_target target = { 0 }, validation_target;
 	struct sm_oem_full_sample full_sample;
+	struct sm_charge_cycle next_cycle;
 	enum sm_policy_reason reason = SM_POLICY_REASON_NONE;
 	int ret, validation, source, thermal_hold = 0;
-	bool healthy_full;
+	bool healthy_full, previously_held = c->timer_hold_confirmed;
+	bool cycle_reset_requested, cycle_reset_committed;
 	u64 now;
 
 	ret = sm_collect(c, &c->sample);
@@ -184,7 +295,8 @@ static int sm_step_locked(struct sm_charger *c)
 	if (!validation)
 		validation = sm_policy_with_reason(&c->sample, c->cell_ceiling_uv,
 				c->current_cap_ua, c->input_cap_ua, &validation_target, &reason);
-	if (c->sample.online && (!validation || sm_policy_reason_is_thermal(reason))) {
+	if (c->sample.online && c->sample.valid &&
+	    (!validation || sm_policy_reason_is_thermal(reason))) {
 		thermal_hold = sm_thermal_gate(&c->thermal, c->sample.temp_decic, 1);
 		/* Re-evaluate the complete policy against that same effective band.
 		 * Only fresh non-hard-failing samples can advance this history.
@@ -196,6 +308,7 @@ static int sm_step_locked(struct sm_charger *c)
 			validation = -ERANGE;
 	}
 	source = c->sample.online ? 1 : !ret && c->sample.valid ? 0 : -1;
+	sm_reattach_source(&c->reattach, now, source);
 	/* OEM Full handling precedes this period's time accumulation. A newly
 	 * completed sixth software sample may finish a not-yet-timed-out cycle
 	 * at its boundary. Existing timed_out was validated above and cannot reset.
@@ -228,10 +341,18 @@ static int sm_step_locked(struct sm_charger *c)
 		validation = ret;
 		reason = SM_POLICY_REASON_NONE;
 	}
-	healthy_full = sm_cycle_full_allowed(c->sample_full ||
-		((c->full_result.full || c->full_result.recharge) && !c->full_result.stop_all),
-		c->latched, validation);
-	c->sample.session_seconds = sm_cycle_update(&c->cycle, now, source, healthy_full);
+	healthy_full = c->auto_requested &&
+		sm_cycle_full_allowed(c->sample_full ||
+			((c->full_result.full || c->full_result.recharge) &&
+			 !c->full_result.stop_all),
+			c->latched, validation);
+	cycle_reset_requested = source == 1 && healthy_full;
+	next_cycle = c->cycle;
+	c->sample.session_seconds = sm_cycle_update_held(&next_cycle, now, source, healthy_full,
+		c->timer_hold_confirmed && c->sample.valid && c->sample.protection_ok &&
+		!c->sample.fault && !c->latched && !c->stop_error &&
+		(!validation || reason == SM_POLICY_REASON_GAUGE_CHARGE_STOP ||
+		 sm_policy_reason_is_thermal(reason)), c->timer_hold_since_ns);
 	if (!ret)
 		ret = sm_policy_with_band_reason(&c->sample, c->cell_ceiling_uv,
 			c->current_cap_ua, c->input_cap_ua,
@@ -254,11 +375,16 @@ static int sm_step_locked(struct sm_charger *c)
 		c->full_result.hold_charge_only;
 	if (c->hold_requested)
 		target.enable = 0; /* Desired CHG, distinct from healthy converter hold. */
+	c->timer_hold_confirmed = false;
 	if (control) {
 		if (ret || c->latched || !c->auto_requested ||
 		    (!target.enable && !c->hold_requested)) {
 			c->stop_error = sm_stop(&c->io);
 			if (c->stop_error) c->latched = true;
+			c->timer_hold_confirmed = source == 1 && !c->stop_error && !c->latched &&
+				(!c->auto_requested || c->gauge_charge_stop || sm_policy_reason_is_thermal(reason));
+			if (c->timer_hold_confirmed && !previously_held)
+				c->timer_hold_since_ns = ktime_get_boottime_ns();
 			if (!ret) ret = c->stop_error;
 			target.enable = 0;
 		} else {
@@ -274,8 +400,22 @@ static int sm_step_locked(struct sm_charger *c)
 			}
 		}
 	}
+	cycle_reset_committed = !cycle_reset_requested || !control ||
+		(!ret && !c->stop_error);
+	if (cycle_reset_committed)
+		c->cycle = next_cycle;
+	else
+		/* A failed hold/restart never earns a fresh ten-hour period. The
+		 * conservative timer still advances and preserves any timeout.
+		 */
+		c->sample.session_seconds = sm_cycle_update_held(&c->cycle, now, source, 0,
+			c->timer_hold_confirmed && c->sample.valid && c->sample.protection_ok &&
+			!c->sample.fault && !c->latched && !c->stop_error &&
+			(!validation || reason == SM_POLICY_REASON_GAUGE_CHARGE_STOP ||
+			 sm_policy_reason_is_thermal(reason)), c->timer_hold_since_ns);
 	c->target = target;
 	c->last_error = ret;
+	sm_battery_status_locked(c);
 	if (ret || c->stop_error)
 		dev_warn_ratelimited(&c->client->dev,
 			"policy/io error=%d stop error=%d latched=%d shadow=%d\n",
@@ -337,7 +477,8 @@ static void sm_poll(struct work_struct *work)
 	if (c->paused) goto out;
 	sm_step_locked(c);
 	notify = sm_notification_locked(c);
-	schedule_delayed_work(&c->work, msecs_to_jiffies(1000));
+	schedule_delayed_work(&c->work, msecs_to_jiffies(
+		sm_reattach_delay_ms(&c->reattach, ktime_get_boottime_ns())));
 out:
 	mutex_unlock(&c->lock);
 	if (notify)
@@ -347,8 +488,19 @@ out:
 static int sm_supply_changed(struct notifier_block *nb, unsigned long event, void *data)
 {
 	struct sm_charger *c = container_of(nb, struct sm_charger, supply_notifier);
-	if (event == PSY_EVENT_PROP_CHANGED && (data == c->input || data == c->protection) &&
-	    !READ_ONCE(c->paused)) mod_delayed_work(system_wq, &c->work, 0);
+	if (event == PSY_EVENT_PROP_CHANGED &&
+	    (data == c->input || data == c->protection || data == c->typec)) {
+		/* Invalidate the battery presentation before the deferred poll.
+		 * This closes the window where a detach could retain an old Full.
+		 */
+		mutex_lock(&c->lock);
+		if (!c->paused) {
+			sm_clear_full_status_locked(c);
+			/* Keep pause and scheduling serialized with suspend/cleanup. */
+			mod_delayed_work(system_wq, &c->work, 0);
+		}
+		mutex_unlock(&c->lock);
+	}
 	return NOTIFY_DONE;
 }
 
@@ -377,6 +529,7 @@ static int sm_get_property(struct power_supply *psy,
 			   union power_supply_propval *v)
 {
 	struct sm_charger *c = power_supply_get_drvdata(psy);
+	struct sm_full_status_evidence evidence;
 	int value, after, code, ret = 0;
 
 	mutex_lock(&c->lock);
@@ -431,9 +584,10 @@ static int sm_get_property(struct power_supply *psy,
 		}
 		v->intval = POWER_SUPPLY_STATUS_NOT_CHARGING;
 		if (value & 2) {
-			if ((value & 0x0c) == 0x0c)
+			sm_status_evidence(c, &evidence);
+			if (c->sample_full && sm_reg13_full(value, &evidence))
 				v->intval = POWER_SUPPLY_STATUS_FULL;
-			else if (value & 0x0c)
+			else if (sm_reg13_charging(value))
 				v->intval = POWER_SUPPLY_STATUS_CHARGING;
 		}
 		break;
@@ -465,6 +619,8 @@ static int sm_set_property(struct power_supply *psy,
 		/* Explicit operator recovery; the next poll must obtain fresh inputs. */
 		if (c->auto_requested) c->latched = false;
 		else {
+			c->full_holding = false;
+			c->hold_requested = false;
 			c->stop_error = sm_stop(&c->io);
 			ret = c->stop_error;
 		}
@@ -485,6 +641,7 @@ static int sm_set_property(struct power_supply *psy,
 		ret = sm_step_locked(c);
 		mod_delayed_work(system_wq, &c->work, msecs_to_jiffies(1000));
 	}
+	sm_battery_status_locked(c);
 out:
 	mutex_unlock(&c->lock);
 	power_supply_changed(c->psy);
@@ -547,6 +704,36 @@ static struct power_supply *sm_named_supply(struct device *dev, const char *name
 	return psy;
 }
 
+/* Optional exact firmware reference to the real TCPM source PSY. This is
+ * not a lookup by a constructed supply name. The managed link and provider
+ * module reference use the same lifetime rules as the existing input path.
+ */
+static struct power_supply *sm_typec_supply(struct device *dev,
+					   struct power_supply *physical)
+{
+	struct power_supply *psy;
+	struct module *owner;
+	struct device_link *link;
+	int ret;
+
+	if (!device_property_present(dev, "typec-supply")) return NULL;
+	psy = devm_power_supply_get_by_reference(dev, "typec-supply");
+	if (IS_ERR(psy)) return psy;
+	if (!psy) return ERR_PTR(-EPROBE_DEFER);
+	if (psy == physical || !psy->dev.parent || psy->dev.parent == dev ||
+	    psy->desc->type != POWER_SUPPLY_TYPE_USB)
+		return ERR_PTR(-EXDEV);
+	owner = psy->dev.parent->driver ? psy->dev.parent->driver->owner : NULL;
+	if (owner) {
+		if (!try_module_get(owner)) return ERR_PTR(-ENODEV);
+		ret = devm_add_action_or_reset(dev, sm_put_module, owner);
+		if (ret) return ERR_PTR(ret);
+	}
+	link = device_link_add(dev, psy->dev.parent, DL_FLAG_AUTOREMOVE_CONSUMER);
+	if (!link) return ERR_PTR(-ENOMEM);
+	return psy;
+}
+
 /* Root-readable diagnostic snapshot for the future shadow validation window.
  * Fields are an acquired sample, never a claim of independent protection.
  */
@@ -602,6 +789,9 @@ static void sm_cleanup(void *data)
 		ret = sm_stop(&c->io);
 		if (ret) dev_err(&c->client->dev, "remove could not prove stop: %d\n", ret);
 	}
+	mutex_lock(&c->lock);
+	sm_clear_full_status_locked(c);
+	mutex_unlock(&c->lock);
 }
 
 static int sm_battery_notify_target(struct power_supply *psy, void *data)
@@ -654,6 +844,12 @@ static int sm_probe(struct i2c_client *client)
 	}
 	if (!c->input || (control && !c->protection))
 		return dev_err_probe(dev, -EINVAL, "control requires a real protection supply\n");
+	c->typec = sm_typec_supply(dev, c->input);
+	if (IS_ERR(c->typec))
+		return dev_err_probe(dev, PTR_ERR(c->typec), "Type-C source supply\n");
+	if (control && !c->typec)
+		return dev_err_probe(dev, -EINVAL,
+				     "control requires a Type-C source supply\n");
 	node = of_parse_phandle(dev->of_node, "battery-gauge", 0);
 	if (!node && runtime_board)
 		node = of_find_node_by_path("/soc@0/geniqup@cc0000/i2c@c94000/fuel-gauge@55");
@@ -699,6 +895,10 @@ static int sm_probe(struct i2c_client *client)
 	if (c->battery->desc->type != POWER_SUPPLY_TYPE_BATTERY ||
 	    c->battery->dev.parent != &c->gauge->dev)
 		return -ENODEV;
+	ret = bq27xxx_battery_set_status_override(c->battery, false);
+	if (ret)
+		dev_warn(dev, "battery Full-status bridge unavailable: %d\n", ret);
+	c->battery_status_bridge = !ret;
 	config.supplied_to = &c->battery_name;
 	config.num_supplicants = 1;
 	c->psy = devm_power_supply_register(dev, &sm_desc, &config);
@@ -727,6 +927,7 @@ static int sm_suspend(struct device *dev)
 	mutex_unlock(&c->lock);
 	cancel_delayed_work_sync(&c->work);
 	mutex_lock(&c->lock);
+	sm_clear_full_status_locked(c);
 	if (control) ret = sm_stop(&c->io);
 	if (ret) {
 		c->stop_error = c->last_error = ret;

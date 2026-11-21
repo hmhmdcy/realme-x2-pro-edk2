@@ -102,6 +102,11 @@ static inline int sm_oem_gauge_current_ua(unsigned int word, int *ua)
 	return 0;
 }
 
+static inline int sm_oem_full_current_qualifies(int gauge_current_ua)
+{
+	return gauge_current_ua >= -110000 && gauge_current_ua <= 110000;
+}
+
 static inline struct sm_oem_full_result sm_oem_full_step(struct sm_oem_full_state *s,
 				 sm_full_ns now, const struct sm_oem_full_sample *in)
 {
@@ -174,11 +179,14 @@ static inline struct sm_oem_full_result sm_oem_full_step(struct sm_oem_full_stat
 		sm_oem_full_clear_streak(s);
 		s->band = band;
 	}
+	current_qualifies = sm_oem_full_current_qualifies(in->gauge_current_ua);
 	/* A fresh hardware termination is already an actual completion event,
 	 * not a software counter sample. Handle it immediately, even between
 	 * software 5s ticks, so a concurrent limit change cannot re-enable CHG.
+	 * A heavily discharging pack can retain termination bits from the prior
+	 * charge, so current is still a mandatory completion predicate.
 	 */
-	if (!s->full && in->hardware_full) {
+	if (!s->full && in->hardware_full && current_qualifies) {
 		s->full = 1; s->cause = SM_FULL_HARDWARE;
 		sm_oem_full_clear_streak(s);
 		s->last_tick_ns = now; s->have_tick = 1;
@@ -209,16 +217,15 @@ static inline struct sm_oem_full_result sm_oem_full_step(struct sm_oem_full_stat
 		}
 		return out;
 	}
-	current_qualifies = in->gauge_current_ua <= 0 || in->gauge_current_ua <= 110000;
 	if (in->max_cell_uv <= out.sw_threshold_uv || !current_qualifies)
 		s->sw_count = 0;
-	if (in->max_cell_uv < out.voltage_threshold_uv)
+	if (in->max_cell_uv < out.voltage_threshold_uv || !current_qualifies)
 		s->voltage_count = 0;
 	if (!due) return out;
 	s->last_tick_ns = now; s->have_tick = 1; out.tick = 1;
 	if (in->max_cell_uv > out.sw_threshold_uv && current_qualifies)
 		s->sw_count++;
-	if (in->max_cell_uv >= out.voltage_threshold_uv)
+	if (in->max_cell_uv >= out.voltage_threshold_uv && current_qualifies)
 		s->voltage_count++;
 	if (s->sw_count > (in->gauge_current_ua > 0 ? 5U : 10U))
 		s->cause = SM_FULL_SOFTWARE;

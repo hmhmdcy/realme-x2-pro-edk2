@@ -164,6 +164,7 @@ static inline int sm_update(const struct sm_io *io, unsigned int reg,
 
 	/* No raw register interface, reset, watchdog kick, OTG or BATTFET writes. */
 	if (!((reg == 0x08 && !(mask & ~0x18U)) ||
+	      (reg == 0x07 && mask == 0x30) ||
 	      ((reg == 0x00 || reg == 0x0f || reg == 0x02) && mask == 0x7f) ||
 	      (reg == 0x03 && mask == 0xff) ||
 	      (reg == 0x04 && mask == 0x7f)) || !mask)
@@ -221,7 +222,7 @@ static inline int sm_preconditions(const struct sm_io *io)
 static inline int sm_apply(const struct sm_io *io, const struct sm_target *t,
 			   int *stop_error)
 {
-	int ret, cc, cv, first, second, control, preterm;
+	int ret, cc, cv, first, second, control, preterm, cell;
 
 	*stop_error = 0;
 	if (!t->enable) {
@@ -246,19 +247,25 @@ static inline int sm_apply(const struct sm_io *io, const struct sm_target *t,
 	cv = io->read(io->ctx, 0x04);
 	control = io->read(io->ctx, 0x08);
 	preterm = io->read(io->ctx, 0x03);
-	if (first < 0 || second < 0 || cc < 0 || cv < 0 || control < 0 || preterm < 0) {
+	cell = io->read(io->ctx, 0x07);
+	if (first < 0 || second < 0 || cc < 0 || cv < 0 || control < 0 ||
+	    preterm < 0 || cell < 0) {
 		ret = first < 0 ? first : second < 0 ? second : cc < 0 ? cc :
-			cv < 0 ? cv : control < 0 ? control : preterm;
+			cv < 0 ? cv : control < 0 ? control : preterm < 0 ? preterm : cell;
 		goto fail;
 	}
 	if ((first & 0x7f) == t->input_ua / 50000 &&
 	    (second & 0x7f) == t->input_ua / 50000 &&
 	    (cc & 0x7f) == t->current_ua / 50000 &&
 	    (cv & 0x7f) == (t->cell_uv - 3712500) / 12500 * 2 &&
-	    preterm == 0x31 &&
+	    preterm == 0x91 &&
+	    !(cell & 0x30) &&
 	    (control & 0x18) == 0x10)
 		return 0;
 	ret = sm_stop(io);
+	if (ret) goto fail;
+	/* OEM 2-cell profile: 6600mV precharge-to-fast threshold. */
+	ret = sm_update(io, 0x07, 0x30, 0);
 	if (ret) goto fail;
 	ret = sm_update(io, 0x0f, 0x7f, t->input_ua / 50000);
 	if (ret) goto fail;
@@ -266,10 +273,10 @@ static inline int sm_apply(const struct sm_io *io, const struct sm_target *t,
 	if (ret) goto fail;
 	ret = sm_update(io, 0x02, 0x7f, t->current_ua / 50000);
 	if (ret) goto fail;
-	/* MPS table (not the old OEM arithmetic): precharge code 3 = 180mA.
-	 * OEM termination 110mA is rounded down to the 100mA hardware step.
+	/* MPS table: precharge code 9 = 480mA. OEM termination 110mA is
+	 * rounded down to the 100mA hardware step (code 1).
 	 */
-	ret = sm_update(io, 0x03, 0xff, 0x31);
+	ret = sm_update(io, 0x03, 0xff, 0x91);
 	if (ret) goto fail;
 	/* OEM recharge offset 100mV/cell is encoded by bit 0 = 0. */
 	ret = sm_update(io, 0x04, 0x7f, (t->cell_uv - 3712500) / 12500 * 2);
@@ -288,7 +295,7 @@ fail:
 static inline int sm_apply_charge_hold(const struct sm_io *io,
 				       const struct sm_target *t, int *stop_error)
 {
-	int ret, first, second, cc, cv, preterm, control;
+	int ret, first, second, cc, cv, preterm, control, cell;
 
 	*stop_error = 0;
 	/* First hardware action clears CHG; do not call sm_apply() on this path. */
@@ -310,19 +317,23 @@ static inline int sm_apply_charge_hold(const struct sm_io *io,
 	cv = io->read(io->ctx, 0x04);
 	control = io->read(io->ctx, 0x08);
 	preterm = io->read(io->ctx, 0x03);
-	if (first < 0 || second < 0 || cc < 0 || cv < 0 || control < 0 || preterm < 0) {
+	cell = io->read(io->ctx, 0x07);
+	if (first < 0 || second < 0 || cc < 0 || cv < 0 || control < 0 ||
+	    preterm < 0 || cell < 0) {
 		ret = first < 0 ? first : second < 0 ? second : cc < 0 ? cc :
-			cv < 0 ? cv : control < 0 ? control : preterm;
+			cv < 0 ? cv : control < 0 ? control : preterm < 0 ? preterm : cell;
 		goto fail;
 	}
 	if ((first & 0x7f) == t->input_ua / 50000 &&
 	    (second & 0x7f) == t->input_ua / 50000 &&
 	    (cc & 0x7f) == t->current_ua / 50000 &&
 	    (cv & 0x7f) == (t->cell_uv - 3712500) / 12500 * 2 &&
-	    preterm == 0x31 && !(control & 0x18))
+	    preterm == 0x91 && !(cell & 0x30) && !(control & 0x18))
 		return 0;
 	/* Any discrete limit/configuration change is made with input paused. */
 	ret = sm_stop(io);
+	if (ret) goto fail;
+	ret = sm_update(io, 0x07, 0x30, 0);
 	if (ret) goto fail;
 	ret = sm_update(io, 0x0f, 0x7f, t->input_ua / 50000);
 	if (ret) goto fail;
@@ -330,7 +341,7 @@ static inline int sm_apply_charge_hold(const struct sm_io *io,
 	if (ret) goto fail;
 	ret = sm_update(io, 0x02, 0x7f, t->current_ua / 50000);
 	if (ret) goto fail;
-	ret = sm_update(io, 0x03, 0xff, 0x31);
+	ret = sm_update(io, 0x03, 0xff, 0x91);
 	if (ret) goto fail;
 	ret = sm_update(io, 0x04, 0x7f, (t->cell_uv - 3712500) / 12500 * 2);
 	if (ret) goto fail;

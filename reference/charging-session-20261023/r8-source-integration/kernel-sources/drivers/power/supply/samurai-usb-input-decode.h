@@ -19,7 +19,9 @@ struct samurai_usb_budget {
 };
 
 /* A detection result is an advertised allowance, never a current measurement.
- * SDP requires the UDC's configured/suspended budget, so leave it unavailable.
+ * A confirmed SDP has a board-safe 500mA ceiling even when DWC3's configuration
+ * callback was missed; a valid callback still narrows the operating allowance
+ * to the gadget's unconfigured/configured value.
  * No PD contract, proprietary charging mode or ambiguous result is inferred.
  */
 static inline int samurai_usb_decode(const struct samurai_usb_status *s,
@@ -70,6 +72,7 @@ static inline int samurai_usb_decode(const struct samurai_usb_status *s,
 	switch (result) {
 	case 1:
 		b->kind = SAMURAI_USB_SDP;
+		b->current_ua = 500000;
 		break;
 	case 4:
 		b->kind = SAMURAI_USB_CDP;
@@ -101,7 +104,11 @@ static inline int samurai_usb_apply_udc(struct samurai_usb_budget *b,
 	if ((b->kind != SAMURAI_USB_SDP && b->kind != SAMURAI_USB_FLOAT) ||
 	    !b->online) return 0;
 	if (!valid || current_ua < 0 || current_ua > 500000) {
-		b->current_ua = -ENODATA;
+		/* Keep a confirmed SDP at its safe ceiling across the resume gap.
+		 * FLOAT remains unavailable until DWC3 authorizes USB2 current.
+		 */
+		if (b->kind != SAMURAI_USB_SDP)
+			b->current_ua = -ENODATA;
 		return 0;
 	}
 	if (b->kind == SAMURAI_USB_FLOAT)

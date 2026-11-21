@@ -324,7 +324,11 @@ def _check_device_not_mounted(rt: Runtime, name: str, device: Path) -> None:
     mounts = rt.proc_root / "mounts"
     if not mounts.exists():
         return
-    aliases = {str(device), str(rt.dev_root / "disk/by-partlabel" / name)}
+    aliases = {
+        str(device),
+        str(device.resolve(strict=True)),
+        str(rt.dev_root / "disk/by-partlabel" / name),
+    }
     mounted = {line.split()[0] for line in mounts.read_text().splitlines() if line.strip()}
     if aliases & mounted:
         raise TrialError(f"refusing to write mounted carrier: {name}")
@@ -332,7 +336,9 @@ def _check_device_not_mounted(rt: Runtime, name: str, device: Path) -> None:
 
 def write_carrier_from_backup(rt: Runtime, stage: dict, name: str, expected_sha256: str) -> None:
     _verify_partition_identity(rt, stage, name)
-    device = _device_for(rt, name)
+    # by-partlabel entries are symlinks. Resolve once so O_NOFOLLOW protects
+    # the final device node instead of rejecting the intentional alias.
+    device = _device_for(rt, name).resolve(strict=True)
     _check_device_not_mounted(rt, name, device)
     source = rt.root / "old" / f"{name}.img"
     require_regular(source, require_root=rt.require_root)

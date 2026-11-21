@@ -56,6 +56,17 @@ assert 'samurai_contract_shutdown' in start
 assert 'regmap_write' not in function(phy,'qcom_pmic_typec_pdphy_handoff_quiet')
 manifest=json.loads((HERE/'source.json').read_bytes())
 sha=lambda p:hashlib.sha256(Path(p).read_bytes()).hexdigest()
+helper=(HERE/'qcom_pmic_typec_apsd.c').read_text()
+min_uv=int(re.search(r'^#define HANDOFF_MIN_UV (\d+)$',helper,re.M).group(1))
+max_uv=int(re.search(r'^#define HANDOFF_MAX_UV (\d+)$',helper,re.M).group(1))
+assert (min_uv,max_uv)==(4400000,5500000)
+accepted_uv=[min_uv,4511408,4672304,4749999,4750000,5000000,max_uv]
+rejected_uv=[min_uv-1,max_uv+1,9000000,0,-1,5000]
+test_source=(HERE/'test-measured.c').read_text()
+for uv in accepted_uv[1:-1]:
+    assert str(uv) in test_source,uv
+assert 'HANDOFF_MIN_UV-1' in test_source
+assert 'HANDOFF_MAX_UV+1' in test_source
 assert sha(OLD/'delivery.json')==manifest['frozen_parent_delivery_sha256']
 for name,pin in manifest['frozen_parent_sources'].items():assert sha(OLD/name)==pin
 for row in manifest['sources'].values():assert sha(HERE/row['file'])==row['sha256']
@@ -65,6 +76,8 @@ result={'passed':True,'phone_accessed':False,'full_probe_integration':False,
  'actual_extracted_phy_functions':names,'sanitizers':['ASan','UBSan'],
  'compiler_diagnostics':compile.stderr,'stdout':run.stdout.strip(),
  'provider_lifecycle_static_checks':5,'frozen_parent_exact':True,
+ 'apsd_vbus_window_uv':{'min':min_uv,'max':max_uv},
+ 'accepted_vbus_uv':accepted_uv,'rejected_vbus_uv':rejected_uv,
  'ADC_unit_and_DTB_tests_reused_not_rerun':True}
 (HERE/'test-result.json').write_text(json.dumps(result,indent=2)+'\n')
 print(json.dumps(result))

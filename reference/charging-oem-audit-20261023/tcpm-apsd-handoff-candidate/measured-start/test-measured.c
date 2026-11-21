@@ -62,7 +62,8 @@ static int regmap_write(struct regmap *m,unsigned int reg,unsigned int v)
 static int regulator_enable(struct regulator *r)
 {
 	CHECK(!spin_depth);
-	if(require_preflight)CHECK(adc_calls>=2 && worker_joined && adc_uv>=4750000 && adc_uv<=5500000);
+	if(require_preflight)CHECK(adc_calls>=2 && worker_joined &&
+		adc_uv>=HANDOFF_MIN_UV && adc_uv<=HANDOFF_MAX_UV);
 	r->enables++;
 	if(r->enable_error)return r->enable_error;
 	r->refs++;return 0;
@@ -112,9 +113,10 @@ static void fresh(bool connected)
 	io_count=fail_io=slow_adc=adc_error_call=adc_calls=qc_change_adc=role_change_adc=0;
 	writes=pd_reads=pd_writes=reset_error=resets=irq_on=irq_off=cancelled=0;
 	owner_joins=owner_releases=worker_joined=spin_depth=0;test_ms=0;adc_uv=5000000;
-	map.r[0x1362]=connected?0x9b:0xff;map.r[0x1358]=0xff;
-	map.r[0x150a]=connected?0x20:0x40;
-	if(connected){map.r[0x1310]=0x10;map.r[0x1506]=8;map.r[0x1509]=0x20;map.r[0x150b]=0x29;map.r[0x150d]=2;}
+	map.r[0x1362]=connected?0x18:0xff;map.r[0x1358]=0xff;
+	map.r[0x150a]=connected?0x19:0x40;
+	if(connected){map.r[0x1307]=1;map.r[0x1308]=4;map.r[0x1310]=0x10;
+		map.r[0x1506]=8;map.r[0x1509]=0x23;map.r[0x150b]=0x29;map.r[0x150d]=6;}
 	phy.dev=&dev;phy.regmap=&map;phy.base=0x1700;phy.vdd_pdphy=&regulator;
 	phy.nr_irqs=2;phy.irq_data=irqs;tcpm.dev=&dev;tcpm.pmic_typec_pdphy=&phy;
 	tcpm.samurai_contract_shutdown=true;require_preflight=connected;
@@ -134,8 +136,13 @@ int main(void)
 	struct tcpm_port *port=(void *)0x1000;
 	int max_io,i,before;
 	const unsigned int controls[]={0x174e,0x1744,0x174c,0x1746};
-	const int voltages[]={4749999,5500001,9000000,0,-1,5000};
-	const int good_voltages[]={4750000,5000000,5500000};
+	const int voltages[]={HANDOFF_MIN_UV-1,HANDOFF_MAX_UV+1,9000000,0,-1,5000};
+	/* Keep both measured board samples and the former 4.75V floor as
+	 * positive regressions. The former floor is now inside the window.
+	 */
+	const int good_voltages[]={HANDOFF_MIN_UV,4511408,4672304,4749999,
+		4750000,5000000,HANDOFF_MAX_UV};
+	const unsigned int good_cc[]={8,4,2,8,4,2,8};
 	struct qcom_pmic_typec_apsd_start_ops missing;
 
 	fresh(false);h=prepare(NULL);
@@ -148,7 +155,7 @@ int main(void)
 	CHECK(!IS_ERR(h));max_io=io_count;
 	CHECK(adc_calls==6 && regulator.enables==1 && regulator.refs==1 && !regulator.disables);
 	CHECK(phy.handoff_powered && !phy.supply_held && !resets && !pd_writes);
-	CHECK(map.r[0x1362]==0x93 && map.r[0x1358]==0x7f);
+	CHECK(map.r[0x1362]==0x10 && map.r[0x1358]==0x7f);
 	CHECK(qcom_pmic_typec_pdphy_apsd_begin(&tcpm)==-EBUSY && regulator.enables==1);
 	/* This is the actual production start: same ref, then original protocol. */
 	tcpm.apsd_handoff=h;tcpm.tcpm_port=port;
@@ -171,8 +178,9 @@ int main(void)
 		fresh(true);adc_uv=voltages[i];h=prepare(&ops);
 		CHECK(IS_ERR(h) && PTR_ERR(h)==-ERANGE && !regulator.enables && !writes);
 	}
+	CHECK(ARRAY_SIZE(good_cc)==ARRAY_SIZE(good_voltages));
 	for(i=0;i<(int)ARRAY_SIZE(good_voltages);i++){
-		fresh(true);adc_uv=good_voltages[i];map.r[0x1506]=i==0?8:i==1?4:2;
+		fresh(true);adc_uv=good_voltages[i];map.r[0x1506]=good_cc[i];
 		h=prepare(&ops);CHECK(!IS_ERR(h));cleanup();CHECK(regulator.refs==0);
 	}
 	/* Missing proof is never equivalent to physical 5V or quiet PD. */
@@ -183,7 +191,7 @@ int main(void)
 		h=prepare(&missing);CHECK(IS_ERR(h) && PTR_ERR(h)==-EOPNOTSUPP && !regulator.enables);
 	}
 	/* Individual physical-role, QC and comparator negatives. */
-	for(i=0;i<17;i++){
+	for(i=0;i<15;i++){
 		fresh(true);
 		switch(i){
 		case 0:map.r[0x1310]=0;break;case 1:map.r[0x1310]|=1;break;
@@ -191,11 +199,18 @@ int main(void)
 		case 4:map.r[0x150b]&=~1;break;case 5:map.r[0x150b]&=~8;break;
 		case 6:map.r[0x150b]|=0x40;break;case 7:map.r[0x150b]|=0x80;break;
 		case 8:map.r[0x150b]|=0x10;break;case 9:map.r[0x1506]=3;break;
-		case 10:map.r[0x150d]|=1;break;case 11:map.r[0x150a]|=0x40;break;
-		case 12:map.r[0x150a]=0;break;case 13:map.r[0x1307]|=2;break;
-		case 14:map.r[0x1308]=0x20;break;case 15:map.r[0x1308]=0x40;break;
-		case 16:map.r[0x1362]|=0x64;break;}
+		case 10:map.r[0x150d]|=1;break;
+		case 11:map.r[0x1307]|=2;break;
+		case 12:map.r[0x1308]=0x20;break;case 13:map.r[0x1308]=0x40;break;
+		case 14:map.r[0x1362]|=0x64;break;}
 		h=prepare(&ops);CHECK(IS_ERR(h) && !regulator.enables && !writes);
+	}
+	/* Source-side vSafe state is diagnostic only for an external sink. */
+	for(i=0;i<5;i++){
+		const unsigned int sm_values[]={0x10,0x19,0x20,0x40,0x60};
+		fresh(true);map.r[0x150a]=sm_values[i];h=prepare(&ops);
+		CHECK(!IS_ERR(h));
+		cleanup();
 	}
 	for(i=1;i<=6;i++){
 		fresh(true);adc_error_call=i;h=prepare(&ops);
@@ -234,6 +249,9 @@ int main(void)
 	tcpm.tcpm_port=NULL;phy.irqs_started=true;
 	CHECK(qcom_pmic_typec_pdphy_apsd_begin(&tcpm)==-EBUSY && !regulator.enables);phy.irqs_started=false;
 	cleanup();CHECK(!regulator.refs);
-	printf("measured helper + actual PHY supplier: %d assertions; %d PMIC IO fault points\n",cases,max_io);
+	printf("measured helper + actual PHY supplier: %d assertions; %d PMIC IO fault points; "
+		"VBUS %d..%d uV; accepted %zu cases; rejected %zu cases\n",
+		cases,max_io,HANDOFF_MIN_UV,HANDOFF_MAX_UV,
+		ARRAY_SIZE(good_voltages),ARRAY_SIZE(voltages));
 	return 0;
 }

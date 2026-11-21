@@ -1,5 +1,16 @@
 # 十小时安全计时实测：506 周期在校验瞬变处失败
 
+2026-10-26离线P0加固：观察器现在只对`ENODATA`、`EAGAIN`、`ESTALE`、
+`ENOLINK`、`ETIMEDOUT`和明确的采样空窗做有界重试，每阶段最多300秒、间隔10秒；
+其他IO错误、时钟回拨、坏时间戳、充电边界变化和验收断言仍立即失败。重试只记录
+`transient-private.json`并刷新heartbeat，不写AUTO、不设置验收通过；持续瞬态耗尽后
+写`failure-private.json`并保留最后traceback。首次看到`cycle_timeout=1`只保存候选，
+必须停止实验负载、等待5秒并用更新的新鲜样本再次确认超时和停止后，才设置
+`timeout_stop_verified`；AUTO入口自身也有同样的有界读取重试。控制测试已扩为36项并含
+worker AUTO门2项，全部为离线建模，仍不构成十小时实机结论。本次修改了worker的
+observe/retry/request_auto，旧`shutdown-integration-result.json`中的worker AST/SHA
+复用结论不再代表当前文件；未来打包前必须重跑集成检查，不能沿用旧SHA。
+
 2026-10-26只读取证：[失败结果](../timeout-live506-failure-result.json)。测试在
 boottime 31,124.625秒、驱动计数31,029/36,000秒处结束，原因为无字段的
 `AssertionError()`；已记录的2,976条样本全部健康，最大间隔10.409秒，尚余
@@ -25,12 +36,12 @@ last-good），supervisor清理也记录阶段和堆栈。控制案例25项、�
 
 [13项控制检查](shutdown-test-result.json)执行实际检测器、worker.cancelled、timeout观察取消/负载join、supervisor两个关机路径，并在本地真实flock上确认释放。进程内容和Popen边界为fixture，没有关机手机；实际手机上仅执行闲态只读检测，返回无待关机。[整合检查](shutdown-integration-result.json)确认worker除cancelled外13个方法AST不变，原24项观察/6组负载结果按未变函数复用，原软件证明的旧SHA保留并附新增来源。未来上传须包含新增shutdown-observer.py；正常重启下的实际取消/锁释放仍须另验，不能把上述软件案例当作硬件通过。
 
-[观察器](../timeout-observation.py)不接受修改时限或假时钟的参数。由实际计数≤900秒的新充电周期开始，每10秒采样，检查计数与实际BOOTTIME一致且不重置；保留首次已累计值和实际观察时长，不把首次之前的时间写成连续观察。只在真实计数到36000、cycle_timeout=1、-ETIME、停止写读回成功且CHG位确实停止时确认到期。随后结束CPU负载，使用正常内核AUTO属性一次，等待安全采样后再次确认超时与停止仍保持30秒。该操作不使用服务的健康resume入口，因为它会按故障恢复路径转为INHIBIT，混淆本项测试。
+[观察器](../timeout-observation.py)不接受修改时限或假时钟的参数。由实际计数≤900秒的新充电周期开始，每10秒采样，检查计数与实际BOOTTIME一致且不重置；保留首次已累计值和实际观察时长，不把首次之前的时间写成连续观察。采样/校验阶段只对五类明确瞬态errno和明确采样空窗做每阶段300秒的有界重试；明确采样空窗会记录并锚定下一样本，不把空窗样本标成good，时钟回拨仍不重试。真实计数到36000、cycle_timeout=1、-ETIME、停止写读回成功且CHG位确实停止时只保存候选；随后结束CPU负载、等待5秒并取得更新鲜的完整样本复核，才设置`timeout_stop_verified`。之后使用正常内核AUTO属性一次，等待安全采样后再次确认超时与停止仍保持30秒。该操作不使用服务的健康resume入口，因为它会按故障恢复路径转为INHIBIT，混淆本项测试。
 
-[手机worker](worker.py)仅适用于精确506/原三模块/83469服务/8b402 manifest；未来从508短测恢复后生成私有baseline中的实际boot和guard，先做只读预检再启动。原MAC缓存/实例保持，不查询或rearm。持有原充电服务锁，正常500mA源、250mA充电帽和8.725V保持，所有寄存器读取沿现有安全列表，不读破坏性REG14。温度18–37℃、SOC20–70%、电芯3.50–4.15V及压差30mV观察边界，Full/源变化/保护或IO异常即不通过并停止负载。
+[手机worker](worker.py)仅适用于精确506/原三模块/83469服务/8b402 manifest；未来从508短测恢复后生成私有baseline中的实际boot和guard，先做只读预检再启动。原MAC缓存/实例保持，不查询或rearm。持有原充电服务锁，正常500mA源、250mA充电帽和8.725V保持，所有寄存器读取沿现有安全列表，不读破坏性REG14。温度18–37℃、SOC20–70%、电芯3.50–4.15V及压差30mV观察边界，Full/源变化/保护或非白名单IO异常仍不通过并停止负载。观察器重试期间worker刷新heartbeat并保存最新瞬态，避免被90秒liveness门误杀；AUTO门对同一组读取瞬态最多重试300秒，只有完整新鲜超时样本、寄存器停止位和服务meta全部复核成功后才执行一次`auto\n`。
 
 为避免充满使计时正常重置，最多在CPU4/7各使用30%普通调度负载，以瞬时电流的移动平均接近零净电流；低电量/电压归零负载，34℃限到10%、35℃归零。没有改充电电流/电压、温控、计时或FET。子进程有父进程死亡信号、30秒控制新鲜度和绝对期限，CHG关闭/异常自行退出；父进程持有Popen句柄并join。[监督器](supervisor.py)另有90秒心跳和37030秒期限，先join worker，再检查原辅助进程身份及fresh状态，不清除真实错误、不强行恢复充电。测试后实际到期周期仍保留；后续正常重启按原厂易失初始化恢复，须另外核当时状态。
 
-[24项控制测试](../test-timeout-observation.py)覆盖提前到期、快/慢/重置计数、Full、温度/低压/故障、采样中断、取消、停止或AUTO失败、AUTO误清超时及清理失败；时间/IO建模只验证验收和收尾逻辑。[六组实际负载方法测试](test-load.py)覆盖控制方向/上限/降载、早退、重复收尾、等待超时kill及部分启动失败join。结果见[软件检查](software-result.json)；手机worker/supervisor仅语法检查，不能据此声称实体运行、到期停充、TCA或完整充电管理通过。
+[36项控制测试](../test-timeout-observation.py)覆盖五类瞬态各单次恢复、持续ENODATA/采样空窗耗尽、非白名单EIO立即失败、提前到期、快/慢/重置计数、Full、温度/低压/故障、取消、停止或AUTO失败、AUTO误清超时、到期后source不可用/超时复核失败不得请求AUTO及清理失败；同一脚本在Linux还验证worker AUTO门单次恢复和持续失败2项。时间/IO建模只验证验收和收尾逻辑。[六组实际负载方法测试](test-load.py)覆盖控制方向/上限/降载、早退、重复收尾、等待超时kill及部分启动失败join。结果见[软件检查](software-result.json)；手机worker/supervisor仅语法检查，不能据此声称实体运行、到期停充、TCA或完整充电管理通过。
 
 当前[预充03已收尾](../precharge-live506-r3-recovered-result.json)，[508 R2三项及回退已通过](../../charging-oem-audit-20261023/tcpm-usb-budget-candidate/phone-trial-r2-result.json)。实际长测已在本次新506周期启动，状态见本页顶部；不依赖人工拔插。
