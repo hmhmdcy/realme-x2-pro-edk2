@@ -1,0 +1,42 @@
+use futures_lite::StreamExt;
+use tokio_udev::{AsyncMonitorSocket, EventType};
+use zbus::{Connection, object_server::SignalEmitter};
+
+use crate::UsbModedDBus;
+
+pub async fn monitor_usb_events(connection: Connection) -> anyhow::Result<()> {
+    let mut monitor = AsyncMonitorSocket::new(
+        tokio_udev::MonitorBuilder::new()?
+            .match_subsystem("typec")?
+            .listen()?,
+    )?;
+    let emitter = SignalEmitter::new(&connection, "/com/meego/usb_moded")?;
+
+    while let Some(event) = monitor.next().await {
+        let event = event?;
+
+        match event.event_type() {
+            EventType::Add => {
+                println!("ℹ️  Cable connected (typec)");
+                if let Err(e) =
+                    UsbModedDBus::sig_usb_event_ind(&emitter, String::from("USB connected")).await
+                {
+                    eprintln!("❌ Failed to emit USB event signal: {e}");
+                }
+            }
+
+            EventType::Remove => {
+                println!("ℹ️  Cable disconnected (typec)");
+                if let Err(e) =
+                    UsbModedDBus::sig_usb_event_ind(&emitter, String::from("USB disconnected"))
+                        .await
+                {
+                    eprintln!("❌ Failed to emit USB event signal: {e}");
+                }
+            }
+            _ => {}
+        }
+    }
+
+    Ok(())
+}

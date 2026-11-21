@@ -1,0 +1,94 @@
+#!/bin/sh
+# Enable/disable tethering USB mode by delegating network operations to NetworkManager.
+# Dynamically generate NetworkManager connection because it is only available in the right USB mode.
+#
+# Copyright (c) Dylan Van Assche (2025-2026)
+CONFIGFS="/sys/kernel/config/usb_gadget"
+IFACE=$(cat "$CONFIGFS"/usb-signaller-tethering/functions/ncm.*/ifname 2>/dev/null)
+IFACE=${IFACE:-"usb0"}
+# A legacy board gadget may have left this interface unmanaged at runtime.
+# usb-signaller is the owner of the interface while this mode is active.
+nmcli device set "$IFACE" managed yes
+CONNECTION_NAME=$(cat "$CONFIGFS"/usb-signaller-tethering/configs/*/strings/0x409/configuration 2>/dev/null)
+CONNECTION_NAME=${CONNECTION_NAME:-"Tethering Mode"}
+
+wait_for_interface() {
+    count=0
+    while [ ! -e "/sys/class/net/$IFACE" ] && [ "$count" -lt 30 ]; do
+        count=$((count + 1))
+        sleep 1
+    done
+    [ -e "/sys/class/net/$IFACE" ]
+}
+
+ensure_managed() {
+    count=0
+    while [ "$count" -lt 30 ]; do
+        if nmcli device set "$IFACE" managed yes >/dev/null 2>&1; then
+            return 0
+        fi
+        count=$((count + 1))
+        sleep 1
+    done
+    return 1
+}
+
+activate_connection() {
+    count=0
+    while [ "$count" -lt 30 ]; do
+        if nmcli connection up "$CONNECTION_NAME" >/dev/null 2>&1; then
+            return 0
+        fi
+        count=$((count + 1))
+        sleep 1
+    done
+    return 1
+}
+
+up() {
+    # The host can take a moment to create the NCM netdev and raise carrier
+    # after a gadget rebind. Do not make the mode service fail prematurely.
+    wait_for_interface || true
+    ensure_managed ||
+        echo "NetworkManager did not accept $IFACE as managed"
+
+    # Clean up possible left-over
+    nmcli connection delete "$CONNECTION_NAME" >/dev/null 2>&1 || true
+
+    # Bring interface and NetworkManager connection up without saving connection
+    nmcli connection add con-name "$CONNECTION_NAME" type ethernet \
+        ifname "$IFACE" ipv4.method shared save no >/dev/null 2>&1 || true
+    if [ -e "/sys/class/net/$IFACE" ]; then
+        activate_connection ||
+            echo "NetworkManager will retry when $IFACE is ready"
+    fi
+ 
+    # NetworkManager does not always turn IP forwarding ON, set it manually to be sure
+    echo 1 > /proc/sys/net/ipv4/ip_forward
+}
+
+down() {
+    # Bring NetworkManager connection down
+    nmcli connection down "$CONNECTION_NAME" >/dev/null 2>&1 || true
+    nmcli connection delete "$CONNECTION_NAME" >/dev/null 2>&1 || true
+
+    # NetworkManager leaves IP forwarding ON, set it back to disabled
+    echo 0 > /proc/sys/net/ipv4/ip_forward
+
+    # NetworkManager brings the interface up automatically,
+    # but doesn't remove it when bringing down.
+    ifconfig "$IFACE" down >/dev/null 2>&1 || true
+}
+
+case $1 in
+    up)
+        up
+        ;;
+    down)
+        down
+        ;;
+    *)
+        echo "need an argument (up|down)"
+        exit 0
+        ;;
+esac
