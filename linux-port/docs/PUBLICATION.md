@@ -37,6 +37,11 @@ SHA-256 `5045c16b46928bc6ff9fbeb0418a21e34c12356954694665634c587006e19a02`。
 不要把旧模块目录改名成新 release 目录；先解包到匹配目录并运行
 `depmod -a`。
 
+2026-11-21 新增的板级审计、包配方来源核对和验证脚本记录在
+[BOARD-RECIPES-20261119](BOARD-RECIPES-20261119.md)。这些脚本的
+`hardware_tested` 默认为 `false`；它们不替代真机验收，也不改变本页
+列出的 kernel/boot/rootfs 发布边界。
+
 本项目不发布现成 rootfs。请按 pmaports `samurai/README.md` 从公开配方
 构建干净 rootfs，并自备本机固件/校准。不要分发包含维护者
 `/home`、`/root`、SSH host key、Wi-Fi 凭据或机器标识的 live rootfs。
