@@ -42,6 +42,13 @@ SHA-256 `5045c16b46928bc6ff9fbeb0418a21e34c12356954694665634c587006e19a02`。
 `hardware_tested` 默认为 `false`；它们不替代真机验收，也不改变本页
 列出的 kernel/boot/rootfs 发布边界。
 
+2026-11-21 同时保留了 USB/PMIC wake 实验提交的可审查分支：
+`hmhmdcy/realme-x2-pro-linux` 的
+`codex/standard-arm64-usbwake-20261121`（尖端 `2b9ef80`）。它与公开
+`stable`（`7fb2bdf`）没有共同的直接祖先，不能自动合并；当前没有任何
+`stable` 或 release 声明包含这 8 个提交。8 个提交的补丁对象和边界已
+保存在本集成仓库的审计记录中，合入前必须重新做真机 suspend/唤醒验收。
+
 本项目不发布现成 rootfs。请按 pmaports `samurai/README.md` 从公开配方
 构建干净 rootfs，并自备本机固件/校准。不要分发包含维护者
 `/home`、`/root`、SSH host key、Wi-Fi 凭据或机器标识的 live rootfs。
