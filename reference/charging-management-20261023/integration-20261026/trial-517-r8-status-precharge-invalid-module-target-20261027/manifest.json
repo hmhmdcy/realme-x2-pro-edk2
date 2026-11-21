@@ -1,0 +1,328 @@
+{
+  "accepted_token_scope": "boot_id",
+  "auxiliary_kernel_modules": [
+    {
+      "mode": 384,
+      "name": "samurai-usb-input",
+      "new_bytes": 91888,
+      "new_sha256": "37d74184e3e6f71dfc0abccd77f63dba0715550e54fd492df4ac0db59237947f",
+      "old_bytes": 26128,
+      "old_sha256": "161bcc3376864e6f867aa5cc0371b5ab61ba9d716108aad0f45e6c765d378f86",
+      "source": "modules/samurai-usb-input.ko",
+      "target": "/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-usb-input.ko"
+    }
+  ],
+  "baseline_tainted": 4096,
+  "boot_receipt": {
+    "boot_path_suffix": "charging-management-20261023/charging-integration-20261027-boot-private-04/boot-eud-off-route-private-r8.img",
+    "bytes": 20190,
+    "dtb_path_suffix": "charging-management-20261023/charging-integration-20261026-dtb-private-02/samurai-eud-off-route-okay.dtb",
+    "path": "E:\\edk2-samurai-out\\charging-management-20261023\\charging-integration-20261027-boot-private-04\\result.json",
+    "sha256": "76d8afd2e7d71f465bd21bc75ef80b473933df99e8ce47fe75062b487ca6705c"
+  },
+  "carriers": {
+    "boot": {
+      "bytes": 100663296,
+      "new": "13c98860646fa80241a0a042e17781fceb7873f13263c69433839fd11ab9f756",
+      "new_path": "E:\\edk2-samurai-out\\charging-management-20261023\\charging-integration-20261027-boot-private-04\\boot-eud-off-route-private-r8.img",
+      "old": "13c98860646fa80241a0a042e17781fceb7873f13263c69433839fd11ab9f756",
+      "old_path": "E:\\edk2-samurai-out\\charging-management-20261023\\charging-integration-20261027-boot-private-01\\boot-eud-off-route-private-r7.img"
+    },
+    "logdump": {
+      "bytes": 67108864,
+      "new": "432ce058e0e220dbcee90db8468cd24c91f79e83e3136c42c9349abed3802721",
+      "new_path": "E:\\edk2-samurai-out\\charging-management-20261023\\charging-integration-20261027-fat-private-02\\logdump-tcpm-sink507-r2-private.img",
+      "old": "d884075a04d00112c95d0d3215ae342d43fb94d03a19b7753bf3f6deee2bbb43",
+      "old_path": "E:\\edk2-samurai-out\\charging-management-20261023\\charging-integration-20261027-fat-private-01\\logdump-tcpm-sink507-r2-private.img"
+    }
+  },
+  "device_files": {
+    "/etc/init.d/samurai-charging": {
+      "mode": 493,
+      "sha256": "34489e8cc3327285644c06892df2127045d13b012e393a1f6249493cd5045286",
+      "source": "service/samurai-charging",
+      "target": "/etc/init.d/samurai-charging"
+    },
+    "/usr/lib/samurai-charging/postboot_audit.py": {
+      "mode": 420,
+      "sha256": "235a02aabb7f572eb77684fce86753a212462c36a36d2a796c4e48d35b74bc75",
+      "source": "postboot_audit.py",
+      "target": "/usr/lib/samurai-charging/postboot_audit.py"
+    },
+    "/usr/lib/samurai-charging/trial_autoaudit.py": {
+      "mode": 493,
+      "sha256": "4786b755c66f142322a4dca943a0b01599113f80af008a50d108842bc289ba66",
+      "source": "trial_autoaudit.py",
+      "target": "/usr/lib/samurai-charging/trial_autoaudit.py"
+    },
+    "/usr/lib/samurai-charging/trial_common.py": {
+      "mode": 420,
+      "sha256": "a6310f3edbd66c4a9ef1ba81b9b6a8caef1a16a093f18b744147e2607acd848e",
+      "source": "trial_common.py",
+      "target": "/usr/lib/samurai-charging/trial_common.py"
+    },
+    "/usr/lib/samurai-charging/trial_guard.py": {
+      "mode": 493,
+      "sha256": "e2013f0998e431afad76ed5e70bfb69f5a148e1725a67881c4f8b0cc040ec25e",
+      "source": "trial_guard.py",
+      "target": "/usr/lib/samurai-charging/trial_guard.py"
+    }
+  },
+  "device_root": "/root/charging-management-20261023/trial-517-r8-status-precharge",
+  "dtb": {
+    "bytes": 116962,
+    "embedded_in_boot": true,
+    "features": [
+      "5V-only",
+      "ADC",
+      "typec-supply",
+      "realme,apsd-handoff-trial",
+      "EUD serial disabled",
+      "eud-off-route okay"
+    ],
+    "handoff_check": "presence",
+    "handoff_property": "realme,apsd-handoff-trial",
+    "path": "E:\\edk2-samurai-out\\charging-management-20261023\\charging-integration-20261026-dtb-private-02\\samurai-eud-off-route-okay.dtb",
+    "sha256": "d7d8a7da7a3fc68b37faceda0fd7c7f506fbbd17b7a510c15cb978b9160acf1b"
+  },
+  "fastboot": {
+    "guard_carrier_readback_required": true,
+    "host_fetch_unavailable": true,
+    "one_reboot_only": true,
+    "path": "C:\\Users\\cy122\\Downloads\\platform-tools\\platform-tools\\fastboot.exe",
+    "pinned_inputs": [
+      "boot",
+      "logdump",
+      "dtb",
+      "boot_receipt"
+    ],
+    "product": "msmnile",
+    "require_fetch_readback": false,
+    "serial": "62bc28a1"
+  },
+  "high_voltage_permitted": false,
+  "image": {
+    "bytes": 59374080,
+    "fat_receipt_path": "E:\\edk2-samurai-out\\charging-management-20261023\\charging-integration-20261027-fat-private-02\\result.json",
+    "fat_receipt_sha256": "5e1b4d200bb4db009a5cbbc9ede4897b6b5a65e655f5291dea65f2802f979927",
+    "path": "/home/cy122/charging-management-20261023/charging-integration-20261026-01/build/arch/arm64/boot/Image",
+    "sha256": "3b6ac0f7f2ebf0ce027a8cf63ea65e5b44960a3943edd61504c807b171770f6b"
+  },
+  "image_provenance": {
+    "bq27xxx_export": {
+      "address": "0x00000000",
+      "export": "EXPORT_SYMBOL_GPL",
+      "line_sha256": "1b564df369c39a9a8a697735a2dcd09e03061755a7e4f9c4596f735937b0c86d",
+      "module_symvers_bytes": 876635,
+      "module_symvers_path": "\\\\wsl.localhost\\Ubuntu\\home\\cy122\\charging-management-20261023\\charging-integration-20261026-01\\build\\Module.symvers",
+      "module_symvers_sha256": "30f1b6a7f36ec07d857415129731c8e2a7640a2cbc26242dd00fcfa6a2782d39",
+      "owner": "vmlinux",
+      "symbol": "bq27xxx_battery_set_status_override"
+    },
+    "build_root": "\\\\wsl.localhost\\Ubuntu\\home\\cy122\\charging-management-20261023\\charging-integration-20261026-01\\build",
+    "built_image": {
+      "bytes": 59374080,
+      "path": "\\\\wsl.localhost\\Ubuntu\\home\\cy122\\charging-management-20261023\\charging-integration-20261026-01\\build\\arch\\arm64\\boot\\Image",
+      "sha256": "3b6ac0f7f2ebf0ce027a8cf63ea65e5b44960a3943edd61504c807b171770f6b"
+    },
+    "image_manifest_path": "\\home\\cy122\\charging-management-20261023\\charging-integration-20261026-01\\build\\arch\\arm64\\boot\\Image",
+    "kernel_build_label": "#518",
+    "kernel_release": "7.3.0-rc6-rmx1931-samurai-k363",
+    "kernel_release_base": "7.3.0-rc6-rmx1931-samurai-k363",
+    "kernel_version": "#518 SMP PREEMPT Tue Oct 27 04:21:36 CST 2026",
+    "kernel_version_suffix": "SMP PREEMPT Tue Oct 27 04:21:36 CST 2026",
+    "selected_image": {
+      "bytes": 59374080,
+      "path": "\\\\wsl.localhost\\Ubuntu\\home\\cy122\\charging-management-20261023\\charging-integration-20261026-01\\build\\arch\\arm64\\boot\\Image",
+      "sha256": "3b6ac0f7f2ebf0ce027a8cf63ea65e5b44960a3943edd61504c807b171770f6b"
+    },
+    "system_map": {
+      "bytes": 9023805,
+      "path": "\\\\wsl.localhost\\Ubuntu\\home\\cy122\\charging-management-20261023\\charging-integration-20261026-01\\build\\System.map",
+      "sha256": "c855b1fd009837cedc79a1d7698893d3c19d7cbec7b6a05549a9ab2100074a57"
+    },
+    "vmlinux": {
+      "bytes": 191010816,
+      "contains_exact_kernel_version": true,
+      "path": "\\\\wsl.localhost\\Ubuntu\\home\\cy122\\charging-management-20261023\\charging-integration-20261026-01\\build\\vmlinux",
+      "sha256": "32c938a7c31acf54a408741377550a2aa4a55abe3af7700cb08213f9c6c5ca5b"
+    }
+  },
+  "kernel_module": {
+    "mode": 420,
+    "name": "samurai-mp2650",
+    "new_bytes": 168840,
+    "new_sha256": "7b5b76deeacadd961a6790a8a0aa857e47b002425bb450fa319e4b6294c11bb0",
+    "old_bytes": 164360,
+    "old_sha256": "04da6a7bf492e44d6afa533816e662d54b5a5f0391f4fe0e5e6e7f8555cedf69",
+    "source": "modules/samurai-mp2650.ko",
+    "target": "/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-mp2650.ko"
+  },
+  "kernel_version": "#518 SMP PREEMPT Tue Oct 27 04:21:36 CST 2026",
+  "main_manifest": {
+    "old_sha256": "b07f7b4bda544a9631ce682221f1e78601d9b38e78d3151e8ac294b57873272d",
+    "service_target": "/etc/init.d/samurai-charging",
+    "target": "/usr/share/samurai-charging/manifest.json"
+  },
+  "packaging": {
+    "bq27xxx_export_required": "bq27xxx_battery_set_status_override",
+    "device_io_performed": false,
+    "full_boot": true,
+    "replaces_boot_and_logdump": true,
+    "schema": "samurai-trial-r8-packaging-v1",
+    "source_manifest_sha256": "ab69570b74e64715267b0aec62c00660c0c651856416a375452b5d7351a8f147",
+    "source_trial": "E:\\RealmeX2Pro edk2\\reference\\charging-management-20261023\\integration-20261026\\trial-517-wake-r1"
+  },
+  "postboot": {
+    "adc_label_property_check": "adc@3100/channel@8/label == usb_in_v_div_16",
+    "apsd_adc_proof": "direct PM8150B ADC/VBUS sample inside the 4.40-5.50V window; Type-C partner and TCPM supply present; no full-PD APSD/QC takeover refusal",
+    "apsd_property_check": "presence of realme,apsd-handoff-trial",
+    "apsd_retry": "2s bounded retry at 20ms intervals for early -EAGAIN",
+    "apsd_vbus_max_uv": 5500000,
+    "apsd_vbus_min_uv": 4400000,
+    "baseline_tainted": 4096,
+    "data_role": "device",
+    "dmesg_forbidden": [
+      "full-PD APSD/QC takeover refused"
+    ],
+    "dmesg_required": [
+      "qcom,pmic-typec",
+      "typec@1500"
+    ],
+    "eud_off_route_driver_binding": "samurai-eud-off-route/soc@0:eud-off-route",
+    "eud_off_route_status_path": "soc@0/eud-off-route/status",
+    "eud_status_path": "soc@0/serial@88e0000/status",
+    "guard_carrier_readback": "carrier-readback.json",
+    "measured_sdp_vbus_max_uv": 4672304,
+    "measured_sdp_vbus_min_uv": 4511408,
+    "mp2650_charge_current_ua": 250000,
+    "mp2650_charge_voltage_uv": 8725000,
+    "mp2650_input_current_ua": 500000,
+    "native_current_ua": 500000,
+    "ncm_driver": "cdc_ncm",
+    "power_role": "sink",
+    "precharge_expectations": {
+      "evidence_level": "static package metadata; physical low-battery proof pending",
+      "reg03_precharge_current_ma": 480,
+      "reg07_precharge_to_precharge_voltage_mv": 6600,
+      "termination_current_code_preserved": true
+    },
+    "protection_fault": 0,
+    "protection_id": "0x2719",
+    "same_boot": true,
+    "sink_pdos": "04019032",
+    "success_log_strings_not_required": [
+      "fixed5V callbacks joined",
+      "ADC/VBUS success line"
+    ],
+    "tcpm_current_ua": 500000,
+    "tcpm_supply_count": 1,
+    "typec_driver": "qcom,pmic-typec",
+    "typec_partner_required": true,
+    "typec_supply_property_check": "presence of charger@5c/typec-supply",
+    "version": "#518 SMP PREEMPT Tue Oct 27 04:21:36 CST 2026",
+    "voltage_uv": 5000000
+  },
+  "release": "7.3.0-rc6-rmx1931-samurai-k363",
+  "restart_mode": "bootloader",
+  "rollback_baseline": {
+    "boot": {
+      "bytes": 100663296,
+      "path": "E:\\edk2-samurai-out\\charging-management-20261023\\charging-integration-20261027-boot-private-01\\boot-eud-off-route-private-r7.img",
+      "sha256": "13c98860646fa80241a0a042e17781fceb7873f13263c69433839fd11ab9f756"
+    },
+    "image": {
+      "bytes": 59374080,
+      "manifest_path": "\\home\\cy122\\charging-management-20261023\\charging-integration-20261026-01\\build-r7\\Image-r7-k517.img",
+      "path": "\\\\wsl.localhost\\Ubuntu\\home\\cy122\\charging-management-20261023\\charging-integration-20261026-01\\build-r7\\Image-r7-k517.img",
+      "sha256": "6e45cbb780b7de690f714a17b54524369b630eccff8ee773acbbb38a59f90f2f"
+    },
+    "kernel_release": "7.3.0-rc6-rmx1931-samurai-k363+",
+    "kernel_version": "#517 SMP PREEMPT Tue Oct 27 00:17:40 CST 2026",
+    "logdump": {
+      "bytes": 67108864,
+      "path": "E:\\edk2-samurai-out\\charging-management-20261023\\charging-integration-20261027-fat-private-01\\logdump-tcpm-sink507-r2-private.img",
+      "sha256": "d884075a04d00112c95d0d3215ae342d43fb94d03a19b7753bf3f6deee2bbb43"
+    },
+    "main_manifest_sha256": "b07f7b4bda544a9631ce682221f1e78601d9b38e78d3151e8ac294b57873272d",
+    "primary_module_bytes": 164360,
+    "primary_module_sha256": "04da6a7bf492e44d6afa533816e662d54b5a5f0391f4fe0e5e6e7f8555cedf69",
+    "usb_module_bytes": 26128,
+    "usb_module_sha256": "161bcc3376864e6f867aa5cc0371b5ab61ba9d716108aad0f45e6c765d378f86"
+  },
+  "runtime_dtb": {
+    "adc_label_path": "/soc@0/spmi@c440000/pmic@2/adc@3100/channel@8/label",
+    "bytes": 116962,
+    "eud_off_route_driver_binding": "samurai-eud-off-route/soc@0:eud-off-route",
+    "eud_off_route_status_path": "/soc@0/eud-off-route/status",
+    "eud_status_path": "/soc@0/serial@88e0000/status",
+    "fat_path": "::/samurai.dtb",
+    "fat_receipt_path": "E:\\edk2-samurai-out\\charging-management-20261023\\charging-integration-20261027-fat-private-02\\result.json",
+    "fat_receipt_sha256": "5e1b4d200bb4db009a5cbbc9ede4897b6b5a65e655f5291dea65f2802f979927",
+    "features": [
+      "typec-supply",
+      "usb_in_v_div_16",
+      "realme,apsd-handoff-trial",
+      "usb-input@1300",
+      "connector",
+      "EUD serial disabled",
+      "eud-off-route okay"
+    ],
+    "handoff_property_path": "/soc@0/spmi@c440000/pmic@2/typec@1500/realme,apsd-handoff-trial",
+    "path": "E:\\edk2-samurai-out\\charging-management-20261023\\charging-integration-20261026-dtb-private-02\\samurai-eud-off-route-okay.dtb",
+    "sha256": "d7d8a7da7a3fc68b37faceda0fd7c7f506fbbd17b7a510c15cb978b9160acf1b",
+    "typec_supply_path": "/soc@0/geniqup@8c0000/i2c@884000/charger@5c/typec-supply"
+  },
+  "safety": {
+    "dtb_embedded_in_boot_not_flashed": true,
+    "fastboot_real_serial_check_required": true,
+    "forbidden": [
+      "PD high voltage",
+      "PPS",
+      "erase",
+      "format",
+      "unlock",
+      "charger register writes"
+    ],
+    "guard_carrier_readback_required": true,
+    "guard_hook": "samurai-charging start_pre",
+    "high_voltage_permitted": false,
+    "host_fetch_unavailable": true,
+    "host_recovery_order": [
+      "boot",
+      "logdump"
+    ],
+    "host_write_order": [
+      "logdump",
+      "boot"
+    ],
+    "max_reboot_commands_per_operator_run": 1,
+    "restart2": {
+      "command": "bootloader",
+      "command_value": "0xa1b2c3d4",
+      "magic1": "0xfee1dead",
+      "magic2": 672274793,
+      "retry": false,
+      "syscall": 142
+    },
+    "rollback_order": [
+      "boot",
+      "logdump",
+      "original_main_manifest",
+      "original_module",
+      "original_service",
+      "reboot"
+    ],
+    "stage_preinstall_sync_fsync": true,
+    "stage_restart_method": "reboot_syscall",
+    "stage_serial_assertion_source": "operator_cli",
+    "stage_stop_before_install": true,
+    "stage_writes_carriers": false,
+    "watch_seconds": 300
+  },
+  "schema": 1,
+  "stage_mode": "carrier",
+  "token": "e694eb153d99736b686bd67a168af4a13d86d7f19fbdf1326abaebf012bdcd7f",
+  "trial_id": "charging-integration-r8-status-precharge-20261027",
+  "watch_seconds": 300
+}

@@ -1,0 +1,41 @@
+{
+  "schema": "samurai-daily-charging-manifest-v1",
+  "release": "7.3.0-rc6-rmx1931-samurai-k363+",
+  "board": "realme,samurai",
+  "installed_files": {
+    "/etc/init.d/samurai-charging": "ba73af6bc7ddf0ef5558f4e3f09e2ca827af0032e3f87dd258a26c1675f98dcb",
+    "/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-gauge-protection.ko": "f6bef8a239d5101dbb710f1dd5da9642bdc7ac5e4e568e2e1193de6233a31d7e",
+    "/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-mp2650.ko": "afb63dcbbaefae32de64b0d35a1bc9232facb0e2f2f07e7193109c0a23df5784",
+    "/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-usb-input.ko": "22604106772b89758ea745531e99dd70a6ab696b7740705107a767599e9a6529",
+    "/usr/sbin/samurai-charging": "7019d502c5bd4696da56fd7a713141904e4d41a988cdc9ccd4ea73c26f6c433d"
+  },
+  "modules": {
+    "samurai-gauge-protection": {
+      "target": "/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-gauge-protection.ko"
+    },
+    "samurai-mp2650": {
+      "target": "/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-mp2650.ko"
+    },
+    "samurai-usb-input": {
+      "target": "/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-usb-input.ko"
+    }
+  },
+  "protected_boot": {
+    "boot_sha256": "758694a1959656d7a97fa91104151a58925f3ab13b46ab25c4ae8553430a4acd",
+    "logdump_sha256": "705aacb90b836c02be49e47c2389800bc56312e58ab43e8309a2e85bfb550fee"
+  },
+  "rollback": {
+    "device_dir": "/root/charging-daily-20261028-02-before",
+    "previous_modules": [
+      "samurai-gauge-protection.ko",
+      "samurai-mp2650.ko",
+      "samurai-usb-input.ko"
+    ]
+  },
+  "notes": [
+    "No trial guard, watchdog, or trial-only Python module is loaded.",
+    "The USB input provider still reports its safe 500mA SDP ceiling. The managed MP2650 policy raises only a confirmed SDP source to the 900mA USB 3.x/board ceiling; DCP, CDP, PD, Type-C and unknown sources are unchanged.",
+    "sdp_boost_ua is root-writable at runtime; write 0 to disable the SDP override without reloading the module.",
+    "Measured on the current host at 1920x1080 source / 1280x720 30fps display: input_current_limit 900000uA and battery net current +30..+51mA after 12 seconds of startup. Idle with the same cable was about +350mA. This does not claim that every 500mA USB 2.0 port can supply 900mA."
+  ]
+}

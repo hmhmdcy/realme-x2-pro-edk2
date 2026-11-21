@@ -1,0 +1,22 @@
+#!/sbin/openrc-run
+description="Samurai USB/MP2650 charging health"
+
+depend() {
+    need localmount
+    after udev samurai-usb
+}
+
+start() {
+    ebegin "Checking Samurai charging"
+    /usr/sbin/samurai-charging start
+    eend $?
+}
+
+stop() {
+    ebegin "Charging remains owned by the kernel"
+    eend 0
+}
+
+status() {
+    /usr/sbin/samurai-charging status
+}

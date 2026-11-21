@@ -1,0 +1,40 @@
+{
+  "schema": "samurai-daily-charging-manifest-v1",
+  "release": "7.3.0-rc6-rmx1931-samurai-k363+",
+  "board": "realme,samurai",
+  "installed_files": {
+    "/etc/init.d/samurai-charging": "ba73af6bc7ddf0ef5558f4e3f09e2ca827af0032e3f87dd258a26c1675f98dcb",
+    "/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-gauge-protection.ko": "f6bef8a239d5101dbb710f1dd5da9642bdc7ac5e4e568e2e1193de6233a31d7e",
+    "/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-mp2650.ko": "5a21f5bd827095f5c9b1f0df929376f121ad12b14e5985376f06d066103d85e6",
+    "/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-usb-input.ko": "22604106772b89758ea745531e99dd70a6ab696b7740705107a767599e9a6529",
+    "/usr/sbin/samurai-charging": "7019d502c5bd4696da56fd7a713141904e4d41a988cdc9ccd4ea73c26f6c433d"
+  },
+  "modules": {
+    "samurai-gauge-protection": {
+      "target": "/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-gauge-protection.ko"
+    },
+    "samurai-mp2650": {
+      "target": "/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-mp2650.ko"
+    },
+    "samurai-usb-input": {
+      "target": "/lib/modules/7.3.0-rc6-rmx1931-samurai-k363+/extra/samurai-charging/samurai-usb-input.ko"
+    }
+  },
+  "protected_boot": {
+    "boot_sha256": "758694a1959656d7a97fa91104151a58925f3ab13b46ab25c4ae8553430a4acd",
+    "logdump_sha256": "705aacb90b836c02be49e47c2389800bc56312e58ab43e8309a2e85bfb550fee"
+  },
+  "rollback": {
+    "device_dir": "/root/charging-daily-20261028-02-before",
+    "previous_modules": [
+      "samurai-gauge-protection.ko",
+      "samurai-mp2650.ko",
+      "samurai-usb-input.ko"
+    ]
+  },
+  "notes": [
+    "No trial guard, watchdog, or trial-only Python module is loaded.",
+    "The SDP provider exposes a board-safe 500mA ceiling until DWC3 supplies a lower configured limit.",
+    "The kernel binds inhibited with safe 500mA caps; the service requests 900mA input and 500mA charge, then explicitly enables AUTO."
+  ]
+}

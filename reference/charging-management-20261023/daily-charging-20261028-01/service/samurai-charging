@@ -1,0 +1,23 @@
+#!/sbin/openrc-run
+description="Samurai board-level managed charging"
+
+depend() {
+    need localmount
+    after udev samurai-usb
+}
+
+start() {
+    ebegin "Starting Samurai managed charging"
+    /usr/sbin/samurai-charging start
+    eend $?
+}
+
+stop() {
+    ebegin "Inhibiting Samurai managed charging"
+    /usr/sbin/samurai-charging stop
+    eend $?
+}
+
+status() {
+    /usr/sbin/samurai-charging status
+}

@@ -1,0 +1,34 @@
+#!/sbin/openrc-run
+description="Samurai managed charging with the #528 rollback guard"
+depend() {
+    need localmount
+    after udev samurai-usb
+}
+start_pre() {
+    /usr/bin/python3 -B /usr/lib/samurai-charging/trial_guard.py prestart
+}
+start() {
+    ebegin "Starting Samurai managed charging"
+    /usr/sbin/samurai-charging start
+    eend $?
+}
+start_post() {
+    ebegin "Starting device-local charging acceptance audit"
+    /usr/bin/python3 -B /usr/lib/samurai-charging/trial_autoaudit.py --daemon
+    local audit_rc=$?
+    if [ "$audit_rc" -eq 0 ]; then
+        eend 0
+    else
+        eend 1 "audit launcher returned $audit_rc; managed charging remains active"
+    fi
+    # postboot acceptance is advisory and must never stop managed charging.
+    return 0
+}
+stop() {
+    ebegin "Inhibiting Samurai managed charging"
+    /usr/sbin/samurai-charging stop
+    eend $?
+}
+status() {
+    /usr/sbin/samurai-charging status
+}

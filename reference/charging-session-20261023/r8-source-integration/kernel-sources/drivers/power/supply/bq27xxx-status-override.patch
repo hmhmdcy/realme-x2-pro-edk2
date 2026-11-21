@@ -1,0 +1,305 @@
+--- a/drivers/power/supply/bq27xxx_battery.c
++++ b/drivers/power/supply/bq27xxx_battery.c
+@@ -56,6 +56,8 @@
+ 
+ #include <linux/power/bq27xxx_battery.h>
+ 
++#include "bq27xxx-status-policy.h"
++
+ #define BQ27XXX_MANUFACTURER	"Texas Instruments"
+ 
+ /* BQ27XXX Flags */
+@@ -1172,8 +1174,12 @@
+ 		return ret;
+ 
+ 	mutex_lock(&bq27xxx_list_lock);
+-	list_for_each_entry(di, &bq27xxx_battery_devices, list)
+-		mod_delayed_work(system_percpu_wq, &di->work, 0);
++	list_for_each_entry(di, &bq27xxx_battery_devices, list) {
++		mutex_lock(&di->lock);
++		if (!di->removed && !di->suspended)
++			mod_delayed_work(system_percpu_wq, &di->work, 0);
++		mutex_unlock(&di->lock);
++	}
+ 	mutex_unlock(&bq27xxx_list_lock);
+ 
+ 	return ret;
+@@ -2011,7 +2017,7 @@
+ 
+ 	di->last_update = jiffies;
+ 
+-	if (!di->removed && poll_interval > 0)
++	if (!di->removed && !di->suspended && poll_interval > 0)
+ 		mod_delayed_work(system_percpu_wq, &di->work, poll_interval * HZ);
+ }
+ 
+@@ -2190,11 +2196,16 @@
+ 					union power_supply_propval *val)
+ {
+ 	int ret = 0;
++	bool force_full;
++	u32 force_full_generation;
+ 	struct bq27xxx_device_info *di = power_supply_get_drvdata(psy);
+ 
+ 	mutex_lock(&di->lock);
+ 	if (time_is_before_jiffies(di->last_update + 5 * HZ))
+ 		bq27xxx_battery_update_unlocked(di);
++	force_full = bq27xxx_full_status_active(di->full_status_override,
++			di->full_status_deadline, jiffies);
++	force_full_generation = di->full_status_generation;
+ 	mutex_unlock(&di->lock);
+ 
+ 	if (psp != POWER_SUPPLY_PROP_PRESENT && di->cache.flags < 0)
+@@ -2203,6 +2214,26 @@
+ 	switch (psp) {
+ 	case POWER_SUPPLY_PROP_STATUS:
+ 		ret = bq27xxx_battery_current_and_status(di, NULL, val, NULL);
++		if (!ret && force_full &&
++		    val->intval != POWER_SUPPLY_STATUS_CHARGING) {
++			union power_supply_propval fresh;
++
++			mutex_lock(&di->lock);
++			if (bq27xxx_full_status_confirmed(
++				    di->full_status_override,
++				    di->full_status_deadline, jiffies,
++				    di->full_status_generation,
++				    force_full_generation)) {
++				ret = bq27xxx_battery_current_and_status(
++					di, NULL, &fresh, NULL);
++				if (!ret)
++					val->intval = bq27xxx_full_status_apply(
++						fresh.intval, true,
++						POWER_SUPPLY_STATUS_CHARGING,
++						POWER_SUPPLY_STATUS_FULL);
++			}
++			mutex_unlock(&di->lock);
++		}
+ 		break;
+ 	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
+ 		ret = bq27xxx_battery_voltage(di, val);
+@@ -2286,6 +2317,65 @@
+ 	return ret;
+ }
+ 
++static void bq27xxx_full_status_expire(struct work_struct *work)
++{
++	struct bq27xxx_device_info *di = container_of(
++		work, struct bq27xxx_device_info, full_status_work.work);
++	bool changed = false;
++
++	mutex_lock(&di->lock);
++	if (di->full_status_override &&
++	    time_after_eq(jiffies, di->full_status_deadline)) {
++		di->full_status_override = false;
++		di->full_status_deadline = 0;
++		di->full_status_generation++;
++		changed = true;
++	}
++	mutex_unlock(&di->lock);
++	if (changed)
++		power_supply_changed(di->bat);
++}
++
++int bq27xxx_battery_set_status_override(struct power_supply *bat, bool full)
++{
++	struct bq27xxx_device_info *di;
++	bool changed;
++	unsigned long deadline;
++
++	if (!bat || bat->desc->get_property != bq27xxx_battery_get_property)
++		return -EOPNOTSUPP;
++	di = power_supply_get_drvdata(bat);
++	if (!di || di->bat != bat)
++		return -EINVAL;
++	if (!bq27xxx_samurai_instant(di))
++		return -EOPNOTSUPP;
++
++	mutex_lock(&di->lock);
++	if (di->removed || di->suspended) {
++		mutex_unlock(&di->lock);
++		return -ESHUTDOWN;
++	}
++	deadline = full ? jiffies + msecs_to_jiffies(BQ27XXX_FULL_STATUS_TTL_MS) : 0;
++	changed = bq27xxx_full_status_changed(
++		di->full_status_override, di->full_status_deadline,
++		jiffies, full);
++	if (changed) {
++		di->full_status_override = full;
++		di->full_status_generation++;
++	}
++	di->full_status_deadline = deadline;
++	if (full)
++		mod_delayed_work(system_wq, &di->full_status_work,
++				 msecs_to_jiffies(BQ27XXX_FULL_STATUS_TTL_MS));
++	else
++		cancel_delayed_work(&di->full_status_work);
++	mutex_unlock(&di->lock);
++	if (changed)
++		power_supply_changed(bat);
++	return 0;
++}
++EXPORT_SYMBOL_GPL(bq27xxx_battery_set_status_override);
++
+ static void bq27xxx_external_power_changed(struct power_supply *psy)
+ {
+ 	struct bq27xxx_device_info *di = power_supply_get_drvdata(psy);
+@@ -2293,8 +2383,11 @@
+ 	/* Native instantaneous status needs no average-current settling delay.
+ 	 * Other chips and opt-out profiles retain the original 0.5s wait.
+ 	 */
+-	mod_delayed_work(system_percpu_wq, &di->work,
+-			 bq27xxx_samurai_instant(di) ? 0 : HZ / 2);
++	mutex_lock(&di->lock);
++	if (!di->removed && !di->suspended)
++		mod_delayed_work(system_percpu_wq, &di->work,
++				 bq27xxx_samurai_instant(di) ? 0 : HZ / 2);
++	mutex_unlock(&di->lock);
+ }
+ 
+ int bq27xxx_battery_setup(struct bq27xxx_device_info *di)
+@@ -2308,9 +2401,12 @@
+ 	int ret;
+ 
+ 	INIT_DELAYED_WORK(&di->work, bq27xxx_battery_poll);
++	INIT_DELAYED_WORK(&di->full_status_work, bq27xxx_full_status_expire);
+ 	ret = devm_mutex_init(di->dev, &di->lock);
+ 	if (ret)
+ 		return ret;
++	di->removed = false;
++	di->suspended = false;
+ 
+ 	di->regs       = bq27xxx_chip_data[di->chip].regs;
+ 	di->unseal_key = bq27xxx_chip_data[di->chip].unseal_key;
+@@ -2354,9 +2450,16 @@
+ 	/* Set removed to avoid bq27xxx_battery_update() re-queuing the work */
+ 	mutex_lock(&di->lock);
+ 	di->removed = true;
++	di->suspended = true;
+ 	mutex_unlock(&di->lock);
+ 
+ 	cancel_delayed_work_sync(&di->work);
++	cancel_delayed_work_sync(&di->full_status_work);
++	mutex_lock(&di->lock);
++	di->full_status_override = false;
++	di->full_status_deadline = 0;
++	di->full_status_generation++;
++	mutex_unlock(&di->lock);
+ }
+ EXPORT_SYMBOL_GPL(bq27xxx_battery_teardown);
+ 
+@@ -2365,7 +2468,16 @@
+ {
+ 	struct bq27xxx_device_info *di = dev_get_drvdata(dev);
+ 
+-	cancel_delayed_work(&di->work);
++	mutex_lock(&di->lock);
++	di->suspended = true;
++	mutex_unlock(&di->lock);
++	cancel_delayed_work_sync(&di->work);
++	cancel_delayed_work_sync(&di->full_status_work);
++	mutex_lock(&di->lock);
++	di->full_status_override = false;
++	di->full_status_deadline = 0;
++	di->full_status_generation++;
++	mutex_unlock(&di->lock);
+ 	return 0;
+ }
+ 
+@@ -2373,7 +2485,12 @@
+ {
+ 	struct bq27xxx_device_info *di = dev_get_drvdata(dev);
+ 
+-	schedule_delayed_work(&di->work, 0);
++	mutex_lock(&di->lock);
++	if (!di->removed) {
++		di->suspended = false;
++		schedule_delayed_work(&di->work, 0);
++	}
++	mutex_unlock(&di->lock);
+ 	return 0;
+ }
+ #endif /* CONFIG_PM_SLEEP */
+--- a/include/linux/power/bq27xxx_battery.h
++++ b/include/linux/power/bq27xxx_battery.h
+@@ -64,16 +64,26 @@
+ 	int voltage_min_design;
+ 	int voltage_max_design;
+ 	bool removed;
++	bool suspended;
+ 	unsigned long last_update;
+ 	union power_supply_propval last_status;
+ 	struct delayed_work work;
++	struct delayed_work full_status_work;
+ 	struct power_supply *bat;
+ 	struct list_head list;
+ 	struct mutex lock;
+ 	u8 *regs;
++	unsigned long full_status_deadline;
++	u32 full_status_generation;
++	bool full_status_override;
+ };
+ 
+ void bq27xxx_battery_update(struct bq27xxx_device_info *di);
++/*
++ * The caller must keep the provider alive for the duration of this sleepable
++ * call. The provider may reject the request with -ESHUTDOWN while suspending.
++ */
++int bq27xxx_battery_set_status_override(struct power_supply *bat, bool full);
+ int bq27xxx_battery_setup(struct bq27xxx_device_info *di);
+ void bq27xxx_battery_teardown(struct bq27xxx_device_info *di);
+ extern const struct dev_pm_ops bq27xxx_battery_battery_pm_ops;
+--- /dev/null
++++ b/drivers/power/supply/bq27xxx-status-policy.h
+@@ -0,0 +1,52 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++#ifndef BQ27XXX_STATUS_POLICY_H
++#define BQ27XXX_STATUS_POLICY_H
++
++#define BQ27XXX_FULL_STATUS_TTL_MS 4000
++
++/*
++ * The caller refreshes a Full override on every successful charger poll.
++ * Keeping the deadline wrap-safe avoids an indefinitely sticky battery state
++ * if detach handling or that polling worker is delayed.
++ */
++static inline int bq27xxx_full_status_active(int override,
++					     unsigned long deadline,
++					     unsigned long now)
++{
++	return override && (long)(now - deadline) < 0;
++}
++
++static inline int bq27xxx_full_status_confirmed(int override,
++						unsigned long deadline,
++						unsigned long now,
++						unsigned int generation,
++						unsigned int expected)
++{
++	return generation == expected &&
++		bq27xxx_full_status_active(override, deadline, now);
++}
++
++static inline int bq27xxx_full_status_changed(int override,
++					      unsigned long deadline,
++					      unsigned long now,
++					      int next_override)
++{
++	return bq27xxx_full_status_active(override, deadline, now) !=
++			!!next_override ||
++		!!override != !!next_override;
++}
++
++/*
++ * Raw CHARGING always wins. Other raw states are replaced only while the
++ * charger-owned Full hold lease is active.
++ */
++static inline int bq27xxx_full_status_apply(int status, int active,
++					    int status_charging,
++					    int status_full)
++{
++	if (active && status != status_charging)
++		return status_full;
++	return status;
++}
++
++#endif
