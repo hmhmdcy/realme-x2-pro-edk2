@@ -7,8 +7,8 @@
 
 | 仓库 | 分支 | 提交 |
 | --- | --- | --- |
-| `realme-x2-pro-edk2` | `main` | `1ecd8c0e645d20835977236fa8ae832a73190231` |
-| `realme-x2-pro-edk2` | `codex/board-packages-20261121` | `1ecd8c0e645d20835977236fa8ae832a73190231` |
+| `realme-x2-pro-edk2` | `main` | `67eb8e990eab313f84098e4fdc0a6673576763c4` |
+| `realme-x2-pro-edk2` | `codex/board-packages-20261121` | `67eb8e990eab313f84098e4fdc0a6673576763c4` |
 | `realme-x2-pro-pmaports` | `codex/board-recipes-20261121` | `a9809cf4fc6f889a06fa741bae6a2b07f91de5f7` |
 | `realme-x2-pro-pmaports` | `codex/standard-arm64-settings` | `a9809cf4fc6f889a06fa741bae6a2b07f91de5f7` |
 | `realme-x2-pro-linux` | `codex/standard-arm64-v7.3.1` | `2b9ef80ba835861de72df39a230dd86fcb62563c` |
