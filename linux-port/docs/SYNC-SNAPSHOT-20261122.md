@@ -7,8 +7,8 @@
 
 | 仓库 | 分支 | 提交 |
 | --- | --- | --- |
-| `realme-x2-pro-edk2` | `main` | `90c33163a160861f47bd4ec12339ed0d9de97f53` |
-| `realme-x2-pro-edk2` | `codex/board-packages-20261121` | `90c33163a160861f47bd4ec12339ed0d9de97f53` |
+| `realme-x2-pro-edk2` | `main` | 本页所在提交 |
+| `realme-x2-pro-edk2` | `codex/board-packages-20261121` | 本页所在提交 |
 | `realme-x2-pro-pmaports` | `codex/board-recipes-20261121` | `a9809cf4fc6f889a06fa741bae6a2b07f91de5f7` |
 | `realme-x2-pro-pmaports` | `codex/standard-arm64-settings` | `a9809cf4fc6f889a06fa741bae6a2b07f91de5f7` |
 | `realme-x2-pro-linux` | `codex/standard-arm64-v7.3.1` | `2b9ef80ba835861de72df39a230dd86fcb62563c` |
@@ -23,7 +23,7 @@ power-supply 源码）、`68740967`（完整充电审计目录和批量试验结
 
 ## 稳定分支边界
 
-- `realme-x2-pro-edk2` 的默认分支是 `main`，已同步到本轮尖端。
+- `realme-x2-pro-edk2` 的默认分支是 `main`，同步到本页所在提交；精确 SHA 见 GitHub 分支页。
 - `realme-x2-pro-pmaports` 的 `stable` 保持
   `0a02ba24c921e151e2edfc509c438382f4e4e574`；`main` 是上游通用分支。
   板级配方只在两个 `codex/*` 开发分支，不应把它当作已发布的稳定配方。
