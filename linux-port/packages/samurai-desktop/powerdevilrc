@@ -1,0 +1,23 @@
+# System-wide KDE PowerDevil defaults for the Realme X2 Pro port.
+# Installed as /etc/xdg/powerdevilrc, so a fresh account inherits it.
+#
+# This device only supports s2idle.  On the mainline 7.3.1 kernel, entering
+# s2idle takes down both the USB/NCM link and the Wi-Fi link, which is the
+# only remote access path.  The board default is therefore "never
+# auto-suspend", exactly the value the KDE Energy Saving page writes when
+# the user selects "Never":
+#   AutoSuspendIdleTimeoutSec=0
+#
+# Deliberately NOT set: AutoSuspendAction.  The debug-era override
+# AutoSuspendAction=0 is still rejected by
+# linux-port/scripts/check-settings-provenance.sh.  Only the idle timeout,
+# a normal user-facing setting, is pinned here.
+
+[AC][SuspendAndShutdown]
+AutoSuspendIdleTimeoutSec=0
+
+[Battery][SuspendAndShutdown]
+AutoSuspendIdleTimeoutSec=0
+
+[LowBattery][SuspendAndShutdown]
+AutoSuspendIdleTimeoutSec=0
