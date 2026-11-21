@@ -1,0 +1,23 @@
+#!/sbin/openrc-run
+# Board glue for the rootfs NCM netdev.  usb-signaller (L4/L6) creates the
+# configfs gadget asynchronously, and unudhcpd.usb0 (L5) runs too early to
+# bind the interface it will later appear on.  Keep one supervised service
+# that waits for usb0, brings it up, and restarts the distro DHCP service.
+
+description="Samurai USB network link glue"
+
+supervisor=supervise-daemon
+command="/usr/sbin/samurai-ncm-watchdog"
+command_args_foreground=""
+respawn_delay=5
+respawn_max=0
+
+depend()
+{
+	need localmount
+	# Do not declare a cross-runlevel ordering against unudhcpd.usb0: that
+	# service is in boot and this one is in default.  The watchdog restarts
+	# it once usb0 actually exists.
+	after usb-signaller networkmanager
+	provide samurai-usb-network
+}
